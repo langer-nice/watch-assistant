@@ -12,18 +12,40 @@
         <header class="page__header">
           <a class="back-link" href="index.html">Back</a>
           <h1>New watch</h1>
-          <p class="intro">Tell the assistant what to track in plain language.</p>
+          <p class="intro">Tell the assistant what to watch in plain language.</p>
         </header>
 
         <form class="watch-form" id="newWatchForm">
-          <label for="watchDescription">Watch description</label>
-          <textarea id="watchDescription" name="watchDescription" rows="6" placeholder="Track EasyJet Christmas flight prices for London to Mallorca"></textarea>
+          <label for="newWatchInput">What should I keep an eye on?</label>
+          <div class="input-group">
+            <textarea
+              id="newWatchInput"
+              name="watchRequest"
+              rows="6"
+              class="assistant-input"
+              placeholder="Tell me when EasyJet releases Christmas flights."
+            ></textarea>
+            <div class="input-icons" aria-hidden="true">
+              <button type="button" class="icon-button" aria-label="Attach or paste URL">📎</button>
+              <button type="button" class="icon-button" aria-label="Voice input placeholder">🎤</button>
+            </div>
+          </div>
 
-          <label for="watchUrl">Optional URL</label>
-          <input id="watchUrl" name="watchUrl" type="url" placeholder="https://www.easyjet.com/" />
+          <div class="input-examples" aria-label="Example requests">
+            <p class="examples-label">Examples</p>
+            <ul>
+              <li>Tell me when EasyJet releases Christmas flights.</li>
+              <li>Follow this BBC story.</li>
+              <li>Let me know when this product drops below €200.</li>
+              <li>Tell me when registrations open.</li>
+            </ul>
+          </div>
 
-          <button class="button button--primary" type="submit">Create watch</button>
-          <p class="form-note">This is a prototype form. Submission is handled in the browser.</p>
+          <p class="input-help" id="inputTypeHint">Paste a news article, type a request or speak naturally.</p>
+
+          <button class="button button--primary" type="submit">Follow</button>
+          <p class="form-error" id="watchError" aria-live="polite"></p>
+          <p class="form-note">Just tell me what matters. I'll watch it for you.</p>
         </form>
       </main>
     </div>

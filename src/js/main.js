@@ -1,3 +1,3 @@
-import { initForm } from './navigation.js';
+import { initApp } from './navigation.js';
 
-initForm();
+initApp();

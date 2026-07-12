@@ -21,3 +21,44 @@ body {
   margin: 0 auto;
   padding: 0 var(--space-md);
 }
+
+.confirmation-banner {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.banner-title {
+  margin: 0 0 var(--space-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.banner-watch {
+  margin: 0 0 var(--space-xs);
+}
+
+.banner-copy {
+  margin: 0 0 var(--space-md);
+  color: var(--color-text-muted);
+}
+
+.banner-actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.banner-link,
+.banner-dismiss {
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.banner-dismiss {
+  color: var(--color-text-muted);
+}

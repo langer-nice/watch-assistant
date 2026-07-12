@@ -2,6 +2,7 @@ export const mockWatches = [
   {
     id: 'watch-001',
     title: 'EasyJet Christmas flights',
+    request: 'Track EasyJet Christmas flight prices for London to Mallorca',
     category: 'travel',
     status: 'attention',
     summary: 'Prices rose quickly for your London to Mallorca holiday watch.',
@@ -23,6 +24,7 @@ export const mockWatches = [
   {
     id: 'watch-002',
     title: 'Amazon price alert',
+    request: 'Let me know when this product drops below €200',
     category: 'price',
     status: 'watching',
     summary: 'Wireless headphones dropped below your alert threshold.',
@@ -40,6 +42,7 @@ export const mockWatches = [
   {
     id: 'watch-003',
     title: 'Followed investigation',
+    request: 'Follow this BBC story',
     category: 'news',
     status: 'stable',
     summary: 'A supply chain story is being tracked for new developments.',

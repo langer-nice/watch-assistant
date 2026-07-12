@@ -11,43 +11,51 @@
       <main class="page page--detail">
         <header class="page__header">
           <a class="back-link" href="index.html">Back to Home</a>
-          <h1>EasyJet Christmas flights</h1>
-          <p class="intro">London to Mallorca ticket prices are moving ahead of Christmas travel.</p>
+          <h1 id="watchTitle">Watch detail</h1>
+          <p class="intro" id="watchIntro">Loading watch details...</p>
         </header>
 
-        <section class="detail-section">
-          <h2>Current situation</h2>
-          <p>EasyJet has raised fares on peak holiday routes. Your monitored route is currently more expensive than yesterday.</p>
+        <section class="detail-section detail-section--confirmation" id="watchConfirmation" hidden>
+          <p class="confirmation-title">I’m watching this for you.</p>
+          <p>I’ll let you know when something important changes.</p>
         </section>
 
         <section class="detail-section">
-          <h2>Recommendation</h2>
-          <p>Consider booking now if your travel dates are fixed, or wait 24 hours for another price check.</p>
+          <h2>Request</h2>
+          <p id="watchRequest"></p>
+        </section>
+
+        <section class="detail-section">
+          <h2>Status</h2>
+          <p id="watchStatus"></p>
+        </section>
+
+        <section class="detail-section">
+          <h2>Created</h2>
+          <p id="watchCreatedAt"></p>
+        </section>
+
+        <section class="detail-section">
+          <h2>Last checked</h2>
+          <p id="watchLastChecked"></p>
+        </section>
+
+        <section class="detail-section">
+          <h2>Latest update</h2>
+          <p id="watchLatestUpdate"></p>
         </section>
 
         <section class="detail-section">
           <h2>Sources</h2>
-          <ul>
-            <li>easyjet.com pricing feed</li>
-            <li>industry fare tracker</li>
-          </ul>
-        </section>
-
-        <section class="detail-section">
-          <h2>Confidence</h2>
-          <p>High confidence based on recent price volatility and seasonal demand.</p>
+          <ul id="watchSources"></ul>
         </section>
 
         <section class="timeline">
           <h2>Timeline</h2>
-          <ol>
-            <li>09:05 — Price increased by 12%</li>
-            <li>08:40 — Fare tracking resumed</li>
-            <li>07:15 — Lowest observed price was recorded</li>
-          </ol>
+          <ol id="watchTimeline"></ol>
         </section>
 
-        <a class="button button--primary" href="https://www.easyjet.com" target="_blank" rel="noopener">View on EasyJet</a>
+        <a class="button button--primary" id="watchExternalAction" href="#" target="_blank" rel="noopener" hidden>Open source</a>
       </main>
     </div>
 
