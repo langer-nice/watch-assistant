@@ -22,6 +22,8 @@ npm install
 - `npm run build` — builds production assets into `dist/`
 - `npm run preview` — previews the production build locally
 
+> The HTML files reference the stylesheet as `/src/scss/main.scss` so Vite can compile the SCSS automatically.
+
 ## Folder structure
 
 - `index.html` — home / morning report page
