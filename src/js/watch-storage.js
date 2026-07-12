@@ -20,6 +20,10 @@ function saveWatches(watches) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(watches));
 }
 
+export function resetStoredWatches() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
 export function getWatches() {
   const stored = getStoredWatches();
   const mockIds = new Set(mockWatches.map((watch) => watch.id));

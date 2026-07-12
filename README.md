@@ -24,6 +24,32 @@ npm install
 
 > The HTML files reference the stylesheet as `/src/scss/main.scss` so Vite can compile the SCSS automatically.
 
+## Demo data behavior
+
+The prototype always renders a fixed set of demo watches from `src/js/data/mock-watches.js` plus any watches created locally in the browser.
+
+- Demo watches are always available in a fresh browser.
+- User-created watches are stored in `localStorage` only and are private to that browser and origin.
+- Duplicate demo watch IDs are filtered out so mock watches never render twice.
+
+### Reset demo data
+
+During development you can reset the local demo state in the browser console:
+
+```js
+localStorage.removeItem('watchAssistant.watches')
+sessionStorage.clear()
+location.reload()
+```
+
+The development build also exposes a convenience helper:
+
+```js
+window.watchAssistantResetDemo()
+```
+
+A visible “Reset demo data” button appears only in development mode, not in production.
+
 ## Folder structure
 
 - `index.html` — home / morning report page

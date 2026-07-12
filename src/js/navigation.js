@@ -1,4 +1,4 @@
-import { getWatches, addWatch, getWatchById } from './watch-storage.js';
+import { getWatches, addWatch, getWatchById, resetStoredWatches } from './watch-storage.js';
 
 const isUrl = (value) => {
   const trimmed = value.trim();
@@ -201,6 +201,37 @@ const renderWatchDetail = () => {
   }
 };
 
+const renderDevTools = () => {
+  if (!import.meta.env.DEV) {
+    return;
+  }
+
+  window.watchAssistantResetDemo = () => {
+    resetStoredWatches();
+    sessionStorage.clear();
+    window.location.reload();
+  };
+
+  console.info('Dev: reset demo data with window.watchAssistantResetDemo()');
+
+  const shell = document.querySelector('.app-shell');
+  if (!shell) {
+    return;
+  }
+
+  const control = document.createElement('div');
+  control.className = 'dev-reset-control';
+  control.innerHTML = `
+    <button type="button" class="button button--secondary">Reset demo data</button>
+    <p class="text-muted">Development only</p>
+  `;
+
+  const button = control.querySelector('button');
+  button?.addEventListener('click', window.watchAssistantResetDemo);
+
+  shell.append(control);
+};
+
 const renderHomeSummary = () => {
   const confirmationBanner = document.querySelector('#homeConfirmation');
   const confirmationCopy = document.querySelector('#homeConfirmationCopy');
@@ -325,4 +356,5 @@ export const initApp = () => {
   renderWatchList();
   renderWatchDetail();
   initForm();
+  renderDevTools();
 };

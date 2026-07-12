@@ -62,3 +62,15 @@ body {
 .banner-dismiss {
   color: var(--color-text-muted);
 }
+
+.dev-reset-control {
+  margin-top: var(--space-lg);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.dev-reset-control p {
+  margin: 0;
+}
