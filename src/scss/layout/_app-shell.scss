@@ -1,0 +1,13 @@
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-page-bg);
+}
+
+.page {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding: var(--space-lg) var(--space-md) calc(var(--space-3xl) + var(--space-lg));
+}

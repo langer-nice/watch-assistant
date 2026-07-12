@@ -1,0 +1,19 @@
+.timeline {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-md);
+}
+
+.timeline h2 {
+  margin-top: 0;
+}
+
+.timeline ol {
+  padding-left: 1.25rem;
+  margin: 0;
+}
+
+.timeline li {
+  margin-bottom: var(--space-sm);
+}

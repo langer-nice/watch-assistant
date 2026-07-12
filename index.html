@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Watch Assistant — Morning Report</title>
+    <link rel="stylesheet" href="src/scss/main.scss" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <main class="page page--home">
+        <header class="page__header">
+          <p class="eyebrow">Morning report</p>
+          <h1>Watch Assistant</h1>
+          <p class="intro">Your assistant has one item that needs attention before the day starts.</p>
+        </header>
+
+        <section class="report-card report-card--alert">
+          <h2>Flight price watch</h2>
+          <p class="report-card__summary">EasyJet Christmas flight prices rose quickly for your London to Mallorca watch.</p>
+          <p class="report-card__meta">Checked 12 min ago · high importance</p>
+          <a class="report-card__link" href="watch-detail.html">See watch details</a>
+        </section>
+
+        <section class="status-panel">
+          <h2>Everything else is under control</h2>
+          <p>No new issues detected in your active travel, price and news watches.</p>
+        </section>
+      </main>
+
+      <a class="floating-action" href="new-watch.html">New watch</a>
+    </div>
+
+    <script type="module" src="src/js/main.js"></script>
+  </body>
+</html>

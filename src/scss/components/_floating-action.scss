@@ -1,0 +1,20 @@
+.floating-action {
+  position: fixed;
+  right: var(--space-md);
+  bottom: var(--space-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 var(--space-lg);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: #fff;
+  text-decoration: none;
+  box-shadow: var(--shadow-card);
+}
+
+.floating-action:focus-visible,
+.floating-action:hover {
+  background: var(--color-primary-hover);
+}

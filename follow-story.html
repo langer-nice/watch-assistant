@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Watch Assistant — Follow Story</title>
+    <link rel="stylesheet" href="src/scss/main.scss" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <main class="page page--follow-story">
+        <header class="page__header">
+          <a class="back-link" href="watches.html">Back to watches</a>
+          <h1>Followed investigation</h1>
+          <p class="intro">A new update is available for your tracked supply chain story.</p>
+        </header>
+
+        <section class="detail-section">
+          <p class="story-meta">Published 1 hour ago · News investigation</p>
+          <h2>What I understood</h2>
+          <p>The investigation shows that airport staff shortages are affecting cargo flow for holiday deliveries, which may impact the products you care about.</p>
+        </section>
+
+        <section class="chips">
+          <h2 class="visually-hidden">Connected story context</h2>
+          <div class="chip">EasyJet Christmas travel</div>
+          <div class="chip">Price alerts</div>
+          <div class="chip">Supply chain</div>
+        </section>
+
+        <div class="actions-row">
+          <button class="button button--secondary" type="button">Edit details</button>
+          <button class="button button--primary" type="button">Follow story</button>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="src/js/main.js"></script>
+  </body>
+</html>

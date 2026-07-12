@@ -1,0 +1,32 @@
+@use 'sass:color';
+@use 'tokens/colors' as colors;
+@use 'tokens/typography' as type;
+@use 'tokens/spacing' as spacing;
+@use 'tokens/radius' as radius;
+@use 'tokens/shadows' as shadows;
+@use 'base/reset';
+@use 'base/global';
+@use 'base/accessibility';
+@use 'layout/app-shell';
+@use 'layout/header';
+@use 'layout/page';
+@use 'components/button';
+@use 'components/report-card';
+@use 'components/watch-card';
+@use 'components/status-badge';
+@use 'components/timeline';
+@use 'components/floating-action';
+@use 'pages/home';
+@use 'pages/watches';
+@use 'pages/watch-detail';
+@use 'pages/new-watch';
+@use 'pages/follow-story';
+
+:root {
+  color-scheme: light;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  background: var(--color-page-bg);
+  color: var(--color-text);
+}

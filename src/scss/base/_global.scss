@@ -1,0 +1,23 @@
+:root {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-page-bg);
+  color: var(--color-text);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.container {
+  width: min(100%, var(--content-max-width));
+  margin: 0 auto;
+  padding: 0 var(--space-md);
+}

@@ -1,0 +1,32 @@
+.page--form {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.watch-form {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.watch-form label {
+  display: block;
+  font-weight: var(--font-weight-semibold);
+}
+
+.watch-form textarea,
+.watch-form input {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+  padding: var(--space-md);
+  font-size: var(--font-size-body);
+}
+
+.form-note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.watch-form button {
+  width: 100%;
+}
