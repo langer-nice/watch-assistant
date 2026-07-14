@@ -1,0 +1,153 @@
+{
+  "common": {
+    "brand": "Watch Assistant",
+    "back": "Retour",
+    "newWatch": "Nouvelle veille",
+    "openSource": "Ouvrir la source",
+    "unknown": "Inconnu",
+    "justNow": "À l’instant",
+    "monitoringFallback": "Surveillance des mises à jour importantes."
+  },
+  "languageSwitcher": {
+    "label": "Langue",
+    "english": "Passer en anglais",
+    "french": "Passer en français"
+  },
+  "meta": {
+    "home": "Watch Assistant — Rapport du matin",
+    "watches": "Watch Assistant — Toutes les veilles",
+    "watchDetail": "Watch Assistant — Détail de la veille",
+    "newWatch": "Watch Assistant — Nouvelle veille",
+    "followStory": "Watch Assistant — Suivre un sujet"
+  },
+  "home": {
+    "confirmationTitle": "✓ Veille activée",
+    "confirmationPlaceholder": "Match Argentine-Angleterre de la Coupe du monde",
+    "confirmationCopy": "Je surveille cela pour vous.",
+    "viewWatch": "Voir la veille →",
+    "dismiss": "Fermer",
+    "eyebrow": "Rapport du matin",
+    "introAttention": "Un élément nécessite votre attention avant le début de la journée.",
+    "introClear": "Tout est sous contrôle.",
+    "attentionTitle": "Veille sur le prix des vols",
+    "attentionSummary": "Les prix des vols de Noël EasyJet ont rapidement augmenté pour votre trajet Londres-Majorque.",
+    "attentionMeta": "Vérifié il y a 12 min · importance élevée",
+    "attentionMetaDynamic": "{lastChecked} · {status}",
+    "details": "Voir le détail de la veille",
+    "statusTitle": "Tout le reste est sous contrôle",
+    "statusDefault": "Aucun nouveau problème détecté dans vos veilles actives sur les voyages, les prix et l’actualité.",
+    "statusWatching": "Je surveille actuellement {count} éléments pour vous.",
+    "statusClear": "Aucun changement important depuis votre dernière visite.",
+    "allWatches": "Voir toutes les veilles →"
+  },
+  "watches": {
+    "title": "Toutes les veilles",
+    "intro": "Consultez la liste des veilles et ouvrez un élément pour en savoir plus.",
+    "empty": "Tout est sous contrôle. Aucune veille active pour le moment."
+  },
+  "detail": {
+    "back": "Retour à l’accueil",
+    "title": "Détail de la veille",
+    "loading": "Chargement du détail de la veille…",
+    "confirmationTitle": "Je surveille cela pour vous.",
+    "confirmationCopy": "Je vous préviendrai dès qu’un changement important surviendra.",
+    "request": "Demande",
+    "status": "Statut",
+    "created": "Créée le",
+    "lastChecked": "Dernière vérification",
+    "latestUpdate": "Dernière mise à jour",
+    "sources": "Sources",
+    "timeline": "Historique",
+    "notFoundTitle": "Veille introuvable",
+    "notFoundCopy": "Cette veille est introuvable. Veuillez revenir à la liste des veilles.",
+    "noSources": "Aucune source disponible pour le moment."
+  },
+  "newWatch": {
+    "title": "Nouvelle veille",
+    "intro": "Indiquez simplement à l’assistant ce qu’il doit surveiller.",
+    "label": "Que dois-je surveiller ?",
+    "placeholder": "Préviens-moi quand EasyJet publiera ses vols de Noël.",
+    "attachLabel": "Joindre ou coller une URL",
+    "voiceLabel": "Saisie vocale (bientôt disponible)",
+    "examplesAriaLabel": "Exemples de demandes",
+    "examplesTitle": "Exemples",
+    "exampleOne": "Préviens-moi quand EasyJet publiera ses vols de Noël.",
+    "exampleTwo": "Suis ce sujet de la BBC.",
+    "exampleThree": "Préviens-moi quand le prix de ce produit passera sous les 200 €.",
+    "exampleFour": "Préviens-moi à l’ouverture des inscriptions.",
+    "hint": "Collez un article, saisissez une demande ou parlez naturellement.",
+    "urlHint": "URL détectée. Je peux aussi la surveiller.",
+    "submit": "Suivre",
+    "emptyError": "Indiquez-moi ce que vous souhaitez surveiller.",
+    "note": "Dites-moi simplement ce qui compte. Je le surveillerai pour vous."
+  },
+  "followStory": {
+    "back": "Retour aux veilles",
+    "title": "Enquête suivie",
+    "intro": "Une nouvelle information est disponible concernant le sujet suivi sur la chaîne d’approvisionnement.",
+    "meta": "Publié il y a 1 heure · Enquête d’actualité",
+    "understoodTitle": "Ce que j’ai compris",
+    "understoodCopy": "L’enquête montre que le manque de personnel dans les aéroports perturbe le transport des marchandises destinées aux livraisons de Noël, ce qui pourrait avoir un impact sur les produits qui vous intéressent.",
+    "contextTitle": "Contexte associé au sujet",
+    "travelChip": "Voyages de Noël EasyJet",
+    "priceAlertsChip": "Alertes de prix",
+    "supplyChainChip": "Chaîne d’approvisionnement",
+    "edit": "Modifier les détails",
+    "follow": "Suivre le sujet"
+  },
+  "categories": {
+    "price": "Prix",
+    "travel": "Voyage",
+    "news": "Actualité",
+    "events": "Événements",
+    "general": "Général"
+  },
+  "statuses": {
+    "attention": "Attention requise",
+    "watching": "Sous surveillance",
+    "stable": "Stable"
+  },
+  "watchData": {
+    "created": "Veille créée",
+    "watch-001": {
+      "title": "Vols de Noël EasyJet",
+      "request": "Surveiller le prix des vols de Noël EasyJet entre Londres et Majorque",
+      "summary": "Les prix ont rapidement augmenté pour votre trajet de vacances entre Londres et Majorque.",
+      "latestUpdate": "Hausse de prix détectée il y a 12 minutes",
+      "lastChecked": "Il y a 12 min",
+      "sourceOne": "flux tarifaire d’easyjet.com",
+      "sourceTwo": "outil de suivi des tarifs du secteur",
+      "timelineOne": "09:05 — Hausse de prix de 12 %",
+      "timelineTwo": "08:40 — Reprise du suivi des tarifs",
+      "timelineThree": "07:15 — Prix le plus bas enregistré",
+      "externalAction": "Voir sur EasyJet"
+    },
+    "watch-002": {
+      "title": "Alerte de prix Amazon",
+      "request": "Préviens-moi lorsque le prix de ce produit passe sous les 200 €",
+      "summary": "Le prix du casque sans fil est passé sous votre seuil d’alerte.",
+      "latestUpdate": "Baisse de prix détectée il y a 2 heures",
+      "lastChecked": "Il y a 2 h",
+      "sourceOne": "flux de prix Amazon",
+      "timelineOne": "14:25 — Mise à jour du prix reçue",
+      "timelineTwo": "09:00 — Seuil d’alerte défini",
+      "externalAction": "Ouvrir Amazon"
+    },
+    "watch-003": {
+      "title": "Enquête suivie",
+      "request": "Suivre ce sujet de la BBC",
+      "summary": "Un sujet sur la chaîne d’approvisionnement est suivi pour détecter de nouveaux développements.",
+      "latestUpdate": "Nouvel article publié il y a 1 heure",
+      "lastChecked": "Il y a 1 h",
+      "sourceOne": "site d’enquête journalistique",
+      "sourceTwo": "rapport sectoriel",
+      "timelineOne": "10:10 — Nouvelle information relevée",
+      "timelineTwo": "08:30 — Contexte du sujet actualisé",
+      "externalAction": "Lire l’article source"
+    }
+  },
+  "dev": {
+    "reset": "Réinitialiser les données de démonstration",
+    "only": "Développement uniquement"
+  }
+}

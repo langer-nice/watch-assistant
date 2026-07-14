@@ -3,22 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Watch Assistant — All Watches</title>
+    <title data-i18n="meta.watches"></title>
     <link rel="stylesheet" href="/src/scss/main.scss" />
   </head>
   <body>
     <div class="app-shell">
       <main class="page page--watches">
         <header class="page__header">
-          <a class="back-link" href="index.html">Back</a>
-          <h1>All watches</h1>
-          <p class="intro">Review the watch list and open any item for more context.</p>
+          <a class="back-link" href="index.html" data-i18n="common.back"></a>
+          <h1 data-i18n="watches.title"></h1>
+          <p class="intro" data-i18n="watches.intro"></p>
         </header>
 
         <section class="watch-list" id="watchList" aria-live="polite"></section>
       </main>
 
-      <a class="floating-action" href="new-watch.html">New watch</a>
+      <a class="floating-action" href="new-watch.html" data-i18n="common.newWatch"></a>
     </div>
 
     <script type="module" src="src/js/main.js"></script>

@@ -3,59 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Watch Assistant — Watch Detail</title>
+    <title data-i18n="meta.watchDetail"></title>
     <link rel="stylesheet" href="/src/scss/main.scss" />
   </head>
   <body>
     <div class="app-shell">
       <main class="page page--detail">
         <header class="page__header">
-          <a class="back-link" href="index.html">Back to Home</a>
-          <h1 id="watchTitle">Watch detail</h1>
-          <p class="intro" id="watchIntro">Loading watch details...</p>
+          <a class="back-link" href="index.html" data-i18n="detail.back"></a>
+          <h1 id="watchTitle" data-i18n="detail.title"></h1>
+          <p class="intro" id="watchIntro" data-i18n="detail.loading"></p>
         </header>
 
         <section class="detail-section detail-section--confirmation" id="watchConfirmation" hidden>
-          <p class="confirmation-title">I’m watching this for you.</p>
-          <p>I’ll let you know when something important changes.</p>
+          <p class="confirmation-title" data-i18n="detail.confirmationTitle"></p>
+          <p data-i18n="detail.confirmationCopy"></p>
         </section>
 
         <section class="detail-section">
-          <h2>Request</h2>
+          <h2 data-i18n="detail.request"></h2>
           <p id="watchRequest"></p>
         </section>
 
         <section class="detail-section">
-          <h2>Status</h2>
+          <h2 data-i18n="detail.status"></h2>
           <p id="watchStatus"></p>
         </section>
 
         <section class="detail-section">
-          <h2>Created</h2>
+          <h2 data-i18n="detail.created"></h2>
           <p id="watchCreatedAt"></p>
         </section>
 
         <section class="detail-section">
-          <h2>Last checked</h2>
+          <h2 data-i18n="detail.lastChecked"></h2>
           <p id="watchLastChecked"></p>
         </section>
 
         <section class="detail-section">
-          <h2>Latest update</h2>
+          <h2 data-i18n="detail.latestUpdate"></h2>
           <p id="watchLatestUpdate"></p>
         </section>
 
         <section class="detail-section">
-          <h2>Sources</h2>
+          <h2 data-i18n="detail.sources"></h2>
           <ul id="watchSources"></ul>
         </section>
 
         <section class="timeline">
-          <h2>Timeline</h2>
+          <h2 data-i18n="detail.timeline"></h2>
           <ol id="watchTimeline"></ol>
         </section>
 
-        <a class="button button--primary" id="watchExternalAction" href="#" target="_blank" rel="noopener" hidden>Open source</a>
+        <a class="button button--primary" id="watchExternalAction" href="#" target="_blank" rel="noopener" hidden data-i18n="common.openSource"></a>
       </main>
     </div>
 

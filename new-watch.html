@@ -3,49 +3,49 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Watch Assistant — New Watch</title>
+    <title data-i18n="meta.newWatch"></title>
     <link rel="stylesheet" href="/src/scss/main.scss" />
   </head>
   <body>
     <div class="app-shell">
       <main class="page page--form">
         <header class="page__header">
-          <a class="back-link" href="index.html">Back</a>
-          <h1>New watch</h1>
-          <p class="intro">Tell the assistant what to watch in plain language.</p>
+          <a class="back-link" href="index.html" data-i18n="common.back"></a>
+          <h1 data-i18n="newWatch.title"></h1>
+          <p class="intro" data-i18n="newWatch.intro"></p>
         </header>
 
         <form class="watch-form" id="newWatchForm">
-          <label for="newWatchInput">What should I keep an eye on?</label>
+          <label for="newWatchInput" data-i18n="newWatch.label"></label>
           <div class="input-group">
             <textarea
               id="newWatchInput"
               name="watchRequest"
               rows="6"
               class="assistant-input"
-              placeholder="Tell me when EasyJet releases Christmas flights."
+              data-i18n-placeholder="newWatch.placeholder"
             ></textarea>
             <div class="input-icons" aria-hidden="true">
-              <button type="button" class="icon-button" aria-label="Attach or paste URL">📎</button>
-              <button type="button" class="icon-button" aria-label="Voice input placeholder">🎤</button>
+              <button type="button" class="icon-button" data-i18n-aria-label="newWatch.attachLabel">📎</button>
+              <button type="button" class="icon-button" data-i18n-aria-label="newWatch.voiceLabel">🎤</button>
             </div>
           </div>
 
-          <div class="input-examples" aria-label="Example requests">
-            <p class="examples-label">Examples</p>
+          <div class="input-examples" data-i18n-aria-label="newWatch.examplesAriaLabel">
+            <p class="examples-label" data-i18n="newWatch.examplesTitle"></p>
             <ul>
-              <li>Tell me when EasyJet releases Christmas flights.</li>
-              <li>Follow this BBC story.</li>
-              <li>Let me know when this product drops below €200.</li>
-              <li>Tell me when registrations open.</li>
+              <li data-i18n="newWatch.exampleOne"></li>
+              <li data-i18n="newWatch.exampleTwo"></li>
+              <li data-i18n="newWatch.exampleThree"></li>
+              <li data-i18n="newWatch.exampleFour"></li>
             </ul>
           </div>
 
-          <p class="input-help" id="inputTypeHint">Paste a news article, type a request or speak naturally.</p>
+          <p class="input-help" id="inputTypeHint" data-i18n="newWatch.hint"></p>
 
-          <button class="button button--primary" type="submit">Follow</button>
+          <button class="button button--primary" type="submit" data-i18n="newWatch.submit"></button>
           <p class="form-error" id="watchError" aria-live="polite"></p>
-          <p class="form-note">Just tell me what matters. I'll watch it for you.</p>
+          <p class="form-note" data-i18n="newWatch.note"></p>
         </form>
       </main>
     </div>

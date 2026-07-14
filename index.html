@@ -3,43 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Watch Assistant — Morning Report</title>
+    <title data-i18n="meta.home"></title>
     <link rel="stylesheet" href="/src/scss/main.scss" />
   </head>
   <body>
     <div class="app-shell">
       <main class="page page--home">
         <section class="confirmation-banner" id="homeConfirmation" hidden>
-          <p class="banner-title">✓ Now watching</p>
-          <p class="banner-watch" id="homeConfirmationCopy">Argentina v England world cup match</p>
-          <p class="banner-copy">I’m monitoring this for you.</p>
+          <p class="banner-title" data-i18n="home.confirmationTitle"></p>
+          <p class="banner-watch" id="homeConfirmationCopy" data-i18n="home.confirmationPlaceholder"></p>
+          <p class="banner-copy" data-i18n="home.confirmationCopy"></p>
           <div class="banner-actions">
-            <a class="banner-link" id="homeConfirmationLink" href="#">View watch →</a>
-            <button class="banner-dismiss" type="button" id="homeConfirmationDismiss">Dismiss</button>
+            <a class="banner-link" id="homeConfirmationLink" href="#" data-i18n="home.viewWatch"></a>
+            <button class="banner-dismiss" type="button" id="homeConfirmationDismiss" data-i18n="home.dismiss"></button>
           </div>
         </section>
 
         <header class="page__header">
-          <p class="eyebrow">Morning report</p>
-          <h1>Watch Assistant</h1>
-          <p class="intro">Your assistant has one item that needs attention before the day starts.</p>
+          <p class="eyebrow" data-i18n="home.eyebrow"></p>
+          <h1 data-i18n="common.brand"></h1>
+          <p class="intro" id="homeIntro" data-i18n="home.introAttention"></p>
         </header>
 
         <section class="report-card report-card--alert">
-          <h2>Flight price watch</h2>
-          <p class="report-card__summary">EasyJet Christmas flight prices rose quickly for your London to Mallorca watch.</p>
-          <p class="report-card__meta">Checked 12 min ago · high importance</p>
-          <a class="report-card__link" href="watch-detail.html">See watch details</a>
+          <h2 id="homeAttentionTitle" data-i18n="home.attentionTitle"></h2>
+          <p class="report-card__summary" id="homeAttentionSummary" data-i18n="home.attentionSummary"></p>
+          <p class="report-card__meta" id="homeAttentionMeta" data-i18n="home.attentionMeta"></p>
+          <a class="report-card__link" id="homeAttentionLink" href="watch-detail.html" data-i18n="home.details"></a>
         </section>
 
         <section class="status-panel">
-          <h2>Everything else is under control</h2>
-          <p>No new issues detected in your active travel, price and news watches.</p>
-          <a class="button button--secondary" href="watches.html">See all watches →</a>
+          <h2 data-i18n="home.statusTitle"></h2>
+          <p id="homeStatusText" data-i18n="home.statusDefault"></p>
+          <a class="button button--secondary" href="watches.html" data-i18n="home.allWatches"></a>
         </section>
       </main>
 
-      <a class="floating-action" href="new-watch.html">New watch</a>
+      <a class="floating-action" href="new-watch.html" data-i18n="common.newWatch"></a>
     </div>
 
     <script type="module" src="src/js/main.js"></script>

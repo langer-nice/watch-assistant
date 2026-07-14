@@ -1,0 +1,153 @@
+{
+  "common": {
+    "brand": "Watch Assistant",
+    "back": "Back",
+    "newWatch": "New watch",
+    "openSource": "Open source",
+    "unknown": "Unknown",
+    "justNow": "Just now",
+    "monitoringFallback": "Monitoring for meaningful updates."
+  },
+  "languageSwitcher": {
+    "label": "Language",
+    "english": "Switch to English",
+    "french": "Switch to French"
+  },
+  "meta": {
+    "home": "Watch Assistant — Morning Report",
+    "watches": "Watch Assistant — All Watches",
+    "watchDetail": "Watch Assistant — Watch Detail",
+    "newWatch": "Watch Assistant — New Watch",
+    "followStory": "Watch Assistant — Follow Story"
+  },
+  "home": {
+    "confirmationTitle": "✓ Now watching",
+    "confirmationPlaceholder": "Argentina v England world cup match",
+    "confirmationCopy": "I’m monitoring this for you.",
+    "viewWatch": "View watch →",
+    "dismiss": "Dismiss",
+    "eyebrow": "Morning report",
+    "introAttention": "Your assistant has one item that needs attention before the day starts.",
+    "introClear": "Everything is under control.",
+    "attentionTitle": "Flight price watch",
+    "attentionSummary": "EasyJet Christmas flight prices rose quickly for your London to Mallorca watch.",
+    "attentionMeta": "Checked 12 min ago · high importance",
+    "attentionMetaDynamic": "{lastChecked} · {status}",
+    "details": "See watch details",
+    "statusTitle": "Everything else is under control",
+    "statusDefault": "No new issues detected in your active travel, price and news watches.",
+    "statusWatching": "I’m currently watching {count} things for you.",
+    "statusClear": "No important changes since your last visit.",
+    "allWatches": "See all watches →"
+  },
+  "watches": {
+    "title": "All watches",
+    "intro": "Review the watch list and open any item for more context.",
+    "empty": "Everything is under control. No active watches right now."
+  },
+  "detail": {
+    "back": "Back to Home",
+    "title": "Watch detail",
+    "loading": "Loading watch details...",
+    "confirmationTitle": "I’m watching this for you.",
+    "confirmationCopy": "I’ll let you know when something important changes.",
+    "request": "Request",
+    "status": "Status",
+    "created": "Created",
+    "lastChecked": "Last checked",
+    "latestUpdate": "Latest update",
+    "sources": "Sources",
+    "timeline": "Timeline",
+    "notFoundTitle": "Watch not found",
+    "notFoundCopy": "We could not find that watch. Please return to the watch list.",
+    "noSources": "No sources available yet."
+  },
+  "newWatch": {
+    "title": "New watch",
+    "intro": "Tell the assistant what to watch in plain language.",
+    "label": "What should I keep an eye on?",
+    "placeholder": "Tell me when EasyJet releases Christmas flights.",
+    "attachLabel": "Attach or paste URL",
+    "voiceLabel": "Voice input placeholder",
+    "examplesAriaLabel": "Example requests",
+    "examplesTitle": "Examples",
+    "exampleOne": "Tell me when EasyJet releases Christmas flights.",
+    "exampleTwo": "Follow this BBC story.",
+    "exampleThree": "Let me know when this product drops below €200.",
+    "exampleFour": "Tell me when registrations open.",
+    "hint": "Paste a news article, type a request or speak naturally.",
+    "urlHint": "URL detected. I can watch that too.",
+    "submit": "Follow",
+    "emptyError": "Tell me what you would like me to watch.",
+    "note": "Just tell me what matters. I'll watch it for you."
+  },
+  "followStory": {
+    "back": "Back to watches",
+    "title": "Followed investigation",
+    "intro": "A new update is available for your tracked supply chain story.",
+    "meta": "Published 1 hour ago · News investigation",
+    "understoodTitle": "What I understood",
+    "understoodCopy": "The investigation shows that airport staff shortages are affecting cargo flow for holiday deliveries, which may impact the products you care about.",
+    "contextTitle": "Connected story context",
+    "travelChip": "EasyJet Christmas travel",
+    "priceAlertsChip": "Price alerts",
+    "supplyChainChip": "Supply chain",
+    "edit": "Edit details",
+    "follow": "Follow story"
+  },
+  "categories": {
+    "price": "Price",
+    "travel": "Travel",
+    "news": "News",
+    "events": "Events",
+    "general": "General"
+  },
+  "statuses": {
+    "attention": "Attention",
+    "watching": "Watching",
+    "stable": "Stable"
+  },
+  "watchData": {
+    "created": "Watch created",
+    "watch-001": {
+      "title": "EasyJet Christmas flights",
+      "request": "Track EasyJet Christmas flight prices for London to Mallorca",
+      "summary": "Prices rose quickly for your London to Mallorca holiday watch.",
+      "latestUpdate": "Price increase detected 12 minutes ago",
+      "lastChecked": "12 min ago",
+      "sourceOne": "easyjet.com pricing feed",
+      "sourceTwo": "industry fare tracker",
+      "timelineOne": "09:05 — Price increased by 12%",
+      "timelineTwo": "08:40 — Fare tracking resumed",
+      "timelineThree": "07:15 — Lowest observed price was recorded",
+      "externalAction": "View on EasyJet"
+    },
+    "watch-002": {
+      "title": "Amazon price alert",
+      "request": "Let me know when this product drops below €200",
+      "summary": "Wireless headphones dropped below your alert threshold.",
+      "latestUpdate": "Price drop detected 2 hours ago",
+      "lastChecked": "2 hr ago",
+      "sourceOne": "Amazon price feed",
+      "timelineOne": "14:25 — Price update received",
+      "timelineTwo": "09:00 — Alert threshold set",
+      "externalAction": "Open Amazon"
+    },
+    "watch-003": {
+      "title": "Followed investigation",
+      "request": "Follow this BBC story",
+      "summary": "A supply chain story is being tracked for new developments.",
+      "latestUpdate": "New article published 1 hour ago",
+      "lastChecked": "1 hr ago",
+      "sourceOne": "news investigation site",
+      "sourceTwo": "industry report",
+      "timelineOne": "10:10 — New update noted",
+      "timelineTwo": "08:30 — Story context refreshed",
+      "externalAction": "Read source article"
+    }
+  },
+  "dev": {
+    "reset": "Reset demo data",
+    "only": "Development only"
+  }
+}

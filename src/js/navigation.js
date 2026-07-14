@@ -1,4 +1,34 @@
 import { getWatches, addWatch, getWatchById, resetStoredWatches } from './watch-storage.js';
+import { getLanguage, t } from './i18n.js';
+
+const escapeHtml = (value) => String(value)
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
+
+const localizeField = (watch, field) => {
+  const key = watch[`${field}Key`];
+  if (key) {
+    return t(key);
+  }
+
+  // Keep watches created before i18n was introduced compatible with the new UI.
+  if (field === 'latestUpdate' && watch[field] === 'Watch created') {
+    return t('watchData.created');
+  }
+
+  return watch[field];
+};
+
+const localizeListItem = (item) => {
+  if (typeof item !== 'object' || !item) {
+    return item;
+  }
+
+  return item.labelKey ? t(item.labelKey) : item.label;
+};
 
 const isUrl = (value) => {
   const trimmed = value.trim();
@@ -7,11 +37,11 @@ const isUrl = (value) => {
 
 const formatDate = (isoString) => {
   if (!isoString) {
-    return 'Unknown';
+    return t('common.unknown');
   }
 
   const date = new Date(isoString);
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString(getLanguage() === 'fr' ? 'fr-FR' : 'en-GB', {
     weekday: 'short',
     year: 'numeric',
     month: 'short',
@@ -22,19 +52,19 @@ const formatDate = (isoString) => {
 const inferCategory = (request) => {
   const text = request.toLowerCase();
 
-  if (/(price|deal|discount|sale|cheapest|amazon|€|\$)/.test(text)) {
+  if (/(price|prix|deal|discount|remise|sale|promo|cheapest|moins cher|amazon|€|\$)/.test(text)) {
     return 'price';
   }
 
-  if (/(flight|easyjet|travel|hotel|holiday|ticket|booking)/.test(text)) {
+  if (/(flight|vol|easyjet|travel|voyage|hotel|hôtel|holiday|vacances|ticket|billet|booking|réservation)/.test(text)) {
     return 'travel';
   }
 
-  if (/(news|story|article|investigation|bbc|cnn|report)/.test(text)) {
+  if (/(news|actualité|story|sujet|article|investigation|enquête|bbc|cnn|report|rapport)/.test(text)) {
     return 'news';
   }
 
-  if (/(event|registration|deadline|ticket sales|concert)/.test(text)) {
+  if (/(event|événement|registration|inscription|deadline|échéance|ticket sales|billetterie|concert)/.test(text)) {
     return 'events';
   }
 
@@ -49,7 +79,7 @@ const createTitle = (request) => {
       const url = value.startsWith('http') ? value : `https://${value}`;
       return new URL(url).hostname.replace(/^www\./, '');
     } catch {
-      return 'New watch';
+      return t('common.newWatch');
     }
   }
 
@@ -68,24 +98,17 @@ const createWatchObject = (request) => {
     createdAt: now,
     lastChecked: null,
     requiresAttention: false,
-    latestUpdate: 'Watch created',
+    latestUpdateKey: 'watchData.created',
     sources: [],
     confidence: null,
     timeline: [
       {
         type: 'created',
-        label: 'Watch created',
+        labelKey: 'watchData.created',
         date: now,
       },
     ],
   };
-};
-
-const capitalize = (value) => {
-  if (!value) {
-    return '';
-  }
-  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 };
 
 const renderWatchList = () => {
@@ -97,21 +120,23 @@ const renderWatchList = () => {
   const watches = getWatches();
 
   if (watches.length === 0) {
-    list.innerHTML = '<p>Everything is under control. No active watches right now.</p>';
+    list.innerHTML = `<p>${escapeHtml(t('watches.empty'))}</p>`;
     return;
   }
 
   list.innerHTML = watches
     .map((watch) => {
-      const summary = watch.summary || watch.request || 'Monitoring for meaningful updates.';
+      const title = localizeField(watch, 'title');
+      const request = localizeField(watch, 'request');
+      const summary = localizeField(watch, 'summary') || request || t('common.monitoringFallback');
       return `
       <a class="watch-row" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
         <div>
-          <p class="watch-row__category">${watch.category}</p>
-          <h2>${watch.title}</h2>
-          ${summary ? `<p class="watch-row__summary">${summary}</p>` : ''}
+          <p class="watch-row__category">${escapeHtml(t(`categories.${watch.category}`))}</p>
+          <h2>${escapeHtml(title)}</h2>
+          ${summary ? `<p class="watch-row__summary">${escapeHtml(summary)}</p>` : ''}
         </div>
-        <span class="watch-row__status">${capitalize(watch.status)}</span>
+        <span class="watch-row__status">${escapeHtml(t(`statuses.${watch.status}`))}</span>
       </a>
     `;
     })
@@ -139,9 +164,9 @@ const renderWatchDetail = () => {
   const externalActionEl = document.querySelector('#watchExternalAction');
 
   if (!watch) {
-    titleEl.textContent = 'Watch not found';
+    titleEl.textContent = t('detail.notFoundTitle');
     if (introEl) {
-      introEl.textContent = 'We could not find that watch. Please return to the watch list.';
+      introEl.textContent = t('detail.notFoundCopy');
     }
     if (confirmationEl) {
       confirmationEl.hidden = true;
@@ -149,50 +174,58 @@ const renderWatchDetail = () => {
     return;
   }
 
-  titleEl.textContent = watch.title;
+  const request = localizeField(watch, 'request');
+  titleEl.textContent = localizeField(watch, 'title');
   if (introEl) {
-    introEl.textContent = watch.request;
+    introEl.textContent = request;
   }
   if (requestEl) {
-    requestEl.textContent = watch.request;
+    requestEl.textContent = request;
   }
   if (statusEl) {
-    statusEl.textContent = watch.status;
+    statusEl.textContent = t(`statuses.${watch.status}`);
   }
   if (createdEl) {
     createdEl.textContent = formatDate(watch.createdAt);
   }
   if (latestUpdateEl) {
-    latestUpdateEl.textContent = watch.latestUpdate;
+    latestUpdateEl.textContent = localizeField(watch, 'latestUpdate');
   }
 
   if (sourcesEl) {
     sourcesEl.innerHTML = watch.sources.length
-      ? watch.sources.map((source) => `<li>${source}</li>`).join('')
-      : '<li>No sources available yet.</li>';
+      ? watch.sources.map((source) => `<li>${escapeHtml(localizeListItem(source))}</li>`).join('')
+      : `<li>${escapeHtml(t('detail.noSources'))}</li>`;
   }
 
   if (timelineEl) {
     timelineEl.innerHTML = watch.timeline
       .map(
-        (item) => `<li>${formatDate(item.date)} — ${item.label}</li>`
+        (item) => {
+          const label = item.type === 'created' ? t('watchData.created') : localizeListItem(item);
+          return `<li>${item.date ? `${escapeHtml(formatDate(item.date))} — ` : ''}${escapeHtml(label)}</li>`;
+        }
       )
       .join('');
   }
 
   const lastCheckedEl = document.querySelector('#watchLastChecked');
   if (lastCheckedEl) {
-    lastCheckedEl.textContent = watch.lastChecked ? watch.lastChecked : 'Just now';
+    lastCheckedEl.textContent = localizeField(watch, 'lastChecked') || t('common.justNow');
   }
 
   if (confirmationEl) {
-    const isNew = watch.latestUpdate === 'Watch created' && watch.sources.length === 0 && watch.confidence === null;
+    const isNew = (watch.latestUpdateKey === 'watchData.created' || watch.latestUpdate === 'Watch created')
+      && watch.sources.length === 0
+      && watch.confidence === null;
     confirmationEl.hidden = !isNew;
   }
 
   if (externalActionEl) {
     if (watch.externalAction && watch.externalAction.url) {
-      externalActionEl.textContent = watch.externalAction.label || 'Open source';
+      externalActionEl.textContent = watch.externalAction.labelKey
+        ? t(watch.externalAction.labelKey)
+        : watch.externalAction.label || t('common.openSource');
       externalActionEl.href = watch.externalAction.url;
       externalActionEl.hidden = false;
     } else {
@@ -222,8 +255,8 @@ const renderDevTools = () => {
   const control = document.createElement('div');
   control.className = 'dev-reset-control';
   control.innerHTML = `
-    <button type="button" class="button button--secondary">Reset demo data</button>
-    <p class="text-muted">Development only</p>
+    <button type="button" class="button button--secondary">${t('dev.reset')}</button>
+    <p class="text-muted">${t('dev.only')}</p>
   `;
 
   const button = control.querySelector('button');
@@ -248,8 +281,6 @@ const renderHomeSummary = () => {
   const watches = getWatches();
   const attentionWatch = watches.find((watch) => watch.requiresAttention);
   const activeCount = watches.length;
-  const notAttention = watches.filter((watch) => !watch.requiresAttention).length;
-
   const createdWatchId = sessionStorage.getItem('watchAssistant.newWatchId');
   if (confirmationBanner) {
     if (createdWatchId) {
@@ -257,7 +288,7 @@ const renderHomeSummary = () => {
       if (createdWatch) {
         confirmationBanner.hidden = false;
         if (confirmationCopy) {
-          confirmationCopy.textContent = createdWatch.title;
+          confirmationCopy.textContent = localizeField(createdWatch, 'title');
         }
         if (confirmationLink) {
           confirmationLink.href = `watch-detail.html?id=${encodeURIComponent(createdWatch.id)}`;
@@ -280,32 +311,37 @@ const renderHomeSummary = () => {
   if (attentionWatch && attentionCard) {
     attentionCard.hidden = false;
     if (attentionTitle) {
-      attentionTitle.textContent = attentionWatch.title;
+      attentionTitle.textContent = localizeField(attentionWatch, 'title');
     }
     if (attentionSummary) {
-      attentionSummary.textContent = attentionWatch.request || attentionWatch.summary || 'Monitoring for meaningful updates.';
+      attentionSummary.textContent = localizeField(attentionWatch, 'request')
+        || localizeField(attentionWatch, 'summary')
+        || t('common.monitoringFallback');
     }
     if (attentionMeta) {
-      attentionMeta.textContent = `${attentionWatch.lastChecked || 'Just now'} · ${attentionWatch.status}`;
+      attentionMeta.textContent = t('home.attentionMetaDynamic', {
+        lastChecked: localizeField(attentionWatch, 'lastChecked') || t('common.justNow'),
+        status: t(`statuses.${attentionWatch.status}`),
+      });
     }
     if (attentionLink) {
       attentionLink.href = `watch-detail.html?id=${encodeURIComponent(attentionWatch.id)}`;
     }
     if (introText) {
-      introText.textContent = 'Your assistant has one item that needs attention before the day starts.';
+      introText.textContent = t('home.introAttention');
     }
     if (statusText) {
-      statusText.textContent = `I’m currently watching ${activeCount} things for you.`;
+      statusText.textContent = t('home.statusWatching', { count: activeCount });
     }
   } else {
     if (attentionCard) {
       attentionCard.hidden = true;
     }
     if (introText) {
-      introText.textContent = 'Everything is under control.';
+      introText.textContent = t('home.introClear');
     }
     if (statusText) {
-      statusText.textContent = 'No important changes since your last visit.';
+      statusText.textContent = t('home.statusClear');
     }
   }
 };
@@ -319,8 +355,8 @@ export function initForm() {
   if (input && hint) {
     input.addEventListener('input', () => {
       hint.textContent = isUrl(input.value)
-        ? 'URL detected. I can watch that too.'
-        : 'Paste a news article, type a request or speak naturally.';
+        ? t('newWatch.urlHint')
+        : t('newWatch.hint');
     });
   }
 
@@ -334,7 +370,7 @@ export function initForm() {
 
     if (!request) {
       if (watchError) {
-        watchError.textContent = 'Tell me what you would like me to watch.';
+        watchError.textContent = t('newWatch.emptyError');
       }
       input?.focus();
       return;
@@ -357,4 +393,11 @@ export const initApp = () => {
   renderWatchDetail();
   initForm();
   renderDevTools();
+
+  // Re-render data-driven content if setLanguage() is called at runtime.
+  document.addEventListener('i18n:languageChanged', () => {
+    renderHomeSummary();
+    renderWatchList();
+    renderWatchDetail();
+  });
 };
