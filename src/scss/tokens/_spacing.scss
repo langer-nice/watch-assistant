@@ -1,4 +1,5 @@
 :root {
+  --space-3xs: 0.125rem;
   --space-xxs: 0.25rem;
   --space-xs: 0.5rem;
   --space-sm: 0.75rem;
@@ -8,5 +9,7 @@
   --space-2xl: 2.5rem;
   --space-3xl: 3rem;
   --content-max-width: 48rem;
+  --content-editorial-width: 42rem;
+  --content-heading-width: 18rem;
   --content-wide-width: 72rem;
 }

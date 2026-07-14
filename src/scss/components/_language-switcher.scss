@@ -8,10 +8,10 @@
   gap: 0.125rem;
   padding: 0.125rem;
   color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-border) 65%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-transparent));
+  border: 1px solid color-mix(in srgb, var(--color-border) 65%, var(--color-transparent));
   border-radius: var(--radius-pill);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  box-shadow: var(--shadow-sm);
   backdrop-filter: blur(12px);
   font-size: 0.6875rem;
   font-weight: var(--font-weight-semibold);
@@ -39,7 +39,7 @@
 .language-switcher button.is-active {
   color: var(--color-text);
   background: var(--color-surface);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  box-shadow: var(--shadow-control);
 }
 
 .language-switcher button:focus-visible {

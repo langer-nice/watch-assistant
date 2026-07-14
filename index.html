@@ -4,42 +4,109 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title data-i18n="meta.home"></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/src/scss/main.scss" />
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell app-shell--home">
       <main class="page page--home">
         <section class="confirmation-banner" id="homeConfirmation" hidden>
           <p class="banner-title" data-i18n="home.confirmationTitle"></p>
           <p class="banner-watch" id="homeConfirmationCopy" data-i18n="home.confirmationPlaceholder"></p>
           <p class="banner-copy" data-i18n="home.confirmationCopy"></p>
           <div class="banner-actions">
-            <a class="banner-link" id="homeConfirmationLink" href="#" data-i18n="home.viewWatch"></a>
             <button class="banner-dismiss" type="button" id="homeConfirmationDismiss" data-i18n="home.dismiss"></button>
           </div>
         </section>
 
-        <header class="page__header">
-          <p class="eyebrow" data-i18n="home.eyebrow"></p>
-          <h1 data-i18n="common.brand"></h1>
-          <p class="intro" id="homeIntro" data-i18n="home.introAttention"></p>
-        </header>
+        <section class="briefing-summary" aria-labelledby="homeGreeting">
+          <header class="briefing-summary__masthead">
+            <p data-i18n="home.briefLabel"></p>
+            <time id="homeBriefingDate" datetime="2026-07-14"></time>
+          </header>
 
-        <section class="report-card report-card--alert">
-          <h2 id="homeAttentionTitle" data-i18n="home.attentionTitle"></h2>
-          <p class="report-card__summary" id="homeAttentionSummary" data-i18n="home.attentionSummary"></p>
-          <p class="report-card__meta" id="homeAttentionMeta" data-i18n="home.attentionMeta"></p>
-          <a class="report-card__link" id="homeAttentionLink" href="watch-detail.html" data-i18n="home.details"></a>
+          <div class="briefing-summary__introduction">
+            <h1 id="homeGreeting" data-i18n="home.greeting"></h1>
+            <p>
+              <span data-i18n="home.checkedSummary"></span>
+              <span data-i18n="home.controlSummary"></span>
+            </p>
+          </div>
+
+          <ul class="briefing-summary__statuses" aria-label="Status overview" data-i18n-aria-label="home.statusOverviewLabel">
+            <li class="briefing-summary__status briefing-summary__status--action">
+              <span class="briefing-summary__dot" aria-hidden="true"></span>
+              <span><strong>1</strong> <span data-i18n="home.needsAttention"></span></span>
+            </li>
+            <li class="briefing-summary__status briefing-summary__status--update">
+              <span class="briefing-summary__dot" aria-hidden="true"></span>
+              <span><strong>2</strong> <span data-i18n="home.meaningfulUpdates"></span></span>
+            </li>
+            <li class="briefing-summary__status briefing-summary__status--success">
+              <span class="briefing-summary__dot" aria-hidden="true"></span>
+              <span><strong>39</strong> <span data-i18n="home.noChanges"></span></span>
+            </li>
+          </ul>
         </section>
 
-        <section class="status-panel">
-          <h2 data-i18n="home.statusTitle"></h2>
-          <p id="homeStatusText" data-i18n="home.statusDefault"></p>
-          <a class="button button--secondary" href="watches.html" data-i18n="home.allWatches"></a>
+        <section class="briefing-feed" aria-label="Briefing items" data-i18n-aria-label="home.briefingItemsLabel">
+          <article class="briefing-item">
+            <a class="briefing-item__link" href="watch-detail.html?id=watch-001">
+              <div class="briefing-item__labels">
+                <span class="status-badge status-badge--action" data-i18n="home.actNow"></span>
+                <span class="category-label category-label--travel" data-i18n="categories.travel"></span>
+              </div>
+              <h2><span aria-hidden="true">✈️</span><span data-i18n="home.flightHeadline"></span></h2>
+              <p data-i18n="home.flightSummary"></p>
+              <span class="briefing-item__read-more editorial-link" data-i18n="home.readMore"></span>
+            </a>
+          </article>
+
+          <article class="briefing-item">
+            <a class="briefing-item__link" href="watch-detail.html?id=watch-002">
+              <div class="briefing-item__labels">
+                <span class="status-badge status-badge--update" data-i18n="home.updated"></span>
+                <span class="category-label category-label--finance" data-i18n="categories.finance"></span>
+              </div>
+              <h2><span aria-hidden="true">📈</span><span data-i18n="home.phoneHeadline"></span></h2>
+              <p data-i18n="home.phoneSummary"></p>
+              <span class="briefing-item__read-more editorial-link" data-i18n="home.readMore"></span>
+            </a>
+          </article>
+
+          <article class="briefing-item">
+            <a class="briefing-item__link" href="watch-detail.html?id=watch-003">
+              <div class="briefing-item__labels">
+                <span class="status-badge status-badge--update" data-i18n="home.updated"></span>
+                <span class="category-label category-label--news" data-i18n="categories.news"></span>
+              </div>
+              <h2><span aria-hidden="true">📰</span><span data-i18n="home.newsHeadline"></span></h2>
+              <p data-i18n="home.newsSummary"></p>
+              <span class="briefing-item__read-more editorial-link" data-i18n="home.readMore"></span>
+            </a>
+          </article>
+
+          <section class="all-quiet" aria-labelledby="allQuietTitle">
+            <p class="all-quiet__label" data-i18n="home.everythingLabel"></p>
+            <h2 id="allQuietTitle" data-i18n="home.everythingTitle"></h2>
+            <p class="all-quiet__summary">
+              <span data-i18n="home.everythingChecked"></span>
+              <span data-i18n="home.everythingNoChanges"></span>
+            </p>
+            <a class="editorial-link" href="watches.html" data-i18n="home.allWatches"></a>
+          </section>
         </section>
       </main>
 
-      <a class="floating-action" href="new-watch.html" data-i18n="common.newWatch"></a>
+      <a class="floating-action floating-action--home" href="new-watch.html">
+        <span aria-hidden="true">+</span>
+        <span data-i18n="common.newWatch"></span>
+      </a>
     </div>
 
     <script type="module" src="src/js/main.js"></script>

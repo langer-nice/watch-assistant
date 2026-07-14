@@ -11,9 +11,13 @@
 @use 'layout/header';
 @use 'layout/page';
 @use 'components/button';
-@use 'components/report-card';
 @use 'components/watch-card';
 @use 'components/status-badge';
+@use 'components/category-label';
+@use 'components/briefing-summary';
+@use 'components/briefing-item';
+@use 'components/editorial-link';
+@use 'components/all-quiet';
 @use 'components/timeline';
 @use 'components/floating-action';
 @use 'components/language-switcher';

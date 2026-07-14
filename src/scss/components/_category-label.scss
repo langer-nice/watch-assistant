@@ -1,0 +1,18 @@
+.category-label {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+  font-weight: var(--font-weight-medium);
+}
+
+.category-label--travel {
+  color: var(--color-category-travel);
+}
+
+.category-label--finance {
+  color: var(--color-category-finance);
+}
+
+.category-label--news {
+  color: var(--color-category-news);
+}

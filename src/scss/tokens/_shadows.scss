@@ -1,6 +1,10 @@
 :root {
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.12);
   --shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.08);
-  --shadow-card: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-card: var(--shadow-md);
+  --shadow-control: 0 1px 3px rgba(15, 23, 42, 0.12);
+  --shadow-floating-action: 0 10px 24px rgba(15, 23, 42, 0.22);
   --shadow-focus: 0 0 0 4px rgba(37, 99, 235, 0.16);
   --transition-default: 180ms ease;
 }

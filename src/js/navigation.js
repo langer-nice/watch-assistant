@@ -268,19 +268,22 @@ const renderDevTools = () => {
 const renderHomeSummary = () => {
   const confirmationBanner = document.querySelector('#homeConfirmation');
   const confirmationCopy = document.querySelector('#homeConfirmationCopy');
-  const confirmationLink = document.querySelector('#homeConfirmationLink');
   const confirmationDismiss = document.querySelector('#homeConfirmationDismiss');
-  const attentionCard = document.querySelector('.report-card');
-  const attentionTitle = document.querySelector('#homeAttentionTitle');
-  const attentionSummary = document.querySelector('#homeAttentionSummary');
-  const attentionMeta = document.querySelector('#homeAttentionMeta');
-  const attentionLink = document.querySelector('#homeAttentionLink');
-  const statusText = document.querySelector('#homeStatusText');
-  const introText = document.querySelector('#homeIntro');
+  const briefingDate = document.querySelector('#homeBriefingDate');
 
-  const watches = getWatches();
-  const attentionWatch = watches.find((watch) => watch.requiresAttention);
-  const activeCount = watches.length;
+  if (!confirmationBanner && !briefingDate) {
+    return;
+  }
+
+  if (briefingDate) {
+    const today = new Date();
+    const locale = getLanguage() === 'fr' ? 'fr-FR' : 'en-GB';
+    briefingDate.dateTime = today.toISOString().slice(0, 10);
+    briefingDate.textContent = today
+      .toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })
+      .replace(',', '');
+  }
+
   const createdWatchId = sessionStorage.getItem('watchAssistant.newWatchId');
   if (confirmationBanner) {
     if (createdWatchId) {
@@ -290,14 +293,11 @@ const renderHomeSummary = () => {
         if (confirmationCopy) {
           confirmationCopy.textContent = localizeField(createdWatch, 'title');
         }
-        if (confirmationLink) {
-          confirmationLink.href = `watch-detail.html?id=${encodeURIComponent(createdWatch.id)}`;
-        }
         if (confirmationDismiss) {
-          confirmationDismiss.addEventListener('click', () => {
+          confirmationDismiss.onclick = () => {
             confirmationBanner.hidden = true;
             sessionStorage.removeItem('watchAssistant.newWatchId');
-          });
+          };
         }
       } else {
         confirmationBanner.hidden = true;
@@ -305,43 +305,6 @@ const renderHomeSummary = () => {
       }
     } else {
       confirmationBanner.hidden = true;
-    }
-  }
-
-  if (attentionWatch && attentionCard) {
-    attentionCard.hidden = false;
-    if (attentionTitle) {
-      attentionTitle.textContent = localizeField(attentionWatch, 'title');
-    }
-    if (attentionSummary) {
-      attentionSummary.textContent = localizeField(attentionWatch, 'request')
-        || localizeField(attentionWatch, 'summary')
-        || t('common.monitoringFallback');
-    }
-    if (attentionMeta) {
-      attentionMeta.textContent = t('home.attentionMetaDynamic', {
-        lastChecked: localizeField(attentionWatch, 'lastChecked') || t('common.justNow'),
-        status: t(`statuses.${attentionWatch.status}`),
-      });
-    }
-    if (attentionLink) {
-      attentionLink.href = `watch-detail.html?id=${encodeURIComponent(attentionWatch.id)}`;
-    }
-    if (introText) {
-      introText.textContent = t('home.introAttention');
-    }
-    if (statusText) {
-      statusText.textContent = t('home.statusWatching', { count: activeCount });
-    }
-  } else {
-    if (attentionCard) {
-      attentionCard.hidden = true;
-    }
-    if (introText) {
-      introText.textContent = t('home.introClear');
-    }
-    if (statusText) {
-      statusText.textContent = t('home.statusClear');
     }
   }
 };

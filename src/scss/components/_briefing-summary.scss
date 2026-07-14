@@ -1,0 +1,103 @@
+.briefing-summary {
+  padding: var(--space-sm) 0 var(--space-lg);
+  background: var(--color-surface-subtle);
+  font-style: normal;
+}
+
+.briefing-summary__masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-xs) 0;
+  border-top: 2px solid var(--color-border-strong);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.briefing-summary__masthead p,
+.briefing-summary__masthead time {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-style: normal;
+}
+
+.briefing-summary__masthead p {
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.briefing-summary__masthead time {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.briefing-summary__introduction {
+  padding: var(--space-lg) 0 var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.briefing-summary__introduction h1 {
+  max-width: var(--content-heading-width);
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-size-2xl);
+  font-style: normal;
+  font-weight: var(--font-weight-bold);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+}
+
+.briefing-summary__introduction p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  font-style: normal;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.45;
+}
+
+.briefing-summary__introduction span {
+  display: block;
+}
+
+.briefing-summary__statuses {
+  display: grid;
+  gap: var(--space-xs);
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.briefing-summary__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-style: normal;
+  font-weight: var(--font-weight-regular);
+}
+
+.briefing-summary__status strong {
+  color: var(--color-text);
+}
+
+.briefing-summary__dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+.briefing-summary__status--action .briefing-summary__dot {
+  color: var(--color-status-action);
+}
+
+.briefing-summary__status--update .briefing-summary__dot {
+  color: var(--color-status-update);
+}
+
+.briefing-summary__status--success .briefing-summary__dot {
+  color: var(--color-status-success);
+}
