@@ -1,13 +1,12 @@
-.page--detail {
-  display: grid;
-  gap: var(--space-lg);
+.app-shell--detail {
+  background: var(--color-detail-background);
 }
 
 .detail-section {
+  padding: var(--space-lg);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  padding: var(--space-lg);
 }
 
 .detail-section h2 {
@@ -17,4 +16,62 @@
 .button {
   width: 100%;
   margin-top: var(--space-lg);
+}
+
+.page--detail {
+  max-width: var(--content-detail-width);
+  padding: var(--space-md) var(--space-xl)
+    calc((var(--space-3xl) * 2) + var(--space-xl));
+  background: var(--color-detail-background);
+}
+
+.detail-back-link {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-regular);
+}
+
+.detail-header {
+  display: grid;
+  gap: var(--space-md);
+  margin: var(--space-xl) var(--space-xs) var(--space-lg);
+}
+
+.detail-header h1 {
+  margin: 0;
+  font-size: var(--font-size-detail-title);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+}
+
+.detail-header__message {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+}
+
+.page--detail > .detail-card,
+.page--detail > .detail-section,
+.page--detail > .personal-note,
+.page--detail > .timeline,
+.page--detail > .external-actions {
+  margin-top: var(--space-lg);
+}
+
+.page--detail .detail-section--confirmation {
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.page--detail .detail-section--confirmation p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.page--detail .detail-section--confirmation p + p {
+  margin-top: var(--space-xxs);
+  color: var(--color-text-muted);
 }

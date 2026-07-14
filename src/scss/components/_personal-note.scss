@@ -1,0 +1,27 @@
+.personal-note {
+  padding: var(--space-lg);
+  background: var(--color-note-background);
+  border: 1px solid var(--color-note-border);
+  border-radius: var(--radius-xl);
+}
+
+.personal-note .detail-label {
+  margin-bottom: var(--space-md);
+  color: var(--color-note-label);
+}
+
+.personal-note blockquote {
+  margin: 0;
+  color: var(--color-note-text);
+  font-family: var(--font-family-body);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.7;
+}
+
+@media (min-width: 36rem) {
+  .personal-note {
+    padding: var(--space-xl);
+  }
+}

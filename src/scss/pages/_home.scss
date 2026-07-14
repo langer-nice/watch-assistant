@@ -13,6 +13,30 @@
   margin-bottom: var(--space-lg);
 }
 
+.confirmation-banner--watch-created {
+  padding: var(--space-md);
+  background: var(--color-surface-subtle);
+  box-shadow: none;
+}
+
+.confirmation-banner--watch-created .banner-title {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.confirmation-banner--watch-created .banner-watch {
+  font-family: var(--font-family-heading);
+  font-weight: var(--font-weight-semibold);
+}
+
+.confirmation-banner--watch-created .banner-copy,
+.confirmation-banner--watch-created .banner-link,
+.confirmation-banner--watch-created .banner-dismiss {
+  font-size: var(--font-size-sm);
+}
+
 .briefing-feed {
   --briefing-gutter: var(--space-lg);
 

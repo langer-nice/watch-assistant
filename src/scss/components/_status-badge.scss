@@ -28,3 +28,22 @@
   color: var(--color-status-update);
   background: var(--color-status-update-bg);
 }
+
+.status-badge--with-dot {
+  gap: var(--space-xs);
+  width: fit-content;
+  min-height: 2rem;
+  padding-inline: var(--space-sm);
+}
+
+.status-badge--with-dot::before {
+  width: var(--space-xs);
+  height: var(--space-xs);
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  content: '';
+}
+
+.status-badge--with-dot.status-badge--action {
+  border: 1px solid var(--color-status-action-border);
+}

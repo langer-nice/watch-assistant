@@ -15,15 +15,6 @@
   <body>
     <div class="app-shell app-shell--home">
       <main class="page page--home">
-        <section class="confirmation-banner" id="homeConfirmation" hidden>
-          <p class="banner-title" data-i18n="home.confirmationTitle"></p>
-          <p class="banner-watch" id="homeConfirmationCopy" data-i18n="home.confirmationPlaceholder"></p>
-          <p class="banner-copy" data-i18n="home.confirmationCopy"></p>
-          <div class="banner-actions">
-            <button class="banner-dismiss" type="button" id="homeConfirmationDismiss" data-i18n="home.dismiss"></button>
-          </div>
-        </section>
-
         <section class="briefing-summary" aria-labelledby="homeGreeting">
           <header class="briefing-summary__masthead">
             <p data-i18n="home.briefLabel"></p>
@@ -33,7 +24,7 @@
           <div class="briefing-summary__introduction">
             <h1 id="homeGreeting" data-i18n="home.greeting"></h1>
             <p>
-              <span data-i18n="home.checkedSummary"></span>
+              <span id="homeCheckedSummary"></span>
               <span data-i18n="home.controlSummary"></span>
             </p>
           </div>
@@ -49,9 +40,19 @@
             </li>
             <li class="briefing-summary__status briefing-summary__status--success">
               <span class="briefing-summary__dot" aria-hidden="true"></span>
-              <span><strong>39</strong> <span data-i18n="home.noChanges"></span></span>
+              <span><strong id="homeNoChangesCount">39</strong> <span data-i18n="home.noChanges"></span></span>
             </li>
           </ul>
+        </section>
+
+        <section class="confirmation-banner confirmation-banner--watch-created" id="homeConfirmation" hidden>
+          <p class="banner-title" data-i18n="home.confirmationTitle"></p>
+          <p class="banner-watch" id="homeConfirmationCopy" data-i18n="home.confirmationPlaceholder"></p>
+          <p class="banner-copy" data-i18n="home.confirmationCopy"></p>
+          <div class="banner-actions">
+            <a class="banner-link" id="homeConfirmationLink" href="#" data-i18n="home.viewWatch"></a>
+            <button class="banner-dismiss" type="button" id="homeConfirmationDismiss" data-i18n="home.dismiss"></button>
+          </div>
         </section>
 
         <section class="briefing-feed" aria-label="Briefing items" data-i18n-aria-label="home.briefingItemsLabel">
@@ -95,7 +96,7 @@
             <p class="all-quiet__label" data-i18n="home.everythingLabel"></p>
             <h2 id="allQuietTitle" data-i18n="home.everythingTitle"></h2>
             <p class="all-quiet__summary">
-              <span data-i18n="home.everythingChecked"></span>
+              <span id="homeEverythingChecked"></span>
               <span data-i18n="home.everythingNoChanges"></span>
             </p>
             <a class="editorial-link" href="watches.html" data-i18n="home.allWatches"></a>

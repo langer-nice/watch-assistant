@@ -13,46 +13,77 @@
     <link rel="stylesheet" href="/src/scss/main.scss" />
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell app-shell--new-watch">
       <main class="page page--form">
-        <header class="page__header">
-          <a class="back-link" href="index.html" data-i18n="common.back"></a>
-          <h1 data-i18n="newWatch.title"></h1>
-          <p class="intro" data-i18n="newWatch.intro"></p>
+        <a class="back-link new-watch-back" href="index.html" data-i18n="newWatch.back"></a>
+
+        <header class="new-watch-header">
+          <h1 data-i18n="newWatch.heading"></h1>
+          <p data-i18n="newWatch.intro"></p>
         </header>
 
         <form class="watch-form" id="newWatchForm">
-          <label for="newWatchInput" data-i18n="newWatch.label"></label>
-          <div class="input-group">
+          <div class="watch-composer">
+            <label class="visually-hidden" for="newWatchInput" data-i18n="newWatch.label"></label>
             <textarea
               id="newWatchInput"
               name="watchRequest"
               rows="6"
               class="assistant-input"
               data-i18n-placeholder="newWatch.placeholder"
+              autofocus
             ></textarea>
-            <div class="input-icons" aria-hidden="true">
-              <button type="button" class="icon-button" data-i18n-aria-label="newWatch.attachLabel">📎</button>
-              <button type="button" class="icon-button" data-i18n-aria-label="newWatch.voiceLabel">🎤</button>
+            <div class="watch-composer__footer">
+              <span class="watch-composer__shortcut" data-i18n="newWatch.submitShortcut"></span>
+              <button class="watch-composer__submit" id="newWatchSubmit" type="submit" disabled>
+                <span aria-hidden="true">➤</span>
+                <span data-i18n="newWatch.submit"></span>
+              </button>
             </div>
           </div>
 
-          <div class="input-examples" data-i18n-aria-label="newWatch.examplesAriaLabel">
-            <p class="examples-label" data-i18n="newWatch.examplesTitle"></p>
-            <ul>
-              <li data-i18n="newWatch.exampleOne"></li>
-              <li data-i18n="newWatch.exampleTwo"></li>
-              <li data-i18n="newWatch.exampleThree"></li>
-              <li data-i18n="newWatch.exampleFour"></li>
-            </ul>
+          <div class="watch-reason">
+            <label for="whyFollowingInput" data-i18n="newWatch.whyFollowingLabel"></label>
+            <input
+              id="whyFollowingInput"
+              name="whyFollowing"
+              type="text"
+              data-i18n-placeholder="newWatch.whyFollowingPlaceholder"
+            />
           </div>
 
-          <p class="input-help" id="inputTypeHint" data-i18n="newWatch.hint"></p>
+          <button class="url-shortcut" id="urlShortcut" type="button">
+            <span aria-hidden="true">↗</span>
+            <span data-i18n="newWatch.urlShortcut"></span>
+          </button>
+          <p class="url-shortcut__help" id="inputTypeHint" data-i18n="newWatch.urlHelp"></p>
 
-          <button class="button button--primary" type="submit" data-i18n="newWatch.submit"></button>
           <p class="form-error" id="watchError" aria-live="polite"></p>
-          <p class="form-note" data-i18n="newWatch.note"></p>
+
+          <section class="prompt-examples" aria-labelledby="examplesTitle">
+            <h2 id="examplesTitle" data-i18n="newWatch.examplesTitle"></h2>
+            <div class="prompt-examples__list">
+              <button type="button" data-watch-example data-i18n="newWatch.exampleOne"></button>
+              <button type="button" data-watch-example data-i18n="newWatch.exampleTwo"></button>
+              <button type="button" data-watch-example data-i18n="newWatch.exampleThree"></button>
+              <button type="button" data-watch-example data-i18n="newWatch.exampleFour"></button>
+              <button type="button" data-watch-example data-i18n="newWatch.exampleFive"></button>
+            </div>
+          </section>
         </form>
+
+        <section class="recent-watches" id="recentWatchesSection" aria-labelledby="recentTitle" hidden>
+          <h2 id="recentTitle" data-i18n="newWatch.recent"></h2>
+          <div class="recent-watches__list" id="recentWatchesList"></div>
+        </section>
+
+        <section class="inline-success" id="newWatchSuccess" role="status" aria-live="polite" tabindex="-1" hidden>
+          <div class="inline-success__icon" aria-hidden="true">✓</div>
+          <div>
+            <h2 data-i18n="watchConfirmation.heading"></h2>
+            <p data-i18n="newWatch.inlineSuccessCopy"></p>
+          </div>
+        </section>
       </main>
     </div>
 

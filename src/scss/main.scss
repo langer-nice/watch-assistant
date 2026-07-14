@@ -18,7 +18,13 @@
 @use 'components/briefing-item';
 @use 'components/editorial-link';
 @use 'components/all-quiet';
+@use 'components/detail-card';
+@use 'components/personal-note';
 @use 'components/timeline';
+@use 'components/external-actions';
+@use 'components/watch-composer';
+@use 'components/prompt-pills';
+@use 'components/recent-watches';
 @use 'components/floating-action';
 @use 'components/language-switcher';
 @use 'pages/home';

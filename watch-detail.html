@@ -13,12 +13,15 @@
     <link rel="stylesheet" href="/src/scss/main.scss" />
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell app-shell--detail">
       <main class="page page--detail">
-        <header class="page__header">
-          <a class="back-link" href="index.html" data-i18n="detail.back"></a>
+        <a class="back-link detail-back-link" href="index.html" data-i18n="detail.back"></a>
+
+        <header class="detail-header">
+          <p class="category-pill" id="watchCategory"></p>
           <h1 id="watchTitle" data-i18n="detail.title"></h1>
-          <p class="intro" id="watchIntro" data-i18n="detail.loading"></p>
+          <p class="status-badge status-badge--with-dot" id="watchStatus"></p>
+          <p class="detail-header__message" id="watchNotFound" hidden></p>
         </header>
 
         <section class="detail-section detail-section--confirmation" id="watchConfirmation" hidden>
@@ -26,43 +29,66 @@
           <p data-i18n="detail.confirmationCopy"></p>
         </section>
 
-        <section class="detail-section">
-          <h2 data-i18n="detail.request"></h2>
-          <p id="watchRequest"></p>
+        <section class="detail-card" id="watchBriefing" aria-labelledby="whatIKnowTitle">
+          <h2 class="detail-label" id="whatIKnowTitle" data-i18n="detail.whatIKnow"></h2>
+
+          <div class="detail-card__primary" id="watchPrimary">
+            <section class="detail-card__field" data-detail-field="currentSituation" hidden>
+              <h3 class="detail-label" data-i18n="detail.currentSituation"></h3>
+              <p id="watchCurrentSituation"></p>
+            </section>
+
+            <section class="detail-card__field detail-card__field--recommendation" data-detail-field="recommendation" hidden>
+              <h3 class="detail-label" data-i18n="detail.recommendation"></h3>
+              <p id="watchRecommendation"></p>
+            </section>
+          </div>
+
+          <div class="detail-card__metadata" id="watchMetadata">
+            <section data-detail-field="sources" hidden>
+              <h3 class="detail-label" data-i18n="detail.sources"></h3>
+              <ul id="watchSources"></ul>
+            </section>
+            <section data-detail-field="confidence" hidden>
+              <h3 class="detail-label" data-i18n="detail.confidence"></h3>
+              <p id="watchConfidence"></p>
+            </section>
+            <section data-detail-field="latestUpdate" hidden>
+              <h3 class="detail-label" data-i18n="detail.latestUpdate"></h3>
+              <p id="watchLatestUpdate"></p>
+            </section>
+            <section data-detail-field="lastChecked" hidden>
+              <h3 class="detail-label" data-i18n="detail.lastChecked"></h3>
+              <p id="watchLastChecked"></p>
+            </section>
+          </div>
+
+          <section class="detail-card__take" data-detail-field="assistantContext" hidden>
+            <h3 class="detail-label" data-i18n="detail.myTake"></h3>
+            <p id="watchAssistantContext"></p>
+          </section>
         </section>
 
-        <section class="detail-section">
-          <h2 data-i18n="detail.status"></h2>
-          <p id="watchStatus"></p>
-        </section>
+        <aside class="personal-note" id="watchWhyFollowing" aria-labelledby="whyFollowingTitle" hidden>
+          <h2 class="detail-label" id="whyFollowingTitle" data-i18n="detail.whyFollowing"></h2>
+          <blockquote id="watchWhyFollowingCopy"></blockquote>
+        </aside>
 
-        <section class="detail-section">
-          <h2 data-i18n="detail.created"></h2>
-          <p id="watchCreatedAt"></p>
-        </section>
-
-        <section class="detail-section">
-          <h2 data-i18n="detail.lastChecked"></h2>
-          <p id="watchLastChecked"></p>
-        </section>
-
-        <section class="detail-section">
-          <h2 data-i18n="detail.latestUpdate"></h2>
-          <p id="watchLatestUpdate"></p>
-        </section>
-
-        <section class="detail-section">
-          <h2 data-i18n="detail.sources"></h2>
-          <ul id="watchSources"></ul>
-        </section>
-
-        <section class="timeline">
-          <h2 data-i18n="detail.timeline"></h2>
+        <section class="timeline" id="watchTimelineSection" aria-labelledby="timelineTitle" hidden>
+          <h2 class="detail-label" id="timelineTitle" data-i18n="detail.howWeGotHere"></h2>
           <ol id="watchTimeline"></ol>
         </section>
 
-        <a class="button button--primary" id="watchExternalAction" href="#" target="_blank" rel="noopener" hidden data-i18n="common.openSource"></a>
+        <section class="external-actions" id="watchActionsSection" aria-labelledby="actionsTitle" hidden>
+          <h2 class="detail-label" id="actionsTitle" data-i18n="detail.whatYouCanDo"></h2>
+          <div class="external-actions__list" id="watchExternalActions"></div>
+        </section>
       </main>
+
+      <a class="floating-action floating-action--detail" href="new-watch.html">
+        <span aria-hidden="true">+</span>
+        <span data-i18n="common.newWatch"></span>
+      </a>
     </div>
 
     <script type="module" src="src/js/main.js"></script>

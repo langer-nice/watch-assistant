@@ -2,7 +2,7 @@ import { mockWatches } from './data/mock-watches.js';
 
 const STORAGE_KEY = 'watchAssistant.watches';
 
-function getStoredWatches() {
+export function getStoredWatches() {
   const json = localStorage.getItem(STORAGE_KEY);
   if (!json) {
     return [];

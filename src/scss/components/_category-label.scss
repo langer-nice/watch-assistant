@@ -16,3 +16,25 @@
 .category-label--news {
   color: var(--color-category-news);
 }
+
+.category-pill {
+  display: inline-flex;
+  width: fit-content;
+  margin: 0;
+  padding: var(--space-3xs) var(--space-xs);
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-family-body);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.category-pill--travel {
+  color: var(--color-category-travel-pill);
+  background: var(--color-category-travel-pill-bg);
+}

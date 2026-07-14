@@ -39,3 +39,24 @@
 .floating-action--home:focus-visible {
   background: var(--color-floating-action-hover);
 }
+
+.floating-action--detail {
+  right: var(--space-xl);
+  bottom: var(--space-lg);
+  left: var(--space-xl);
+  z-index: 20;
+  gap: var(--space-xs);
+  max-width: calc(var(--content-detail-width) - (var(--space-xl) * 2));
+  min-height: 3.25rem;
+  margin: 0 auto;
+  border-radius: var(--radius-lg);
+  background: var(--color-floating-action);
+  box-shadow: var(--shadow-floating-action);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.floating-action--detail:hover,
+.floating-action--detail:focus-visible {
+  background: var(--color-floating-action-hover);
+}

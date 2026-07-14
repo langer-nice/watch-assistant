@@ -1,0 +1,37 @@
+.external-actions > .detail-label {
+  margin: 0 var(--space-md) var(--space-md);
+}
+
+.external-actions__list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.external-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  min-height: 3.5rem;
+  padding: var(--space-sm) var(--space-lg);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--font-size-sm);
+  font-style: normal;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.external-action:hover {
+  border-color: var(--color-primary);
+}
+
+.external-action__icon {
+  flex: 0 0 auto;
+  color: var(--color-external-icon);
+  font-size: var(--font-size-md);
+}
