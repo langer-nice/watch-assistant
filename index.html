@@ -24,34 +24,31 @@
       </a>
 
       <main class="page page--home">
-        <section class="briefing-summary" aria-labelledby="homeGreeting">
+        <section class="briefing-report" aria-labelledby="homeSummaryLabel">
           <header class="briefing-summary__masthead">
             <p data-i18n="home.briefLabel"></p>
             <time class="briefing-summary__timestamp" id="homeBriefingDate"></time>
           </header>
 
-          <div class="briefing-summary__introduction">
-            <h1 id="homeGreeting" data-i18n="home.greeting"></h1>
-            <p>
-              <span id="homeCheckedSummary"></span>
-              <span data-i18n="home.controlSummary"></span>
-            </p>
-          </div>
+          <div class="briefing-summary">
+            <h1 class="briefing-summary__greeting" id="homeSummaryLabel"></h1>
+            <p class="briefing-summary__total" id="homeCheckedSummary"></p>
 
-          <ul class="briefing-summary__statuses" aria-label="Status overview" data-i18n-aria-label="home.statusOverviewLabel">
-            <li class="briefing-summary__status briefing-summary__status--action">
-              <span class="briefing-summary__dot" aria-hidden="true"></span>
-              <span><strong>1</strong> <span data-i18n="home.needsAttention"></span></span>
-            </li>
-            <li class="briefing-summary__status briefing-summary__status--update">
-              <span class="briefing-summary__dot" aria-hidden="true"></span>
-              <span><strong>2</strong> <span data-i18n="home.meaningfulUpdates"></span></span>
-            </li>
-            <li class="briefing-summary__status briefing-summary__status--success">
-              <span class="briefing-summary__dot" aria-hidden="true"></span>
-              <span><strong id="homeNoChangesCount">39</strong> <span data-i18n="home.noChanges"></span></span>
-            </li>
-          </ul>
+            <ul class="briefing-summary__statuses" aria-label="Status overview" data-i18n-aria-label="home.statusOverviewLabel">
+              <li class="briefing-summary__status briefing-summary__status--action">
+                <span class="briefing-summary__dot" aria-hidden="true"></span>
+                <span><strong id="homeAttentionCount"></strong> <span id="homeAttentionLabel"></span></span>
+              </li>
+              <li class="briefing-summary__status briefing-summary__status--update">
+                <span class="briefing-summary__dot" aria-hidden="true"></span>
+                <span><strong id="homeUpdatedCount"></strong> <span id="homeUpdatedLabel"></span></span>
+              </li>
+              <li class="briefing-summary__status briefing-summary__status--success">
+                <span class="briefing-summary__dot" aria-hidden="true"></span>
+                <span><strong id="homeNoChangesCount"></strong> <span id="homeUnchangedLabel"></span></span>
+              </li>
+            </ul>
+          </div>
         </section>
 
         <section class="confirmation-banner confirmation-banner--watch-created" id="homeConfirmation" hidden>

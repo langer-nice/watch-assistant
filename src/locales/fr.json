@@ -31,11 +31,36 @@
     "updatedAt": "Mis à jour",
     "briefingTimeUnavailable": "Heure du briefing indisponible",
     "viewIntroduction": "Voir l'introduction",
+    "today": "Aujourd’hui",
+    "watchesChecked": "veilles vérifiées",
+    "greetings": {
+      "morning": "Bonjour David.",
+      "afternoon": "Bon après-midi, David.",
+      "evening": "Bonsoir David."
+    },
+    "checkedAway": {
+      "one": "{count} veille vérifiée pendant votre absence.",
+      "other": "{count} veilles vérifiées pendant votre absence."
+    },
+    "attentionLabel": {
+      "one": "demande votre attention",
+      "other": "demandent votre attention"
+    },
+    "updatedLabel": {
+      "one": "mise à jour",
+      "other": "mises à jour"
+    },
+    "unchangedLabel": {
+      "one": "sans changement",
+      "other": "sans changement"
+    },
     "greeting": "Bonjour David.",
     "checkedSummary": "J’ai vérifié {count} éléments pendant votre absence.",
     "controlSummary": "Tout le reste est déjà sous contrôle.",
     "statusOverviewLabel": "Aperçu des statuts",
     "needsAttention": "nécessite votre attention",
+    "updatedCount": "mises à jour",
+    "unchanged": "sans changement",
     "meaningfulUpdates": "présentent des mises à jour importantes",
     "noChanges": "ont été vérifiés sans changement",
     "briefingItemsLabel": "Éléments qui méritent votre attention",

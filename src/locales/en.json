@@ -31,11 +31,36 @@
     "updatedAt": "Updated at",
     "briefingTimeUnavailable": "Briefing time unavailable",
     "viewIntroduction": "View introduction",
+    "today": "Today",
+    "watchesChecked": "watches checked",
+    "greetings": {
+      "morning": "Good morning, David.",
+      "afternoon": "Good afternoon, David.",
+      "evening": "Good evening, David."
+    },
+    "checkedAway": {
+      "one": "{count} watch checked while you were away.",
+      "other": "{count} watches checked while you were away."
+    },
+    "attentionLabel": {
+      "one": "needs your attention",
+      "other": "need your attention"
+    },
+    "updatedLabel": {
+      "one": "updated",
+      "other": "updated"
+    },
+    "unchangedLabel": {
+      "one": "unchanged",
+      "other": "unchanged"
+    },
     "greeting": "Good afternoon, David.",
     "checkedSummary": "I checked {count} things while you were away.",
     "controlSummary": "Everything else is already under control.",
     "statusOverviewLabel": "Status overview",
     "needsAttention": "needs your attention",
+    "updatedCount": "updated",
+    "unchanged": "unchanged",
     "meaningfulUpdates": "have meaningful updates",
     "noChanges": "were checked with no changes",
     "briefingItemsLabel": "Items that deserve your attention",

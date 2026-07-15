@@ -578,8 +578,14 @@ const renderHomeSummary = () => {
   const confirmationLink = document.querySelector('#homeConfirmationLink');
   const confirmationDismiss = document.querySelector('#homeConfirmationDismiss');
   const briefingDate = document.querySelector('#homeBriefingDate');
+  const greeting = document.querySelector('#homeSummaryLabel');
   const checkedSummary = document.querySelector('#homeCheckedSummary');
+  const attentionCount = document.querySelector('#homeAttentionCount');
+  const attentionLabel = document.querySelector('#homeAttentionLabel');
+  const updatedCount = document.querySelector('#homeUpdatedCount');
+  const updatedLabel = document.querySelector('#homeUpdatedLabel');
   const noChangesCount = document.querySelector('#homeNoChangesCount');
+  const unchangedLabel = document.querySelector('#homeUnchangedLabel');
   const everythingChecked = document.querySelector('#homeEverythingChecked');
 
   if (!confirmationBanner && !briefingDate) {
@@ -625,17 +631,53 @@ const renderHomeSummary = () => {
 
   const storedWatches = getStoredWatches();
   const activeStoredWatches = storedWatches.filter((watch) => watch.status !== 'completed');
+  const activeWatches = getWatches().filter((watch) => watch.status !== 'completed');
+  const attentionWatches = activeWatches.filter((watch) => (
+    watch.requiresAttention || watch.status === 'attention'
+  ));
+  const updatedWatches = activeWatches.filter((watch) => (
+    !watch.requiresAttention
+    && watch.status !== 'attention'
+    && hasMeaningfulText(getLatestChange(watch))
+  ));
   const quietStoredWatches = activeStoredWatches.filter((watch) => (
     !watch.requiresAttention
     && !hasMeaningfulText(getLatestChange(watch))
   ));
+  const demoQuietWatchCount = 39;
+  const totalChecked = demoQuietWatchCount + activeWatches.length;
+  const unchangedCount = totalChecked - attentionWatches.length - updatedWatches.length;
+  const pluralKey = (key, count) => `${key}.${count === 1 ? 'one' : 'other'}`;
+  const currentHour = new Date().getHours();
+  const greetingKey = currentHour < 12
+    ? 'home.greetings.morning'
+    : currentHour < 18 ? 'home.greetings.afternoon' : 'home.greetings.evening';
+
+  if (greeting) {
+    greeting.textContent = t(greetingKey);
+  }
   if (checkedSummary) {
-    checkedSummary.textContent = t('home.checkedSummary', {
-      count: 42 + activeStoredWatches.length,
+    checkedSummary.textContent = t(pluralKey('home.checkedAway', totalChecked), {
+      count: totalChecked,
     });
   }
+  if (attentionCount) {
+    attentionCount.textContent = String(attentionWatches.length);
+  }
+  if (attentionLabel) {
+    attentionLabel.textContent = t(pluralKey('home.attentionLabel', attentionWatches.length));
+  }
+  if (updatedCount) {
+    updatedCount.textContent = String(updatedWatches.length);
+  }
+  if (updatedLabel) {
+    updatedLabel.textContent = t(pluralKey('home.updatedLabel', updatedWatches.length));
+  }
   if (noChangesCount) {
-    noChangesCount.textContent = String(39 + quietStoredWatches.length);
+    noChangesCount.textContent = String(unchangedCount);
+  }
+  if (unchangedLabel) {
+    unchangedLabel.textContent = t(pluralKey('home.unchangedLabel', unchangedCount));
   }
   if (everythingChecked) {
     everythingChecked.textContent = t('home.everythingChecked', {
