@@ -54,6 +54,34 @@ const isDistinctMeaningfulText = (value, comparison = '') => (
   && value.trim().toLocaleLowerCase() !== comparison.trim().toLocaleLowerCase()
 );
 
+const normalizeComparableText = (value = '') => String(value)
+  .normalize('NFKC')
+  .toLocaleLowerCase()
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
+  .trim();
+
+const getWatchListSubtitle = (watch, title) => {
+  const request = localizeField(watch, 'request');
+  const excludedValues = new Set(
+    [title, request, t('watchData.created'), 'undefined', 'null']
+      .filter(hasMeaningfulText)
+      .map(normalizeComparableText),
+  );
+  const subtitle = [
+    localizeField(watch, 'currentSituation'),
+    localizeField(watch, 'summary'),
+    localizeField(watch, 'latestUpdate'),
+  ].find((value) => (
+    hasMeaningfulText(value)
+    && !excludedValues.has(normalizeComparableText(value))
+  ));
+
+  const fallback = t('watchData.pendingSituations.general');
+  return subtitle || (
+    normalizeComparableText(fallback) !== normalizeComparableText(title) ? fallback : ''
+  );
+};
+
 const formatDate = (isoString) => {
   if (!isoString) {
     return t('common.unknown');
@@ -163,15 +191,15 @@ const renderWatchList = () => {
 
   list.innerHTML = watches
     .map((watch) => {
-      const title = localizeField(watch, 'title');
-      const request = localizeField(watch, 'request');
-      const summary = localizeField(watch, 'summary') || request || t('common.monitoringFallback');
+      const storedTitle = localizeField(watch, 'title');
+      const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
+      const subtitle = getWatchListSubtitle(watch, title);
       return `
       <a class="watch-row" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
         <div>
           <p class="watch-row__category">${escapeHtml(t(`categories.${watch.category}`))}</p>
           <h2>${escapeHtml(title)}</h2>
-          ${summary ? `<p class="watch-row__summary">${escapeHtml(summary)}</p>` : ''}
+          ${subtitle ? `<p class="watch-row__summary">${escapeHtml(subtitle)}</p>` : ''}
         </div>
         <span class="watch-row__status">${escapeHtml(t(`statuses.${watch.status}`))}</span>
       </a>
