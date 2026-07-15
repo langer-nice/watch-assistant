@@ -8,6 +8,7 @@ import {
   resetStoredWatches,
 } from './watch-storage.js';
 import { getLanguage, t } from './i18n.js';
+import { analyseUrl } from './url-analysis.js';
 
 let homeCreatedWatchId = null;
 
@@ -45,11 +46,37 @@ const isUrl = (value) => {
   return /^(https?:\/\/|www\.)[\w-]+(\.[\w-]+)+/.test(trimmed);
 };
 
+const getSafeExternalUrl = (url) => {
+  if (typeof url !== 'string' || !url.trim()) {
+    return '';
+  }
+
+  try {
+    const value = url.trim();
+    const parsedUrl = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+    return ['http:', 'https:'].includes(parsedUrl.protocol) ? parsedUrl.href : '';
+  } catch {
+    return '';
+  }
+};
+
 const hasMeaningfulText = (value) => (
   typeof value === 'string'
   && value.trim().length >= 3
   && /[\p{L}\p{N}]/u.test(value)
 );
+
+const getSourceText = (value) => {
+  if (!hasMeaningfulText(value)) {
+    return '';
+  }
+
+  const trimmedValue = value.trim();
+  const normalizedValue = trimmedValue.toLocaleLowerCase();
+  return ['undefined', 'null', 'unknown source', 'source inconnue'].includes(normalizedValue)
+    ? ''
+    : trimmedValue;
+};
 
 const isDistinctMeaningfulText = (value, comparison = '') => (
   hasMeaningfulText(value)
@@ -190,20 +217,37 @@ const createTitle = (request) => {
   return text.length > 60 ? `${text.slice(0, 57)}...` : text;
 };
 
-const createWatchObject = (request, whyFollowing = '') => {
+const createWatchObject = (request, whyFollowing = '', urlAnalysis = null) => {
   const now = new Date().toISOString();
-  const category = inferCategory(request);
+  const isUrlRequest = Boolean(urlAnalysis);
+  const sourceName = getSourceText(urlAnalysis?.sourceName || urlAnalysis?.source);
+  const sourceTitle = getSourceText(urlAnalysis?.sourceTitle || urlAnalysis?.title);
+  const sourceUrl = typeof urlAnalysis?.sourceUrl === 'string'
+    ? urlAnalysis.sourceUrl.trim()
+    : '';
+  const category = inferCategory([
+    request,
+    urlAnalysis?.title,
+    urlAnalysis?.source,
+  ].filter(Boolean).join(' '));
   return {
     id: crypto.randomUUID(),
-    title: createTitle(request),
+    title: urlAnalysis?.title || createTitle(request),
     request,
+    inputType: isUrlRequest ? 'url' : 'text',
+    sourceName: sourceName || null,
+    sourceTitle: sourceTitle || null,
+    sourceUrl: sourceUrl || null,
     whyFollowing: whyFollowing.trim(),
     category,
     status: 'watching',
     createdAt: now,
     lastChecked: null,
     requiresAttention: false,
-    monitoringSummaryKey: inferMonitoringSummaryKey(request, category),
+    monitoringSummary: urlAnalysis?.summary || null,
+    monitoringSummaryKey: isUrlRequest
+      ? null
+      : inferMonitoringSummaryKey(request, category),
     currentSituationKey: inferCurrentSituationKey(request, category),
     latestChange: null,
     latestChangeAt: null,
@@ -307,6 +351,10 @@ const renderWatchDetail = () => {
   const primaryEl = document.querySelector('#watchPrimary');
   const currentSituationEl = document.querySelector('#watchCurrentSituation');
   const recommendationEl = document.querySelector('#watchRecommendation');
+  const originalSourceEl = document.querySelector('#watchOriginalSource');
+  const sourceNameEl = document.querySelector('#watchSourceName');
+  const sourceTitleEl = document.querySelector('#watchSourceTitle');
+  const sourceLinkEl = document.querySelector('#watchSourceLink');
   const whyTodayEl = document.querySelector('#watchWhyToday');
   const whyTodayCopyEl = document.querySelector('#watchWhyTodayCopy');
   const latestChangeEl = document.querySelector('#watchLatestChange');
@@ -401,6 +449,40 @@ const renderWatchDetail = () => {
     primaryEl.hidden = !(hasCurrentSituation || hasRecommendation);
   }
 
+  const storedSourceName = localizeField(watch, 'sourceName');
+  const storedSourceTitle = localizeField(watch, 'sourceTitle');
+  const sourceName = getSourceText(storedSourceName);
+  const sourceTitle = getSourceText(storedSourceTitle);
+  const storedSourceUrl = typeof watch.sourceUrl === 'string' ? watch.sourceUrl.trim() : '';
+  const safeSourceUrl = getSafeExternalUrl(storedSourceUrl);
+  const hasSourceLink = Boolean(safeSourceUrl);
+  const hasOriginalSource = Boolean(
+    watch.inputType === 'url'
+    || storedSourceUrl
+    || sourceName
+    || sourceTitle,
+  );
+  if (sourceNameEl) {
+    sourceNameEl.textContent = sourceName;
+    sourceNameEl.hidden = !sourceName;
+  }
+  if (sourceTitleEl) {
+    sourceTitleEl.textContent = sourceTitle;
+    sourceTitleEl.hidden = !sourceTitle;
+  }
+  if (sourceLinkEl) {
+    if (hasSourceLink) {
+      sourceLinkEl.href = safeSourceUrl;
+      sourceLinkEl.setAttribute('aria-label', t('detail.openOriginalArticle'));
+    } else {
+      sourceLinkEl.removeAttribute('href');
+    }
+    sourceLinkEl.hidden = !hasSourceLink;
+  }
+  if (originalSourceEl) {
+    originalSourceEl.hidden = !hasOriginalSource;
+  }
+
   const whyToday = localizeField(watch, 'whyToday');
   const hasWhyToday = hasMeaningfulText(whyToday);
   if (whyTodayCopyEl) {
@@ -453,7 +535,7 @@ const renderWatchDetail = () => {
     factsEl.hidden = !hasMetadata;
   }
   if (briefingEl) {
-    briefingEl.hidden = !(hasCurrentSituation || hasRecommendation);
+    briefingEl.hidden = !(hasCurrentSituation || hasRecommendation || hasOriginalSource);
   }
 
   const whyFollowing = localizeField(watch, 'whyFollowing');
@@ -503,13 +585,6 @@ const renderWatchDetail = () => {
     timelineSectionEl.hidden = timeline.length === 0;
   }
 
-  const isSafeExternalUrl = (url) => {
-    try {
-      return ['http:', 'https:'].includes(new URL(url).protocol);
-    } catch {
-      return false;
-    }
-  };
   const externalActions = Array.isArray(watch.externalActions)
     ? watch.externalActions
     : watch.externalAction ? [watch.externalAction] : [];
@@ -770,15 +845,173 @@ export function initForm() {
   const watchError = document.querySelector('#watchError');
   const hint = document.querySelector('#inputTypeHint');
   const submitButton = document.querySelector('#newWatchSubmit');
-  const urlShortcut = document.querySelector('#urlShortcut');
+  const submitLabel = document.querySelector('#newWatchSubmitLabel');
   const successState = document.querySelector('#newWatchSuccess');
+  const analysisSection = document.querySelector('#urlAnalysis');
+  const processingState = document.querySelector('#urlAnalysisProcessing');
+  const processingMessage = document.querySelector('#urlAnalysisMessage');
+  const review = document.querySelector('#urlReview');
+  const reviewSuccess = document.querySelector('#urlReviewSuccess');
+  const reviewFailure = document.querySelector('#urlReviewFailure');
+  const reviewTitle = document.querySelector('#urlReviewTitle');
+  const reviewSummary = document.querySelector('#urlReviewSummary');
+  const reviewSource = document.querySelector('#urlReviewSource');
+  const reviewCreate = document.querySelector('#urlReviewCreate');
+  const reviewEdit = document.querySelector('#urlReviewEdit');
+  const reviewCancel = document.querySelector('#urlReviewCancel');
   const input = form?.watchRequest;
+  let pendingRequest = '';
+  let pendingWhyFollowing = '';
+  let pendingAnalysis = null;
+  let analysisInProgress = false;
+  let creationInProgress = false;
 
   if (!form) {
     return;
   }
 
   const hasMeaningfulRequest = () => hasMeaningfulText(input?.value || '');
+
+  const setSubmitLabel = (key = 'newWatch.submit') => {
+    if (submitLabel) {
+      submitLabel.textContent = t(key);
+    }
+  };
+
+  const setCreationControlsDisabled = (disabled) => {
+    if (input) {
+      input.disabled = disabled;
+    }
+    if (form.whyFollowing) {
+      form.whyFollowing.disabled = disabled;
+    }
+    form.querySelectorAll('[data-watch-example]').forEach((button) => {
+      button.disabled = disabled;
+    });
+    if (submitButton) {
+      submitButton.disabled = disabled || !hasMeaningfulRequest();
+    }
+  };
+
+  const completeWatchCreation = (watch) => {
+    addWatch(watch);
+    sessionStorage.setItem('watchAssistant.newWatchId', watch.id);
+    form.hidden = true;
+    document.querySelector('#recentWatchesSection')?.setAttribute('hidden', '');
+    if (successState) {
+      successState.hidden = false;
+      successState.focus();
+    }
+    window.setTimeout(() => {
+      window.location.href = `index.html?watchCreated=${encodeURIComponent(watch.id)}`;
+    }, 1250);
+  };
+
+  const setReviewEditing = (editing) => {
+    review?.classList.toggle('is-editing', editing);
+    if (reviewTitle) {
+      reviewTitle.readOnly = !editing;
+    }
+    if (reviewSummary) {
+      reviewSummary.readOnly = !editing;
+    }
+    if (reviewEdit) {
+      reviewEdit.textContent = t(editing ? 'newWatch.urlReviewDone' : 'newWatch.urlReviewEdit');
+    }
+    if (editing) {
+      reviewTitle?.focus();
+    }
+  };
+
+  const showReview = (analysis) => {
+    const failed = analysis?.status !== 'success';
+    pendingAnalysis = analysis;
+    form.classList.add('is-reviewing');
+    if (processingState) {
+      processingState.hidden = true;
+    }
+    if (review) {
+      review.hidden = false;
+    }
+    if (reviewSuccess) {
+      reviewSuccess.hidden = failed;
+    }
+    if (reviewFailure) {
+      reviewFailure.hidden = !failed;
+    }
+    if (reviewTitle) {
+      reviewTitle.disabled = false;
+      reviewTitle.value = analysis?.title || '';
+    }
+    if (reviewSummary) {
+      reviewSummary.disabled = false;
+      reviewSummary.value = analysis?.summary || '';
+    }
+    if (reviewSource) {
+      reviewSource.textContent = analysis?.source || t('newWatch.urlReviewUnknownSource');
+    }
+    if (reviewEdit) {
+      reviewEdit.hidden = failed;
+    }
+    if (reviewCancel) {
+      reviewCancel.hidden = !failed;
+    }
+    setReviewEditing(failed);
+    if (!failed) review?.focus();
+  };
+
+  const startUrlAnalysis = async (request, whyFollowing) => {
+    analysisInProgress = true;
+    pendingRequest = request;
+    pendingWhyFollowing = whyFollowing;
+    form.classList.add('is-analysing');
+    setCreationControlsDisabled(true);
+    setSubmitLabel('newWatch.urlProcessingButton');
+    if (analysisSection) {
+      analysisSection.hidden = false;
+    }
+    if (processingState) {
+      processingState.hidden = false;
+    }
+    if (review) {
+      review.hidden = true;
+    }
+
+    const messageKeys = [
+      'newWatch.urlProcessingAnalyzing',
+      'newWatch.urlProcessingReading',
+      'newWatch.urlProcessingPreparing',
+    ];
+    let messageIndex = 0;
+    if (processingMessage) {
+      processingMessage.textContent = t(messageKeys[messageIndex]);
+    }
+    const messageTimer = window.setInterval(() => {
+      messageIndex = Math.min(messageIndex + 1, messageKeys.length - 1);
+      if (processingMessage) {
+        processingMessage.textContent = t(messageKeys[messageIndex]);
+      }
+    }, 450);
+
+    try {
+      // Yield once so the browser paints the disabled button and processing state.
+      await new Promise((resolve) => window.requestAnimationFrame(resolve));
+      const analysis = await analyseUrl(request);
+      showReview(analysis);
+    } catch (error) {
+      console.error('URL analysis failed:', error);
+      showReview({
+        status: 'failure',
+        source: t('newWatch.urlReviewUnknownSource'),
+        sourceUrl: request,
+      });
+    } finally {
+      window.clearInterval(messageTimer);
+      analysisInProgress = false;
+      form.classList.remove('is-analysing');
+      setSubmitLabel();
+    }
+  };
 
   const updateComposer = () => {
     const hasRequest = hasMeaningfulRequest();
@@ -787,8 +1020,8 @@ export function initForm() {
     }
     if (hint && input) {
       const urlDetected = isUrl(input.value);
-      hint.textContent = t(urlDetected ? 'newWatch.urlDetected' : 'newWatch.urlHelp');
-      urlShortcut?.classList.toggle('is-detected', urlDetected);
+      hint.textContent = urlDetected ? t('newWatch.urlDetected') : '';
+      hint.hidden = !urlDetected;
     }
     if (watchError && hasRequest) {
       watchError.textContent = '';
@@ -814,12 +1047,13 @@ export function initForm() {
     });
   });
 
-  urlShortcut?.addEventListener('click', () => {
-    input?.focus();
-  });
-
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
+
+    if (analysisInProgress || creationInProgress || form.classList.contains('is-reviewing')) {
+      return;
+    }
+
     const request = input?.value.trim() || '';
     const whyFollowing = form.whyFollowing?.value || '';
 
@@ -835,21 +1069,79 @@ export function initForm() {
       watchError.textContent = '';
     }
 
-    const watch = createWatchObject(request, whyFollowing);
-    addWatch(watch);
-    sessionStorage.setItem('watchAssistant.newWatchId', watch.id);
-    form.querySelectorAll('button, input, textarea').forEach((control) => {
-      control.disabled = true;
-    });
-    form.hidden = true;
-    document.querySelector('#recentWatchesSection')?.setAttribute('hidden', '');
-    if (successState) {
-      successState.hidden = false;
-      successState.focus();
+    if (isUrl(request)) {
+      await startUrlAnalysis(request, whyFollowing);
+      return;
     }
-    window.setTimeout(() => {
-      window.location.href = `index.html?watchCreated=${encodeURIComponent(watch.id)}`;
-    }, 1250);
+
+    creationInProgress = true;
+    setCreationControlsDisabled(true);
+    completeWatchCreation(createWatchObject(request, whyFollowing));
+  });
+
+  reviewEdit?.addEventListener('click', () => {
+    setReviewEditing(!review?.classList.contains('is-editing'));
+  });
+
+  reviewCreate?.addEventListener('click', () => {
+    if (creationInProgress) {
+      return;
+    }
+
+    if (!reviewTitle?.reportValidity() || !reviewSummary?.reportValidity()) {
+      return;
+    }
+
+    creationInProgress = true;
+    [reviewCreate, reviewEdit, reviewCancel].forEach((control) => {
+      if (control) control.disabled = true;
+    });
+    const analysis = {
+      ...pendingAnalysis,
+      status: 'success',
+      title: reviewTitle.value.trim(),
+      summary: reviewSummary.value.trim(),
+      source: getSourceText(pendingAnalysis?.sourceName || pendingAnalysis?.source) || null,
+      sourceUrl: pendingAnalysis?.sourceUrl || pendingRequest,
+    };
+    completeWatchCreation(createWatchObject(
+      pendingRequest,
+      pendingWhyFollowing,
+      analysis,
+    ));
+  });
+
+  reviewCancel?.addEventListener('click', () => {
+    pendingRequest = '';
+    pendingWhyFollowing = '';
+    pendingAnalysis = null;
+    analysisInProgress = false;
+    form.classList.remove('is-reviewing');
+    if (analysisSection) {
+      analysisSection.hidden = true;
+    }
+    if (review) {
+      review.hidden = true;
+    }
+    if (reviewTitle) {
+      reviewTitle.disabled = true;
+    }
+    if (reviewSummary) {
+      reviewSummary.disabled = true;
+    }
+    setCreationControlsDisabled(false);
+    setSubmitLabel();
+    updateComposer();
+    input?.focus();
+  });
+
+  document.addEventListener('i18n:languageChanged', () => {
+    if (analysisInProgress) {
+      setSubmitLabel('newWatch.urlProcessingButton');
+    }
+    if (review?.classList.contains('is-editing') && reviewEdit && !reviewEdit.hidden) {
+      reviewEdit.textContent = t('newWatch.urlReviewDone');
+    }
   });
 
   updateComposer();
