@@ -3,6 +3,8 @@ import {
   getStoredWatches,
   addWatch,
   getWatchById,
+  getBriefingGeneratedAt,
+  setBriefingGeneratedAt,
   resetStoredWatches,
 } from './watch-storage.js';
 import { getLanguage, t } from './i18n.js';
@@ -60,24 +62,41 @@ const normalizeComparableText = (value = '') => String(value)
   .replace(/[^\p{L}\p{N}]+/gu, ' ')
   .trim();
 
-const getWatchListSubtitle = (watch, title) => {
+const getLatestChange = (watch) => {
+  const latestChange = localizeField(watch, 'latestChange');
+  if (hasMeaningfulText(latestChange)) {
+    return latestChange;
+  }
+
+  // Older stored watches used latestUpdate for either a change or a timestamp.
+  const legacyUpdate = localizeField(watch, 'latestUpdate');
+  const normalizedUpdate = normalizeComparableText(legacyUpdate);
+  const isTimestampOnly = /^(just now|a moment ago|il y a|à l instant|\d+ (min|mins|minute|minutes|hr|hrs|hour|hours|day|days) ago)/.test(normalizedUpdate);
+  return hasMeaningfulText(legacyUpdate)
+    && normalizedUpdate !== normalizeComparableText(t('watchData.created'))
+    && !isTimestampOnly
+    ? legacyUpdate
+    : '';
+};
+
+const getMonitoringSummary = (watch, title) => {
   const request = localizeField(watch, 'request');
   const excludedValues = new Set(
-    [title, request, t('watchData.created'), 'undefined', 'null']
+    [title, request, getLatestChange(watch), t('watchData.created'), 'undefined', 'null']
       .filter(hasMeaningfulText)
       .map(normalizeComparableText),
   );
-  const subtitle = [
-    localizeField(watch, 'currentSituation'),
-    localizeField(watch, 'summary'),
-    localizeField(watch, 'latestUpdate'),
-  ].find((value) => (
-    hasMeaningfulText(value)
-    && !excludedValues.has(normalizeComparableText(value))
-  ));
+  const monitoringSummary = localizeField(watch, 'monitoringSummary');
+  if (
+    hasMeaningfulText(monitoringSummary)
+    && !excludedValues.has(normalizeComparableText(monitoringSummary))
+  ) {
+    return monitoringSummary;
+  }
 
-  const fallback = t('watchData.pendingSituations.general');
-  return subtitle || (
+  const requestText = hasMeaningfulText(request) ? request : '';
+  const fallback = t(inferMonitoringSummaryKey(requestText, watch.category));
+  return (
     normalizeComparableText(fallback) !== normalizeComparableText(title) ? fallback : ''
   );
 };
@@ -118,10 +137,30 @@ const inferCategory = (request) => {
   return 'general';
 };
 
-const inferPendingSituationKey = (request, category) => {
+const hasReleaseIntent = (request) => (
+  /(release date|released|comes out|coming out|publication date|date de sortie|date de parution|sortie|parution|publi[ée])/
+    .test(request.toLowerCase())
+);
+
+const inferMonitoringSummaryKey = (request, category) => {
+  if (hasReleaseIntent(request)) {
+    return 'watchData.monitoringSummaries.release';
+  }
+
+  const keysByCategory = {
+    price: 'watchData.monitoringSummaries.price',
+    travel: 'watchData.monitoringSummaries.travel',
+    news: 'watchData.monitoringSummaries.news',
+    events: 'watchData.monitoringSummaries.event',
+  };
+
+  return keysByCategory[category] || 'watchData.monitoringSummaries.general';
+};
+
+const inferCurrentSituationKey = (request, category) => {
   const text = request.toLowerCase();
 
-  if (/(release date|released|comes out|coming out|publication date|date de sortie|date de parution|sortie|parution|publi[ée])/.test(text)) {
+  if (hasReleaseIntent(text)) {
     return 'watchData.pendingSituations.release';
   }
 
@@ -164,8 +203,10 @@ const createWatchObject = (request, whyFollowing = '') => {
     createdAt: now,
     lastChecked: null,
     requiresAttention: false,
-    currentSituationKey: inferPendingSituationKey(request, category),
-    latestUpdate: 'Watch created',
+    monitoringSummaryKey: inferMonitoringSummaryKey(request, category),
+    currentSituationKey: inferCurrentSituationKey(request, category),
+    latestChange: null,
+    latestChangeAt: null,
     timeline: [
       {
         type: 'created',
@@ -174,6 +215,46 @@ const createWatchObject = (request, whyFollowing = '') => {
       },
     ],
   };
+};
+
+const renderHomeBriefing = () => {
+  const list = document.querySelector('#homeBriefingList');
+  if (!list) {
+    return;
+  }
+
+  const briefingWatches = getWatches().filter((watch) => (
+    watch.status !== 'completed' && hasMeaningfulText(getLatestChange(watch))
+  ));
+
+  list.innerHTML = briefingWatches
+    .map((watch) => {
+      const title = localizeField(watch, 'title');
+      const latestChange = getLatestChange(watch);
+      if (!hasMeaningfulText(title) || !hasMeaningfulText(latestChange)) {
+        return '';
+      }
+
+      const needsAttention = watch.requiresAttention || watch.status === 'attention';
+      const statusModifier = needsAttention ? 'action' : 'update';
+      const status = t(needsAttention ? 'home.actNow' : 'home.updated');
+      const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
+      const categoryModifier = watch.category || 'general';
+
+      return `
+        <article class="briefing-item">
+          <a class="briefing-item__link" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
+            <div class="briefing-item__labels">
+              <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
+              <span class="status-badge status-badge--${statusModifier}">${escapeHtml(status)}</span>
+            </div>
+            <h2>${escapeHtml(title)}</h2>
+            <p>${escapeHtml(latestChange)}</p>
+          </a>
+        </article>
+      `;
+    })
+    .join('');
 };
 
 const renderWatchList = () => {
@@ -193,7 +274,7 @@ const renderWatchList = () => {
     .map((watch) => {
       const storedTitle = localizeField(watch, 'title');
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
-      const subtitle = getWatchListSubtitle(watch, title);
+      const subtitle = getMonitoringSummary(watch, title);
       return `
       <a class="watch-row" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
         <div>
@@ -222,15 +303,18 @@ const renderWatchDetail = () => {
   const statusEl = document.querySelector('#watchStatus');
   const notFoundEl = document.querySelector('#watchNotFound');
   const briefingEl = document.querySelector('#watchBriefing');
+  const factsEl = document.querySelector('#watchFacts');
   const primaryEl = document.querySelector('#watchPrimary');
   const currentSituationEl = document.querySelector('#watchCurrentSituation');
   const recommendationEl = document.querySelector('#watchRecommendation');
-  const latestUpdateEl = document.querySelector('#watchLatestUpdate');
+  const whyTodayEl = document.querySelector('#watchWhyToday');
+  const whyTodayCopyEl = document.querySelector('#watchWhyTodayCopy');
+  const latestChangeEl = document.querySelector('#watchLatestChange');
+  const latestChangeAtEl = document.querySelector('#watchLatestChangeAt');
   const lastCheckedEl = document.querySelector('#watchLastChecked');
   const confidenceEl = document.querySelector('#watchConfidence');
   const sourcesEl = document.querySelector('#watchSources');
   const metadataEl = document.querySelector('#watchMetadata');
-  const assistantContextEl = document.querySelector('#watchAssistantContext');
   const whyFollowingEl = document.querySelector('#watchWhyFollowing');
   const whyFollowingCopyEl = document.querySelector('#watchWhyFollowingCopy');
   const timelineSectionEl = document.querySelector('#watchTimelineSection');
@@ -240,7 +324,7 @@ const renderWatchDetail = () => {
   const confirmationEl = document.querySelector('#watchConfirmation');
 
   const hideDetailContent = () => {
-    [briefingEl, whyFollowingEl, timelineSectionEl, actionsSectionEl, confirmationEl]
+    [briefingEl, factsEl, whyTodayEl, whyFollowingEl, timelineSectionEl, actionsSectionEl, confirmationEl]
       .forEach((element) => {
         if (element) {
           element.hidden = true;
@@ -300,10 +384,9 @@ const renderWatchDetail = () => {
   };
 
   const storedCurrentSituation = localizeField(watch, 'currentSituation');
-  const storedSummary = localizeField(watch, 'summary');
-  const currentSituation = [storedCurrentSituation, storedSummary]
-    .find((value) => isDistinctMeaningfulText(value, request || ''))
-    || t(inferPendingSituationKey(request || '', watch.category));
+  const currentSituation = isDistinctMeaningfulText(storedCurrentSituation, request || '')
+    ? storedCurrentSituation
+    : t(inferCurrentSituationKey(request || '', watch.category));
   const hasCurrentSituation = setOptionalField(
     'currentSituation',
     currentSituationEl,
@@ -318,8 +401,28 @@ const renderWatchDetail = () => {
     primaryEl.hidden = !(hasCurrentSituation || hasRecommendation);
   }
 
-  const latestUpdate = localizeField(watch, 'latestUpdate');
-  const hasLatestUpdate = setOptionalField('latestUpdate', latestUpdateEl, latestUpdate);
+  const whyToday = localizeField(watch, 'whyToday');
+  const hasWhyToday = hasMeaningfulText(whyToday);
+  if (whyTodayCopyEl) {
+    whyTodayCopyEl.textContent = hasWhyToday ? whyToday : '';
+  }
+  if (whyTodayEl) {
+    whyTodayEl.hidden = !hasWhyToday;
+  }
+
+  const latestChange = getLatestChange(watch);
+  const latestChangeAt = localizeField(watch, 'latestChangeAt');
+  const hasLatestChange = hasMeaningfulText(latestChange);
+  if (latestChangeEl) {
+    latestChangeEl.textContent = hasLatestChange ? latestChange : '';
+  }
+  if (latestChangeAtEl) {
+    latestChangeAtEl.textContent = hasMeaningfulText(latestChangeAt) ? latestChangeAt : '';
+  }
+  const latestChangeContainer = document.querySelector('[data-detail-field="latestChange"]');
+  if (latestChangeContainer) {
+    latestChangeContainer.hidden = !hasLatestChange;
+  }
   const lastChecked = localizeField(watch, 'lastChecked');
   const hasLastChecked = setOptionalField('lastChecked', lastCheckedEl, lastChecked);
 
@@ -342,24 +445,15 @@ const renderWatchDetail = () => {
     sourcesContainer.hidden = sources.length === 0;
   }
 
-  const hasMetadata = sources.length > 0 || hasConfidence || hasLatestUpdate || hasLastChecked;
+  const hasMetadata = sources.length > 0 || hasConfidence || hasLatestChange || hasLastChecked;
   if (metadataEl) {
     metadataEl.hidden = !hasMetadata;
   }
-
-  const assistantContext = localizeField(watch, 'assistantContext');
-  const hasAssistantContext = setOptionalField(
-    'assistantContext',
-    assistantContextEl,
-    assistantContext,
-  );
+  if (factsEl) {
+    factsEl.hidden = !hasMetadata;
+  }
   if (briefingEl) {
-    briefingEl.hidden = !(
-      hasCurrentSituation
-      || hasRecommendation
-      || hasMetadata
-      || hasAssistantContext
-    );
+    briefingEl.hidden = !(hasCurrentSituation || hasRecommendation);
   }
 
   const whyFollowing = localizeField(watch, 'whyFollowing');
@@ -440,7 +534,7 @@ const renderWatchDetail = () => {
   }
 
   if (confirmationEl) {
-    const isNew = (watch.latestUpdateKey === 'watchData.created' || watch.latestUpdate === 'Watch created')
+    const isNew = !hasLatestChange
       && sources.length === 0
       && watch.confidence == null;
     confirmationEl.hidden = !isNew;
@@ -493,19 +587,47 @@ const renderHomeSummary = () => {
   }
 
   if (briefingDate) {
-    const today = new Date();
     const locale = getLanguage() === 'fr' ? 'fr-FR' : 'en-GB';
-    briefingDate.dateTime = today.toISOString().slice(0, 10);
-    briefingDate.textContent = today
-      .toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })
-      .replace(',', '');
+    const storedTimestamp = getBriefingGeneratedAt();
+    const generatedAt = storedTimestamp ? new Date(storedTimestamp) : null;
+    const dateParts = generatedAt
+      ? new Intl.DateTimeFormat(locale, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      }).formatToParts(generatedAt)
+      : [];
+    const getDatePart = (type) => dateParts.find((part) => part.type === type)?.value || '';
+    const date = generatedAt
+      ? `${getDatePart('weekday')} ${getDatePart('day')} ${getDatePart('month')}`
+      : '';
+    const time = generatedAt
+      ? new Intl.DateTimeFormat(locale, {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(generatedAt)
+      : '';
+    const timestampText = generatedAt
+      ? `${date} · ${time}`
+      : t('home.briefingTimeUnavailable');
+
+    if (storedTimestamp) {
+      briefingDate.dateTime = storedTimestamp;
+    } else {
+      briefingDate.removeAttribute('datetime');
+    }
+    briefingDate.innerHTML = `
+      <span class="briefing-summary__timestamp-label">${escapeHtml(t('home.updatedAt'))}</span>
+      <span class="briefing-summary__timestamp-value">${escapeHtml(timestampText)}</span>
+    `;
   }
 
   const storedWatches = getStoredWatches();
   const activeStoredWatches = storedWatches.filter((watch) => watch.status !== 'completed');
   const quietStoredWatches = activeStoredWatches.filter((watch) => (
     !watch.requiresAttention
-    && (watch.latestUpdateKey === 'watchData.created' || watch.status === 'watching')
+    && !hasMeaningfulText(getLatestChange(watch))
   ));
   if (checkedSummary) {
     checkedSummary.textContent = t('home.checkedSummary', {
@@ -555,6 +677,17 @@ const renderHomeSummary = () => {
       confirmationBanner.hidden = true;
     }
   }
+};
+
+/**
+ * Prototype hook for a completed global watch check.
+ * Run refreshBriefing() in the browser console to persist a new briefing time.
+ */
+export const refreshBriefing = () => {
+  const generatedAt = setBriefingGeneratedAt();
+  renderHomeSummary();
+  renderHomeBriefing();
+  return generatedAt;
 };
 
 const renderRecentWatches = () => {
@@ -682,17 +815,22 @@ export function initForm() {
 
 export const initApp = () => {
   renderHomeSummary();
+  renderHomeBriefing();
   renderWatchList();
   renderWatchDetail();
   renderRecentWatches();
   initForm();
   renderDevTools();
 
+  // Exposed for prototype testing; normal page loads never update the timestamp.
+  window.refreshBriefing = refreshBriefing;
+
   window.addEventListener('pageshow', renderRecentWatches);
 
   // Re-render data-driven content if setLanguage() is called at runtime.
   document.addEventListener('i18n:languageChanged', () => {
     renderHomeSummary();
+    renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
     renderRecentWatches();

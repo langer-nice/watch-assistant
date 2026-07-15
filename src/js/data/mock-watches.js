@@ -5,10 +5,12 @@ export const mockWatches = [
     requestKey: 'watchData.watch-001.request',
     category: 'travel',
     status: 'attention',
-    summaryKey: 'watchData.watch-001.summary',
+    monitoringSummaryKey: 'watchData.watch-001.monitoringSummary',
+    latestChangeKey: 'watchData.watch-001.latestChange',
+    latestChangeAtKey: 'watchData.watch-001.latestChangeAt',
     currentSituationKey: 'watchData.watch-001.currentSituation',
     recommendationKey: 'watchData.watch-001.recommendation',
-    latestUpdateKey: 'watchData.watch-001.latestUpdate',
+    whyTodayKey: 'watchData.watch-001.whyToday',
     lastCheckedKey: 'watchData.watch-001.lastChecked',
     requiresAttention: true,
     sources: [
@@ -17,7 +19,6 @@ export const mockWatches = [
       { labelKey: 'watchData.watch-001.sourceThree' },
     ],
     confidence: '96%',
-    assistantContextKey: 'watchData.watch-001.assistantContext',
     whyFollowingKey: 'watchData.watch-001.whyFollowing',
     timeline: [
       {
@@ -55,15 +56,16 @@ export const mockWatches = [
     requestKey: 'watchData.watch-002.request',
     category: 'price',
     status: 'watching',
-    summaryKey: 'watchData.watch-002.summary',
+    monitoringSummaryKey: 'watchData.watch-002.monitoringSummary',
+    latestChangeKey: 'watchData.watch-002.latestChange',
+    latestChangeAtKey: 'watchData.watch-002.latestChangeAt',
     currentSituationKey: 'watchData.watch-002.currentSituation',
     recommendationKey: 'watchData.watch-002.recommendation',
-    latestUpdateKey: 'watchData.watch-002.latestUpdate',
+    whyTodayKey: 'watchData.watch-002.whyToday',
     lastCheckedKey: 'watchData.watch-002.lastChecked',
     requiresAttention: false,
     sources: [{ labelKey: 'watchData.watch-002.sourceOne' }],
     confidence: '88%',
-    assistantContextKey: 'watchData.watch-002.assistantContext',
     whyFollowingKey: 'watchData.watch-002.whyFollowing',
     timeline: [
       {
@@ -87,10 +89,12 @@ export const mockWatches = [
     requestKey: 'watchData.watch-003.request',
     category: 'news',
     status: 'stable',
-    summaryKey: 'watchData.watch-003.summary',
+    monitoringSummaryKey: 'watchData.watch-003.monitoringSummary',
+    latestChangeKey: 'watchData.watch-003.latestChange',
+    latestChangeAtKey: 'watchData.watch-003.latestChangeAt',
     currentSituationKey: 'watchData.watch-003.currentSituation',
     recommendationKey: 'watchData.watch-003.recommendation',
-    latestUpdateKey: 'watchData.watch-003.latestUpdate',
+    whyTodayKey: 'watchData.watch-003.whyToday',
     lastCheckedKey: 'watchData.watch-003.lastChecked',
     requiresAttention: false,
     sources: [
@@ -98,7 +102,6 @@ export const mockWatches = [
       { labelKey: 'watchData.watch-003.sourceTwo' },
     ],
     confidence: '93%',
-    assistantContextKey: 'watchData.watch-003.assistantContext',
     whyFollowingKey: 'watchData.watch-003.whyFollowing',
     timeline: [
       {

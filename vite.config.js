@@ -14,6 +14,7 @@ export default defineConfig({
         watchDetail: resolve(__dirname, 'watch-detail.html'),
         newWatch: resolve(__dirname, 'new-watch.html'),
         followStory: resolve(__dirname, 'follow-story.html'),
+        flow2: resolve(__dirname, 'flow-2.html'),
       },
     },
   },

@@ -26,6 +26,26 @@ The goal is not to define features, but to understand what users want to know wi
 - Tell me when Amazon drops below my target price.
 - Notify me when a product is discontinued.
 
+### Local shopping promotions
+
+Allow users to create watches for promotions in nearby physical stores.
+
+Example:
+
+> Remind me when a supermarket near me has a sale on cookware.
+
+Future capabilities may include:
+
+- supermarkets near the user’s location;
+- selected retailers only;
+- product categories such as cookware, frying pans and kitchen appliances;
+- specific brands such as Tefal and Le Creuset;
+- minimum discount thresholds;
+- weekly catalogues and promotional flyers;
+- retailer websites.
+
+Goal: expand Watch Assistant beyond news monitoring into everyday practical life by notifying users when local shopping opportunities match their interests.
+
 ## Entertainment
 
 - Notify me when Metallica announces a new tour.

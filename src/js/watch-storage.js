@@ -1,6 +1,27 @@
 import { mockWatches } from './data/mock-watches.js';
 
 const STORAGE_KEY = 'watchAssistant.watches';
+const BRIEFING_GENERATED_AT_KEY = 'watchAssistant.briefingGeneratedAt';
+
+export function getBriefingGeneratedAt() {
+  try {
+    const value = localStorage.getItem(BRIEFING_GENERATED_AT_KEY);
+    return value && !Number.isNaN(Date.parse(value)) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setBriefingGeneratedAt(date = new Date()) {
+  const timestamp = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(timestamp.getTime())) {
+    throw new TypeError('briefingGeneratedAt must be a valid date');
+  }
+
+  const value = timestamp.toISOString();
+  localStorage.setItem(BRIEFING_GENERATED_AT_KEY, value);
+  return value;
+}
 
 export function getStoredWatches() {
   const json = localStorage.getItem(STORAGE_KEY);

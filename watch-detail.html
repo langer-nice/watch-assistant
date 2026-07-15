@@ -43,30 +43,15 @@
               <p id="watchRecommendation"></p>
             </section>
           </div>
+        </section>
 
-          <div class="detail-card__metadata" id="watchMetadata">
-            <section data-detail-field="sources" hidden>
-              <h3 class="detail-label" data-i18n="detail.sources"></h3>
-              <ul id="watchSources"></ul>
-            </section>
-            <section data-detail-field="confidence" hidden>
-              <h3 class="detail-label" data-i18n="detail.confidence"></h3>
-              <p id="watchConfidence"></p>
-            </section>
-            <section data-detail-field="latestUpdate" hidden>
-              <h3 class="detail-label" data-i18n="detail.latestUpdate"></h3>
-              <p id="watchLatestUpdate"></p>
-            </section>
-            <section data-detail-field="lastChecked" hidden>
-              <h3 class="detail-label" data-i18n="detail.lastChecked"></h3>
-              <p id="watchLastChecked"></p>
-            </section>
+        <section class="detail-card" id="watchWhyToday" aria-labelledby="whyTodayTitle" hidden>
+          <h2 class="detail-label" id="whyTodayTitle" data-i18n="detail.whyToday"></h2>
+          <div class="detail-card__primary">
+            <div class="detail-card__field">
+              <p id="watchWhyTodayCopy"></p>
+            </div>
           </div>
-
-          <section class="detail-card__take" data-detail-field="assistantContext" hidden>
-            <h3 class="detail-label" data-i18n="detail.myTake"></h3>
-            <p id="watchAssistantContext"></p>
-          </section>
         </section>
 
         <aside class="personal-note" id="watchWhyFollowing" aria-labelledby="whyFollowingTitle" hidden>
@@ -77,6 +62,29 @@
         <section class="timeline" id="watchTimelineSection" aria-labelledby="timelineTitle" hidden>
           <h2 class="detail-label" id="timelineTitle" data-i18n="detail.howWeGotHere"></h2>
           <ol id="watchTimeline"></ol>
+        </section>
+
+        <section class="detail-card" id="watchFacts" aria-labelledby="watchFactsTitle" hidden>
+          <h2 class="detail-label" id="watchFactsTitle" data-i18n="detail.watchFacts"></h2>
+          <div class="detail-card__metadata" id="watchMetadata">
+            <section data-detail-field="sources" hidden>
+              <h3 class="detail-label" data-i18n="detail.sources"></h3>
+              <ul id="watchSources"></ul>
+            </section>
+            <section data-detail-field="confidence" hidden>
+              <h3 class="detail-label" data-i18n="detail.confidence"></h3>
+              <p id="watchConfidence"></p>
+            </section>
+            <section data-detail-field="latestChange" hidden>
+              <h3 class="detail-label" data-i18n="detail.latestChange"></h3>
+              <p id="watchLatestChange"></p>
+              <p id="watchLatestChangeAt"></p>
+            </section>
+            <section data-detail-field="lastChecked" hidden>
+              <h3 class="detail-label" data-i18n="detail.lastChecked"></h3>
+              <p id="watchLastChecked"></p>
+            </section>
+          </div>
         </section>
 
         <section class="external-actions" id="watchActionsSection" aria-labelledby="actionsTitle" hidden>

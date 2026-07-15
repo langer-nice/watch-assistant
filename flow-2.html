@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title data-i18n="meta.flow2"></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/scss/main.scss" />
+  </head>
+  <body>
+    <div class="app-shell app-shell--flow-2">
+      <main class="flow-2" aria-live="polite">
+        <section class="flow-2__screen flow-2__screen--intro" data-flow-step="0" tabindex="-1" aria-labelledby="flow2IntroTitle">
+          <div class="flow-2__intro-copy">
+            <p class="flow-2__eyebrow" data-i18n="common.brand"></p>
+            <h1 id="flow2IntroTitle" data-i18n="flow2.headline"></h1>
+            <p class="flow-2__subheadline" data-i18n="flow2.subheadline"></p>
+            <p class="flow-2__supporting" data-i18n="flow2.supporting"></p>
+          </div>
+
+          <button class="button flow-2__cta flow-2__cta--light" type="button" data-flow-next>
+            <span data-i18n="flow2.seeHowItWorks"></span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </section>
+
+        <section class="flow-2__screen flow-2__screen--examples" data-flow-step="1" tabindex="-1" aria-labelledby="flow2ExamplesTitle" hidden>
+          <header class="flow-2__header">
+            <button class="flow-2__back" type="button" data-flow-back data-i18n-aria-label="flow2.back">
+              <span aria-hidden="true">←</span>
+            </button>
+            <div>
+              <p class="flow-2__eyebrow" data-i18n="flow2.examplesLabel"></p>
+              <h1 id="flow2ExamplesTitle" data-i18n="flow2.examplesTitle"></h1>
+            </div>
+          </header>
+
+          <ol class="flow-2__examples">
+            <li data-i18n="flow2.exampleOne"></li>
+            <li data-i18n="flow2.exampleTwo"></li>
+            <li data-i18n="flow2.exampleThree"></li>
+            <li data-i18n="flow2.exampleFour"></li>
+            <li data-i18n="flow2.exampleFive"></li>
+          </ol>
+
+          <button class="button button--primary flow-2__cta" type="button" data-flow-next>
+            <span data-i18n="flow2.seeBriefing"></span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </section>
+
+        <section class="flow-2__screen flow-2__screen--briefing" data-flow-step="2" tabindex="-1" aria-labelledby="flow2BriefingTitle" hidden>
+          <header class="flow-2__header">
+            <button class="flow-2__back" type="button" data-flow-back data-i18n-aria-label="flow2.back">
+              <span aria-hidden="true">←</span>
+            </button>
+            <div>
+              <p class="flow-2__eyebrow" data-i18n="flow2.briefingLabel"></p>
+              <h1 id="flow2BriefingTitle" data-i18n="flow2.briefingTitle"></h1>
+            </div>
+          </header>
+
+          <dl class="flow-2__summary">
+            <div>
+              <dt data-i18n="flow2.checked"></dt>
+              <dd>42</dd>
+            </div>
+            <div class="flow-2__summary-item flow-2__summary-item--action">
+              <dt data-i18n="flow2.needsAttention"></dt>
+              <dd>1</dd>
+            </div>
+            <div class="flow-2__summary-item flow-2__summary-item--update">
+              <dt data-i18n="flow2.updated"></dt>
+              <dd>2</dd>
+            </div>
+            <div class="flow-2__summary-item flow-2__summary-item--success">
+              <dt data-i18n="flow2.unchanged"></dt>
+              <dd>39</dd>
+            </div>
+          </dl>
+
+          <div class="flow-2__briefing-items">
+            <article>
+              <span class="status-badge status-badge--action" data-i18n="home.actNow"></span>
+              <h2 data-i18n="flow2.briefingItemOne"></h2>
+            </article>
+            <article>
+              <span class="status-badge status-badge--update" data-i18n="home.updated"></span>
+              <h2 data-i18n="flow2.briefingItemTwo"></h2>
+            </article>
+            <article>
+              <span class="status-badge status-badge--update" data-i18n="home.updated"></span>
+              <h2 data-i18n="flow2.briefingItemThree"></h2>
+            </article>
+          </div>
+
+          <div class="flow-2__closing">
+            <p data-i18n="flow2.takeItFromHere"></p>
+            <a class="button button--primary flow-2__cta" href="index.html">
+              <span data-i18n="flow2.openAssistant"></span>
+              <span aria-hidden="true">→</span>
+            </a>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="src/js/flow-2.js"></script>
+  </body>
+</html>
