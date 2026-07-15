@@ -25,6 +25,18 @@
         <form class="watch-form" id="newWatchForm">
           <div class="watch-composer">
             <label class="visually-hidden" for="newWatchInput" data-i18n="newWatch.label"></label>
+            <button
+              class="watch-composer__microphone"
+              type="button"
+              disabled
+              data-i18n-aria-label="newWatch.voiceUnavailable"
+              data-i18n-title="newWatch.voiceUnavailable"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 15a3 3 0 0 0 3-3V7a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z"></path>
+                <path d="M18 11.5a6 6 0 0 1-12 0M12 17.5V21M9 21h6"></path>
+              </svg>
+            </button>
             <textarea
               id="newWatchInput"
               name="watchRequest"
@@ -37,10 +49,49 @@
               <span class="watch-composer__shortcut" data-i18n="newWatch.submitShortcut"></span>
               <button class="watch-composer__submit" id="newWatchSubmit" type="submit" disabled>
                 <span aria-hidden="true">➤</span>
-                <span data-i18n="newWatch.submit"></span>
+                <span id="newWatchSubmitLabel" data-i18n="newWatch.submit"></span>
               </button>
             </div>
           </div>
+
+          <p class="watch-composer__feedback" id="inputTypeHint" aria-live="polite" hidden></p>
+
+          <section class="url-analysis" id="urlAnalysis" aria-live="polite" hidden>
+            <div class="url-analysis__processing" id="urlAnalysisProcessing" hidden>
+              <span class="url-analysis__spinner" aria-hidden="true"></span>
+              <p id="urlAnalysisMessage"></p>
+            </div>
+
+            <div class="url-review" id="urlReview" tabindex="-1" hidden>
+              <div class="url-review__success" id="urlReviewSuccess">
+                <span aria-hidden="true">✓</span>
+                <h2 data-i18n="newWatch.urlReviewFound"></h2>
+              </div>
+              <div class="url-review__failure" id="urlReviewFailure" hidden>
+                <h2 data-i18n="newWatch.urlReviewFailed"></h2>
+                <p data-i18n="newWatch.urlReviewHelp"></p>
+              </div>
+
+              <div class="url-review__field">
+                <label for="urlReviewTitle" data-i18n="newWatch.urlReviewTitle"></label>
+                <input id="urlReviewTitle" type="text" required disabled />
+              </div>
+              <div class="url-review__field">
+                <label for="urlReviewSummary" data-i18n="newWatch.urlReviewWatchingFor"></label>
+                <textarea id="urlReviewSummary" rows="3" required disabled></textarea>
+              </div>
+              <div class="url-review__source">
+                <span data-i18n="newWatch.urlReviewSource"></span>
+                <strong id="urlReviewSource"></strong>
+              </div>
+
+              <div class="url-review__actions">
+                <button class="button button--primary" id="urlReviewCreate" type="button" data-i18n="newWatch.urlReviewCreate"></button>
+                <button class="button button--secondary" id="urlReviewEdit" type="button" data-i18n="newWatch.urlReviewEdit"></button>
+                <button class="button button--secondary" id="urlReviewCancel" type="button" data-i18n="newWatch.urlReviewCancel" hidden></button>
+              </div>
+            </div>
+          </section>
 
           <div class="watch-reason">
             <label for="whyFollowingInput" data-i18n="newWatch.whyFollowingLabel"></label>
@@ -51,12 +102,6 @@
               data-i18n-placeholder="newWatch.whyFollowingPlaceholder"
             />
           </div>
-
-          <button class="url-shortcut" id="urlShortcut" type="button">
-            <span aria-hidden="true">↗</span>
-            <span data-i18n="newWatch.urlShortcut"></span>
-          </button>
-          <p class="url-shortcut__help" id="inputTypeHint" data-i18n="newWatch.urlHelp"></p>
 
           <p class="form-error" id="watchError" aria-live="polite"></p>
 

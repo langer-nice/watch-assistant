@@ -152,10 +152,7 @@ These notes describe product opportunities and questions, not confirmed features
 
 ### Priority 3 — Home and Briefing
 
-#### Briefing freshness
 
-- Show the last briefing or refresh time as well as the date, for example **Updated at 14:32** or **Tue 14 Jul · 14:32**.
-- The timestamp should make the briefing’s freshness explicit.
 
 #### Scannable summary
 
@@ -167,12 +164,6 @@ These notes describe product opportunities and questions, not confirmed features
 - Strengthen the visual distinction between the global briefing summary and individual reports.
 - Possible treatments include spacing, a divider, a subtle background change or clearer hierarchy.
 
-#### Landing and introduction page
-
-- Consider an introductory page for first-time users and demonstrations.
-- Lead with **Tell us what matters. We’ll tell you when it matters.** and support it with **You stop checking. We’ll keep watching.**
-- Explain the product in under 15 seconds with five or six examples across categories and a simplified briefing preview.
-- Suggested primary action: **Start watching**.
 
 #### Product naming
 

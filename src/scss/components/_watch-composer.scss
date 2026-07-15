@@ -1,4 +1,5 @@
 .watch-composer {
+  position: relative;
   padding: var(--space-md);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -15,6 +16,7 @@
   width: 100%;
   min-height: 8.5rem;
   padding: var(--space-xs);
+  padding-right: calc(var(--space-2xl) + var(--space-sm));
   color: var(--color-text);
   background: var(--color-transparent);
   border: 0;
@@ -47,6 +49,31 @@
   color: var(--color-text-subtle);
   font-size: var(--font-size-xs);
   line-height: 1.3;
+}
+
+.watch-composer__microphone {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  color: var(--color-text-subtle);
+  background: var(--color-transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  cursor: not-allowed;
+}
+
+.watch-composer__microphone svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
 }
 
 .watch-composer__submit {
@@ -109,39 +136,15 @@
   border-color: var(--color-primary);
 }
 
-.url-shortcut {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  width: 100%;
-  min-height: 3rem;
-  padding: var(--space-sm) var(--space-md);
-  color: var(--color-text-subtle);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-regular);
-  text-align: left;
-  cursor: text;
-}
-
-.url-shortcut:hover,
-.url-shortcut:focus-visible,
-.url-shortcut.is-detected {
-  color: var(--color-text-muted);
-  border-color: var(--color-primary);
-}
-
-.url-shortcut.is-detected {
+.watch-composer__feedback {
+  margin: calc(var(--space-sm) * -1) var(--space-xxs) 0;
   color: var(--color-status-success);
-}
-
-.url-shortcut__help {
-  margin: calc(var(--space-xs) * -1) var(--space-xxs) 0;
-  color: var(--color-text-subtle);
   font-size: var(--font-size-xs);
   line-height: 1.45;
+}
+
+.watch-composer__feedback[hidden] {
+  display: none;
 }
 
 .inline-success {
