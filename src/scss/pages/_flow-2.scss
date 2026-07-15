@@ -145,7 +145,7 @@
 .flow-2__examples li::before {
   color: var(--color-text-muted);
   content: counter(flow-example, decimal-leading-zero);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
 }
 
