@@ -30,6 +30,7 @@
     "briefLabel": "Brief de l’après-midi",
     "updatedAt": "Mis à jour",
     "briefingTimeUnavailable": "Heure du briefing indisponible",
+    "viewIntroduction": "Voir l'introduction",
     "greeting": "Bonjour David.",
     "checkedSummary": "J’ai vérifié {count} éléments pendant votre absence.",
     "controlSummary": "Tout le reste est déjà sous contrôle.",

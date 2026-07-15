@@ -2,6 +2,37 @@
   background: var(--color-background);
 }
 
+.home-introduction-link {
+  position: absolute;
+  top: var(--space-sm);
+  left: var(--space-sm);
+  z-index: 10;
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-transparent));
+  border: 1px solid color-mix(in srgb, var(--color-border) 65%, var(--color-transparent));
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+  font-size: var(--font-size-sm);
+  line-height: 1;
+  text-decoration: none;
+  transition:
+    color var(--transition-default),
+    background-color var(--transition-default),
+    box-shadow var(--transition-default);
+}
+
+.home-introduction-link:hover,
+.home-introduction-link:focus-visible {
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-control);
+}
+
 .page--home {
   max-width: var(--content-editorial-width);
   padding: calc(var(--space-3xl) + var(--space-lg)) var(--space-lg)
