@@ -13,13 +13,13 @@ git branch
 git switch -c feature/URL-paste-issue
 
 # Changer de branche
-git switch main
+git switch master
 git switch feature/home-briefing
 
-# Merge une branche dans main
-git switch main
+# Merge une branche dans master
+git switch master
 git merge feature/URL-paste-issue
-git push origin main
+git push origin master
 
 # Supprimer la branche - Quand tout est fusionné :
 git branch -d feature/home-briefing
