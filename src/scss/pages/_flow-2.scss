@@ -108,6 +108,16 @@
   line-height: 1.05;
 }
 
+.flow-2__examples-subtitle {
+  margin: var(--space-sm) 0 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-family-body);
+  font-size: var(--font-size-sm);
+  font-style: normal;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+}
+
 .flow-2__back {
   display: grid;
   width: 2.75rem;
