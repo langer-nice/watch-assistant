@@ -11,6 +11,7 @@ import { getLanguage, t } from './i18n.js';
 import { analyseUrl } from './url-analysis.js';
 
 let homeCreatedWatchId = null;
+let homeCreatedWatchFeedbackTimer = null;
 
 const escapeHtml = (value) => String(value)
   .replaceAll('&', '&amp;')
@@ -649,6 +650,7 @@ const renderDevTools = () => {
 
 const renderHomeSummary = () => {
   const confirmationBanner = document.querySelector('#homeConfirmation');
+  const confirmationBadge = document.querySelector('#homeConfirmationBadge');
   const confirmationCopy = document.querySelector('#homeConfirmationCopy');
   const confirmationLink = document.querySelector('#homeConfirmationLink');
   const confirmationDismiss = document.querySelector('#homeConfirmationDismiss');
@@ -763,6 +765,7 @@ const renderHomeSummary = () => {
 
   const homeUrl = new URL(window.location.href);
   const createdWatchIdFromUrl = homeUrl.searchParams.get('watchCreated');
+  const shouldRevealCreatedWatch = Boolean(createdWatchIdFromUrl);
   if (createdWatchIdFromUrl) {
     homeCreatedWatchId = createdWatchIdFromUrl;
     homeUrl.searchParams.delete('watchCreated');
@@ -783,9 +786,50 @@ const renderHomeSummary = () => {
         }
         if (confirmationDismiss) {
           confirmationDismiss.onclick = () => {
+            window.clearTimeout(homeCreatedWatchFeedbackTimer);
+            homeCreatedWatchFeedbackTimer = null;
+            confirmationBanner.classList.remove('is-newly-created');
+            if (confirmationBadge) {
+              confirmationBadge.hidden = true;
+            }
             confirmationBanner.hidden = true;
             homeCreatedWatchId = null;
           };
+        }
+        if (shouldRevealCreatedWatch) {
+          window.clearTimeout(homeCreatedWatchFeedbackTimer);
+          confirmationBanner.classList.add('is-newly-created');
+          if (confirmationBadge) {
+            confirmationBadge.hidden = false;
+          }
+
+          window.requestAnimationFrame(() => {
+            const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const bannerRect = confirmationBanner.getBoundingClientRect();
+            const isOutsideViewport = bannerRect.top < 0 || bannerRect.bottom > window.innerHeight;
+            if (isOutsideViewport) {
+              confirmationBanner.scrollIntoView({
+                behavior: reducedMotion ? 'auto' : 'smooth',
+                block: 'center',
+              });
+            }
+          });
+
+          homeCreatedWatchFeedbackTimer = window.setTimeout(() => {
+            const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (confirmationBadge && !reducedMotion) {
+              confirmationBadge.addEventListener('transitionend', (event) => {
+                if (event.propertyName === 'opacity') {
+                  confirmationBadge.hidden = true;
+                }
+              }, { once: true });
+            }
+            confirmationBanner.classList.remove('is-newly-created');
+            if (confirmationBadge && reducedMotion) {
+              confirmationBadge.hidden = true;
+            }
+            homeCreatedWatchFeedbackTimer = null;
+          }, 4000);
         }
       } else {
         confirmationBanner.hidden = true;

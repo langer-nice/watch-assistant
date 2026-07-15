@@ -8,6 +8,7 @@
 .all-quiet::before {
   display: block;
   height: 2px;
+  margin-inline: var(--briefing-gutter);
   margin-bottom: var(--space-xl);
   background: var(--color-border-strong);
   content: '';

@@ -22,6 +22,7 @@
     "flow2": "Watch Assistant — Flow 2"
   },
   "home": {
+    "newBadge": "New",
     "confirmationTitle": "Now watching",
     "confirmationPlaceholder": "Argentina v England world cup match",
     "confirmationCopy": "I’ll keep an eye on this for you.",

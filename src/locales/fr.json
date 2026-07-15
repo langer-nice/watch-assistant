@@ -22,6 +22,7 @@
     "flow2": "Watch Assistant — Parcours 2"
   },
   "home": {
+    "newBadge": "Nouveau",
     "confirmationTitle": "Nouvelle veille",
     "confirmationPlaceholder": "Match Argentine-Angleterre de la Coupe du monde",
     "confirmationCopy": "Je garde un œil dessus pour vous.",
