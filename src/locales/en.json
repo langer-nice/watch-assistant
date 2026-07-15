@@ -39,8 +39,8 @@
       "evening": "Good evening, David."
     },
     "checkedAway": {
-      "one": "{count} watch checked while you were away.",
-      "other": "{count} watches checked while you were away."
+      "one": "I completed {count} watch check while you were away.",
+      "other": "I completed {count} watch checks while you were away."
     },
     "attentionLabel": {
       "one": "needs your attention",
@@ -68,8 +68,11 @@
     "updated": "Updated",
     "everythingLabel": "Everything else",
     "everythingTitle": "All quiet on the rest.",
-    "everythingChecked": "{count} other watches checked.",
-    "everythingNoChanges": "No other important changes.",
+    "everythingChecked": {
+      "one": "{count} watch check completed.",
+      "other": "{count} watch checks completed."
+    },
+    "everythingNoChanges": "No meaningful changes were found.",
     "allWatches": "View everything I’m watching ›"
   },
   "watches": {

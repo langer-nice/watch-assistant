@@ -92,6 +92,10 @@ Goal: expand Watch Assistant beyond news monitoring into everyday practical life
 (Add new ideas here before categorising them.)
 
 ---
+===============================
+===============================
+===============================
+
 
 ## Product Observations and Open Questions
 
@@ -129,15 +133,8 @@ These notes describe product opportunities and questions, not confirmed features
 ### Priority 2 — New Watch Flow
 
 #### Voice and unified input
-
-- Add microphone input to the main New Watch field so dictation and typing feel equally supported.
-- One intelligent input should accept free text, voice transcription and pasted URLs without requiring a mode selection.
 - The application should detect URLs and natural-language requests automatically.
 
-#### URL paste issue
-
-- The prototype does not currently handle pasted URLs correctly; treat this as a high-priority MVP issue.
-- Expected flow: detect the URL, analyse the page, generate a title and summary, then generate a Story Fingerprint in a later iteration.
 
 #### Start Watching validation
 

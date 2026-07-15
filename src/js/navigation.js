@@ -755,8 +755,9 @@ const renderHomeSummary = () => {
     unchangedLabel.textContent = t(pluralKey('home.unchangedLabel', unchangedCount));
   }
   if (everythingChecked) {
-    everythingChecked.textContent = t('home.everythingChecked', {
-      count: 7 + quietStoredWatches.length,
+    const completedCheckCount = 7 + quietStoredWatches.length;
+    everythingChecked.textContent = t(pluralKey('home.everythingChecked', completedCheckCount), {
+      count: completedCheckCount,
     });
   }
 

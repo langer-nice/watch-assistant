@@ -39,8 +39,8 @@
       "evening": "Bonsoir David."
     },
     "checkedAway": {
-      "one": "{count} veille vérifiée pendant votre absence.",
-      "other": "{count} veilles vérifiées pendant votre absence."
+      "one": "J’ai effectué {count} vérification de vos veilles pendant votre absence.",
+      "other": "J’ai effectué {count} vérifications de vos veilles pendant votre absence."
     },
     "attentionLabel": {
       "one": "demande votre attention",
@@ -68,8 +68,11 @@
     "updated": "Actualisé",
     "everythingLabel": "Tout le reste",
     "everythingTitle": "Rien à signaler ailleurs.",
-    "everythingChecked": "{count} autres veilles vérifiées.",
-    "everythingNoChanges": "Aucun autre changement important.",
+    "everythingChecked": {
+      "one": "{count} vérification effectuée.",
+      "other": "{count} vérifications effectuées."
+    },
+    "everythingNoChanges": "Aucun changement significatif détecté.",
     "allWatches": "Voir tout ce que je surveille ›"
   },
   "watches": {
