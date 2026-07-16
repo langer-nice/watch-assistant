@@ -69,36 +69,23 @@
           <dl class="flow-2__summary">
             <div>
               <dt data-i18n="flow2.checked"></dt>
-              <dd>42</dd>
+              <dd id="flow2CheckedCount"></dd>
             </div>
             <div class="flow-2__summary-item flow-2__summary-item--action">
               <dt data-i18n="flow2.needsAttention"></dt>
-              <dd>1</dd>
+              <dd id="flow2AttentionCount"></dd>
             </div>
             <div class="flow-2__summary-item flow-2__summary-item--update">
               <dt data-i18n="flow2.updated"></dt>
-              <dd>2</dd>
+              <dd id="flow2UpdatedCount"></dd>
             </div>
             <div class="flow-2__summary-item flow-2__summary-item--success">
               <dt data-i18n="flow2.unchanged"></dt>
-              <dd>39</dd>
+              <dd id="flow2UnchangedCount"></dd>
             </div>
           </dl>
 
-          <div class="flow-2__briefing-items">
-            <article>
-              <span class="status-badge status-badge--action" data-i18n="home.actNow"></span>
-              <h2 data-i18n="flow2.briefingItemOne"></h2>
-            </article>
-            <article>
-              <span class="status-badge status-badge--update" data-i18n="home.updated"></span>
-              <h2 data-i18n="flow2.briefingItemTwo"></h2>
-            </article>
-            <article>
-              <span class="status-badge status-badge--update" data-i18n="home.updated"></span>
-              <h2 data-i18n="flow2.briefingItemThree"></h2>
-            </article>
-          </div>
+          <div class="flow-2__briefing-items" id="flow2BriefingItems"></div>
 
           <div class="flow-2__closing">
             <p data-i18n="flow2.takeItFromHere"></p>

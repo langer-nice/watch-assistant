@@ -146,8 +146,16 @@ const formatDate = (isoString) => {
 const inferCategory = (request) => {
   const text = request.toLowerCase();
 
+  if (/(apartment|appartement|property|immobilier|listing|annonce immobilière)/.test(text)) {
+    return 'property';
+  }
+
   if (/(price|prix|deal|discount|remise|sale|promo|cheapest|moins cher|amazon|€|\$)/.test(text)) {
     return 'price';
+  }
+
+  if (/(netflix|series|série|season|saison|film|trailer|bande-annonce)/.test(text)) {
+    return 'entertainment';
   }
 
   if (/(flight|vol|easyjet|travel|voyage|hotel|hôtel|holiday|vacances|ticket|billet|booking|réservation)/.test(text)) {
@@ -592,9 +600,9 @@ const renderWatchDetail = () => {
   const renderedActions = externalActions
     .map((action) => ({
       label: action.labelKey ? t(action.labelKey) : action.label || t('common.openSource'),
-      url: action.url,
+      url: getSafeExternalUrl(action.url),
     }))
-    .filter((action) => action.label && isSafeExternalUrl(action.url));
+    .filter((action) => action.label && action.url);
   if (externalActionsEl) {
     externalActionsEl.innerHTML = renderedActions
       .map((action) => `
@@ -859,7 +867,7 @@ const renderRecentWatches = () => {
     return;
   }
 
-  const recentWatches = getStoredWatches().slice().reverse().slice(0, 3);
+  const recentWatches = getWatches().slice().reverse().slice(0, 3);
   section.hidden = recentWatches.length === 0;
   list.innerHTML = recentWatches
     .map((watch) => {

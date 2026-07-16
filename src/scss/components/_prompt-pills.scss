@@ -17,10 +17,11 @@
 }
 
 .prompt-examples button {
-  width: max-content;
+  width: fit-content;
   max-width: 100%;
+  min-width: 0;
   min-height: 2.25rem;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   padding: var(--space-xs) var(--space-md);
   color: var(--color-text);
   background: var(--color-surface);

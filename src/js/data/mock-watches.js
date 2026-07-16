@@ -54,8 +54,8 @@ export const mockWatches = [
     id: 'watch-002',
     titleKey: 'watchData.watch-002.title',
     requestKey: 'watchData.watch-002.request',
-    category: 'price',
-    status: 'watching',
+    category: 'entertainment',
+    status: 'updated',
     monitoringSummaryKey: 'watchData.watch-002.monitoringSummary',
     latestChangeKey: 'watchData.watch-002.latestChange',
     latestChangeAtKey: 'watchData.watch-002.latestChangeAt',
@@ -66,29 +66,29 @@ export const mockWatches = [
     requiresAttention: false,
     sources: [{ labelKey: 'watchData.watch-002.sourceOne' }],
     confidence: '88%',
-    whyFollowingKey: 'watchData.watch-002.whyFollowing',
     timeline: [
       {
-        dateKey: 'watchData.watch-002.timelineDateOne',
         labelKey: 'watchData.watch-002.timelineOne',
       },
       {
-        dateKey: 'watchData.watch-002.timelineDateTwo',
         labelKey: 'watchData.watch-002.timelineTwo',
+      },
+      {
+        labelKey: 'watchData.watch-002.timelineThree',
         state: 'latest',
       },
     ],
     externalActions: [{
       labelKey: 'watchData.watch-002.externalActionOne',
-      url: 'https://www.amazon.com',
+      url: 'https://www.netflix.com',
     }],
   },
   {
     id: 'watch-003',
     titleKey: 'watchData.watch-003.title',
     requestKey: 'watchData.watch-003.request',
-    category: 'news',
-    status: 'stable',
+    category: 'property',
+    status: 'updated',
     monitoringSummaryKey: 'watchData.watch-003.monitoringSummary',
     latestChangeKey: 'watchData.watch-003.latestChange',
     latestChangeAtKey: 'watchData.watch-003.latestChangeAt',
@@ -97,26 +97,23 @@ export const mockWatches = [
     whyTodayKey: 'watchData.watch-003.whyToday',
     lastCheckedKey: 'watchData.watch-003.lastChecked',
     requiresAttention: false,
-    sources: [
-      { labelKey: 'watchData.watch-003.sourceOne' },
-      { labelKey: 'watchData.watch-003.sourceTwo' },
-    ],
+    sources: [{ labelKey: 'watchData.watch-003.sourceOne' }],
     confidence: '93%',
-    whyFollowingKey: 'watchData.watch-003.whyFollowing',
     timeline: [
       {
-        dateKey: 'watchData.watch-003.timelineDateOne',
         labelKey: 'watchData.watch-003.timelineOne',
       },
       {
-        dateKey: 'watchData.watch-003.timelineDateTwo',
         labelKey: 'watchData.watch-003.timelineTwo',
+      },
+      {
+        labelKey: 'watchData.watch-003.timelineThree',
         state: 'latest',
       },
     ],
     externalActions: [{
       labelKey: 'watchData.watch-003.externalActionOne',
-      url: 'https://example.com/news',
+      url: 'https://www.seloger.com',
     }],
   },
 ];
