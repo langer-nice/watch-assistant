@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Demo Dashboard · Watch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/scss/main.scss" />
+    <style>
+      .demo-dashboard {
+        width: min(100% - 2rem, 72rem);
+        margin: 0 auto;
+        padding: clamp(3rem, 8vw, 6rem) 0;
+      }
+
+      .demo-dashboard__header {
+        max-width: 42rem;
+        margin-bottom: clamp(2rem, 5vw, 3.5rem);
+      }
+
+      .demo-dashboard__eyebrow {
+        margin: 0 0 0.5rem;
+        color: var(--color-primary);
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .demo-dashboard h1 {
+        margin: 0;
+        font-size: clamp(2rem, 5vw, 3rem);
+        line-height: 1.1;
+      }
+
+      .demo-dashboard__subtitle {
+        margin: 1rem 0 0;
+        color: var(--color-text-muted);
+        font-size: var(--font-size-lg);
+      }
+
+      .introduction-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+        gap: 1.25rem;
+      }
+
+      .introduction-card {
+        display: flex;
+        min-height: 18rem;
+        flex-direction: column;
+        padding: clamp(1.25rem, 4vw, 2rem);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-card);
+        background: var(--color-surface);
+        box-shadow: var(--shadow-soft);
+      }
+
+      .introduction-card__audience {
+        margin: 0 0 0.75rem;
+        color: var(--color-primary);
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+      }
+
+      .introduction-card h2 {
+        margin: 0;
+        font-size: var(--font-size-xl);
+        line-height: 1.25;
+      }
+
+      .introduction-card__description {
+        margin: 0.75rem 0 2rem;
+        color: var(--color-text-muted);
+      }
+
+      .introduction-card__actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-top: auto;
+        flex-wrap: wrap;
+      }
+
+      .introduction-card__copy {
+        min-width: 6.5rem;
+      }
+
+      .introduction-card__status {
+        min-width: 3.75rem;
+        color: var(--color-success);
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+      }
+
+      @media (max-width: 30rem) {
+        .introduction-card__actions .button {
+          flex: 1;
+          padding-inline: 1rem;
+        }
+
+        .introduction-card__status {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="demo-dashboard">
+      <header class="demo-dashboard__header">
+        <p class="demo-dashboard__eyebrow">Watch · Internal</p>
+        <h1>Demo Dashboard</h1>
+        <p class="demo-dashboard__subtitle">Internal tool for launching different Watch onboarding experiences.</p>
+      </header>
+
+      <section class="introduction-grid" aria-label="Onboarding flows">
+        <article class="introduction-card">
+          <p class="introduction-card__audience">General users</p>
+          <h2>Generic Introduction</h2>
+          <p class="introduction-card__description">Current Flow 2 onboarding.</p>
+
+          <div class="introduction-card__actions">
+            <a class="button button--primary" href="flow-3.html">Launch</a>
+            <button
+              class="button button--secondary introduction-card__copy"
+              type="button"
+              data-copy-link="flow-3.html"
+              aria-describedby="genericCopyStatus"
+            >
+              Copy Link
+            </button>
+            <span class="introduction-card__status" id="genericCopyStatus" role="status" aria-live="polite"></span>
+          </div>
+        </article>
+
+        <article class="introduction-card">
+          <p class="introduction-card__audience">General users</p>
+          <h2>Flow 2 — Previous Reference</h2>
+          <p class="introduction-card__description">Previous onboarding version kept for comparison.</p>
+
+          <div class="introduction-card__actions">
+            <a class="button button--primary" href="flow-2.html">Launch</a>
+            <button
+              class="button button--secondary introduction-card__copy"
+              type="button"
+              data-copy-link="flow-2.html"
+              aria-describedby="flow2CopyStatus"
+            >
+              Copy Link
+            </button>
+            <span class="introduction-card__status" id="flow2CopyStatus" role="status" aria-live="polite"></span>
+          </div>
+        </article>
+
+        <!-- Add future introduction cards here. Keep each flow in its own .introduction-card article. -->
+      </section>
+    </main>
+
+    <script>
+      const copyButtons = document.querySelectorAll('[data-copy-link]');
+
+      async function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.setAttribute('readonly', '');
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+      }
+
+      copyButtons.forEach((button) => {
+        let statusTimer;
+
+        button.addEventListener('click', async () => {
+          const status = document.getElementById(button.getAttribute('aria-describedby'));
+          const url = new URL(button.dataset.copyLink, document.baseURI).href;
+
+          try {
+            await copyText(url);
+            status.textContent = 'Copied!';
+            clearTimeout(statusTimer);
+            statusTimer = setTimeout(() => {
+              status.textContent = '';
+            }, 1800);
+          } catch {
+            status.textContent = 'Copy failed';
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

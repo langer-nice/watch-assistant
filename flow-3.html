@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generic Introduction · Watch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/scss/main.scss" />
+  </head>
+  <body>
+    <div class="app-shell app-shell--flow-3">
+      <main class="flow-3" aria-live="polite">
+        <section
+          class="flow-3__screen flow-3__screen--examples"
+          data-flow-3-screen="0"
+          tabindex="-1"
+          aria-labelledby="flow3CheckingTitle"
+        >
+          <h1 id="flow3CheckingTitle">What do you keep checking?</h1>
+
+          <div class="flow-3__examples-content">
+            <ul class="flow-3__examples" aria-label="Examples of things people keep checking" hidden>
+              <li class="flow-3__reveal" data-flow-3-reveal hidden>When Christmas flights are released</li>
+              <li class="flow-3__reveal" data-flow-3-reveal hidden>New property listings matching your criteria</li>
+              <li class="flow-3__reveal" data-flow-3-reveal hidden>An important news story you’re following</li>
+              <li class="flow-3__reveal" data-flow-3-reveal hidden>Your favourite team’s transfer news</li>
+              <li class="flow-3__reveal" data-flow-3-reveal hidden>Concert tickets and tour announcements</li>
+            </ul>
+
+            <p class="flow-3__closing-copy flow-3__reveal" data-flow-3-reveal hidden>
+              That's a lot to keep checking...
+            </p>
+          </div>
+
+          <button class="button button--secondary flow-3__continue flow-3__reveal" type="button" data-flow-3-reveal data-flow-3-next hidden>
+            <span>Continue</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </section>
+
+        <section
+          class="flow-3__screen flow-3__screen--examples"
+          data-flow-3-screen="1"
+          tabindex="-1"
+          aria-labelledby="flow3ForgottenTitle"
+          hidden
+        >
+          <h1 id="flow3ForgottenTitle">What do you forget to check?</h1>
+
+          <div class="flow-3__examples-content">
+            <ul class="flow-3__examples" aria-label="Examples of important things people forget to check" hidden>
+              <li class="flow-3__reveal" data-flow-3-reveal hidden>Changes to tax or business regulations</li>
+              <li class="flow-3__reveal" data-flow-3-reveal hidden>Passport or visa requirements</li>
+              <li class="flow-3__reveal" data-flow-3-reveal hidden>Competitor announcements</li>
+              <li class="flow-3__reveal" data-flow-3-reveal hidden>Important renewal or application dates</li>
+            </ul>
+
+            <p class="flow-3__closing-copy flow-3__reveal" data-flow-3-reveal hidden>
+              Some things are easy to forget...
+            </p>
+          </div>
+
+          <button class="button button--secondary flow-3__continue flow-3__reveal" type="button" data-flow-3-reveal data-flow-3-next hidden>
+            <span>Continue</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </section>
+
+        <section
+          class="flow-3__screen flow-3__screen--solution"
+          data-flow-3-screen="2"
+          tabindex="-1"
+          aria-labelledby="flow3SolutionTitle"
+          hidden
+        >
+          <div class="flow-3__statement">
+            <p class="flow-3__eyebrow">WATCH ASSISTANT</p>
+            <h1 id="flow3SolutionTitle">We’ll watch it for you.</h1>
+            <p class="flow-3__supporting flow-3__reveal" data-flow-3-reveal hidden>
+              So you don’t have to.
+            </p>
+          </div>
+
+          <a class="button button--primary flow-3__cta flow-3__reveal" data-flow-3-reveal href="new-watch.html" hidden>Create your first Watch</a>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="src/js/flow-3.js"></script>
+  </body>
+</html>

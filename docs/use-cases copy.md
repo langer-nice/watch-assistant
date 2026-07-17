@@ -101,52 +101,11 @@ Goal: expand Watch Assistant beyond news monitoring into everyday practical life
 
 These notes describe product opportunities and questions, not confirmed features unless stated otherwise.
 
-### Product positioning
-
-Watch Assistant is not just a monitoring tool. Its value is reducing mental load: users tell it once, then stop thinking about it. The assistant remembers, watches and checks on their behalf, closing the open mental loops that otherwise demand repeated attention.
-
-The distinction under exploration is:
-
-> A reminder tells you to do something.
->
-> Watch Assistant checks for you.
-
-Messaging explorations include:
-
-- Tell us what matters. We'll tell you when it matters.
-- Tell us once. We'll take it from there.
-- Tell us once. Then forget about it.
-- You don't need to remember to remember.
-- We'll keep watching. You don't have to.
-- One less thing to think about.
-
-These are positioning explorations, not a final tagline.
-
-### Demo and research guidance
-
-#### Questions after demos
-
-- **What's the first thing you'd ask it to watch for?** Reveals the user's natural use case without constraining them to the examples shown.
-- **Can you imagine yourself using this? Why or why not?** Tests personal relevance and surfaces the motivations, doubts or trust barriers behind the answer.
-- **Do you know anything that already solves this problem?** Identifies competitors, substitutes and the user's existing mental model for the product.
-
-#### Preferred demo watches
-
-Use these current preferred examples:
-
-- EasyJet Christmas flights;
-- Stranger Things Season 6;
-- Nice apartment under €350,000.
-
-Together they demonstrate breadth across travel, entertainment and property. Avoid niche technical examples in demos; familiar, varied examples make the product's value easier to understand.
-
 ### Priority 1 — Core Product Intelligence
 
 #### AI-generated Story Fingerprint
 
 - For URL-based watches, AI should analyse the source and generate the tracking definition automatically.
-- URL import should progressively extract the article title, create a meaningful monitoring title and generate a monitoring summary. Later, it should also generate the Story Fingerprint and keywords.
-- A watch title should never simply be the source's domain name.
 - A Story Fingerprint should identify a story through people, organisations, precise locations, the main event and relationships between entities.
 - It should avoid generic standalone keywords such as “Sweden”, “murder” or “violence”, which can match unrelated stories.
 - It should recognise the same story across different headlines and wording.
@@ -173,10 +132,6 @@ Together they demonstrate breadth across travel, entertainment and property. Avo
 
 ### Priority 2 — New Watch Flow
 
-#### Introduction
-
-The introduction should explain the product in under 30 seconds, demonstrate its breadth, inspire users with examples and reduce the blank-page problem. Examples shown in the introduction and in **New Watch** should stay aligned so the product presents one coherent set of possibilities.
-
 #### Voice and unified input
 - The application should detect URLs and natural-language requests automatically.
 
@@ -194,19 +149,6 @@ The introduction should explain the product in under 30 seconds, demonstrate its
 
 ### Priority 3 — Home and Briefing
 
-#### Homepage as briefing
-
-The homepage is a briefing, not a dashboard or notification feed. The assistant reports what happened while the user was away, presenting completed work rather than a queue of alerts.
-
-The current wording direction is:
-
-> I completed XX watch checks while you were away.
-
-#### New watch acknowledgement
-
-- A newly created watch should receive a highly visible acknowledgement so creation feels rewarding.
-- Use a temporary highlight and **NEW** badge, then let the watch fade naturally into the briefing.
-- After the temporary treatment fades, editorial separators should preserve structure without making the item feel permanently exceptional.
 
 
 #### Scannable summary
@@ -303,144 +245,3 @@ Personal services requiring permissions and trust flows.
 ### Phase 3 — Intelligent assistant
 
 A broader assistant that monitors multiple connected sources and decides what deserves attention.
-
-## Open Questions
-
-- Is **You don't need to remember to remember.** strong enough to become a campaign line?
-- Should the product be described as the evolution of reminders?
-- Is there a better metaphor than reminders or to-do lists?
-- How much of the monitoring process should be visible to users?
-- Should Story Fingerprints eventually become visible or remain an internal concept?
-
-## Product Positioning Experiments
-
-These are product observations and future experiments to validate during demos and user testing, not product decisions or requirements.
-
-### Persona-specific introductions
-
-Current onboarding is generic. Explore multiple entry points that lead to the same product but begin with introductions tailored to different audiences.
-
-Possible personas include:
-
-- Monaco freelancers and business owners;
-- journalists;
-- frequent travellers;
-- property buyers;
-- sports fans;
-- music fans;
-- investors.
-
-Each introduction could:
-
-- start with a problem that the audience repeatedly checks;
-- demonstrate one or two relevant examples;
-- end on the same Home dashboard.
-
-The product would remain identical; only the introduction would change.
-
-Example prompts to test:
-
-- **Freelancer:** “How often do you check for tax or regulatory changes?”
-- **Journalist:** “Which stories do you check several times a day?”
-- **Traveller:** “Still refreshing airline websites waiting for Christmas flights?”
-
-The objective is to make users immediately think: “This is for me.”
-
-### Demo launcher
-
-Explore a small internal page for demonstrations. This would be a demonstration tool only, not part of the public product.
-
-It could allow the demonstrator to:
-
-- choose a persona;
-- launch the corresponding introduction;
-- optionally preload relevant example watches;
-- generate a shareable URL.
-
-Possible demo personas include:
-
-- coworking owner;
-- journalist;
-- traveller;
-- property search;
-- concerts;
-- investor.
-
-### Focus on repetitive behaviours
-
-Future interviews should focus less on features and more on discovering repetitive checking behaviours.
-
-Instead of asking:
-
-> “Would you use this?”
-
-Ask:
-
-> “What do you repeatedly check because you’re afraid something has changed?”
-
-The hypothesis is that these repeated behaviours are likely to become the strongest Watch use cases.
-
-### App vs Web
-
-Explore whether the first version should remain a web application rather than becoming a native mobile app. One observation to validate is that many people say they do not want another app on their phone.
-
-Questions to investigate:
-
-- Is a PWA sufficient?
-- Can notifications still provide the required experience?
-- Does removing installation reduce adoption friction?
-
-No decision has been made.
-
-## Naming Exploration
-
-These observations and questions are inputs for future branding work, not naming recommendations or decisions.
-
-### “Watch” as the product object
-
-The current observation is that **Watch** feels like the correct word for the object users create. Examples include:
-
-- Create a Watch;
-- Pause Watch;
-- Delete Watch;
-- Watch updated.
-
-The noun **Watch** should probably remain in the product vocabulary even if the application name changes. This is a hypothesis to test rather than a settled requirement.
-
-### Questions around the application name
-
-**Watch Assistant** may not immediately communicate the product. Some people may associate “watch” with watches or clocks rather than monitoring.
-
-Explore alternatives while preserving the concept of a Watch. Ideas discussed include:
-
-- Watch;
-- Watchr;
-- Watcher;
-- Watch’r;
-- Watch TFM.
-
-There is no recommendation yet.
-
-### Watch TFM
-
-**TFM** could mean **This For Me**, making **Watch TFM** shorthand for **Watch This For Me**. The idea is interesting because it expresses delegation rather than notification.
-
-Open questions:
-
-- Should TFM be explained?
-- Should “Watch this for me” become a slogan instead of the product name?
-- Does the acronym create unnecessary friction?
-
-No decision has been made.
-
-### Preserve the word “Watch”
-
-One observation became stronger during discussion: the product vocabulary may be more important than the application name.
-
-The goal is for users to naturally say things such as:
-
-- “I created a Watch.”
-- “I have ten Watches.”
-- “This Watch was updated.”
-
-Future user interviews should test whether this language feels natural and whether users adopt it without prompting.

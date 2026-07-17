@@ -1,6 +1,9 @@
 import { initializeLanguage, t } from './i18n.js';
 import { initLanguageSwitcher } from './language-switcher.js';
 import { getWatches } from './watch-storage.js';
+import { registerCurrentIntroFlow } from './intro-flow.js';
+
+registerCurrentIntroFlow();
 
 const escapeHtml = (value) => String(value)
   .replaceAll('&', '&amp;')
