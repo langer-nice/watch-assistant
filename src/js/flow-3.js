@@ -1,6 +1,10 @@
 import { registerCurrentIntroFlow } from './intro-flow.js';
+import { initializeLanguage } from './i18n.js';
+import { initLanguageSwitcher } from './language-switcher.js';
 
 registerCurrentIntroFlow();
+initializeLanguage();
+initLanguageSwitcher();
 
 const screens = [...document.querySelectorAll('[data-flow-3-screen]')];
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -110,6 +114,10 @@ const showScreen = (screenIndex) => {
 };
 
 document.addEventListener('click', (event) => {
+  if (event.target.closest('.language-switcher')) {
+    return;
+  }
+
   if (sequenceRunning) {
     completeCurrentSequence();
     return;

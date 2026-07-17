@@ -19,7 +19,8 @@
     "watchDetail": "Watch Assistant — Watch Detail",
     "newWatch": "Watch Assistant — New Watch",
     "followStory": "Watch Assistant — Follow Story",
-    "flow2": "Watch Assistant — Flow 2"
+    "flow2": "Watch Assistant — Flow 2",
+    "flow3": "Watch Assistant — Flow 3"
   },
   "home": {
     "newBadge": "New",
@@ -166,6 +167,27 @@
     "unchanged": "unchanged",
     "takeItFromHere": "We’ll take it from here.",
     "openAssistant": "Open Watch Assistant"
+  },
+  "flow3": {
+    "checkingHeadline": "What do you keep checking?",
+    "checkingExamplesLabel": "Examples of things people keep checking",
+    "checkingExampleOne": "When Christmas flights are released",
+    "checkingExampleTwo": "New property listings matching your criteria",
+    "checkingExampleThree": "An important news story you’re following",
+    "checkingExampleFour": "Your favourite team’s transfer news",
+    "checkingExampleFive": "Concert tickets and tour announcements",
+    "checkingConclusion": "That's a lot to keep checking...",
+    "forgottenHeadline": "What do you forget to check?",
+    "forgottenExamplesLabel": "Examples of important things people forget to check",
+    "forgottenExampleOne": "Changes to tax or business regulations",
+    "forgottenExampleTwo": "Passport or visa requirements",
+    "forgottenExampleThree": "Competitor announcements",
+    "forgottenExampleFour": "Important renewal or application dates",
+    "forgottenConclusion": "Some things are easy to forget...",
+    "continue": "Continue",
+    "solutionHeadline": "We’ll watch it for you.",
+    "solutionSupporting": "So you don’t have to.",
+    "createWatch": "Create your first Watch"
   },
   "followStory": {
     "back": "Back to watches",
