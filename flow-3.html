@@ -16,10 +16,29 @@
     <div class="app-shell app-shell--flow-3">
       <main class="flow-3" aria-live="polite">
         <section
-          class="flow-3__screen flow-3__screen--examples"
+          class="flow-3__screen flow-3__screen--promise"
           data-flow-3-screen="0"
           tabindex="-1"
+          aria-labelledby="flow3PromiseTitle"
+        >
+          <div class="flow-3__statement">
+            <p class="flow-3__eyebrow" data-i18n="common.brand"></p>
+            <h1 class="flow-3__word-sequence" id="flow3PromiseTitle" data-flow-3-word-sequence data-flow-3-i18n="flow3.promiseHeadline" aria-hidden="true"></h1>
+            <p class="flow-3__supporting flow-3__word-sequence" data-flow-3-word-sequence data-flow-3-i18n="flow3.promiseSupporting" aria-hidden="true"></p>
+          </div>
+
+          <button class="button flow-3__cta flow-3__cta--light flow-3__reveal flow-3__reveal--fade" type="button" data-flow-3-reveal data-flow-3-next aria-hidden="true" disabled>
+            <span data-i18n="flow3.seeHowItWorks"></span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </section>
+
+        <section
+          class="flow-3__screen flow-3__screen--examples"
+          data-flow-3-screen="1"
+          tabindex="-1"
           aria-labelledby="flow3CheckingTitle"
+          hidden
         >
           <h1 id="flow3CheckingTitle" data-i18n="flow3.checkingHeadline"></h1>
 
@@ -30,35 +49,9 @@
               <li class="flow-3__reveal" data-flow-3-reveal data-i18n="flow3.checkingExampleThree" hidden></li>
               <li class="flow-3__reveal" data-flow-3-reveal data-i18n="flow3.checkingExampleFour" hidden></li>
               <li class="flow-3__reveal" data-flow-3-reveal data-i18n="flow3.checkingExampleFive" hidden></li>
+              <li class="flow-3__reveal" data-flow-3-reveal data-i18n="flow3.checkingExampleSix" hidden></li>
+              <li class="flow-3__reveal" data-flow-3-reveal data-i18n="flow3.checkingExampleSeven" hidden></li>
             </ul>
-
-            <p class="flow-3__closing-copy flow-3__reveal" data-flow-3-reveal data-i18n="flow3.checkingConclusion" hidden></p>
-          </div>
-
-          <button class="button button--secondary flow-3__continue flow-3__reveal" type="button" data-flow-3-reveal data-flow-3-next hidden>
-            <span data-i18n="flow3.continue"></span>
-            <span aria-hidden="true">→</span>
-          </button>
-        </section>
-
-        <section
-          class="flow-3__screen flow-3__screen--examples"
-          data-flow-3-screen="1"
-          tabindex="-1"
-          aria-labelledby="flow3ForgottenTitle"
-          hidden
-        >
-          <h1 id="flow3ForgottenTitle" data-i18n="flow3.forgottenHeadline"></h1>
-
-          <div class="flow-3__examples-content">
-            <ul class="flow-3__examples" data-i18n-aria-label="flow3.forgottenExamplesLabel" hidden>
-              <li class="flow-3__reveal" data-flow-3-reveal data-i18n="flow3.forgottenExampleOne" hidden></li>
-              <li class="flow-3__reveal" data-flow-3-reveal data-i18n="flow3.forgottenExampleTwo" hidden></li>
-              <li class="flow-3__reveal" data-flow-3-reveal data-i18n="flow3.forgottenExampleThree" hidden></li>
-              <li class="flow-3__reveal" data-flow-3-reveal data-i18n="flow3.forgottenExampleFour" hidden></li>
-            </ul>
-
-            <p class="flow-3__closing-copy flow-3__reveal" data-flow-3-reveal data-i18n="flow3.forgottenConclusion" hidden></p>
           </div>
 
           <button class="button button--secondary flow-3__continue flow-3__reveal" type="button" data-flow-3-reveal data-flow-3-next hidden>
@@ -75,9 +68,9 @@
           hidden
         >
           <div class="flow-3__statement">
-            <p class="flow-3__eyebrow" data-i18n="common.brand"></p>
-            <h1 id="flow3SolutionTitle" data-i18n="flow3.solutionHeadline"></h1>
-            <p class="flow-3__supporting flow-3__reveal" data-flow-3-reveal data-i18n="flow3.solutionSupporting" hidden></p>
+            <p class="flow-3__solution-intro" data-i18n="flow3.solutionOpening"></p>
+            <h1 class="flow-3__reveal" id="flow3SolutionTitle" data-flow-3-reveal data-i18n="flow3.solutionWatch" hidden></h1>
+            <p class="flow-3__supporting flow-3__reveal" data-flow-3-reveal data-i18n="flow3.solutionRelief" hidden></p>
           </div>
 
           <a class="button button--primary flow-3__cta flow-3__reveal" data-flow-3-reveal data-i18n="flow3.createWatch" href="new-watch.html" hidden></a>
