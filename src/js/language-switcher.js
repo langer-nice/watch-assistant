@@ -5,7 +5,11 @@ const LANGUAGES = ['en', 'fr'];
 /** Add one shared, compact language control to the current page. */
 export const initLanguageSwitcher = () => {
   const shell = document.querySelector('.app-shell');
-  if (!shell || shell.querySelector('.language-switcher')) {
+  if (
+    !shell
+    || document.body.classList.contains('is-edit-modal')
+    || shell.querySelector('.language-switcher')
+  ) {
     return;
   }
 

@@ -79,6 +79,10 @@ body.is-edit-modal .watch-composer__submit {
   display: none;
 }
 
+body.is-edit-modal .language-switcher {
+  display: none;
+}
+
 .page--form {
   max-width: var(--content-detail-width);
   padding: var(--space-md) var(--space-xl) var(--space-3xl);
@@ -110,6 +114,10 @@ body.is-edit-modal .watch-composer__submit {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+}
+
+.watch-options[hidden] {
+  display: none;
 }
 
 .watch-keywords h2,

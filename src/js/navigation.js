@@ -359,25 +359,6 @@ const extractKeywords = (value, limit = 6) => {
   return uniqueWords.slice(0, limit);
 };
 
-const hasSignificantRequestChange = (previousValue, nextValue) => {
-  const previous = normalizeComparableText(previousValue);
-  const next = normalizeComparableText(nextValue);
-  if (previous === next) {
-    return false;
-  }
-  if (!previous || !next) {
-    return true;
-  }
-
-  const previousWords = new Set(previous.split(' '));
-  const nextWords = new Set(next.split(' '));
-  const sharedWords = [...previousWords].filter((word) => nextWords.has(word)).length;
-  const totalWords = new Set([...previousWords, ...nextWords]).size;
-  const similarity = totalWords ? sharedWords / totalWords : 0;
-  const lengthDifference = Math.abs(previous.length - next.length) / previous.length;
-  return similarity < 0.6 || lengthDifference > 0.25;
-};
-
 const hasReleaseIntent = (request) => (
   /(release date|released|comes out|coming out|publication date|date de sortie|date de parution|sortie|parution|publi[ée])/
     .test(request.toLowerCase())
@@ -427,18 +408,113 @@ const createTitle = (request) => {
     }
   }
 
-  const text = value.split(/[\n\.]+/)[0].trim();
-  return text.length > 60 ? `${text.slice(0, 57)}...` : text;
+  const text = value
+    .split(/\n+|[.!?]+(?:\s|$)/)[0]
+    .trim()
+    .replace(/^(?:please\s+)?(?:tell|notify|alert)\s+me\s+(?:know\s+)?(?:when\s+)?/i, '')
+    .replace(/^(?:please\s+)?let\s+me\s+know\s+(?:when\s+)?/i, '')
+    .replace(/^keep\s+me\s+updated\s+(?:about|on)\s+/i, '')
+    .replace(/^find\s+me\s+/i, '')
+    .replace(/\b(?:drops?|falls?)\s+below\s+€\s*([\d,.]+)/i, 'below $1€')
+    .replace(/\b(?:drops?|falls?)\s+below\s+£\s*([\d,.]+)/i, 'below £$1')
+    .replace(/\b(?:drops?|falls?)\s+below\s+\$\s*([\d,.]+)/i, 'below $$$1')
+    .trim();
+  const normalizedTitle = text
+    ? `${text.charAt(0).toLocaleUpperCase()}${text.slice(1)}`
+    : t('common.newWatch');
+  return normalizedTitle.length > 60
+    ? `${normalizedTitle.slice(0, 57)}...`
+    : normalizedTitle;
 };
 
-const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, options = {}) => {
-  const now = new Date().toISOString();
-  const isUrlRequest = Boolean(urlAnalysis);
+const extractStructuredCriteria = (request) => {
+  const value = request.trim();
+  const stopWords = new Set([
+    'above', 'after', 'announces', 'announced', 'before', 'below', 'cost', 'costs',
+    'drop', 'drops', 'fall', 'falls', 'from', 'is', 'on', 'over', 'under', 'when',
+  ]);
+  const extractPlacesAfter = (markers) => {
+    const matches = [];
+    const pattern = new RegExp(`\\b(?:${markers.join('|')})\\s+([^,.;!?]+)`, 'giu');
+    for (const match of value.matchAll(pattern)) {
+      const words = match[1].trim().split(/\s+/).slice(0, 3);
+      const placeWords = [];
+      for (const word of words) {
+        const normalizedWord = word.replace(/[^\p{L}'’-]/gu, '').toLocaleLowerCase();
+        if (!normalizedWord || stopWords.has(normalizedWord)) break;
+        placeWords.push(word.replace(/[^\p{L}'’-]/gu, ''));
+      }
+      const place = placeWords.join(' ').trim();
+      if (place && !matches.some((item) => normalizeComparableText(item) === normalizeComparableText(place))) {
+        matches.push(place);
+      }
+    }
+    return matches;
+  };
+
+  const destinations = extractPlacesAfter(['to', 'vers']);
+  const locations = [...destinations];
+  extractPlacesAfter(['in', 'near', 'à']).forEach((location) => {
+    if (!locations.some((item) => normalizeComparableText(item) === normalizeComparableText(location))) {
+      locations.push(location);
+    }
+  });
+
+  const prices = value.match(
+    /(?:€|£|\$)\s*[\d,.]+|[\d,.]+\s*(?:€|£|\$|EUR|GBP|USD)(?=\s|[,.;!?]|$)/giu,
+  ) || [];
+  const thresholds = prices.map((price) => {
+    const currencyMatch = price.match(/€|£|\$|EUR|GBP|USD/i)?.[0] || '';
+    const numericValue = Number.parseFloat(price.replace(/[^\d,.]/g, '').replace(',', '.'));
+    const pricePosition = value.indexOf(price);
+    const context = value.slice(Math.max(0, pricePosition - 24), pricePosition).toLocaleLowerCase();
+    const operator = /(below|under|moins de)/.test(context)
+      ? 'below'
+      : /(above|over|plus de)/.test(context) ? 'above' : 'target';
+    return {
+      operator,
+      value: Number.isNaN(numericValue) ? null : numericValue,
+      currency: ({ '€': 'EUR', '£': 'GBP', '$': 'USD' })[currencyMatch] || currencyMatch.toUpperCase(),
+      label: price,
+    };
+  });
+  const dates = value.match(
+    /\b(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|january|february|march|april|may|june|july|august|september|october|november|december|janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre|christmas|noël)\b/giu,
+  ) || [];
+  const properNames = value.match(/\b[A-ZÀ-ÖØ-Þ][\p{L}'’-]*(?:\s+[A-ZÀ-ÖØ-Þ][\p{L}'’-]*)*/gu) || [];
+  const excludedEntities = new Set(['tell', 'notify', 'alert', 'please', ...destinations, ...locations]
+    .map(normalizeComparableText));
+  const monitoredEntity = properNames.find(
+    (name) => !excludedEntities.has(normalizeComparableText(name)),
+  ) || null;
+  const monitoredEvent = /(?:drop|fall|below|under|price|prix|moins de)/i.test(value)
+    ? 'price_change'
+    : /(?:release|available|availability|opens?|sortie|disponible|ouvre)/i.test(value)
+      ? 'availability'
+      : /(?:announce|announcement|annonce)/i.test(value)
+        ? 'announcement'
+        : /(?:change|update|development|changement|actualité)/i.test(value)
+          ? 'update'
+          : null;
+
+  return {
+    locations,
+    destinations,
+    dates,
+    prices,
+    thresholds,
+    monitoredEntity,
+    monitoredEvent,
+  };
+};
+
+const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
+  const isUrlRequest = Boolean(urlAnalysis) || isUrl(request);
   const sourceName = getSourceText(urlAnalysis?.sourceName || urlAnalysis?.source);
   const sourceTitle = getSourceText(urlAnalysis?.sourceTitle || urlAnalysis?.title);
   const sourceUrl = typeof urlAnalysis?.sourceUrl === 'string'
     ? urlAnalysis.sourceUrl.trim()
-    : '';
+    : isUrlRequest ? request.trim() : '';
   const inferredCategory = inferCategory([
     request,
     urlAnalysis?.title,
@@ -451,30 +527,40 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, optio
   const selectedKeywords = Array.isArray(options.selectedKeywords)
     ? options.selectedKeywords
     : keywords;
+  const structuredCriteria = extractStructuredCriteria(request);
   return {
-    id: crypto.randomUUID(),
     title: urlAnalysis?.title || createTitle(request),
-    request,
     inputType: isUrlRequest ? 'url' : 'text',
     sourceName: sourceName || null,
     sourceTitle: sourceTitle || null,
     sourceUrl: sourceUrl || null,
-    whyFollowing: whyFollowing.trim(),
     category,
     categorySource: options.categorySource || 'inferred',
     keywords,
     selectedKeywords,
+    structuredCriteria,
+    ...structuredCriteria,
+    monitoringSummary: urlAnalysis?.summary || null,
+    monitoringSummaryKey: isUrlRequest
+      ? null
+      : inferMonitoringSummaryKey(request, category),
+    currentSituationKey: inferCurrentSituationKey(request, category),
+  };
+};
+
+const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, options = {}) => {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    request,
+    whyFollowing: whyFollowing.trim(),
+    ...deriveWatchData(request, urlAnalysis, options),
     status: 'watching',
     monitoringState: 'preparing',
     firstCheckCompletesAt: new Date(Date.now() + FIRST_MONITORING_DELAY).toISOString(),
     createdAt: now,
     lastChecked: null,
     requiresAttention: false,
-    monitoringSummary: urlAnalysis?.summary || null,
-    monitoringSummaryKey: isUrlRequest
-      ? null
-      : inferMonitoringSummaryKey(request, category),
-    currentSituationKey: inferCurrentSituationKey(request, category),
     latestChange: null,
     latestChangeAt: null,
     timeline: [
@@ -1370,6 +1456,7 @@ export function initForm() {
   const headingEl = document.querySelector('#newWatchHeading');
   const backEl = document.querySelector('#newWatchBack');
   const recentSectionEl = document.querySelector('#recentWatchesSection');
+  const watchOptionsEl = document.querySelector('#watchOptions');
   const keywordChipsEl = document.querySelector('#watchKeywordChips');
   const keywordInputEl = document.querySelector('#watchKeywordInput');
   const keywordAddEl = document.querySelector('#watchKeywordAdd');
@@ -1396,6 +1483,7 @@ export function initForm() {
   let noteCollapseTimer = null;
   let keywordRegenerationTimer = null;
   let keywordItems = [];
+  let keywordsManuallyEdited = false;
   let categorySource = editingWatch?.categorySource || 'inferred';
   let keywordSourceRequest = '';
   let initialEditState = null;
@@ -1456,6 +1544,7 @@ export function initForm() {
   const addKeyword = () => {
     const label = keywordInputEl?.value.trim();
     if (!label) return;
+    keywordsManuallyEdited = true;
     const existing = keywordItems.find(
       (item) => item.label.toLocaleLowerCase() === label.toLocaleLowerCase(),
     );
@@ -1478,7 +1567,7 @@ export function initForm() {
       if (requestChanged && categorySource === 'inferred' && categoryInputEl) {
         categoryInputEl.value = inferCategory(request);
       }
-      if (hasMeaningfulText(request) && hasSignificantRequestChange(keywordSourceRequest, request)) {
+      if (hasMeaningfulText(request) && requestChanged && !keywordsManuallyEdited) {
         replaceSuggestedKeywords(request);
       }
       refreshEditSaveState();
@@ -1492,7 +1581,7 @@ export function initForm() {
     if (requestChanged && categorySource === 'inferred' && categoryInputEl) {
       categoryInputEl.value = inferCategory(request);
     }
-    if (hasSignificantRequestChange(keywordSourceRequest, request)) {
+    if (requestChanged && !keywordsManuallyEdited) {
       replaceSuggestedKeywords(request);
     }
     refreshEditSaveState();
@@ -1586,26 +1675,82 @@ export function initForm() {
 
   const completeWatchUpdate = (request, whyFollowing, urlAnalysis = null) => {
     const keywordValues = getKeywordValues();
-    const requestIsUrl = Boolean(urlAnalysis) || isUrl(request);
+    const originalRequest = localizeField(editingWatch, 'request') || '';
+    const requestChanged = request.trim() !== originalRequest.trim();
+    const category = categoryInputEl?.value || editingWatch.category;
+    const categoryChanged = category !== editingWatch.category;
+    const originalKeywords = Array.isArray(editingWatch.keywords)
+      ? editingWatch.keywords
+      : extractKeywords(originalRequest);
+    const originalSelectedKeywords = Array.isArray(editingWatch.selectedKeywords)
+      ? editingWatch.selectedKeywords
+      : originalKeywords;
+    const keywordsChanged = JSON.stringify(keywordValues.keywords) !== JSON.stringify(originalKeywords)
+      || JSON.stringify(keywordValues.selectedKeywords) !== JSON.stringify(originalSelectedKeywords);
+    const monitoringCriteriaChanged = requestChanged || categoryChanged || keywordsChanged;
+    const derivedData = deriveWatchData(request, urlAnalysis, {
+      category,
+      categorySource,
+      ...keywordValues,
+    });
     const changes = {
       request,
       requestKey: null,
       whyFollowing: whyFollowing.trim(),
       whyFollowingKey: null,
-      category: categoryInputEl?.value || editingWatch.category,
+      category,
       categorySource,
       ...keywordValues,
-      inputType: requestIsUrl ? 'url' : 'text',
-      sourceUrl: requestIsUrl
-        ? (urlAnalysis?.sourceUrl || request).trim()
-        : null,
+      inputType: derivedData.inputType,
+      sourceUrl: derivedData.sourceUrl,
+      sourceName: derivedData.sourceName,
+      sourceNameKey: null,
+      sourceTitle: derivedData.sourceTitle,
+      sourceTitleKey: null,
     };
 
-    if (urlAnalysis) {
-      changes.sourceName = getSourceText(urlAnalysis.sourceName || urlAnalysis.source) || null;
-      changes.sourceNameKey = null;
-      changes.sourceTitle = getSourceText(urlAnalysis.sourceTitle || urlAnalysis.title) || null;
-      changes.sourceTitleKey = null;
+    if (requestChanged) {
+      changes.title = derivedData.title;
+      changes.titleKey = null;
+    }
+
+    if (monitoringCriteriaChanged) {
+      Object.assign(changes, {
+        monitoringSummary: derivedData.monitoringSummary,
+        monitoringSummaryKey: derivedData.monitoringSummaryKey,
+        structuredCriteria: derivedData.structuredCriteria,
+        locations: derivedData.locations,
+        destinations: derivedData.destinations,
+        dates: derivedData.dates,
+        prices: derivedData.prices,
+        thresholds: derivedData.thresholds,
+        monitoredEntity: derivedData.monitoredEntity,
+        monitoredEvent: derivedData.monitoredEvent,
+        currentSituation: null,
+        currentSituationKey: derivedData.currentSituationKey,
+        recommendation: null,
+        recommendationKey: null,
+        whyToday: null,
+        whyTodayKey: null,
+        latestChange: null,
+        latestChangeKey: null,
+        latestChangeAt: null,
+        latestChangeAtKey: null,
+        latestUpdate: null,
+        latestUpdateKey: null,
+        lastChecked: null,
+        lastCheckedKey: null,
+        confidence: null,
+        sources: [],
+        externalActions: [],
+        externalAction: null,
+        requiresAttention: false,
+        status: editingWatch.status === 'paused' ? 'paused' : 'watching',
+        statusBeforePause: editingWatch.status === 'paused' ? 'watching' : null,
+        monitoringState: 'preparing',
+        firstCheckCompletedAt: null,
+        firstCheckCompletesAt: new Date(Date.now() + FIRST_MONITORING_DELAY).toISOString(),
+      });
     }
 
     updateWatch(editingWatch.id, changes);
@@ -1784,6 +1929,9 @@ export function initForm() {
         recentSectionEl.hidden = true;
         recentSectionEl.dataset.editMode = 'true';
       }
+      if (watchOptionsEl) {
+        watchOptionsEl.hidden = false;
+      }
       if (input) {
         input.value = inputValue;
       }
@@ -1816,6 +1964,9 @@ export function initForm() {
         }
         : null;
     } else {
+      if (watchOptionsEl) {
+        watchOptionsEl.hidden = true;
+      }
       keywordSourceRequest = input?.value || '';
       keywordItems = extractKeywords(keywordSourceRequest)
         .map((label) => ({ label, selected: true }));
@@ -1916,11 +2067,13 @@ export function initForm() {
     const toggle = event.target.closest('[data-keyword-toggle]');
     const remove = event.target.closest('[data-keyword-remove]');
     if (toggle) {
+      keywordsManuallyEdited = true;
       const item = keywordItems[Number(toggle.dataset.keywordToggle)];
       if (item) item.selected = !item.selected;
       renderKeywords();
     }
     if (remove) {
+      keywordsManuallyEdited = true;
       keywordItems.splice(Number(remove.dataset.keywordRemove), 1);
       renderKeywords();
     }
@@ -2190,6 +2343,14 @@ export const initApp = () => {
   window.refreshBriefing = refreshBriefing;
 
   window.addEventListener('pageshow', renderRecentWatches);
+
+  window.addEventListener('storage', () => {
+    renderHomeSummary();
+    renderHomeBriefing();
+    renderWatchList();
+    renderWatchDetail();
+    renderRecentWatches();
+  });
 
   // Re-render data-driven content if setLanguage() is called at runtime.
   document.addEventListener('i18n:languageChanged', () => {

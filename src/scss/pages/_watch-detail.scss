@@ -28,14 +28,19 @@
 .detail-header {
   position: relative;
   display: grid;
-  gap: var(--space-md);
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--space-md);
+  row-gap: var(--space-md);
   margin: var(--space-xl) var(--space-xs) var(--space-lg);
 }
 
 .detail-edit-action {
-  position: absolute;
-  top: 0;
-  right: 0;
+  position: static;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  justify-self: end;
+  margin-right: calc(var(--space-xs) * -1);
   display: inline-flex;
   min-height: 2.25rem;
   align-items: center;
@@ -150,15 +155,25 @@
 }
 
 .detail-header > .category-pill {
-  margin-right: 4.5rem;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  margin-right: 0;
 }
 
 .detail-header h1 {
-  margin: 0;
+  grid-column: 1 / -1;
+  margin: var(--space-xs) 0 0;
   font-size: var(--font-size-detail-title);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.04em;
   line-height: 1.08;
+}
+
+.detail-header > .detail-paused-state,
+.detail-header > .status-badge,
+.detail-header > .detail-header__message {
+  grid-column: 1 / -1;
 }
 
 .detail-header__message {
