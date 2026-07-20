@@ -21,6 +21,7 @@ let detailCheckInProgress = false;
 let firstMonitoringTimer = null;
 let firstMonitoringTransitionTimer = null;
 let editSheetCloseTimer = null;
+let editSheetBackgroundScrollY = 0;
 
 const FIRST_MONITORING_DELAY = 3200;
 
@@ -98,6 +99,13 @@ const showWatchUpdatedConfirmation = () => {
   showDetailConfirmation(confirmationEl);
 };
 
+const scrollWindowImmediately = (top) => {
+  const previousBehavior = document.documentElement.style.scrollBehavior;
+  document.documentElement.style.scrollBehavior = 'auto';
+  window.scrollTo(0, top);
+  document.documentElement.style.scrollBehavior = previousBehavior;
+};
+
 const closeWatchEditSheet = ({ updated = false } = {}) => {
   const sheet = document.querySelector('#watchEditSheet');
   const frame = document.querySelector('#watchEditFrame');
@@ -108,10 +116,17 @@ const closeWatchEditSheet = ({ updated = false } = {}) => {
   editSheetCloseTimer = window.setTimeout(() => {
     sheet.close();
     sheet.classList.remove('is-closing', 'is-ready');
+    sheet.style.removeProperty('--watch-edit-viewport-height');
+    sheet.style.removeProperty('--watch-edit-viewport-top');
     if (frame) frame.removeAttribute('src');
+    document.body.classList.remove('is-watch-edit-open');
+    document.body.style.removeProperty('--watch-edit-background-top');
     if (updated) {
       renderWatchDetail();
+      scrollWindowImmediately(0);
       showWatchUpdatedConfirmation();
+    } else {
+      scrollWindowImmediately(editSheetBackgroundScrollY);
     }
     editSheetCloseTimer = null;
   }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180);
@@ -129,6 +144,10 @@ const initializeWatchEditSheet = () => {
   const updateSheetViewport = () => {
     if (viewportFrame !== null) window.cancelAnimationFrame(viewportFrame);
     viewportFrame = window.requestAnimationFrame(() => {
+      if (!sheet.open) {
+        viewportFrame = null;
+        return;
+      }
       const viewport = window.visualViewport;
       sheet.style.setProperty(
         '--watch-edit-viewport-height',
@@ -141,6 +160,7 @@ const initializeWatchEditSheet = () => {
       viewportFrame = null;
     });
   };
+  sheet.updateVisualViewport = updateSheetViewport;
 
   sheet.addEventListener('cancel', (event) => {
     event.preventDefault();
@@ -163,7 +183,6 @@ const initializeWatchEditSheet = () => {
     }
   });
 
-  updateSheetViewport();
   window.visualViewport?.addEventListener('resize', updateSheetViewport);
   window.visualViewport?.addEventListener('scroll', updateSheetViewport);
   window.addEventListener('resize', updateSheetViewport);
@@ -194,9 +213,13 @@ const openWatchEditSheet = (watchId) => {
   initializeWatchEditSheet();
   const saveButton = document.querySelector('#watchEditSave');
   if (saveButton) saveButton.disabled = true;
+  editSheetBackgroundScrollY = window.scrollY;
+  document.body.style.setProperty('--watch-edit-background-top', `${-editSheetBackgroundScrollY}px`);
+  document.body.classList.add('is-watch-edit-open');
   frame.src = `new-watch.html?edit=${encodeURIComponent(watchId)}&presentation=modal`;
   sheet.classList.remove('is-closing', 'is-ready');
   sheet.showModal();
+  sheet.updateVisualViewport?.();
 };
 
 const escapeHtml = (value) => String(value)
@@ -1546,6 +1569,11 @@ export function initForm() {
     const updateEditViewport = () => {
       if (viewportFrame !== null) window.cancelAnimationFrame(viewportFrame);
       viewportFrame = window.requestAnimationFrame(() => {
+        if (editNavigationAllowed) {
+          document.documentElement.style.removeProperty('--edit-visual-viewport-height');
+          viewportFrame = null;
+          return;
+        }
         const viewportHeight = window.visualViewport?.height || window.innerHeight;
         document.documentElement.style.setProperty(
           '--edit-visual-viewport-height',
@@ -1730,6 +1758,40 @@ export function initForm() {
     window.location.href = `watch-detail.html?id=${encodeURIComponent(watch.id)}&watchCreated=${encodeURIComponent(watch.id)}`;
   };
 
+  const finishModalTransition = (messageType) => {
+    const viewport = window.visualViewport;
+    const focusedElement = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    let settled = false;
+    let fallbackTimer = null;
+
+    const notifyParent = () => {
+      if (settled) return;
+      settled = true;
+      if (fallbackTimer !== null) window.clearTimeout(fallbackTimer);
+      viewport?.removeEventListener('resize', handleViewportResize);
+      document.documentElement.style.removeProperty('--edit-visual-viewport-height');
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          window.parent.postMessage({
+            type: messageType,
+            watchId: editingWatch.id,
+          }, window.location.origin);
+        });
+      });
+    };
+
+    const handleViewportResize = () => {
+      window.requestAnimationFrame(notifyParent);
+    };
+
+    viewport?.addEventListener('resize', handleViewportResize, { once: true });
+    focusedElement?.blur();
+    // Safari occasionally omits the final visualViewport resize event after a programmatic blur.
+    fallbackTimer = window.setTimeout(notifyParent, viewport ? 360 : 0);
+  };
+
   const completeWatchUpdate = (request, whyFollowing, urlAnalysis = null) => {
     const keywordValues = getKeywordValues();
     const originalRequest = localizeField(editingWatch, 'request') || '';
@@ -1813,10 +1875,7 @@ export function initForm() {
     updateWatch(editingWatch.id, changes);
     editNavigationAllowed = true;
     if (isModalEditMode) {
-      window.parent.postMessage({
-        type: 'watch-editor-saved',
-        watchId: editingWatch.id,
-      }, window.location.origin);
+      finishModalTransition('watch-editor-saved');
       return;
     }
     window.location.href = `watch-detail.html?id=${encodeURIComponent(editingWatch.id)}&watchUpdated=${encodeURIComponent(editingWatch.id)}`;
@@ -2069,10 +2128,7 @@ export function initForm() {
   const returnToWatchDetails = (destination = backEl?.href) => {
     editNavigationAllowed = true;
     if (isModalEditMode) {
-      window.parent.postMessage({
-        type: 'watch-editor-close',
-        watchId: editingWatch.id,
-      }, window.location.origin);
+      finishModalTransition('watch-editor-close');
       return;
     }
     window.location.href = destination

@@ -41,6 +41,14 @@ body.is-edit-modal .language-switcher {
   display: none;
 }
 
+@media (max-width: 48rem) {
+  body.is-edit-modal input,
+  body.is-edit-modal textarea,
+  body.is-edit-modal select {
+    font-size: 16px;
+  }
+}
+
 .page--form {
   max-width: var(--content-detail-width);
   padding: var(--space-md) var(--space-xl) var(--space-3xl);

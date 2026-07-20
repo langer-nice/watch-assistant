@@ -2,6 +2,15 @@
   background: var(--color-detail-background);
 }
 
+body.is-watch-edit-open {
+  position: fixed;
+  top: var(--watch-edit-background-top, 0px);
+  right: 0;
+  left: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
 .detail-section {
   padding: var(--space-lg);
   background: var(--color-surface);
