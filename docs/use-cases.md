@@ -96,6 +96,8 @@ Goal: expand Watch Assistant beyond news monitoring into everyday practical life
 ===============================
 ===============================
 
+EDIT BUTTON ON DETAILS PAGZ 
+
 
 ## Product Observations and Open Questions
 
@@ -237,17 +239,7 @@ The current wording direction is:
 - Review whether blue links, green categories and red urgency styling make the page feel too multicoloured.
 - Consider a more harmonious palette while retaining semantic meaning.
 
-#### Watch management
 
-- Consider a **Manage Watch** section with **Pause watch**, **Resume watch** and **Delete watch**.
-- Pause should be more prominent than Delete, and deletion should require confirmation.
-- Open question: should deletion also remove watch history?
-
-#### Check now
-
-- Consider an immediate **Check now** action with a temporary **Checking…** state.
-- After checking, update **Last checked**, show **No changes** when appropriate, or update the watch when a change is found.
-- Open question: is a cooldown needed to manage abuse or API limits?
 
 #### Timestamp terminology
 

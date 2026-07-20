@@ -25,12 +25,24 @@
 .back-link {
   display: inline-flex;
   align-items: center;
+  justify-self: start;
+  gap: var(--space-xs);
   color: var(--color-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-regular);
   text-decoration: none;
-  font-weight: var(--font-weight-semibold);
+}
+
+.back-link::before {
+  content: '←';
+  flex: 0 0 auto;
 }
 
 .back-link:focus-visible,
 .back-link:hover {
   text-decoration: underline;
+}
+
+.back-link:active {
+  color: var(--color-primary-hover);
 }

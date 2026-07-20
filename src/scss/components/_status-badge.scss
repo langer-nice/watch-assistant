@@ -9,6 +9,10 @@
   line-height: 1;
 }
 
+.status-badge[hidden] {
+  display: none;
+}
+
 .status-badge--success {
   color: var(--color-status-success);
   background: var(--color-status-success-bg);
@@ -29,6 +33,13 @@
   background: var(--color-status-update-bg);
 }
 
+.status-badge--paused {
+  gap: var(--space-xs);
+  color: var(--color-text-muted);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+}
+
 .status-badge--with-dot {
   gap: var(--space-xs);
   width: fit-content;
@@ -46,4 +57,14 @@
 
 .status-badge--with-dot.status-badge--action {
   border: 1px solid var(--color-status-action-border);
+}
+
+.status-badge--paused::before,
+.status-badge--with-dot.status-badge--paused::before {
+  width: auto;
+  height: auto;
+  background: transparent;
+  content: '⏸';
+  font-size: 0.8em;
+  line-height: 1;
 }

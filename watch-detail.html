@@ -15,19 +15,47 @@
   <body>
     <div class="app-shell app-shell--detail">
       <main class="page page--detail">
-        <a class="back-link detail-back-link" href="index.html" data-i18n="detail.back"></a>
+        <a class="back-link detail-back-link" href="watches.html" data-i18n="detail.allWatches"></a>
+
+        <section
+          class="detail-section detail-section--confirmation"
+          id="watchConfirmation"
+          role="status"
+          aria-live="polite"
+          hidden
+        >
+          <span class="detail-confirmation__icon" aria-hidden="true">✓</span>
+          <div class="detail-confirmation__copy">
+            <p class="confirmation-title" data-i18n="detail.createdTitle"></p>
+            <p data-i18n="detail.createdCopy"></p>
+          </div>
+          <button
+            class="detail-confirmation__dismiss"
+            id="watchConfirmationDismiss"
+            type="button"
+            data-i18n-aria-label="detail.dismissCreated"
+          >×</button>
+        </section>
 
         <header class="detail-header">
           <p class="category-pill" id="watchCategory"></p>
           <h1 id="watchTitle" data-i18n="detail.title"></h1>
+          <div class="detail-paused-state" id="watchPausedState" hidden>
+            <p class="detail-paused-state__title">
+              <span aria-hidden="true">⏸</span>
+              <span data-i18n="detail.monitoringPausedTitle"></span>
+            </p>
+            <p data-i18n="detail.monitoringPausedCopy"></p>
+            <button class="watch-fact-check__button detail-paused-state__resume" id="watchPausedResume" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m8 5 11 7-11 7Z"></path>
+              </svg>
+              <span data-i18n="detail.resumeWatch"></span>
+            </button>
+          </div>
           <p class="status-badge status-badge--with-dot" id="watchStatus"></p>
           <p class="detail-header__message" id="watchNotFound" hidden></p>
         </header>
-
-        <section class="detail-section detail-section--confirmation" id="watchConfirmation" hidden>
-          <p class="confirmation-title" data-i18n="detail.confirmationTitle"></p>
-          <p data-i18n="detail.confirmationCopy"></p>
-        </section>
 
         <section class="detail-card" id="watchBriefing" aria-labelledby="whatIKnowTitle">
           <h2 class="detail-label" id="whatIKnowTitle" data-i18n="detail.whatIKnow"></h2>
@@ -81,6 +109,14 @@
           <ol id="watchTimeline"></ol>
         </section>
 
+        <section class="watch-preparing" id="watchPreparing" role="status" aria-live="polite" hidden>
+          <span class="watch-preparing__spinner" aria-hidden="true"></span>
+          <div>
+            <h2 data-i18n="detail.preparingTitle"></h2>
+            <p data-i18n="detail.preparingCopy"></p>
+          </div>
+        </section>
+
         <section class="detail-card" id="watchFacts" aria-labelledby="watchFactsTitle" hidden>
           <h2 class="detail-label" id="watchFactsTitle" data-i18n="detail.watchFacts"></h2>
           <div class="detail-card__metadata" id="watchMetadata">
@@ -88,18 +124,25 @@
               <h3 class="detail-label" data-i18n="detail.sources"></h3>
               <ul id="watchSources"></ul>
             </section>
-            <section data-detail-field="confidence" hidden>
-              <h3 class="detail-label" data-i18n="detail.confidence"></h3>
-              <p id="watchConfidence"></p>
+            <section data-detail-field="lastChecked" hidden>
+              <h3 class="detail-label" data-i18n="detail.lastChecked"></h3>
+              <div class="watch-fact-check">
+                <p id="watchLastChecked"></p>
+                <button class="watch-fact-check__button" id="watchCheckNow" type="button">
+                  <span class="watch-fact-check__spinner" aria-hidden="true" hidden></span>
+                  <span id="watchCheckNowLabel" data-i18n="detail.checkNow"></span>
+                </button>
+              </div>
+              <p class="watch-fact-check__feedback" id="watchCheckFeedback" role="status" aria-live="polite" hidden></p>
             </section>
             <section data-detail-field="latestChange" hidden>
               <h3 class="detail-label" data-i18n="detail.latestChange"></h3>
               <p id="watchLatestChange"></p>
               <p id="watchLatestChangeAt"></p>
             </section>
-            <section data-detail-field="lastChecked" hidden>
-              <h3 class="detail-label" data-i18n="detail.lastChecked"></h3>
-              <p id="watchLastChecked"></p>
+            <section data-detail-field="confidence" hidden>
+              <h3 class="detail-label" data-i18n="detail.confidence"></h3>
+              <p id="watchConfidence"></p>
             </section>
           </div>
         </section>
@@ -108,6 +151,41 @@
           <h2 class="detail-label" id="actionsTitle" data-i18n="detail.whatYouCanDo"></h2>
           <div class="external-actions__list" id="watchExternalActions"></div>
         </section>
+
+        <section class="watch-management" id="watchManagement" aria-labelledby="manageWatchTitle">
+          <h2 class="detail-label" id="manageWatchTitle" data-i18n="detail.manageWatch"></h2>
+          <div class="watch-management__controls">
+            <button class="button button--secondary watch-management__pause" id="watchPauseResume" type="button">
+              <svg id="watchPauseIcon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 6v12M15 6v12"></path>
+              </svg>
+              <svg id="watchResumeIcon" viewBox="0 0 24 24" aria-hidden="true" hidden>
+                <path d="m8 5 11 7-11 7Z"></path>
+              </svg>
+              <span id="watchPauseResumeLabel"></span>
+            </button>
+            <button class="watch-secondary-action watch-management__delete" id="watchDelete" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16"></path>
+                <path d="M9 7V4h6v3"></path>
+                <path d="m6 7 1 13h10l1-13"></path>
+                <path d="M10 11v5M14 11v5"></path>
+              </svg>
+              <span data-i18n="detail.deleteWatch"></span>
+            </button>
+          </div>
+        </section>
+
+        <dialog class="watch-delete-dialog" id="watchDeleteDialog" aria-labelledby="watchDeleteTitle" aria-describedby="watchDeleteCopy">
+          <form method="dialog">
+            <h2 id="watchDeleteTitle" data-i18n="detail.deleteTitle"></h2>
+            <p id="watchDeleteCopy" data-i18n="detail.deleteCopy"></p>
+            <div class="watch-delete-dialog__actions">
+              <button class="button button--secondary" id="watchDeleteCancel" value="cancel" data-i18n="detail.cancel"></button>
+              <button class="button watch-delete-dialog__confirm" id="watchDeleteConfirm" value="delete" data-i18n="detail.deleteWatch"></button>
+            </div>
+          </form>
+        </dialog>
       </main>
 
       <a class="floating-action floating-action--detail" href="new-watch.html">

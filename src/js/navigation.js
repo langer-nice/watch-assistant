@@ -2,6 +2,8 @@ import {
   getWatches,
   getStoredWatches,
   addWatch,
+  updateWatch,
+  deleteWatch,
   getWatchById,
   getBriefingGeneratedAt,
   setBriefingGeneratedAt,
@@ -12,6 +14,71 @@ import { analyseUrl } from './url-analysis.js';
 
 let homeCreatedWatchId = null;
 let homeCreatedWatchFeedbackTimer = null;
+let detailConfirmationAutoTimer = null;
+let detailConfirmationHideTimer = null;
+let detailCheckFeedbackTimer = null;
+let detailCheckInProgress = false;
+let firstMonitoringTimer = null;
+let firstMonitoringTransitionTimer = null;
+
+const FIRST_MONITORING_DELAY = 3200;
+
+const checkWatchForUpdates = async (watch) => {
+  // Integration boundary for a monitoring service; the local prototype returns no change.
+  const result = typeof window.watchAssistantCheckWatch === 'function'
+    ? await window.watchAssistantCheckWatch(watch)
+    : await new Promise((resolve) => {
+      window.setTimeout(() => resolve({ changed: false, changes: {} }), 1200);
+    });
+
+  return {
+    changed: Boolean(result?.changed),
+    changes: {
+      ...(result?.changes || {}),
+      lastChecked: new Date().toISOString(),
+      lastCheckedKey: null,
+    },
+  };
+};
+
+const dismissDetailConfirmation = (confirmationEl) => {
+  window.clearTimeout(detailConfirmationAutoTimer);
+  window.clearTimeout(detailConfirmationHideTimer);
+  detailConfirmationAutoTimer = null;
+  confirmationEl.classList.remove('is-visible');
+  confirmationEl.classList.add('is-leaving');
+
+  detailConfirmationHideTimer = window.setTimeout(() => {
+    confirmationEl.hidden = true;
+    confirmationEl.classList.remove('is-leaving');
+    delete confirmationEl.dataset.active;
+    detailConfirmationHideTimer = null;
+  }, 280);
+};
+
+const showDetailConfirmation = (confirmationEl) => {
+  const dismissButton = confirmationEl.querySelector('#watchConfirmationDismiss');
+  window.clearTimeout(detailConfirmationAutoTimer);
+  window.clearTimeout(detailConfirmationHideTimer);
+  confirmationEl.hidden = false;
+  confirmationEl.dataset.active = 'true';
+  confirmationEl.classList.remove('is-visible', 'is-leaving');
+  if (dismissButton) {
+    dismissButton.onclick = () => dismissDetailConfirmation(confirmationEl);
+  }
+
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      if (!confirmationEl.hidden && !confirmationEl.classList.contains('is-leaving')) {
+        confirmationEl.classList.add('is-visible');
+      }
+    });
+  });
+
+  detailConfirmationAutoTimer = window.setTimeout(() => {
+    dismissDetailConfirmation(confirmationEl);
+  }, 4500);
+};
 
 const escapeHtml = (value) => String(value)
   .replaceAll('&', '&amp;')
@@ -143,6 +210,26 @@ const formatDate = (isoString) => {
   });
 };
 
+const formatLastChecked = (watch) => {
+  const value = localizeField(watch, 'lastChecked');
+  if (!value || watch.lastCheckedKey) {
+    return value;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  if (Date.now() - date.getTime() < 60_000) {
+    return t('common.justNow');
+  }
+
+  return new Intl.DateTimeFormat(getLanguage() === 'fr' ? 'fr-FR' : 'en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+};
+
 const inferCategory = (request) => {
   const text = request.toLowerCase();
 
@@ -250,6 +337,8 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null) => {
     whyFollowing: whyFollowing.trim(),
     category,
     status: 'watching',
+    monitoringState: 'preparing',
+    firstCheckCompletesAt: new Date(Date.now() + FIRST_MONITORING_DELAY).toISOString(),
     createdAt: now,
     lastChecked: null,
     requiresAttention: false,
@@ -327,15 +416,18 @@ const renderWatchList = () => {
     .map((watch) => {
       const storedTitle = localizeField(watch, 'title');
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
-      const subtitle = getMonitoringSummary(watch, title);
+      const isPaused = watch.status === 'paused';
+      const subtitle = isPaused
+        ? t('watches.monitoringPaused')
+        : getMonitoringSummary(watch, title);
       return `
-      <a class="watch-row" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
+      <a class="watch-row${isPaused ? ' watch-row--paused' : ''}" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
         <div>
           <p class="watch-row__category">${escapeHtml(t(`categories.${watch.category}`))}</p>
           <h2>${escapeHtml(title)}</h2>
           ${subtitle ? `<p class="watch-row__summary">${escapeHtml(subtitle)}</p>` : ''}
         </div>
-        <span class="watch-row__status">${escapeHtml(t(`statuses.${watch.status}`))}</span>
+        <span class="watch-row__status${isPaused ? ' status-badge status-badge--paused' : ''}">${escapeHtml(t(`statuses.${watch.status}`))}</span>
       </a>
     `;
     })
@@ -350,10 +442,27 @@ const renderWatchDetail = () => {
 
   const params = new URLSearchParams(window.location.search);
   const watchId = params.get('id');
-  const watch = getWatchById(watchId);
+  let watch = getWatchById(watchId);
+  if (
+    watch?.monitoringState === 'preparing'
+    && Date.parse(watch.firstCheckCompletesAt) <= Date.now()
+  ) {
+    watch = updateWatch(watch.id, {
+      monitoringState: 'monitoring',
+      firstCheckCompletedAt: new Date().toISOString(),
+      firstCheckCompletesAt: null,
+      lastChecked: new Date().toISOString(),
+      lastCheckedKey: null,
+    });
+  }
+  const isPreparing = watch?.monitoringState === 'preparing';
+  const detailPageEl = document.querySelector('.page--detail');
+  detailPageEl?.classList.toggle('is-paused', watch?.status === 'paused');
 
   const categoryEl = document.querySelector('#watchCategory');
   const statusEl = document.querySelector('#watchStatus');
+  const pausedStateEl = document.querySelector('#watchPausedState');
+  const pausedResumeEl = document.querySelector('#watchPausedResume');
   const notFoundEl = document.querySelector('#watchNotFound');
   const briefingEl = document.querySelector('#watchBriefing');
   const factsEl = document.querySelector('#watchFacts');
@@ -379,9 +488,33 @@ const renderWatchDetail = () => {
   const actionsSectionEl = document.querySelector('#watchActionsSection');
   const externalActionsEl = document.querySelector('#watchExternalActions');
   const confirmationEl = document.querySelector('#watchConfirmation');
+  const preparingEl = document.querySelector('#watchPreparing');
+  const managementEl = document.querySelector('#watchManagement');
+  const checkNowEl = document.querySelector('#watchCheckNow');
+  const checkNowLabelEl = document.querySelector('#watchCheckNowLabel');
+  const checkSpinnerEl = document.querySelector('.watch-fact-check__spinner');
+  const checkFeedbackEl = document.querySelector('#watchCheckFeedback');
+  const pauseResumeEl = document.querySelector('#watchPauseResume');
+  const pauseResumeLabelEl = document.querySelector('#watchPauseResumeLabel');
+  const pauseIconEl = document.querySelector('#watchPauseIcon');
+  const resumeIconEl = document.querySelector('#watchResumeIcon');
+  const deleteEl = document.querySelector('#watchDelete');
+  const deleteDialogEl = document.querySelector('#watchDeleteDialog');
+  const deleteCancelEl = document.querySelector('#watchDeleteCancel');
+  const deleteConfirmEl = document.querySelector('#watchDeleteConfirm');
 
   const hideDetailContent = () => {
-    [briefingEl, factsEl, whyTodayEl, whyFollowingEl, timelineSectionEl, actionsSectionEl, confirmationEl]
+    [
+      briefingEl,
+      factsEl,
+      whyTodayEl,
+      whyFollowingEl,
+      timelineSectionEl,
+      actionsSectionEl,
+      confirmationEl,
+      preparingEl,
+      managementEl,
+    ]
       .forEach((element) => {
         if (element) {
           element.hidden = true;
@@ -396,6 +529,9 @@ const renderWatchDetail = () => {
     }
     if (statusEl) {
       statusEl.hidden = true;
+    }
+    if (pausedStateEl) {
+      pausedStateEl.hidden = true;
     }
     if (notFoundEl) {
       notFoundEl.textContent = t('detail.notFoundCopy');
@@ -422,10 +558,15 @@ const renderWatchDetail = () => {
     const status = watch.status && t(`statuses.${watch.status}`);
     const statusModifier = watch.status === 'attention'
       ? 'action'
-      : watch.status === 'stable' ? 'success' : 'update';
+      : watch.status === 'stable'
+        ? 'success'
+        : watch.status === 'paused' ? 'paused' : 'update';
     statusEl.textContent = status || '';
-    statusEl.hidden = !status;
+    statusEl.hidden = !status || watch.status === 'paused';
     statusEl.className = `status-badge status-badge--with-dot status-badge--${statusModifier}`;
+  }
+  if (pausedStateEl) {
+    pausedStateEl.hidden = watch.status !== 'paused';
   }
 
   const setOptionalField = (field, element, value) => {
@@ -464,20 +605,16 @@ const renderWatchDetail = () => {
   const sourceTitle = getSourceText(storedSourceTitle);
   const storedSourceUrl = typeof watch.sourceUrl === 'string' ? watch.sourceUrl.trim() : '';
   const safeSourceUrl = getSafeExternalUrl(storedSourceUrl);
-  const hasSourceLink = Boolean(safeSourceUrl);
-  const hasOriginalSource = Boolean(
-    watch.inputType === 'url'
-    || storedSourceUrl
-    || sourceName
-    || sourceTitle,
-  );
+  const hasOriginalSource = watch.inputType === 'url'
+    && Boolean(sourceName || sourceTitle || safeSourceUrl);
+  const hasSourceLink = hasOriginalSource && Boolean(safeSourceUrl);
   if (sourceNameEl) {
-    sourceNameEl.textContent = sourceName;
-    sourceNameEl.hidden = !sourceName;
+    sourceNameEl.textContent = hasOriginalSource ? sourceName : '';
+    sourceNameEl.hidden = !hasOriginalSource || !sourceName;
   }
   if (sourceTitleEl) {
-    sourceTitleEl.textContent = sourceTitle;
-    sourceTitleEl.hidden = !sourceTitle;
+    sourceTitleEl.textContent = hasOriginalSource ? sourceTitle : '';
+    sourceTitleEl.hidden = !hasOriginalSource || !sourceTitle;
   }
   if (sourceLinkEl) {
     if (hasSourceLink) {
@@ -514,7 +651,7 @@ const renderWatchDetail = () => {
   if (latestChangeContainer) {
     latestChangeContainer.hidden = !hasLatestChange;
   }
-  const lastChecked = localizeField(watch, 'lastChecked');
+  const lastChecked = formatLastChecked(watch);
   const hasLastChecked = setOptionalField('lastChecked', lastCheckedEl, lastChecked);
 
   let confidence = localizeField(watch, 'confidence');
@@ -541,7 +678,7 @@ const renderWatchDetail = () => {
     metadataEl.hidden = !hasMetadata;
   }
   if (factsEl) {
-    factsEl.hidden = !hasMetadata;
+    factsEl.hidden = isPreparing || !hasMetadata;
   }
   if (briefingEl) {
     briefingEl.hidden = !(hasCurrentSituation || hasRecommendation || hasOriginalSource);
@@ -617,13 +754,161 @@ const renderWatchDetail = () => {
     actionsSectionEl.hidden = renderedActions.length === 0;
   }
 
+  if (preparingEl) {
+    preparingEl.hidden = !isPreparing;
+    preparingEl.classList.remove('is-leaving');
+  }
+  if (isPreparing) {
+    scheduleFirstMonitoringPass(watch, preparingEl);
+  } else {
+    window.clearTimeout(firstMonitoringTimer);
+    firstMonitoringTimer = null;
+  }
+
+  if (managementEl) {
+    managementEl.hidden = false;
+  }
+  if (checkNowEl) {
+    checkNowEl.hidden = isPreparing;
+    checkNowEl.disabled = detailCheckInProgress || isPreparing;
+    checkNowEl.onclick = async () => {
+      if (detailCheckInProgress) {
+        return;
+      }
+
+      detailCheckInProgress = true;
+      window.clearTimeout(detailCheckFeedbackTimer);
+      checkNowEl.disabled = true;
+      if (checkNowLabelEl) checkNowLabelEl.textContent = t('detail.checking');
+      if (checkSpinnerEl) checkSpinnerEl.hidden = false;
+      if (checkFeedbackEl) checkFeedbackEl.hidden = true;
+
+      const result = await checkWatchForUpdates(watch);
+      updateWatch(watch.id, result.changes);
+      detailCheckInProgress = false;
+      renderWatchDetail();
+
+      if (!result.changed) {
+        const refreshedFeedbackEl = document.querySelector('#watchCheckFeedback');
+        if (refreshedFeedbackEl) {
+          refreshedFeedbackEl.textContent = t('detail.noChangesFound');
+          refreshedFeedbackEl.hidden = false;
+          detailCheckFeedbackTimer = window.setTimeout(() => {
+            refreshedFeedbackEl.hidden = true;
+          }, 3000);
+        }
+      }
+    };
+  }
+  if (checkNowLabelEl) {
+    checkNowLabelEl.textContent = t(detailCheckInProgress ? 'detail.checking' : 'detail.checkNow');
+  }
+  if (checkSpinnerEl) {
+    checkSpinnerEl.hidden = !detailCheckInProgress;
+  }
+
+  const isPaused = watch.status === 'paused';
+  const resumeWatch = () => {
+    updateWatch(watch.id, {
+      status: watch.statusBeforePause || 'watching',
+      statusBeforePause: null,
+    });
+    renderWatchDetail();
+  };
+  if (pausedResumeEl) {
+    pausedResumeEl.onclick = resumeWatch;
+  }
+  if (pauseResumeEl) {
+    pauseResumeEl.hidden = false;
+    if (pauseResumeLabelEl) {
+      pauseResumeLabelEl.textContent = t(isPaused ? 'detail.resumeWatch' : 'detail.pauseWatch');
+    }
+    if (pauseIconEl) pauseIconEl.hidden = isPaused;
+    if (resumeIconEl) resumeIconEl.hidden = !isPaused;
+    pauseResumeEl.className = 'button button--secondary watch-management__pause';
+    pauseResumeEl.onclick = isPaused
+      ? resumeWatch
+      : () => {
+        updateWatch(watch.id, {
+          status: 'paused',
+          statusBeforePause: watch.status,
+        });
+        renderWatchDetail();
+      };
+  }
+
+  if (deleteEl && deleteDialogEl) {
+    deleteEl.onclick = () => {
+      deleteDialogEl.showModal();
+      window.requestAnimationFrame(() => deleteCancelEl?.focus());
+    };
+  }
+  if (deleteConfirmEl) {
+    deleteConfirmEl.onclick = (event) => {
+      event.preventDefault();
+      deleteWatch(watch.id);
+      deleteDialogEl?.close();
+      window.location.href = 'watches.html';
+    };
+  }
+
   if (confirmationEl) {
-    const isNew = !hasLatestChange
-      && sources.length === 0
-      && watch.confidence == null;
-    confirmationEl.hidden = !isNew;
+    const detailUrl = new URL(window.location.href);
+    const createdWatchId = detailUrl.searchParams.get('watchCreated');
+    const shouldShowConfirmation = createdWatchId === watch.id;
+
+    if (createdWatchId) {
+      detailUrl.searchParams.delete('watchCreated');
+      window.history.replaceState(
+        null,
+        '',
+        `${detailUrl.pathname}${detailUrl.search}${detailUrl.hash}`,
+      );
+    }
+
+    if (shouldShowConfirmation) {
+      showDetailConfirmation(confirmationEl);
+    } else if (confirmationEl.dataset.active !== 'true') {
+      confirmationEl.hidden = true;
+    }
   }
 };
+
+function scheduleFirstMonitoringPass(watch, preparingEl) {
+  window.clearTimeout(firstMonitoringTimer);
+  const completesAt = Date.parse(watch.firstCheckCompletesAt);
+  const remaining = Number.isNaN(completesAt)
+    ? FIRST_MONITORING_DELAY
+    : Math.max(0, completesAt - Date.now());
+
+  firstMonitoringTimer = window.setTimeout(() => {
+    const currentWatch = getWatchById(watch.id);
+    if (currentWatch?.monitoringState !== 'preparing') {
+      return;
+    }
+
+    preparingEl?.classList.add('is-leaving');
+    window.clearTimeout(firstMonitoringTransitionTimer);
+    firstMonitoringTransitionTimer = window.setTimeout(() => {
+      const checkedAt = new Date().toISOString();
+      updateWatch(watch.id, {
+        monitoringState: 'monitoring',
+        firstCheckCompletedAt: checkedAt,
+        firstCheckCompletesAt: null,
+        lastChecked: checkedAt,
+        lastCheckedKey: null,
+      });
+      renderWatchDetail();
+
+      const refreshedFactsEl = document.querySelector('#watchFacts');
+      if (refreshedFactsEl && !refreshedFactsEl.hidden) {
+        refreshedFactsEl.classList.add('is-revealing');
+        window.setTimeout(() => refreshedFactsEl.classList.remove('is-revealing'), 420);
+      }
+      firstMonitoringTransitionTimer = null;
+    }, 240);
+  }, remaining);
+}
 
 const renderDevTools = () => {
   if (!import.meta.env.DEV) {
@@ -899,7 +1184,6 @@ export function initForm() {
   const hint = document.querySelector('#inputTypeHint');
   const submitButton = document.querySelector('#newWatchSubmit');
   const submitLabel = document.querySelector('#newWatchSubmitLabel');
-  const successState = document.querySelector('#newWatchSuccess');
   const analysisSection = document.querySelector('#urlAnalysis');
   const processingState = document.querySelector('#urlAnalysisProcessing');
   const processingMessage = document.querySelector('#urlAnalysisMessage');
@@ -984,16 +1268,8 @@ export function initForm() {
 
   const completeWatchCreation = (watch) => {
     addWatch(watch);
-    sessionStorage.setItem('watchAssistant.newWatchId', watch.id);
-    form.hidden = true;
-    document.querySelector('#recentWatchesSection')?.setAttribute('hidden', '');
-    if (successState) {
-      successState.hidden = false;
-      successState.focus();
-    }
-    window.setTimeout(() => {
-      window.location.href = `index.html?watchCreated=${encodeURIComponent(watch.id)}`;
-    }, 1250);
+    sessionStorage.removeItem('watchAssistant.newWatchId');
+    window.location.href = `watch-detail.html?id=${encodeURIComponent(watch.id)}&watchCreated=${encodeURIComponent(watch.id)}`;
   };
 
   const setReviewEditing = (editing) => {

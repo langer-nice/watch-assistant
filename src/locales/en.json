@@ -80,13 +80,17 @@
   "watches": {
     "title": "All watches",
     "intro": "Review the watch list and open any item for more context.",
+    "monitoringPaused": "Automatic monitoring paused.",
     "empty": "Everything is under control. No active watches right now."
   },
   "detail": {
-    "back": "← Back",
+    "allWatches": "All Watches",
     "title": "Watch detail",
-    "confirmationTitle": "I’m watching this for you.",
-    "confirmationCopy": "I’ll let you know when something important changes.",
+    "createdTitle": "Your Watch has been created.",
+    "createdCopy": "I’m watching this now.",
+    "dismissCreated": "Dismiss confirmation",
+    "monitoringPausedTitle": "Monitoring paused",
+    "monitoringPausedCopy": "Automatic monitoring is currently disabled.",
     "whatIKnow": "What I know",
     "currentSituation": "Current situation",
     "recommendation": "Recommendation",
@@ -101,12 +105,24 @@
     "myTake": "My take",
     "whyFollowing": "Why I’m following this",
     "howWeGotHere": "How we got here",
+    "preparingTitle": "Preparing your Watch...",
+    "preparingCopy": "I’m analysing your request and performing the first monitoring check.",
     "whatYouCanDo": "What you can do",
+    "manageWatch": "Manage Watch",
+    "checkNow": "Check now",
+    "checking": "Checking...",
+    "noChangesFound": "No changes found.",
+    "pauseWatch": "Pause Watch",
+    "resumeWatch": "Resume Watch",
+    "deleteWatch": "Delete Watch",
+    "deleteTitle": "Delete this Watch?",
+    "deleteCopy": "This will permanently stop monitoring and remove this Watch.",
+    "cancel": "Cancel",
     "notFoundTitle": "Watch not found",
     "notFoundCopy": "We could not find that watch. Please return to the watch list."
   },
   "newWatch": {
-    "back": "← Home",
+    "back": "Home",
     "heading": "What should I keep an eye on?",
     "label": "What should I keep an eye on?",
     "placeholder": "Tell me when...",
@@ -141,13 +157,8 @@
     "urlReviewUnknownSource": "Unknown source",
     "examplesTitle": "For example",
     "recent": "Recent",
-    "inlineSuccessCopy": "I’ll start watching this immediately.",
     "emptyError": "Tell me what you would like me to watch.",
     "meaningfulError": "Please add a little more detail."
-  },
-  "watchConfirmation": {
-    "heading": "I'm on it.",
-    "copy": "I'll start watching this immediately and let you know when something matters."
   },
   "flow2": {
     "headline": "Tell us what matters.",
@@ -221,6 +232,7 @@
     "watching": "Watching",
     "updated": "Updated",
     "stable": "Stable",
+    "paused": "Paused",
     "completed": "Completed"
   },
   "confidence": {

@@ -80,13 +80,17 @@
   "watches": {
     "title": "Toutes les veilles",
     "intro": "Consultez la liste des veilles et ouvrez un élément pour en savoir plus.",
+    "monitoringPaused": "Surveillance automatique en pause.",
     "empty": "Tout est sous contrôle. Aucune veille active pour le moment."
   },
   "detail": {
-    "back": "← Retour",
+    "allWatches": "Toutes les veilles",
     "title": "Détail de la veille",
-    "confirmationTitle": "Je surveille cela pour vous.",
-    "confirmationCopy": "Je vous préviendrai dès qu’un changement important surviendra.",
+    "createdTitle": "Votre veille a été créée.",
+    "createdCopy": "Je la surveille maintenant.",
+    "dismissCreated": "Fermer la confirmation",
+    "monitoringPausedTitle": "Surveillance en pause",
+    "monitoringPausedCopy": "La surveillance automatique est actuellement désactivée.",
     "whatIKnow": "Ce que je sais",
     "currentSituation": "Situation actuelle",
     "recommendation": "Recommandation",
@@ -101,12 +105,24 @@
     "myTake": "Mon analyse",
     "whyFollowing": "Pourquoi je suis cette veille",
     "howWeGotHere": "Comment nous en sommes arrivés là",
+    "preparingTitle": "Préparation de votre veille...",
+    "preparingCopy": "J’analyse votre demande et j’effectue la première vérification.",
     "whatYouCanDo": "Ce que vous pouvez faire",
+    "manageWatch": "Gérer la veille",
+    "checkNow": "Vérifier maintenant",
+    "checking": "Vérification...",
+    "noChangesFound": "Aucun changement détecté.",
+    "pauseWatch": "Mettre en pause",
+    "resumeWatch": "Reprendre la veille",
+    "deleteWatch": "Supprimer la veille",
+    "deleteTitle": "Supprimer cette veille ?",
+    "deleteCopy": "Cela arrêtera définitivement la surveillance et supprimera cette veille.",
+    "cancel": "Annuler",
     "notFoundTitle": "Veille introuvable",
     "notFoundCopy": "Cette veille est introuvable. Veuillez revenir à la liste des veilles."
   },
   "newWatch": {
-    "back": "← Accueil",
+    "back": "Accueil",
     "heading": "Que dois-je surveiller ?",
     "label": "Que dois-je surveiller ?",
     "placeholder": "Prévenez-moi quand...",
@@ -141,13 +157,8 @@
     "urlReviewUnknownSource": "Source inconnue",
     "examplesTitle": "Par exemple",
     "recent": "Récent",
-    "inlineSuccessCopy": "Je commence la veille immédiatement.",
     "emptyError": "Indiquez-moi ce que vous souhaitez surveiller.",
     "meaningfulError": "Ajoutez un peu plus de détails."
-  },
-  "watchConfirmation": {
-    "heading": "Je m’en occupe.",
-    "copy": "Je commence la veille immédiatement et vous préviendrai dès qu’un élément important surviendra."
   },
   "flow2": {
     "headline": "Dites-nous ce qui compte.",
@@ -221,6 +232,7 @@
     "watching": "Sous surveillance",
     "updated": "Mis à jour",
     "stable": "Stable",
+    "paused": "En pause",
     "completed": "Terminée"
   },
   "confidence": {
