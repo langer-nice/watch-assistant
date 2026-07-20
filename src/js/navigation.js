@@ -20,6 +20,7 @@ let detailCheckFeedbackTimer = null;
 let detailCheckInProgress = false;
 let firstMonitoringTimer = null;
 let firstMonitoringTransitionTimer = null;
+let editSheetCloseTimer = null;
 
 const FIRST_MONITORING_DELAY = 3200;
 
@@ -78,6 +79,83 @@ const showDetailConfirmation = (confirmationEl) => {
   detailConfirmationAutoTimer = window.setTimeout(() => {
     dismissDetailConfirmation(confirmationEl);
   }, 4500);
+};
+
+const showWatchUpdatedConfirmation = () => {
+  const confirmationEl = document.querySelector('#watchConfirmation');
+  const titleEl = document.querySelector('#watchConfirmationTitle');
+  const copyEl = document.querySelector('#watchConfirmationCopy');
+  if (!confirmationEl) return;
+
+  if (titleEl) {
+    titleEl.dataset.i18n = 'detail.updatedTitle';
+    titleEl.textContent = t('detail.updatedTitle');
+  }
+  if (copyEl) {
+    copyEl.dataset.i18n = 'detail.updatedCopy';
+    copyEl.textContent = t('detail.updatedCopy');
+  }
+  showDetailConfirmation(confirmationEl);
+};
+
+const closeWatchEditSheet = ({ updated = false } = {}) => {
+  const sheet = document.querySelector('#watchEditSheet');
+  const frame = document.querySelector('#watchEditFrame');
+  if (!sheet?.open || sheet.classList.contains('is-closing')) return;
+
+  sheet.classList.add('is-closing');
+  window.clearTimeout(editSheetCloseTimer);
+  editSheetCloseTimer = window.setTimeout(() => {
+    sheet.close();
+    sheet.classList.remove('is-closing', 'is-ready');
+    if (frame) frame.removeAttribute('src');
+    if (updated) {
+      renderWatchDetail();
+      showWatchUpdatedConfirmation();
+    }
+    editSheetCloseTimer = null;
+  }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180);
+};
+
+const initializeWatchEditSheet = () => {
+  const sheet = document.querySelector('#watchEditSheet');
+  const frame = document.querySelector('#watchEditFrame');
+  if (!sheet || !frame || sheet.dataset.initialized === 'true') return;
+  sheet.dataset.initialized = 'true';
+
+  sheet.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    frame.contentWindow?.postMessage({ type: 'watch-editor-request-close' }, window.location.origin);
+  });
+
+  frame.addEventListener('load', () => {
+    if (frame.hasAttribute('src')) sheet.classList.add('is-ready');
+  });
+
+  window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin || event.source !== frame.contentWindow) return;
+    const currentWatchId = new URLSearchParams(window.location.search).get('id');
+    if (event.data?.watchId !== currentWatchId) return;
+
+    if (event.data.type === 'watch-editor-close') {
+      closeWatchEditSheet();
+    }
+    if (event.data.type === 'watch-editor-saved') {
+      closeWatchEditSheet({ updated: true });
+    }
+  });
+};
+
+const openWatchEditSheet = (watchId) => {
+  const sheet = document.querySelector('#watchEditSheet');
+  const frame = document.querySelector('#watchEditFrame');
+  if (!sheet || !frame) return;
+  if (sheet.open) return;
+
+  initializeWatchEditSheet();
+  frame.src = `new-watch.html?edit=${encodeURIComponent(watchId)}&presentation=modal`;
+  sheet.classList.remove('is-closing', 'is-ready');
+  sheet.showModal();
 };
 
 const escapeHtml = (value) => String(value)
@@ -260,6 +338,46 @@ const inferCategory = (request) => {
   return 'general';
 };
 
+const KEYWORD_STOP_WORDS = new Set([
+  'about', 'after', 'again', 'also', 'avec', 'dans', 'elle', 'from', 'have', 'je',
+  'know', 'let', 'like', 'mais', 'me', 'notify', 'pour', 'quand', 'that', 'the',
+  'this', 'une', 'watch', 'when', 'will', 'with', 'your', 'vous', 'www', 'https',
+]);
+
+const extractKeywords = (value, limit = 6) => {
+  const words = String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase()
+    .match(/[\p{L}\p{N}]{3,}/gu) || [];
+  const uniqueWords = [];
+  words.forEach((word) => {
+    if (!KEYWORD_STOP_WORDS.has(word) && !uniqueWords.includes(word)) {
+      uniqueWords.push(word);
+    }
+  });
+  return uniqueWords.slice(0, limit);
+};
+
+const hasSignificantRequestChange = (previousValue, nextValue) => {
+  const previous = normalizeComparableText(previousValue);
+  const next = normalizeComparableText(nextValue);
+  if (previous === next) {
+    return false;
+  }
+  if (!previous || !next) {
+    return true;
+  }
+
+  const previousWords = new Set(previous.split(' '));
+  const nextWords = new Set(next.split(' '));
+  const sharedWords = [...previousWords].filter((word) => nextWords.has(word)).length;
+  const totalWords = new Set([...previousWords, ...nextWords]).size;
+  const similarity = totalWords ? sharedWords / totalWords : 0;
+  const lengthDifference = Math.abs(previous.length - next.length) / previous.length;
+  return similarity < 0.6 || lengthDifference > 0.25;
+};
+
 const hasReleaseIntent = (request) => (
   /(release date|released|comes out|coming out|publication date|date de sortie|date de parution|sortie|parution|publi[ée])/
     .test(request.toLowerCase())
@@ -313,7 +431,7 @@ const createTitle = (request) => {
   return text.length > 60 ? `${text.slice(0, 57)}...` : text;
 };
 
-const createWatchObject = (request, whyFollowing = '', urlAnalysis = null) => {
+const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, options = {}) => {
   const now = new Date().toISOString();
   const isUrlRequest = Boolean(urlAnalysis);
   const sourceName = getSourceText(urlAnalysis?.sourceName || urlAnalysis?.source);
@@ -321,11 +439,18 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null) => {
   const sourceUrl = typeof urlAnalysis?.sourceUrl === 'string'
     ? urlAnalysis.sourceUrl.trim()
     : '';
-  const category = inferCategory([
+  const inferredCategory = inferCategory([
     request,
     urlAnalysis?.title,
     urlAnalysis?.source,
   ].filter(Boolean).join(' '));
+  const category = options.category || inferredCategory;
+  const keywords = Array.isArray(options.keywords)
+    ? options.keywords
+    : extractKeywords([request, urlAnalysis?.title].filter(Boolean).join(' '));
+  const selectedKeywords = Array.isArray(options.selectedKeywords)
+    ? options.selectedKeywords
+    : keywords;
   return {
     id: crypto.randomUUID(),
     title: urlAnalysis?.title || createTitle(request),
@@ -336,6 +461,9 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null) => {
     sourceUrl: sourceUrl || null,
     whyFollowing: whyFollowing.trim(),
     category,
+    categorySource: options.categorySource || 'inferred',
+    keywords,
+    selectedKeywords,
     status: 'watching',
     monitoringState: 'preparing',
     firstCheckCompletesAt: new Date(Date.now() + FIRST_MONITORING_DELAY).toISOString(),
@@ -488,6 +616,9 @@ const renderWatchDetail = () => {
   const actionsSectionEl = document.querySelector('#watchActionsSection');
   const externalActionsEl = document.querySelector('#watchExternalActions');
   const confirmationEl = document.querySelector('#watchConfirmation');
+  const confirmationTitleEl = document.querySelector('#watchConfirmationTitle');
+  const confirmationCopyEl = document.querySelector('#watchConfirmationCopy');
+  const editActionEl = document.querySelector('#watchEditAction');
   const preparingEl = document.querySelector('#watchPreparing');
   const managementEl = document.querySelector('#watchManagement');
   const checkNowEl = document.querySelector('#watchCheckNow');
@@ -533,6 +664,9 @@ const renderWatchDetail = () => {
     if (pausedStateEl) {
       pausedStateEl.hidden = true;
     }
+    if (editActionEl) {
+      editActionEl.hidden = true;
+    }
     if (notFoundEl) {
       notFoundEl.textContent = t('detail.notFoundCopy');
       notFoundEl.hidden = false;
@@ -543,6 +677,14 @@ const renderWatchDetail = () => {
 
   const request = localizeField(watch, 'request');
   titleEl.textContent = localizeField(watch, 'title') || t('detail.title');
+  if (editActionEl) {
+    editActionEl.hidden = false;
+    editActionEl.href = `new-watch.html?edit=${encodeURIComponent(watch.id)}`;
+    editActionEl.onclick = (event) => {
+      event.preventDefault();
+      openWatchEditSheet(watch.id);
+    };
+  }
   if (notFoundEl) {
     notFoundEl.hidden = true;
   }
@@ -855,10 +997,14 @@ const renderWatchDetail = () => {
   if (confirmationEl) {
     const detailUrl = new URL(window.location.href);
     const createdWatchId = detailUrl.searchParams.get('watchCreated');
-    const shouldShowConfirmation = createdWatchId === watch.id;
+    const updatedWatchId = detailUrl.searchParams.get('watchUpdated');
+    const confirmationType = updatedWatchId === watch.id
+      ? 'updated'
+      : createdWatchId === watch.id ? 'created' : null;
 
-    if (createdWatchId) {
+    if (createdWatchId || updatedWatchId) {
       detailUrl.searchParams.delete('watchCreated');
+      detailUrl.searchParams.delete('watchUpdated');
       window.history.replaceState(
         null,
         '',
@@ -866,7 +1012,21 @@ const renderWatchDetail = () => {
       );
     }
 
-    if (shouldShowConfirmation) {
+    if (confirmationType) {
+      const titleKey = confirmationType === 'updated'
+        ? 'detail.updatedTitle'
+        : 'detail.createdTitle';
+      const copyKey = confirmationType === 'updated'
+        ? 'detail.updatedCopy'
+        : 'detail.createdCopy';
+      if (confirmationTitleEl) {
+        confirmationTitleEl.dataset.i18n = titleKey;
+        confirmationTitleEl.textContent = t(titleKey);
+      }
+      if (confirmationCopyEl) {
+        confirmationCopyEl.dataset.i18n = copyKey;
+        confirmationCopyEl.textContent = t(copyKey);
+      }
       showDetailConfirmation(confirmationEl);
     } else if (confirmationEl.dataset.active !== 'true') {
       confirmationEl.hidden = true;
@@ -1151,6 +1311,10 @@ const renderRecentWatches = () => {
   if (!section || !list) {
     return;
   }
+  if (new URLSearchParams(window.location.search).has('edit')) {
+    section.hidden = true;
+    return;
+  }
 
   const recentWatches = getWatches().slice().reverse().slice(0, 3);
   section.hidden = recentWatches.length === 0;
@@ -1203,6 +1367,26 @@ export function initForm() {
   const noteClose = form?.querySelector('[data-note-close]');
   const noteRegion = document.querySelector('#watchReason');
   const noteInput = form?.whyFollowing;
+  const headingEl = document.querySelector('#newWatchHeading');
+  const backEl = document.querySelector('#newWatchBack');
+  const recentSectionEl = document.querySelector('#recentWatchesSection');
+  const keywordChipsEl = document.querySelector('#watchKeywordChips');
+  const keywordInputEl = document.querySelector('#watchKeywordInput');
+  const keywordAddEl = document.querySelector('#watchKeywordAdd');
+  const categoryInputEl = document.querySelector('#watchCategoryInput');
+  const discardDialog = document.querySelector('#editDiscardDialog');
+  const keepEditingButton = document.querySelector('#editKeepEditing');
+  const discardChangesButton = document.querySelector('#editDiscardChanges');
+  const editModeHeader = document.querySelector('#editModeHeader');
+  const editModalCancel = document.querySelector('#editModalCancel');
+  const editModalSave = document.querySelector('#editModalSave');
+  const formParams = new URLSearchParams(window.location.search);
+  const editWatchId = formParams.get('edit');
+  const editingWatch = editWatchId ? getWatchById(editWatchId) : null;
+  const isEditMode = Boolean(editingWatch);
+  const isModalEditMode = isEditMode
+    && formParams.get('presentation') === 'modal'
+    && window.parent !== window;
   let pendingRequest = '';
   let pendingWhyFollowing = '';
   let pendingAnalysis = null;
@@ -1210,12 +1394,109 @@ export function initForm() {
   let creationInProgress = false;
   let resizeFrame = null;
   let noteCollapseTimer = null;
+  let keywordRegenerationTimer = null;
+  let keywordItems = [];
+  let categorySource = editingWatch?.categorySource || 'inferred';
+  let keywordSourceRequest = '';
+  let initialEditState = null;
+  let pendingNavigationUrl = '';
+  let editNavigationAllowed = false;
+  let refreshEditSaveState = () => {};
 
   if (!form) {
     return;
   }
 
+  if (editWatchId && !editingWatch) {
+    window.location.replace('watches.html');
+    return;
+  }
+
+  if (isModalEditMode) {
+    document.body.classList.add('is-edit-modal');
+    if (editModeHeader) editModeHeader.hidden = false;
+  }
+
   const hasMeaningfulRequest = () => hasMeaningfulText(input?.value || '');
+
+  const getKeywordValues = () => ({
+    keywords: keywordItems.map((item) => item.label),
+    selectedKeywords: keywordItems.filter((item) => item.selected).map((item) => item.label),
+  });
+
+  const renderKeywords = () => {
+    if (!keywordChipsEl) return;
+    keywordChipsEl.innerHTML = keywordItems
+      .map((item, index) => `
+        <span class="watch-keyword${item.selected ? ' is-selected' : ''}">
+          <button
+            class="watch-keyword__toggle"
+            type="button"
+            data-keyword-toggle="${index}"
+            aria-pressed="${item.selected}"
+          >${escapeHtml(item.label)}</button>
+          <button
+            class="watch-keyword__remove"
+            type="button"
+            data-keyword-remove="${index}"
+            aria-label="${escapeHtml(t('newWatch.removeKeyword', { keyword: item.label }))}"
+          >×</button>
+        </span>
+      `)
+      .join('');
+    refreshEditSaveState();
+  };
+
+  const replaceSuggestedKeywords = (request) => {
+    keywordItems = extractKeywords(request).map((label) => ({ label, selected: true }));
+    keywordSourceRequest = request;
+    renderKeywords();
+  };
+
+  const addKeyword = () => {
+    const label = keywordInputEl?.value.trim();
+    if (!label) return;
+    const existing = keywordItems.find(
+      (item) => item.label.toLocaleLowerCase() === label.toLocaleLowerCase(),
+    );
+    if (existing) {
+      existing.selected = true;
+    } else {
+      keywordItems.push({ label, selected: true });
+    }
+    keywordInputEl.value = '';
+    renderKeywords();
+    keywordInputEl.focus();
+  };
+
+  const scheduleKeywordRegeneration = () => {
+    window.clearTimeout(keywordRegenerationTimer);
+    keywordRegenerationTimer = window.setTimeout(() => {
+      const request = input?.value.trim() || '';
+      const requestChanged = normalizeComparableText(keywordSourceRequest)
+        !== normalizeComparableText(request);
+      if (requestChanged && categorySource === 'inferred' && categoryInputEl) {
+        categoryInputEl.value = inferCategory(request);
+      }
+      if (hasMeaningfulText(request) && hasSignificantRequestChange(keywordSourceRequest, request)) {
+        replaceSuggestedKeywords(request);
+      }
+      refreshEditSaveState();
+    }, 350);
+  };
+
+  const synchronizeInferredFields = (request) => {
+    window.clearTimeout(keywordRegenerationTimer);
+    const requestChanged = normalizeComparableText(keywordSourceRequest)
+      !== normalizeComparableText(request);
+    if (requestChanged && categorySource === 'inferred' && categoryInputEl) {
+      categoryInputEl.value = inferCategory(request);
+    }
+    if (hasSignificantRequestChange(keywordSourceRequest, request)) {
+      replaceSuggestedKeywords(request);
+    }
+    refreshEditSaveState();
+  };
 
   const updateNoteCloseLabel = () => {
     if (noteClose) {
@@ -1226,20 +1507,36 @@ export function initForm() {
     }
   };
 
-  const resizeInput = () => {
+  const resizeInput = ({ immediate = false } = {}) => {
     if (!input) return;
 
     if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
-    input.style.height = '0px';
-    const nextHeight = input.scrollHeight;
-    input.style.overflowY = 'hidden';
+    const previousHeight = input.getBoundingClientRect().height;
+    input.style.height = 'auto';
+    const styles = window.getComputedStyle(input);
+    const lineHeight = Number.parseFloat(styles.lineHeight)
+      || Number.parseFloat(styles.fontSize) * 1.55;
+    const verticalPadding = Number.parseFloat(styles.paddingTop)
+      + Number.parseFloat(styles.paddingBottom);
+    const maxHeight = (lineHeight * 7) + verticalPadding;
+    const contentHeight = input.scrollHeight;
+    const nextHeight = Math.min(contentHeight, maxHeight);
+    input.style.overflowY = contentHeight > maxHeight + 1 ? 'auto' : 'hidden';
+
+    if (immediate) {
+      input.style.height = `${nextHeight}px`;
+      resizeFrame = null;
+      return;
+    }
+
+    input.style.height = `${previousHeight}px`;
     resizeFrame = window.requestAnimationFrame(() => {
       input.style.height = `${nextHeight}px`;
       resizeFrame = null;
     });
   };
 
-  const setSubmitLabel = (key = 'newWatch.submit') => {
+  const setSubmitLabel = (key = isEditMode ? 'newWatch.saveChanges' : 'newWatch.submit') => {
     if (submitLabel) {
       submitLabel.textContent = t(key);
     }
@@ -1261,8 +1558,23 @@ export function initForm() {
     if (watchClear) {
       watchClear.disabled = disabled;
     }
+    if (keywordInputEl) {
+      keywordInputEl.disabled = disabled;
+    }
+    if (keywordAddEl) {
+      keywordAddEl.disabled = disabled;
+    }
+    if (categoryInputEl) {
+      categoryInputEl.disabled = disabled;
+    }
+    keywordChipsEl?.querySelectorAll('button').forEach((button) => {
+      button.disabled = disabled;
+    });
     if (submitButton) {
       submitButton.disabled = disabled || !hasMeaningfulRequest();
+    }
+    if (editModalSave) {
+      editModalSave.disabled = disabled || !hasMeaningfulRequest() || !hasUnsavedEditChanges();
     }
   };
 
@@ -1271,6 +1583,48 @@ export function initForm() {
     sessionStorage.removeItem('watchAssistant.newWatchId');
     window.location.href = `watch-detail.html?id=${encodeURIComponent(watch.id)}&watchCreated=${encodeURIComponent(watch.id)}`;
   };
+
+  const completeWatchUpdate = (request, whyFollowing, urlAnalysis = null) => {
+    const keywordValues = getKeywordValues();
+    const requestIsUrl = Boolean(urlAnalysis) || isUrl(request);
+    const changes = {
+      request,
+      requestKey: null,
+      whyFollowing: whyFollowing.trim(),
+      whyFollowingKey: null,
+      category: categoryInputEl?.value || editingWatch.category,
+      categorySource,
+      ...keywordValues,
+      inputType: requestIsUrl ? 'url' : 'text',
+      sourceUrl: requestIsUrl
+        ? (urlAnalysis?.sourceUrl || request).trim()
+        : null,
+    };
+
+    if (urlAnalysis) {
+      changes.sourceName = getSourceText(urlAnalysis.sourceName || urlAnalysis.source) || null;
+      changes.sourceNameKey = null;
+      changes.sourceTitle = getSourceText(urlAnalysis.sourceTitle || urlAnalysis.title) || null;
+      changes.sourceTitleKey = null;
+    }
+
+    updateWatch(editingWatch.id, changes);
+    editNavigationAllowed = true;
+    if (isModalEditMode) {
+      window.parent.postMessage({
+        type: 'watch-editor-saved',
+        watchId: editingWatch.id,
+      }, window.location.origin);
+      return;
+    }
+    window.location.href = `watch-detail.html?id=${encodeURIComponent(editingWatch.id)}&watchUpdated=${encodeURIComponent(editingWatch.id)}`;
+  };
+
+  const getCreateOptions = () => ({
+    category: categoryInputEl?.value || undefined,
+    categorySource,
+    ...getKeywordValues(),
+  });
 
   const setReviewEditing = (editing) => {
     review?.classList.toggle('is-editing', editing);
@@ -1396,12 +1750,155 @@ export function initForm() {
     }
   };
 
+  const initializeFormMode = () => {
+    if (isEditMode) {
+      const originalRequest = localizeField(editingWatch, 'request') || '';
+      const originalUrl = editingWatch.inputType === 'url' ? editingWatch.sourceUrl : '';
+      const inputValue = originalUrl || originalRequest;
+      const existingKeywords = Array.isArray(editingWatch.keywords)
+        ? editingWatch.keywords.filter((keyword) => typeof keyword === 'string' && keyword.trim())
+        : extractKeywords(inputValue);
+      const selectedKeywords = new Set(
+        Array.isArray(editingWatch.selectedKeywords)
+          ? editingWatch.selectedKeywords
+          : existingKeywords,
+      );
+
+      if (headingEl) {
+        headingEl.dataset.i18n = 'newWatch.editHeading';
+        headingEl.textContent = t('newWatch.editHeading');
+      }
+      if (backEl) {
+        backEl.href = `watch-detail.html?id=${encodeURIComponent(editingWatch.id)}`;
+        backEl.dataset.i18n = 'newWatch.editBack';
+        backEl.textContent = t('newWatch.editBack');
+      }
+      if (submitLabel) {
+        submitLabel.dataset.i18n = 'newWatch.saveChanges';
+      }
+      if (reviewCreate) {
+        reviewCreate.dataset.i18n = 'newWatch.urlReviewSave';
+        reviewCreate.textContent = t('newWatch.urlReviewSave');
+      }
+      if (recentSectionEl) {
+        recentSectionEl.hidden = true;
+        recentSectionEl.dataset.editMode = 'true';
+      }
+      if (input) {
+        input.value = inputValue;
+      }
+      if (noteInput) {
+        noteInput.value = localizeField(editingWatch, 'whyFollowing') || '';
+        if (noteInput.value && noteRegion && noteToggle) {
+          noteRegion.hidden = false;
+          noteRegion.classList.add('is-visible');
+          noteToggle.hidden = true;
+          noteToggle.setAttribute('aria-expanded', 'true');
+        }
+      }
+      keywordItems = existingKeywords.map((label) => ({
+        label,
+        selected: selectedKeywords.has(label),
+      }));
+      keywordSourceRequest = inputValue;
+      if (categoryInputEl) {
+        categoryInputEl.value = editingWatch.category || inferCategory(inputValue);
+      }
+      pendingAnalysis = editingWatch.inputType === 'url'
+        ? {
+          status: 'success',
+          title: editingWatch.sourceTitle || editingWatch.title,
+          summary: editingWatch.monitoringSummary || '',
+          source: editingWatch.sourceName || '',
+          sourceName: editingWatch.sourceName || '',
+          sourceTitle: editingWatch.sourceTitle || '',
+          sourceUrl: editingWatch.sourceUrl || inputValue,
+        }
+        : null;
+    } else {
+      keywordSourceRequest = input?.value || '';
+      keywordItems = extractKeywords(keywordSourceRequest)
+        .map((label) => ({ label, selected: true }));
+      if (categoryInputEl) {
+        categoryInputEl.value = inferCategory(keywordSourceRequest);
+      }
+    }
+
+    renderKeywords();
+    updateNoteCloseLabel();
+    setSubmitLabel();
+  };
+
+  const getEditState = () => ({
+    request: input?.value || '',
+    sourceUrl: isUrl(input?.value || '') ? (input?.value || '') : '',
+    note: noteInput?.value || '',
+    category: categoryInputEl?.value || '',
+    keywords: keywordItems.map(({ label, selected }) => ({ label, selected })),
+  });
+
+  const hasUnsavedEditChanges = () => (
+    isEditMode
+    && initialEditState !== null
+    && JSON.stringify(getEditState()) !== initialEditState
+  );
+
+  refreshEditSaveState = () => {
+    if (editModalSave) {
+      editModalSave.disabled = creationInProgress
+        || analysisInProgress
+        || !hasMeaningfulRequest()
+        || !hasUnsavedEditChanges();
+    }
+  };
+
+  const returnToWatchDetails = (destination = backEl?.href) => {
+    editNavigationAllowed = true;
+    if (isModalEditMode) {
+      window.parent.postMessage({
+        type: 'watch-editor-close',
+        watchId: editingWatch.id,
+      }, window.location.origin);
+      return;
+    }
+    window.location.href = destination
+      || `watch-detail.html?id=${encodeURIComponent(editingWatch.id)}`;
+  };
+
+  const requestDiscardConfirmation = (destination = backEl?.href) => {
+    pendingNavigationUrl = destination
+      || `watch-detail.html?id=${encodeURIComponent(editingWatch.id)}`;
+    if (discardDialog?.showModal) {
+      if (!discardDialog.open) discardDialog.showModal();
+      window.requestAnimationFrame(() => keepEditingButton?.focus());
+      return;
+    }
+
+    if (window.confirm(`${t('newWatch.discardTitle')}\n\n${t('newWatch.discardCopy')}`)) {
+      returnToWatchDetails(pendingNavigationUrl);
+    }
+  };
+
+  const handleEditNavigation = (destination) => {
+    if (!hasUnsavedEditChanges()) {
+      returnToWatchDetails(destination);
+      return;
+    }
+    requestDiscardConfirmation(destination);
+  };
+
   input?.addEventListener('input', () => {
-    resizeInput();
     updateComposer();
+    resizeInput();
+    scheduleKeywordRegeneration();
   });
   input?.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && hasMeaningfulRequest()) {
+    if (
+      event.key === 'Enter'
+      && (event.metaKey || event.ctrlKey)
+      && hasMeaningfulRequest()
+      && (!isModalEditMode || hasUnsavedEditChanges())
+    ) {
       event.preventDefault();
       form.requestSubmit();
     }
@@ -1413,6 +1910,32 @@ export function initForm() {
     input.value = '';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.focus();
+  });
+
+  keywordChipsEl?.addEventListener('click', (event) => {
+    const toggle = event.target.closest('[data-keyword-toggle]');
+    const remove = event.target.closest('[data-keyword-remove]');
+    if (toggle) {
+      const item = keywordItems[Number(toggle.dataset.keywordToggle)];
+      if (item) item.selected = !item.selected;
+      renderKeywords();
+    }
+    if (remove) {
+      keywordItems.splice(Number(remove.dataset.keywordRemove), 1);
+      renderKeywords();
+    }
+  });
+
+  keywordAddEl?.addEventListener('click', addKeyword);
+  keywordInputEl?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      addKeyword();
+    }
+  });
+
+  categoryInputEl?.addEventListener('change', () => {
+    categorySource = 'manual';
   });
 
   noteToggle?.addEventListener('click', () => {
@@ -1454,6 +1977,10 @@ export function initForm() {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
 
+    if (isModalEditMode && !hasUnsavedEditChanges()) {
+      return;
+    }
+
     if (analysisInProgress || creationInProgress || form.classList.contains('is-reviewing')) {
       return;
     }
@@ -1473,14 +2000,35 @@ export function initForm() {
       watchError.textContent = '';
     }
 
+    synchronizeInferredFields(request);
+
     if (isUrl(request)) {
+      const originalUrl = editingWatch?.sourceUrl || editingWatch?.request || '';
+      if (
+        isEditMode
+        && normalizeComparableText(request) === normalizeComparableText(originalUrl)
+      ) {
+        creationInProgress = true;
+        setCreationControlsDisabled(true);
+        completeWatchUpdate(request, whyFollowing, pendingAnalysis);
+        return;
+      }
       await startUrlAnalysis(request, whyFollowing);
       return;
     }
 
     creationInProgress = true;
     setCreationControlsDisabled(true);
-    completeWatchCreation(createWatchObject(request, whyFollowing));
+    if (isEditMode) {
+      completeWatchUpdate(request, whyFollowing);
+    } else {
+      completeWatchCreation(createWatchObject(
+        request,
+        whyFollowing,
+        null,
+        getCreateOptions(),
+      ));
+    }
   });
 
   reviewEdit?.addEventListener('click', () => {
@@ -1508,11 +2056,16 @@ export function initForm() {
       source: getSourceText(pendingAnalysis?.sourceName || pendingAnalysis?.source) || null,
       sourceUrl: pendingAnalysis?.sourceUrl || pendingRequest,
     };
-    completeWatchCreation(createWatchObject(
-      pendingRequest,
-      pendingWhyFollowing,
-      analysis,
-    ));
+    if (isEditMode) {
+      completeWatchUpdate(pendingRequest, pendingWhyFollowing, analysis);
+    } else {
+      completeWatchCreation(createWatchObject(
+        pendingRequest,
+        pendingWhyFollowing,
+        analysis,
+        getCreateOptions(),
+      ));
+    }
   });
 
   reviewCancel?.addEventListener('click', () => {
@@ -1539,6 +2092,69 @@ export function initForm() {
     input?.focus();
   });
 
+  if (isEditMode) {
+    discardDialog?.addEventListener('cancel', () => {
+      pendingNavigationUrl = '';
+    });
+
+    keepEditingButton?.addEventListener('click', () => {
+      pendingNavigationUrl = '';
+    });
+
+    discardChangesButton?.addEventListener('click', (event) => {
+      event.preventDefault();
+      discardDialog?.close('discard');
+      returnToWatchDetails(pendingNavigationUrl);
+    });
+
+    window.addEventListener('beforeunload', (event) => {
+      if (editNavigationAllowed || !hasUnsavedEditChanges()) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
+
+    editModalCancel?.addEventListener('click', () => {
+      handleEditNavigation(backEl?.href);
+    });
+
+    window.addEventListener('message', (event) => {
+      if (
+        !isModalEditMode
+        || event.origin !== window.location.origin
+        || event.source !== window.parent
+        || event.data?.type !== 'watch-editor-request-close'
+      ) return;
+      handleEditNavigation(backEl?.href);
+    });
+
+    form.addEventListener('input', refreshEditSaveState);
+    form.addEventListener('change', refreshEditSaveState);
+    form.addEventListener('click', () => {
+      window.requestAnimationFrame(refreshEditSaveState);
+    });
+
+    if (!isModalEditMode) {
+      backEl?.addEventListener('click', (event) => {
+        event.preventDefault();
+        handleEditNavigation(backEl.href);
+      });
+
+      document.addEventListener('click', (event) => {
+        const link = event.target.closest('a[href]');
+        if (!link || link === backEl || link.target === '_blank') return;
+        event.preventDefault();
+        handleEditNavigation(link.href);
+      });
+
+      window.history.pushState({ watchAssistantEditGuard: true }, '', window.location.href);
+      window.addEventListener('popstate', () => {
+        if (editNavigationAllowed) return;
+        window.history.pushState({ watchAssistantEditGuard: true }, '', window.location.href);
+        handleEditNavigation(backEl?.href);
+      });
+    }
+  }
+
   document.addEventListener('i18n:languageChanged', () => {
     updateNoteCloseLabel();
     if (analysisInProgress) {
@@ -1547,10 +2163,18 @@ export function initForm() {
     if (review?.classList.contains('is-editing') && reviewEdit && !reviewEdit.hidden) {
       reviewEdit.textContent = t('newWatch.urlReviewDone');
     }
+    renderKeywords();
+    setSubmitLabel(analysisInProgress ? 'newWatch.urlProcessingButton' : undefined);
   });
 
-  resizeInput();
+  initializeFormMode();
   updateComposer();
+  resizeInput({ immediate: true });
+  document.fonts?.ready.then(() => resizeInput({ immediate: true }));
+  if (isEditMode) {
+    initialEditState = JSON.stringify(getEditState());
+    refreshEditSaveState();
+  }
 }
 
 export const initApp = () => {

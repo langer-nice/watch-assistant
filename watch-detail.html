@@ -26,8 +26,8 @@
         >
           <span class="detail-confirmation__icon" aria-hidden="true">✓</span>
           <div class="detail-confirmation__copy">
-            <p class="confirmation-title" data-i18n="detail.createdTitle"></p>
-            <p data-i18n="detail.createdCopy"></p>
+            <p class="confirmation-title" id="watchConfirmationTitle" data-i18n="detail.createdTitle"></p>
+            <p id="watchConfirmationCopy" data-i18n="detail.createdCopy"></p>
           </div>
           <button
             class="detail-confirmation__dismiss"
@@ -38,6 +38,13 @@
         </section>
 
         <header class="detail-header">
+          <a class="detail-edit-action" id="watchEditAction" href="new-watch.html">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m4 20 4.25-1 10.5-10.5a2.12 2.12 0 0 0-3-3L5.25 16Z"></path>
+              <path d="m14.5 6.5 3 3"></path>
+            </svg>
+            <span data-i18n="detail.edit"></span>
+          </a>
           <p class="category-pill" id="watchCategory"></p>
           <h1 id="watchTitle" data-i18n="detail.title"></h1>
           <div class="detail-paused-state" id="watchPausedState" hidden>
@@ -185,6 +192,15 @@
               <button class="button watch-delete-dialog__confirm" id="watchDeleteConfirm" value="delete" data-i18n="detail.deleteWatch"></button>
             </div>
           </form>
+        </dialog>
+
+        <dialog class="watch-edit-sheet" id="watchEditSheet" aria-label="Edit Watch">
+          <iframe
+            class="watch-edit-sheet__frame"
+            id="watchEditFrame"
+            title="Edit Watch"
+            data-i18n-title="newWatch.editHeading"
+          ></iframe>
         </dialog>
       </main>
 
