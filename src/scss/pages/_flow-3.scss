@@ -1,19 +1,30 @@
 .app-shell--flow-3 {
-  min-height: 100svh;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
   background: var(--color-detail-background);
 }
 
 .flow-3 {
   width: 100%;
   max-width: var(--content-detail-width);
-  min-height: 100svh;
+  height: 100dvh;
+  min-height: 0;
   margin: 0 auto;
 }
 
 .flow-3__screen {
   display: grid;
-  min-height: 100svh;
-  padding: calc(var(--space-3xl) + var(--space-xl)) var(--space-xl) var(--space-xl);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--space-2xl);
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  padding:
+    calc(var(--space-3xl) + var(--space-xl) + env(safe-area-inset-top))
+    max(var(--space-xl), env(safe-area-inset-right))
+    calc(var(--space-xl) + env(safe-area-inset-bottom))
+    max(var(--space-xl), env(safe-area-inset-left));
   background: var(--color-surface-subtle);
   animation: flow-3-enter 280ms ease both;
 }
@@ -35,40 +46,69 @@
 }
 
 .flow-3__screen--examples {
-  grid-template-rows: auto 1fr auto;
-  gap: var(--space-2xl);
+  padding-top: calc(clamp(6rem, 16dvh, 8rem) + env(safe-area-inset-top));
+}
+
+.flow-3__top {
+  min-width: 0;
+}
+
+.flow-3__content {
+  min-width: 0;
+  min-height: 0;
+}
+
+.flow-3__content--centered {
+  align-self: stretch;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
 }
 
 .flow-3__examples {
   margin: 0;
   padding: 0;
   list-style: none;
-  counter-reset: flow-3-example;
 }
 
 .flow-3__examples-content {
-  align-self: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
 }
 
 .flow-3__examples li {
   display: grid;
-  grid-template-columns: 2rem 1fr;
-  gap: var(--space-md);
+  grid-template-columns: 6px minmax(0, 1fr);
+  gap: var(--space-sm);
   padding: var(--space-sm) 0;
   color: var(--color-text);
   font-family: var(--font-family-body);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-regular);
   line-height: 1.35;
-  counter-increment: flow-3-example;
+}
+
+.flow-3__examples li[hidden] {
+  display: none;
 }
 
 .flow-3__examples li::before {
-  color: var(--color-text-subtle);
-  content: counter(flow-3-example, decimal-leading-zero);
-  font-family: var(--font-family-body);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-regular);
+  width: 6px;
+  height: 6px;
+  margin-top: calc((1.35em - 6px) / 2);
+  background: var(--color-text);
+  border-radius: 1.5px;
+  content: '';
+}
+
+.flow-3__actions {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: flex-end;
 }
 
 .flow-3__closing-copy {
@@ -130,8 +170,6 @@
 
 .flow-3__screen--promise,
 .flow-3__screen--solution {
-  grid-template-rows: 1fr auto;
-  gap: var(--space-2xl);
   color: var(--color-text-on-dark);
   background: var(--color-text);
 }
@@ -139,10 +177,6 @@
 .flow-3__cta--light {
   color: var(--color-text);
   background: var(--color-surface);
-}
-
-.flow-3__statement {
-  align-self: center;
 }
 
 .flow-3__solution-intro {
@@ -155,12 +189,16 @@
 }
 
 .flow-3__eyebrow {
-  margin: 0 0 var(--space-xl);
+  margin: 0;
   color: var(--color-text-subtle);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.18em;
   text-transform: uppercase;
+}
+
+.flow-3__screen--promise .flow-3__eyebrow {
+  margin-bottom: var(--space-xl);
 }
 
 .flow-3__supporting {
@@ -195,7 +233,7 @@
   }
 
   .flow-3__screen {
-    min-height: calc(100svh - (var(--space-xl) * 2));
+    height: calc(100dvh - (var(--space-xl) * 2));
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-md);
   }

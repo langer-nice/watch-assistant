@@ -1,10 +1,7 @@
 import { registerCurrentIntroFlow } from './intro-flow.js';
-import { initializeLanguage, t } from './i18n.js';
+import { setLanguage, t } from './i18n.js';
 import { initLanguageSwitcher } from './language-switcher.js';
-
-registerCurrentIntroFlow();
-initializeLanguage();
-initLanguageSwitcher();
+import { initializeFlowLanguage } from './flow-language-gate.js';
 
 const screens = [...document.querySelectorAll('[data-flow-3-screen]')];
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -45,47 +42,64 @@ const cancelActiveDelay = () => {
   resolveActiveDelay?.();
 };
 
+const getSequenceWords = (element) => (
+  t(element.getAttribute('data-flow-3-i18n')).split(/\s+/)
+);
+
+const createWord = (word, index, wordCount, { immediate = false } = {}) => {
+  const span = document.createElement('span');
+  span.className = 'flow-3__word';
+  span.textContent = index < wordCount - 1 ? `${word} ` : word;
+  span.setAttribute('aria-hidden', 'true');
+
+  if (immediate) span.classList.add('is-visible', 'is-instant');
+  return span;
+};
+
 const prepareWordSequence = (element, { preserveProgress = false } = {}) => {
   const previousProgress = preserveProgress
     ? Number(element.dataset.revealedWords || 0)
     : 0;
   const wasComplete = element.dataset.sequenceComplete === 'true';
   const text = t(element.getAttribute('data-flow-3-i18n'));
-  const words = text.split(/\s+/);
+  const words = getSequenceWords(element);
   const visibleWordCount = wasComplete ? words.length : Math.min(previousProgress, words.length);
 
   element.setAttribute('aria-label', text);
-  element.replaceChildren(...words.map((word, index) => {
-    const span = document.createElement('span');
-    span.className = 'flow-3__word';
-    span.textContent = index < words.length - 1 ? `${word} ` : word;
-    span.setAttribute('aria-hidden', 'true');
-    if (index < visibleWordCount) span.classList.add('is-visible');
-    return span;
-  }));
+  element.replaceChildren(...words
+    .slice(0, visibleWordCount)
+    .map((word, index) => createWord(word, index, words.length, { immediate: true })));
   element.dataset.revealedWords = String(visibleWordCount);
 };
 
 const completeWordSequence = (element) => {
+  const words = getSequenceWords(element);
   element.removeAttribute('aria-hidden');
-  element.dataset.revealedWords = String(element.children.length);
+  element.replaceChildren(...words.map((word, index) => (
+    createWord(word, index, words.length, { immediate: true })
+  )));
+  element.dataset.revealedWords = String(words.length);
   element.dataset.sequenceComplete = 'true';
-  element.querySelectorAll('.flow-3__word').forEach((word) => {
-    word.classList.add('is-visible', 'is-instant');
-  });
 };
 
 const revealWords = async (element, version, interval) => {
   element.removeAttribute('aria-hidden');
 
-  while (Number(element.dataset.revealedWords) < element.children.length) {
+  while (true) {
     if (version !== sequenceVersion) return false;
 
+    const words = getSequenceWords(element);
     const index = Number(element.dataset.revealedWords);
-    element.children[index]?.classList.add('is-visible');
+    if (index >= words.length) break;
+
+    const word = createWord(words[index], index, words.length);
+    element.append(word);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => word.classList.add('is-visible'));
+    });
     element.dataset.revealedWords = String(index + 1);
 
-    if (index + 1 < element.children.length) {
+    if (index + 1 < words.length) {
       await wait(interval);
     }
   }
@@ -109,11 +123,25 @@ const reveal = (element, { immediate = false } = {}) => {
   }
   if (immediate || prefersReducedMotion) {
     element.classList.add('is-visible', 'is-instant');
+    if (examplesList) {
+      examplesList.closest('[data-flow-3-examples-scroll]')?.scrollTo({
+        top: examplesList.scrollHeight,
+        behavior: 'auto',
+      });
+    }
     return;
   }
 
   window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(() => element.classList.add('is-visible'));
+    window.requestAnimationFrame(() => {
+      element.classList.add('is-visible');
+      if (examplesList) {
+        examplesList.closest('[data-flow-3-examples-scroll]')?.scrollTo({
+          top: examplesList.scrollHeight,
+          behavior: 'smooth',
+        });
+      }
+    });
   });
 };
 
@@ -125,6 +153,44 @@ const resetScreen = (screen) => {
   screen.querySelectorAll('.flow-3__examples').forEach((list) => {
     list.hidden = true;
   });
+};
+
+const resetIntroState = () => {
+  sequenceVersion += 1;
+  cancelActiveDelay();
+  sequenceRunning = false;
+  activeScreenIndex = 0;
+
+  screens.forEach((screen, index) => {
+    screen.hidden = index !== 0;
+  });
+
+  wordSequences.forEach((element) => {
+    element.replaceChildren();
+    element.dataset.revealedWords = '0';
+    delete element.dataset.sequenceComplete;
+    element.setAttribute('aria-hidden', 'true');
+    prepareWordSequence(element);
+  });
+
+  screens[0].querySelectorAll('[data-flow-3-reveal]').forEach((element) => {
+    element.hidden = false;
+    element.classList.remove('is-visible', 'is-instant');
+    element.setAttribute('aria-hidden', 'true');
+    if ('disabled' in element) element.disabled = true;
+  });
+};
+
+const waitForVisibleIntro = () => new Promise((resolve) => {
+  window.requestAnimationFrame(resolve);
+});
+
+const startIntroFromLanguageSelection = async (language, revealFlow) => {
+  setLanguage(language);
+  resetIntroState();
+  revealFlow();
+  await waitForVisibleIntro();
+  runSequence(0);
 };
 
 const runSequence = async (screenIndex) => {
@@ -190,7 +256,7 @@ const showScreen = (screenIndex) => {
   runSequence(activeScreenIndex);
 };
 
-document.addEventListener('click', (event) => {
+const handleFlowClick = (event) => {
   if (event.target.closest('.language-switcher')) {
     return;
   }
@@ -203,13 +269,29 @@ document.addEventListener('click', (event) => {
   if (event.target.closest('[data-flow-3-next]')) {
     showScreen(activeScreenIndex + 1);
   }
-});
+};
 
-screens.forEach((screen, index) => {
-  if (index > 0) resetScreen(screen);
+let introStartedFromLanguageSelection = false;
+
+initializeFlowLanguage({
+  onLanguageSelection: async (language, revealFlow) => {
+    await startIntroFromLanguageSelection(language, revealFlow);
+    introStartedFromLanguageSelection = true;
+  },
+}).then(async () => {
+  registerCurrentIntroFlow();
+  initLanguageSwitcher();
+  screens.forEach((screen, index) => {
+    if (index > 0) resetScreen(screen);
+  });
+  document.addEventListener('i18n:languageChanged', () => {
+    wordSequences.forEach((element) => prepareWordSequence(element, { preserveProgress: true }));
+  });
+  document.addEventListener('click', handleFlowClick);
+
+  if (!introStartedFromLanguageSelection) {
+    resetIntroState();
+    await waitForVisibleIntro();
+    runSequence(0);
+  }
 });
-wordSequences.forEach((element) => prepareWordSequence(element));
-document.addEventListener('i18n:languageChanged', () => {
-  wordSequences.forEach((element) => prepareWordSequence(element, { preserveProgress: true }));
-});
-runSequence(activeScreenIndex);

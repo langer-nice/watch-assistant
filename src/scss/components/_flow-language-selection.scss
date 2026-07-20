@@ -1,0 +1,60 @@
+body[data-flow-language-gate] {
+  background: var(--color-text);
+}
+
+body[data-flow-language-gate] > .app-shell {
+  display: none;
+}
+
+.flow-language-selection {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  padding: var(--space-xl);
+  color: var(--color-text-on-dark);
+  background: var(--color-text);
+}
+
+.flow-language-selection__content {
+  width: min(100%, 24rem);
+}
+
+.flow-language-selection__brand {
+  margin: 0 0 var(--space-xl);
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.18em;
+}
+
+.flow-language-selection h1 {
+  margin: 0;
+  font-size: clamp(var(--font-size-2xl), 9vw, 3.25rem);
+  font-weight: var(--font-weight-extrabold);
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.flow-language-selection__actions {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-2xl);
+}
+
+.flow-language-selection__button {
+  width: 100%;
+  min-height: 3.5rem;
+  justify-content: flex-start;
+  font-weight: var(--font-weight-semibold);
+  box-shadow: none;
+}
+
+@media (min-width: 36rem) {
+  .flow-language-selection__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .flow-language-selection__button {
+    justify-content: center;
+  }
+}

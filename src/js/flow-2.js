@@ -1,9 +1,8 @@
-import { initializeLanguage, t } from './i18n.js';
+import { t } from './i18n.js';
 import { initLanguageSwitcher } from './language-switcher.js';
 import { getWatches } from './watch-storage.js';
 import { registerCurrentIntroFlow } from './intro-flow.js';
-
-registerCurrentIntroFlow();
+import { initializeFlowLanguage } from './flow-language-gate.js';
 
 const escapeHtml = (value) => String(value)
   .replaceAll('&', '&amp;')
@@ -84,8 +83,10 @@ const initFlow = () => {
   });
 };
 
-initializeLanguage();
-initLanguageSwitcher();
-initFlow();
-renderSampleBriefing();
-document.addEventListener('i18n:languageChanged', renderSampleBriefing);
+initializeFlowLanguage().then(() => {
+  registerCurrentIntroFlow();
+  initLanguageSwitcher();
+  initFlow();
+  renderSampleBriefing();
+  document.addEventListener('i18n:languageChanged', renderSampleBriefing);
+});
