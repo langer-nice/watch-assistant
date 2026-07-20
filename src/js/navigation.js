@@ -1501,8 +1501,30 @@ export function initForm() {
   }
 
   if (isModalEditMode) {
+    document.documentElement.classList.add('is-edit-modal-root');
     document.body.classList.add('is-edit-modal');
     if (editModeHeader) editModeHeader.hidden = false;
+
+    let viewportFrame = null;
+    const updateEditViewport = () => {
+      if (viewportFrame !== null) window.cancelAnimationFrame(viewportFrame);
+      viewportFrame = window.requestAnimationFrame(() => {
+        const viewportHeight = window.visualViewport?.height || window.innerHeight;
+        document.documentElement.style.setProperty(
+          '--edit-visual-viewport-height',
+          `${Math.round(viewportHeight)}px`,
+        );
+        const activeField = document.activeElement;
+        if (activeField?.matches('input, textarea, select')) {
+          activeField.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+        viewportFrame = null;
+      });
+    };
+
+    updateEditViewport();
+    window.visualViewport?.addEventListener('resize', updateEditViewport);
+    window.addEventListener('resize', updateEditViewport);
   }
 
   const hasMeaningfulRequest = () => hasMeaningfulText(input?.value || '');

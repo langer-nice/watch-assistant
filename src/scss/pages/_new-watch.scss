@@ -61,16 +61,36 @@
 }
 
 body.is-edit-modal {
-  min-height: 100dvh;
+  height: var(--edit-visual-viewport-height, 100dvh);
+  min-height: 0;
+  overflow: hidden;
   background: var(--color-new-watch-background);
 }
 
+html.is-edit-modal-root {
+  height: 100%;
+  overflow: hidden;
+}
+
 body.is-edit-modal .app-shell--new-watch {
-  min-height: 100dvh;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 body.is-edit-modal .page--form {
+  flex: 1 1 auto;
+  min-height: 0;
   padding-top: var(--space-xl);
+  padding-bottom: calc(var(--space-3xl) + env(safe-area-inset-bottom));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.is-edit-modal .edit-mode-header {
+  flex: 0 0 auto;
 }
 
 body.is-edit-modal .new-watch-back,
