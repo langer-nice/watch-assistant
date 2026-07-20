@@ -913,17 +913,47 @@ export function initForm() {
   const reviewEdit = document.querySelector('#urlReviewEdit');
   const reviewCancel = document.querySelector('#urlReviewCancel');
   const input = form?.watchRequest;
+  const composer = input?.closest('.watch-composer');
+  const watchClear = form?.querySelector('[data-watch-clear]');
+  const noteToggle = form?.querySelector('[data-note-toggle]');
+  const noteClose = form?.querySelector('[data-note-close]');
+  const noteRegion = document.querySelector('#watchReason');
+  const noteInput = form?.whyFollowing;
   let pendingRequest = '';
   let pendingWhyFollowing = '';
   let pendingAnalysis = null;
   let analysisInProgress = false;
   let creationInProgress = false;
+  let resizeFrame = null;
+  let noteCollapseTimer = null;
 
   if (!form) {
     return;
   }
 
   const hasMeaningfulRequest = () => hasMeaningfulText(input?.value || '');
+
+  const updateNoteCloseLabel = () => {
+    if (noteClose) {
+      noteClose.setAttribute(
+        'aria-label',
+        t(noteInput?.value ? 'newWatch.clearNote' : 'newWatch.closeNote'),
+      );
+    }
+  };
+
+  const resizeInput = () => {
+    if (!input) return;
+
+    if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
+    input.style.height = '0px';
+    const nextHeight = input.scrollHeight;
+    input.style.overflowY = 'hidden';
+    resizeFrame = window.requestAnimationFrame(() => {
+      input.style.height = `${nextHeight}px`;
+      resizeFrame = null;
+    });
+  };
 
   const setSubmitLabel = (key = 'newWatch.submit') => {
     if (submitLabel) {
@@ -938,9 +968,15 @@ export function initForm() {
     if (form.whyFollowing) {
       form.whyFollowing.disabled = disabled;
     }
-    form.querySelectorAll('[data-watch-example]').forEach((button) => {
-      button.disabled = disabled;
-    });
+    if (noteToggle) {
+      noteToggle.disabled = disabled;
+    }
+    if (noteClose) {
+      noteClose.disabled = disabled;
+    }
+    if (watchClear) {
+      watchClear.disabled = disabled;
+    }
     if (submitButton) {
       submitButton.disabled = disabled || !hasMeaningfulRequest();
     }
@@ -1068,6 +1104,9 @@ export function initForm() {
 
   const updateComposer = () => {
     const hasRequest = hasMeaningfulRequest();
+    const hasInputValue = Boolean(input?.value);
+    composer?.classList.toggle('has-value', hasInputValue);
+    if (watchClear) watchClear.hidden = !hasInputValue;
     if (submitButton) {
       submitButton.disabled = !hasRequest;
     }
@@ -1081,7 +1120,10 @@ export function initForm() {
     }
   };
 
-  input?.addEventListener('input', updateComposer);
+  input?.addEventListener('input', () => {
+    resizeInput();
+    updateComposer();
+  });
   input?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && hasMeaningfulRequest()) {
       event.preventDefault();
@@ -1089,15 +1131,48 @@ export function initForm() {
     }
   });
 
-  form.querySelectorAll('[data-watch-example]').forEach((button) => {
-    button.addEventListener('click', () => {
-      if (!input) {
-        return;
-      }
-      input.value = button.textContent.trim();
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.focus();
+  watchClear?.addEventListener('click', () => {
+    if (!input) return;
+
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+  });
+
+  noteToggle?.addEventListener('click', () => {
+    if (!noteRegion) return;
+
+    noteRegion.hidden = false;
+    noteToggle.hidden = true;
+    noteToggle.setAttribute('aria-expanded', 'true');
+    window.requestAnimationFrame(() => {
+      noteRegion.classList.add('is-visible');
+      updateNoteCloseLabel();
+      noteInput?.focus();
     });
+  });
+
+  noteInput?.addEventListener('input', updateNoteCloseLabel);
+
+  noteClose?.addEventListener('click', () => {
+    if (!noteRegion || !noteToggle) return;
+
+    if (noteInput?.value) {
+      noteInput.value = '';
+      updateNoteCloseLabel();
+      noteInput.focus();
+      return;
+    }
+
+    noteRegion.classList.remove('is-visible');
+    window.clearTimeout(noteCollapseTimer);
+    noteCollapseTimer = window.setTimeout(() => {
+      noteRegion.hidden = true;
+      noteToggle.hidden = false;
+      noteToggle.setAttribute('aria-expanded', 'false');
+      noteToggle.focus();
+      noteCollapseTimer = null;
+    }, 200);
   });
 
   form.addEventListener('submit', async (event) => {
@@ -1189,6 +1264,7 @@ export function initForm() {
   });
 
   document.addEventListener('i18n:languageChanged', () => {
+    updateNoteCloseLabel();
     if (analysisInProgress) {
       setSubmitLabel('newWatch.urlProcessingButton');
     }
@@ -1197,6 +1273,7 @@ export function initForm() {
     }
   });
 
+  resizeInput();
   updateComposer();
 }
 

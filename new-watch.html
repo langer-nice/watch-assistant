@@ -19,7 +19,6 @@
 
         <header class="new-watch-header">
           <h1 data-i18n="newWatch.heading"></h1>
-          <p data-i18n="newWatch.intro"></p>
         </header>
 
         <form class="watch-form" id="newWatchForm">
@@ -37,22 +36,72 @@
                 <path d="M18 11.5a6 6 0 0 1-12 0M12 17.5V21M9 21h6"></path>
               </svg>
             </button>
+            <button
+              class="watch-composer__clear"
+              type="button"
+              data-watch-clear
+              data-i18n-aria-label="newWatch.clearWatchInput"
+              hidden
+            >×</button>
             <textarea
               id="newWatchInput"
               name="watchRequest"
-              rows="6"
+              rows="1"
               class="assistant-input"
               data-i18n-placeholder="newWatch.placeholder"
               autofocus
             ></textarea>
-            <div class="watch-composer__footer">
-              <span class="watch-composer__shortcut" data-i18n="newWatch.submitShortcut"></span>
-              <button class="watch-composer__submit" id="newWatchSubmit" type="submit" disabled>
-                <span aria-hidden="true">➤</span>
-                <span id="newWatchSubmitLabel" data-i18n="newWatch.submit"></span>
-              </button>
+            <p class="watch-composer__helper" data-i18n="newWatch.urlHelper"></p>
+          </div>
+
+          <button
+            class="watch-reason-toggle"
+            type="button"
+            data-note-toggle
+            aria-expanded="false"
+            aria-controls="watchReason"
+            data-i18n="newWatch.addNote"
+          ></button>
+
+          <div class="watch-reason" id="watchReason" hidden>
+            <div class="watch-reason__inner">
+              <div class="watch-reason__header">
+                <span data-i18n="newWatch.noteHeading"></span>
+              </div>
+              <div class="watch-reason__field">
+                <label class="visually-hidden" for="whyFollowingInput" data-i18n="newWatch.whyFollowingLabel"></label>
+                <input
+                  id="whyFollowingInput"
+                  name="whyFollowing"
+                  type="text"
+                  data-i18n-placeholder="newWatch.whyFollowingPlaceholder"
+                />
+                <button
+                  class="watch-reason__microphone"
+                  type="button"
+                  disabled
+                  data-i18n-aria-label="newWatch.voiceUnavailable"
+                  data-i18n-title="newWatch.voiceUnavailable"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 15a3 3 0 0 0 3-3V7a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z"></path>
+                    <path d="M18 11.5a6 6 0 0 1-12 0M12 17.5V21M9 21h6"></path>
+                  </svg>
+                </button>
+                <button
+                  class="watch-reason__close"
+                  type="button"
+                  data-note-close
+                  data-i18n-aria-label="newWatch.closeNote"
+                >×</button>
+              </div>
             </div>
           </div>
+
+          <button class="watch-composer__submit" id="newWatchSubmit" type="submit" disabled>
+            <span aria-hidden="true">➤</span>
+            <span id="newWatchSubmitLabel" data-i18n="newWatch.submit"></span>
+          </button>
 
           <p class="watch-composer__feedback" id="inputTypeHint" aria-live="polite" hidden></p>
 
@@ -93,28 +142,7 @@
             </div>
           </section>
 
-          <div class="watch-reason">
-            <label for="whyFollowingInput" data-i18n="newWatch.whyFollowingLabel"></label>
-            <input
-              id="whyFollowingInput"
-              name="whyFollowing"
-              type="text"
-              data-i18n-placeholder="newWatch.whyFollowingPlaceholder"
-            />
-          </div>
-
           <p class="form-error" id="watchError" aria-live="polite"></p>
-
-          <section class="prompt-examples" aria-labelledby="examplesTitle">
-            <h2 id="examplesTitle" data-i18n="newWatch.examplesTitle"></h2>
-            <div class="prompt-examples__list">
-              <button type="button" data-watch-example data-i18n="flow2.exampleOne"></button>
-              <button type="button" data-watch-example data-i18n="flow2.exampleTwo"></button>
-              <button type="button" data-watch-example data-i18n="flow2.exampleThree"></button>
-              <button type="button" data-watch-example data-i18n="flow2.exampleFour"></button>
-              <button type="button" data-watch-example data-i18n="flow2.exampleFive"></button>
-            </div>
-          </section>
         </form>
 
         <section class="recent-watches" id="recentWatchesSection" aria-labelledby="recentTitle" hidden>

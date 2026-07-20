@@ -19,19 +19,11 @@
 
 .new-watch-header h1 {
   max-width: 21rem;
-  margin: 0 0 var(--space-sm);
+  margin: 0;
   font-size: var(--font-size-detail-title);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.04em;
   line-height: 1.08;
-}
-
-.new-watch-header p {
-  margin: 0;
-  color: var(--color-text-subtle);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-regular);
-  line-height: 1.45;
 }
 
 .watch-form {
@@ -50,10 +42,6 @@
   font-size: var(--font-size-xs);
 }
 
-.prompt-examples {
-  margin-top: var(--space-sm);
-}
-
 .recent-watches {
-  margin-top: var(--space-xl);
+  margin-top: var(--space-lg);
 }

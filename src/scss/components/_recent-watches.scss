@@ -1,6 +1,6 @@
 .recent-watches__list {
   display: grid;
-  gap: var(--space-xs);
+  gap: var(--space-xxs);
 }
 
 .recent-watch {
@@ -8,8 +8,8 @@
   grid-template-columns: var(--space-md) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-xs);
-  min-height: 4.25rem;
-  padding: var(--space-sm) var(--space-md);
+  min-height: 3.5rem;
+  padding: var(--space-xs) var(--space-sm);
   color: var(--color-text);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
