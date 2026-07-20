@@ -1,7 +1,7 @@
 import { t } from './i18n.js';
 import { initLanguageSwitcher } from './language-switcher.js';
 import { getWatches } from './watch-storage.js';
-import { registerCurrentIntroFlow } from './intro-flow.js';
+import { markOnboardingCompleted, registerCurrentIntroFlow } from './intro-flow.js';
 import { initializeFlowLanguage } from './flow-language-gate.js';
 
 const escapeHtml = (value) => String(value)
@@ -75,7 +75,9 @@ const initFlow = () => {
   };
 
   document.addEventListener('click', (event) => {
-    if (event.target.closest('[data-flow-next]')) {
+    if (event.target.closest('[data-complete-onboarding]')) {
+      markOnboardingCompleted();
+    } else if (event.target.closest('[data-flow-next]')) {
       showStep(activeStep + 1);
     } else if (event.target.closest('[data-flow-back]')) {
       showStep(activeStep - 1);

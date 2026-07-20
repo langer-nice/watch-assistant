@@ -2,6 +2,7 @@
   "common": {
     "brand": "Watch Assistant",
     "back": "Retour",
+    "home": "Accueil",
     "newWatch": "Nouvelle veille",
     "openSource": "Ouvrir la source",
     "unknown": "Inconnu",
@@ -75,7 +76,12 @@
       "other": "{count} vérifications effectuées."
     },
     "everythingNoChanges": "Aucun changement significatif détecté.",
-    "allWatches": "Voir tout ce que je surveille ›"
+    "allWatches": "Voir tout ce que je surveille ›",
+    "emptyReportTitleOne": "Votre première veille est active.",
+    "emptyReportTitleOther": "Vos veilles sont actives.",
+    "emptyReportCopy": "Les mises à jour importantes apparaîtront ici dès qu’un changement sera détecté.",
+    "viewAllWatches": "Voir toutes les veilles",
+    "createAnotherWatch": "Créer une autre veille"
   },
   "watches": {
     "title": "Toutes les veilles",
@@ -85,6 +91,8 @@
   },
   "detail": {
     "allWatches": "Toutes les veilles",
+    "breadcrumbLabel": "Emplacement de la veille",
+    "viewHomeReport": "Voir le rapport d’accueil",
     "title": "Détail de la veille",
     "createdTitle": "Votre veille a été créée.",
     "createdCopy": "Je la surveille maintenant.",
@@ -126,6 +134,7 @@
   },
   "newWatch": {
     "back": "Accueil",
+    "allWatchesBack": "Toutes les veilles",
     "heading": "Que dois-je surveiller ?",
     "editBack": "Détail de la veille",
     "editHeading": "Modifier la veille",

@@ -1,4 +1,4 @@
-import { registerCurrentIntroFlow } from './intro-flow.js';
+import { markOnboardingCompleted, registerCurrentIntroFlow } from './intro-flow.js';
 import { setLanguage, t } from './i18n.js';
 import { initLanguageSwitcher } from './language-switcher.js';
 import { initializeFlowLanguage } from './flow-language-gate.js';
@@ -258,6 +258,11 @@ const showScreen = (screenIndex) => {
 
 const handleFlowClick = (event) => {
   if (event.target.closest('.language-switcher')) {
+    return;
+  }
+
+  if (event.target.closest('[data-complete-onboarding]')) {
+    markOnboardingCompleted();
     return;
   }
 

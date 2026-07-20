@@ -66,7 +66,16 @@
         <section class="briefing-feed" aria-label="Briefing items" data-i18n-aria-label="home.briefingItemsLabel">
           <div id="homeBriefingList"></div>
 
-          <section class="all-quiet" aria-labelledby="allQuietTitle">
+          <section class="home-empty-report" id="homeEmptyReport" aria-labelledby="homeEmptyReportTitle" hidden>
+            <h2 id="homeEmptyReportTitle"></h2>
+            <p data-i18n="home.emptyReportCopy"></p>
+            <div class="home-empty-report__actions">
+              <a href="watches.html" data-i18n="home.viewAllWatches"></a>
+              <a href="new-watch.html" data-i18n="home.createAnotherWatch"></a>
+            </div>
+          </section>
+
+          <section class="all-quiet" id="homeAllQuiet" aria-labelledby="allQuietTitle">
             <p class="all-quiet__label" data-i18n="home.everythingLabel"></p>
             <h2 id="allQuietTitle" data-i18n="home.everythingTitle"></h2>
             <p class="all-quiet__summary">

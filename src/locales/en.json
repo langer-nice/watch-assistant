@@ -2,6 +2,7 @@
   "common": {
     "brand": "Watch Assistant",
     "back": "Back",
+    "home": "Home",
     "newWatch": "New watch",
     "openSource": "Open source",
     "unknown": "Unknown",
@@ -75,7 +76,12 @@
       "other": "{count} watch checks completed."
     },
     "everythingNoChanges": "No meaningful changes were found.",
-    "allWatches": "View everything I’m watching ›"
+    "allWatches": "View everything I’m watching ›",
+    "emptyReportTitleOne": "Your first Watch is active.",
+    "emptyReportTitleOther": "Your Watches are active.",
+    "emptyReportCopy": "We’ll show important updates here when something changes.",
+    "viewAllWatches": "View all watches",
+    "createAnotherWatch": "Create another watch"
   },
   "watches": {
     "title": "All watches",
@@ -85,6 +91,8 @@
   },
   "detail": {
     "allWatches": "All Watches",
+    "breadcrumbLabel": "Watch location",
+    "viewHomeReport": "View Home report",
     "title": "Watch detail",
     "createdTitle": "Your Watch has been created.",
     "createdCopy": "I’m watching this now.",
@@ -126,6 +134,7 @@
   },
   "newWatch": {
     "back": "Home",
+    "allWatchesBack": "All Watches",
     "heading": "What should I keep an eye on?",
     "editBack": "Watch details",
     "editHeading": "Edit Watch",

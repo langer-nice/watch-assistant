@@ -1,4 +1,5 @@
 const INTRO_STORAGE_KEY = 'watchAssistantIntro';
+const ONBOARDING_COMPLETED_STORAGE_KEY = 'watchAssistant.onboardingCompleted';
 const DEFAULT_INTRO_FLOW = 'flow-3.html';
 const INTRO_FILENAME_PATTERN = /^flow-[a-z0-9]+(?:-[a-z0-9]+)*\.html$/i;
 
@@ -33,6 +34,22 @@ export const getReplayIntroFlow = () => {
   }
 };
 
+export const markOnboardingCompleted = () => {
+  try {
+    localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, 'true');
+  } catch {
+    // Routing can still fall back to Watch data when storage is unavailable.
+  }
+};
+
+export const hasCompletedOnboarding = () => {
+  try {
+    return localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
 export const initIntroReplayLink = () => {
   const replayLink = document.querySelector('[data-intro-replay]');
   if (replayLink) {
@@ -40,4 +57,8 @@ export const initIntroReplayLink = () => {
   }
 };
 
-export { DEFAULT_INTRO_FLOW, INTRO_STORAGE_KEY };
+export {
+  DEFAULT_INTRO_FLOW,
+  INTRO_STORAGE_KEY,
+  ONBOARDING_COMPLETED_STORAGE_KEY,
+};

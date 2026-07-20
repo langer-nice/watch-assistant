@@ -34,6 +34,61 @@ body.is-watch-edit-open {
   background: var(--color-detail-background);
 }
 
+.detail-breadcrumb {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: var(--space-xs);
+  white-space: nowrap;
+}
+
+.detail-breadcrumb a,
+.detail-first-watch-home {
+  color: var(--color-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-regular);
+  text-decoration: none;
+}
+
+.detail-breadcrumb a:hover,
+.detail-breadcrumb a:focus-visible,
+.detail-first-watch-home:hover,
+.detail-first-watch-home:focus-visible {
+  text-decoration: underline;
+}
+
+.detail-breadcrumb a:active,
+.detail-first-watch-home:active {
+  color: var(--color-primary-hover);
+}
+
+.detail-breadcrumb a {
+  display: inline-flex;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  align-items: center;
+}
+
+.detail-breadcrumb__separator {
+  color: var(--color-text-subtle);
+  font-weight: var(--font-weight-regular);
+}
+
+.detail-first-watch-home {
+  display: inline-flex;
+  margin: 0 var(--space-xs) var(--space-xs);
+  font-size: var(--font-size-sm);
+}
+
+.detail-first-watch-home::after {
+  margin-left: var(--space-xs);
+  content: '→';
+}
+
+.detail-first-watch-home[hidden] {
+  display: none;
+}
+
 .detail-header {
   position: relative;
   display: grid;

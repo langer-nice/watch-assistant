@@ -11,6 +11,12 @@ import {
 } from './watch-storage.js';
 import { getLanguage, t } from './i18n.js';
 import { analyseUrl } from './url-analysis.js';
+import {
+  getReplayIntroFlow,
+  hasCompletedOnboarding,
+  markOnboardingCompleted,
+  ONBOARDING_COMPLETED_STORAGE_KEY,
+} from './intro-flow.js';
 
 let homeCreatedWatchId = null;
 let homeCreatedWatchFeedbackTimer = null;
@@ -18,6 +24,7 @@ let detailConfirmationAutoTimer = null;
 let detailConfirmationHideTimer = null;
 let detailCheckFeedbackTimer = null;
 let detailCheckInProgress = false;
+let detailCreatedWatchId = null;
 let firstMonitoringTimer = null;
 let firstMonitoringTransitionTimer = null;
 let editSheetCloseTimer = null;
@@ -637,15 +644,34 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, optio
   };
 };
 
+const getHomeWatches = () => {
+  const storedWatches = getStoredWatches();
+  const hasUserCreatedWatch = storedWatches.some((watch) => Boolean(watch.createdAt));
+  return hasUserCreatedWatch ? storedWatches : getWatches();
+};
+
 const renderHomeBriefing = () => {
   const list = document.querySelector('#homeBriefingList');
   if (!list) {
     return;
   }
 
-  const briefingWatches = getWatches().filter((watch) => (
-    watch.status !== 'completed' && hasMeaningfulText(getLatestChange(watch))
-  ));
+  const activeWatches = getHomeWatches().filter((watch) => watch.status !== 'completed');
+  const briefingWatches = activeWatches.filter((watch) => hasMeaningfulText(getLatestChange(watch)));
+  const emptyReport = document.querySelector('#homeEmptyReport');
+  const emptyReportTitle = document.querySelector('#homeEmptyReportTitle');
+  const allQuiet = document.querySelector('#homeAllQuiet');
+  const showEmptyReport = activeWatches.length > 0 && briefingWatches.length === 0;
+
+  if (emptyReport) emptyReport.hidden = !showEmptyReport;
+  if (emptyReportTitle) {
+    emptyReportTitle.textContent = t(
+      activeWatches.length === 1
+        ? 'home.emptyReportTitleOne'
+        : 'home.emptyReportTitleOther',
+    );
+  }
+  if (allQuiet) allQuiet.hidden = showEmptyReport;
 
   list.innerHTML = briefingWatches
     .map((watch) => {
@@ -720,6 +746,8 @@ const renderWatchDetail = () => {
 
   const params = new URLSearchParams(window.location.search);
   const watchId = params.get('id');
+  const createdWatchIdFromRoute = params.get('watchCreated');
+  if (createdWatchIdFromRoute === watchId) detailCreatedWatchId = createdWatchIdFromRoute;
   let watch = getWatchById(watchId);
   if (
     watch?.monitoringState === 'preparing'
@@ -769,6 +797,7 @@ const renderWatchDetail = () => {
   const confirmationTitleEl = document.querySelector('#watchConfirmationTitle');
   const confirmationCopyEl = document.querySelector('#watchConfirmationCopy');
   const editActionEl = document.querySelector('#watchEditAction');
+  const homeActionEl = document.querySelector('#watchCreatedHomeAction');
   const preparingEl = document.querySelector('#watchPreparing');
   const managementEl = document.querySelector('#watchManagement');
   const checkNowEl = document.querySelector('#watchCheckNow');
@@ -817,6 +846,9 @@ const renderWatchDetail = () => {
     if (editActionEl) {
       editActionEl.hidden = true;
     }
+    if (homeActionEl) {
+      homeActionEl.hidden = true;
+    }
     if (notFoundEl) {
       notFoundEl.textContent = t('detail.notFoundCopy');
       notFoundEl.hidden = false;
@@ -834,6 +866,9 @@ const renderWatchDetail = () => {
       event.preventDefault();
       openWatchEditSheet(watch.id);
     };
+  }
+  if (homeActionEl) {
+    homeActionEl.hidden = detailCreatedWatchId !== watch.id;
   }
   if (notFoundEl) {
     notFoundEl.hidden = true;
@@ -1227,6 +1262,7 @@ const renderDevTools = () => {
 
   window.watchAssistantResetDemo = () => {
     resetStoredWatches();
+    localStorage.removeItem(ONBOARDING_COMPLETED_STORAGE_KEY);
     sessionStorage.clear();
     window.location.reload();
   };
@@ -1310,8 +1346,9 @@ const renderHomeSummary = () => {
   }
 
   const storedWatches = getStoredWatches();
+  const hasUserCreatedWatch = storedWatches.some((watch) => Boolean(watch.createdAt));
   const activeStoredWatches = storedWatches.filter((watch) => watch.status !== 'completed');
-  const activeWatches = getWatches().filter((watch) => watch.status !== 'completed');
+  const activeWatches = getHomeWatches().filter((watch) => watch.status !== 'completed');
   const attentionWatches = activeWatches.filter((watch) => (
     watch.requiresAttention || watch.status === 'attention'
   ));
@@ -1324,7 +1361,7 @@ const renderHomeSummary = () => {
     !watch.requiresAttention
     && !hasMeaningfulText(getLatestChange(watch))
   ));
-  const demoQuietWatchCount = 39;
+  const demoQuietWatchCount = hasUserCreatedWatch ? 0 : 39;
   const totalChecked = demoQuietWatchCount + activeWatches.length;
   const unchangedCount = totalChecked - attentionWatches.length - updatedWatches.length;
   const pluralKey = (key, count) => `${key}.${count === 1 ? 'one' : 'other'}`;
@@ -1360,7 +1397,7 @@ const renderHomeSummary = () => {
     unchangedLabel.textContent = t(pluralKey('home.unchangedLabel', unchangedCount));
   }
   if (everythingChecked) {
-    const completedCheckCount = 7 + quietStoredWatches.length;
+    const completedCheckCount = (hasUserCreatedWatch ? 0 : 7) + quietStoredWatches.length;
     everythingChecked.textContent = t(pluralKey('home.everythingChecked', completedCheckCount), {
       count: completedCheckCount,
     });
@@ -1754,6 +1791,7 @@ export function initForm() {
 
   const completeWatchCreation = (watch) => {
     addWatch(watch);
+    markOnboardingCompleted();
     sessionStorage.removeItem('watchAssistant.newWatchId');
     window.location.href = `watch-detail.html?id=${encodeURIComponent(watch.id)}&watchCreated=${encodeURIComponent(watch.id)}`;
   };
@@ -2080,6 +2118,11 @@ export function initForm() {
         }
         : null;
     } else {
+      if (backEl && formParams.get('from') === 'watches') {
+        backEl.href = 'watches.html';
+        backEl.dataset.i18n = 'newWatch.allWatchesBack';
+        backEl.textContent = t('newWatch.allWatchesBack');
+      }
       if (watchOptionsEl) {
         watchOptionsEl.hidden = true;
       }
@@ -2450,6 +2493,13 @@ export function initForm() {
 }
 
 export const initApp = () => {
+  if (document.querySelector('.page--home') && getStoredWatches().length === 0) {
+    window.location.replace(
+      hasCompletedOnboarding() ? 'new-watch.html' : getReplayIntroFlow(),
+    );
+    return;
+  }
+
   renderHomeSummary();
   renderHomeBriefing();
   renderWatchList();
