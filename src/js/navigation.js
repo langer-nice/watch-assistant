@@ -120,17 +120,53 @@ const closeWatchEditSheet = ({ updated = false } = {}) => {
 const initializeWatchEditSheet = () => {
   const sheet = document.querySelector('#watchEditSheet');
   const frame = document.querySelector('#watchEditFrame');
+  const cancelButton = document.querySelector('#watchEditCancel');
+  const saveButton = document.querySelector('#watchEditSave');
   if (!sheet || !frame || sheet.dataset.initialized === 'true') return;
   sheet.dataset.initialized = 'true';
+
+  let viewportFrame = null;
+  const updateSheetViewport = () => {
+    if (viewportFrame !== null) window.cancelAnimationFrame(viewportFrame);
+    viewportFrame = window.requestAnimationFrame(() => {
+      const viewport = window.visualViewport;
+      sheet.style.setProperty(
+        '--watch-edit-viewport-height',
+        `${Math.round(viewport?.height || window.innerHeight)}px`,
+      );
+      sheet.style.setProperty(
+        '--watch-edit-viewport-top',
+        `${Math.round(viewport?.offsetTop || 0)}px`,
+      );
+      viewportFrame = null;
+    });
+  };
 
   sheet.addEventListener('cancel', (event) => {
     event.preventDefault();
     frame.contentWindow?.postMessage({ type: 'watch-editor-request-close' }, window.location.origin);
   });
 
-  frame.addEventListener('load', () => {
-    if (frame.hasAttribute('src')) sheet.classList.add('is-ready');
+  cancelButton?.addEventListener('click', () => {
+    frame.contentWindow?.postMessage({ type: 'watch-editor-request-close' }, window.location.origin);
   });
+
+  saveButton?.addEventListener('click', () => {
+    if (saveButton.disabled) return;
+    frame.contentWindow?.postMessage({ type: 'watch-editor-request-save' }, window.location.origin);
+  });
+
+  frame.addEventListener('load', () => {
+    if (frame.hasAttribute('src')) {
+      if (saveButton) saveButton.disabled = true;
+      sheet.classList.add('is-ready');
+    }
+  });
+
+  updateSheetViewport();
+  window.visualViewport?.addEventListener('resize', updateSheetViewport);
+  window.visualViewport?.addEventListener('scroll', updateSheetViewport);
+  window.addEventListener('resize', updateSheetViewport);
 
   window.addEventListener('message', (event) => {
     if (event.origin !== window.location.origin || event.source !== frame.contentWindow) return;
@@ -143,6 +179,9 @@ const initializeWatchEditSheet = () => {
     if (event.data.type === 'watch-editor-saved') {
       closeWatchEditSheet({ updated: true });
     }
+    if (event.data.type === 'watch-editor-state' && saveButton) {
+      saveButton.disabled = !event.data.canSave;
+    }
   });
 };
 
@@ -153,6 +192,8 @@ const openWatchEditSheet = (watchId) => {
   if (sheet.open) return;
 
   initializeWatchEditSheet();
+  const saveButton = document.querySelector('#watchEditSave');
+  if (saveButton) saveButton.disabled = true;
   frame.src = `new-watch.html?edit=${encodeURIComponent(watchId)}&presentation=modal`;
   sheet.classList.remove('is-closing', 'is-ready');
   sheet.showModal();
@@ -1464,9 +1505,6 @@ export function initForm() {
   const discardDialog = document.querySelector('#editDiscardDialog');
   const keepEditingButton = document.querySelector('#editKeepEditing');
   const discardChangesButton = document.querySelector('#editDiscardChanges');
-  const editModeHeader = document.querySelector('#editModeHeader');
-  const editModalCancel = document.querySelector('#editModalCancel');
-  const editModalSave = document.querySelector('#editModalSave');
   const formParams = new URLSearchParams(window.location.search);
   const editWatchId = formParams.get('edit');
   const editingWatch = editWatchId ? getWatchById(editWatchId) : null;
@@ -1503,7 +1541,6 @@ export function initForm() {
   if (isModalEditMode) {
     document.documentElement.classList.add('is-edit-modal-root');
     document.body.classList.add('is-edit-modal');
-    if (editModeHeader) editModeHeader.hidden = false;
 
     let viewportFrame = null;
     const updateEditViewport = () => {
@@ -1684,9 +1721,7 @@ export function initForm() {
     if (submitButton) {
       submitButton.disabled = disabled || !hasMeaningfulRequest();
     }
-    if (editModalSave) {
-      editModalSave.disabled = disabled || !hasMeaningfulRequest() || !hasUnsavedEditChanges();
-    }
+    refreshEditSaveState();
   };
 
   const completeWatchCreation = (watch) => {
@@ -2017,11 +2052,17 @@ export function initForm() {
   );
 
   refreshEditSaveState = () => {
-    if (editModalSave) {
-      editModalSave.disabled = creationInProgress
-        || analysisInProgress
-        || !hasMeaningfulRequest()
-        || !hasUnsavedEditChanges();
+    const canSave = !creationInProgress
+      && !analysisInProgress
+      && !form.classList.contains('is-reviewing')
+      && hasMeaningfulRequest()
+      && hasUnsavedEditChanges();
+    if (isModalEditMode) {
+      window.parent.postMessage({
+        type: 'watch-editor-state',
+        watchId: editingWatch.id,
+        canSave,
+      }, window.location.origin);
     }
   };
 
@@ -2288,18 +2329,18 @@ export function initForm() {
       event.returnValue = '';
     });
 
-    editModalCancel?.addEventListener('click', () => {
-      handleEditNavigation(backEl?.href);
-    });
-
     window.addEventListener('message', (event) => {
       if (
         !isModalEditMode
         || event.origin !== window.location.origin
         || event.source !== window.parent
-        || event.data?.type !== 'watch-editor-request-close'
       ) return;
-      handleEditNavigation(backEl?.href);
+      if (event.data?.type === 'watch-editor-request-close') {
+        handleEditNavigation(backEl?.href);
+      }
+      if (event.data?.type === 'watch-editor-request-save' && hasUnsavedEditChanges()) {
+        form.requestSubmit();
+      }
     });
 
     form.addEventListener('input', refreshEditSaveState);

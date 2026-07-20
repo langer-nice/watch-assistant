@@ -2,64 +2,6 @@
   background: var(--color-new-watch-background);
 }
 
-.edit-mode-header {
-  position: sticky;
-  z-index: 10;
-  top: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  min-height: calc(3.5rem + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) var(--space-xl) 0;
-  background: color-mix(in srgb, var(--color-new-watch-background) 94%, transparent);
-  border-bottom: 1px solid var(--color-border);
-  backdrop-filter: blur(14px);
-}
-
-.edit-mode-header[hidden] {
-  display: none;
-}
-
-.edit-mode-header h1 {
-  margin: 0;
-  font-family: var(--font-family-body);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1;
-  text-align: center;
-}
-
-.edit-mode-header__action {
-  min-height: 2.75rem;
-  padding: 0;
-  color: var(--color-text);
-  background: transparent;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-regular);
-  cursor: pointer;
-}
-
-.edit-mode-header__action:first-child {
-  justify-self: start;
-}
-
-.edit-mode-header__action--save {
-  justify-self: end;
-  color: var(--color-primary);
-  font-weight: var(--font-weight-semibold);
-}
-
-.edit-mode-header__action:disabled {
-  color: var(--color-text-subtle);
-  cursor: default;
-}
-
-.edit-mode-header__action:not(:disabled):hover,
-.edit-mode-header__action:not(:disabled):focus-visible {
-  text-decoration: underline;
-  text-underline-offset: var(--space-3xs);
-}
-
 body.is-edit-modal {
   height: var(--edit-visual-viewport-height, 100dvh);
   min-height: 0;
@@ -87,10 +29,6 @@ body.is-edit-modal .page--form {
   overflow-y: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-}
-
-body.is-edit-modal .edit-mode-header {
-  flex: 0 0 auto;
 }
 
 body.is-edit-modal .new-watch-back,

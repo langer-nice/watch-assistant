@@ -75,9 +75,14 @@
 }
 
 .watch-edit-sheet {
+  position: fixed;
+  top: var(--watch-edit-viewport-top, 0);
+  right: 0;
+  bottom: auto;
+  left: 0;
   width: 100%;
   max-width: none;
-  height: 100dvh;
+  height: var(--watch-edit-viewport-height, 100dvh);
   max-height: none;
   margin: 0;
   padding: 0;
@@ -87,6 +92,8 @@
 }
 
 .watch-edit-sheet[open] {
+  display: flex;
+  flex-direction: column;
   animation: watch-edit-sheet-in 240ms ease-out both;
 }
 
@@ -101,8 +108,10 @@
 
 .watch-edit-sheet__frame {
   display: block;
+  flex: 1 1 auto;
   width: 100%;
-  height: 100%;
+  height: auto;
+  min-height: 0;
   background: var(--color-new-watch-background);
   border: 0;
   opacity: 0;
@@ -111,6 +120,59 @@
 
 .watch-edit-sheet.is-ready .watch-edit-sheet__frame {
   opacity: 1;
+}
+
+.watch-edit-sheet__header {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  min-height: calc(3.5rem + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) var(--space-xl) 0;
+  background: var(--color-new-watch-background);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.watch-edit-sheet__header h1 {
+  margin: 0;
+  font-family: var(--font-family-body);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  text-align: center;
+}
+
+.watch-edit-sheet__action {
+  min-height: 2.75rem;
+  padding: 0;
+  color: var(--color-text);
+  background: transparent;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  cursor: pointer;
+}
+
+.watch-edit-sheet__action:first-child {
+  justify-self: start;
+}
+
+.watch-edit-sheet__action--save {
+  justify-self: end;
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.watch-edit-sheet__action:disabled {
+  color: var(--color-text-subtle);
+  cursor: default;
+}
+
+.watch-edit-sheet__action:not(:disabled):hover,
+.watch-edit-sheet__action:not(:disabled):focus-visible {
+  text-decoration: underline;
+  text-underline-offset: var(--space-3xs);
 }
 
 @keyframes watch-edit-sheet-in {

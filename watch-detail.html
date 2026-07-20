@@ -195,6 +195,17 @@
         </dialog>
 
         <dialog class="watch-edit-sheet" id="watchEditSheet" aria-label="Edit Watch">
+          <header class="watch-edit-sheet__header">
+            <button class="watch-edit-sheet__action" id="watchEditCancel" type="button" data-i18n="detail.cancel"></button>
+            <h1 data-i18n="newWatch.editHeading"></h1>
+            <button
+              class="watch-edit-sheet__action watch-edit-sheet__action--save"
+              id="watchEditSave"
+              type="button"
+              data-i18n="newWatch.saveChanges"
+              disabled
+            ></button>
+          </header>
           <iframe
             class="watch-edit-sheet__frame"
             id="watchEditFrame"
