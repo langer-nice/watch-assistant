@@ -76,12 +76,7 @@
       "other": "{count} vérifications effectuées."
     },
     "everythingNoChanges": "Aucun changement significatif détecté.",
-    "allWatches": "Voir tout ce que je surveille ›",
-    "emptyReportTitleOne": "Votre première veille est active.",
-    "emptyReportTitleOther": "Vos veilles sont actives.",
-    "emptyReportCopy": "Les mises à jour importantes apparaîtront ici dès qu’un changement sera détecté.",
-    "viewAllWatches": "Voir toutes les veilles",
-    "createAnotherWatch": "Créer une autre veille"
+    "allWatches": "Voir tout ce que je surveille ›"
   },
   "watches": {
     "title": "Toutes les veilles",

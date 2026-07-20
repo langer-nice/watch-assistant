@@ -76,12 +76,7 @@
       "other": "{count} watch checks completed."
     },
     "everythingNoChanges": "No meaningful changes were found.",
-    "allWatches": "View everything I’m watching ›",
-    "emptyReportTitleOne": "Your first Watch is active.",
-    "emptyReportTitleOther": "Your Watches are active.",
-    "emptyReportCopy": "We’ll show important updates here when something changes.",
-    "viewAllWatches": "View all watches",
-    "createAnotherWatch": "Create another watch"
+    "allWatches": "View everything I’m watching ›"
   },
   "watches": {
     "title": "All watches",

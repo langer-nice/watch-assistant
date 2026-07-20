@@ -658,20 +658,6 @@ const renderHomeBriefing = () => {
 
   const activeWatches = getHomeWatches().filter((watch) => watch.status !== 'completed');
   const briefingWatches = activeWatches.filter((watch) => hasMeaningfulText(getLatestChange(watch)));
-  const emptyReport = document.querySelector('#homeEmptyReport');
-  const emptyReportTitle = document.querySelector('#homeEmptyReportTitle');
-  const allQuiet = document.querySelector('#homeAllQuiet');
-  const showEmptyReport = activeWatches.length > 0 && briefingWatches.length === 0;
-
-  if (emptyReport) emptyReport.hidden = !showEmptyReport;
-  if (emptyReportTitle) {
-    emptyReportTitle.textContent = t(
-      activeWatches.length === 1
-        ? 'home.emptyReportTitleOne'
-        : 'home.emptyReportTitleOther',
-    );
-  }
-  if (allQuiet) allQuiet.hidden = showEmptyReport;
 
   list.innerHTML = briefingWatches
     .map((watch) => {
