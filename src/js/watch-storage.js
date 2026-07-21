@@ -3,6 +3,8 @@ import { mockWatches } from './data/mock-watches.js';
 const STORAGE_KEY = 'watchAssistant.watches';
 const DELETED_WATCHES_STORAGE_KEY = 'watchAssistant.deletedWatchIds';
 const BRIEFING_GENERATED_AT_KEY = 'watchAssistant.briefingGeneratedAt';
+const DEMO_DATA_VERSION_KEY = 'watchAssistant.demoDataVersion';
+const DEMO_DATA_VERSION = 'home-report-v1';
 
 const getDeletedWatchIds = () => {
   try {
@@ -55,12 +57,29 @@ function saveWatches(watches) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(watches));
 }
 
+const ensureCurrentDemoData = () => {
+  try {
+    if (localStorage.getItem(DEMO_DATA_VERSION_KEY) === DEMO_DATA_VERSION) return;
+
+    const demoIds = new Set(mockWatches.map((watch) => watch.id));
+    const customWatches = getStoredWatches().filter((watch) => !demoIds.has(watch.id));
+    const customDeletedIds = getDeletedWatchIds().filter((id) => !demoIds.has(id));
+    saveWatches(customWatches);
+    saveDeletedWatchIds(customDeletedIds);
+    localStorage.setItem(DEMO_DATA_VERSION_KEY, DEMO_DATA_VERSION);
+  } catch {
+    // Canonical in-memory demo data remains available when storage is unavailable.
+  }
+};
+
 export function resetStoredWatches() {
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(DELETED_WATCHES_STORAGE_KEY);
+  localStorage.removeItem(DEMO_DATA_VERSION_KEY);
 }
 
 export function getWatches() {
+  ensureCurrentDemoData();
   const stored = getStoredWatches();
   const deletedIds = new Set(getDeletedWatchIds());
   const mockIds = new Set(mockWatches.map((watch) => watch.id));
@@ -72,6 +91,11 @@ export function getWatches() {
     (watch) => !mockIds.has(watch.id) && !deletedIds.has(watch.id),
   );
   return [...seededWatches, ...customWatches];
+}
+
+export function getDemoWatches() {
+  const demoIds = new Set(mockWatches.map((watch) => watch.id));
+  return getWatches().filter((watch) => demoIds.has(watch.id));
 }
 
 export function hydrateWatchStorage() {

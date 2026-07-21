@@ -10,7 +10,7 @@ git status
 git branch
 
 # Créer une nouvelle branche
-git switch -c feature/navigation
+git switch -c feature/URL-paste-issue
 
 # Changer de branche
 git switch master
@@ -18,7 +18,7 @@ git switch feature/home-briefing
 
 # Merge une branche dans master
 git switch master
-git merge feature/edit
+git merge feature/navigation
 git push origin master
 
 # Supprimer la branche - Quand tout est fusionné :

@@ -1,5 +1,6 @@
 import {
   getWatches,
+  getDemoWatches,
   hydrateWatchStorage,
   addWatch,
   updateWatch,
@@ -644,7 +645,7 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, optio
   };
 };
 
-const getHomeWatches = () => getWatches();
+const getHomeWatches = () => getDemoWatches();
 
 const getHomeReport = () => {
   const activeWatches = getHomeWatches().filter((watch) => watch.status !== 'completed');
