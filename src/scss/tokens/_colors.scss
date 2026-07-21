@@ -67,10 +67,9 @@
   --color-status-update-bg: var(--color-ink-blue-100);
   --color-status-neutral-surface: #f1f1ef;
   --color-status-neutral-emphasis: color-mix(in srgb, var(--color-text-secondary) 85%, var(--color-text-primary));
-  --color-status-watching: #777777;
-  --color-status-watching-bg: var(--color-status-neutral-surface);
-  --color-status-paused: var(--color-status-neutral-emphasis);
-  --color-status-paused-bg: var(--color-status-neutral-surface);
+  --color-status-state: #6b7280;
+  --color-status-state-border: var(--color-border);
+  --color-status-state-bg: transparent;
   --color-status-checking: var(--color-status-neutral-emphasis);
   --color-status-checking-bg: color-mix(in srgb, var(--color-text-secondary) 9%, var(--color-surface));
   --color-status-success: var(--color-success);

@@ -17,6 +17,10 @@ import {
   MONITORING_CONCEPTS_VERSION,
 } from './monitoring-concepts.js';
 import {
+  createLocalEditorialSummary,
+  generateMonitoringSummary,
+} from './monitoring-summary.js';
+import {
   getReplayIntroFlow,
   hasCompletedOnboarding,
   markOnboardingCompleted,
@@ -344,7 +348,7 @@ const getMonitoringSummary = (watch, title) => {
   }
 
   const requestText = hasMeaningfulText(request) ? request : '';
-  const fallback = t(inferMonitoringSummaryKey(requestText, watch.category));
+  const fallback = createLocalEditorialSummary(requestText);
   return (
     normalizeComparableText(fallback) !== normalizeComparableText(title) ? fallback : ''
   );
@@ -418,21 +422,6 @@ const hasReleaseIntent = (request) => (
   /(release date|released|comes out|coming out|publication date|date de sortie|date de parution|sortie|parution|publi[ée])/
     .test(request.toLowerCase())
 );
-
-const inferMonitoringSummaryKey = (request, category) => {
-  if (hasReleaseIntent(request)) {
-    return 'watchData.monitoringSummaries.release';
-  }
-
-  const keysByCategory = {
-    price: 'watchData.monitoringSummaries.price',
-    travel: 'watchData.monitoringSummaries.travel',
-    news: 'watchData.monitoringSummaries.news',
-    events: 'watchData.monitoringSummaries.event',
-  };
-
-  return keysByCategory[category] || 'watchData.monitoringSummaries.general';
-};
 
 const inferCurrentSituationKey = (request, category) => {
   const text = request.toLowerCase();
@@ -596,10 +585,8 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     monitoringConceptsVersion: MONITORING_CONCEPTS_VERSION,
     structuredCriteria,
     ...structuredCriteria,
-    monitoringSummary: urlAnalysis?.summary || null,
-    monitoringSummaryKey: isUrlRequest
-      ? null
-      : inferMonitoringSummaryKey(request, category),
+    monitoringSummary: urlAnalysis?.summary || options.monitoringSummary || null,
+    monitoringSummaryKey: null,
     currentSituationKey: inferCurrentSituationKey(request, category),
   };
 };
@@ -643,7 +630,6 @@ const STATUS_LABEL_VARIANTS = {
 };
 
 const getStatusLabelVariant = (status) => STATUS_LABEL_VARIANTS[status] || 'checking';
-const shouldDisplayStatusLabel = (status) => status !== 'watching';
 
 const getHomeReport = () => {
   const activeWatches = getHomeWatches().filter((watch) => watch.status !== 'completed');
@@ -744,9 +730,7 @@ const renderWatchList = () => {
       const isPaused = watch.status === 'paused';
       const status = STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking';
       const statusModifier = getStatusLabelVariant(status);
-      const statusLabel = shouldDisplayStatusLabel(status)
-        ? `<span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(t(`statuses.${status}`))}</span>`
-        : '';
+      const statusLabel = `<span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(t(`statuses.${status}`))}</span>`;
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : getMonitoringSummary(watch, title);
@@ -915,8 +899,7 @@ const renderWatchDetail = () => {
     const statusModifier = getStatusLabelVariant(statusKey);
     statusEl.textContent = status || '';
     statusEl.hidden = !status
-      || watch.status === 'paused'
-      || !shouldDisplayStatusLabel(watch.status);
+      || watch.status === 'paused';
     statusEl.className = `status-label status-label--${statusModifier}`;
   }
   if (pausedStateEl) {
@@ -1896,7 +1879,7 @@ export function initForm() {
     fallbackTimer = window.setTimeout(notifyParent, viewport ? 360 : 0);
   };
 
-  const completeWatchUpdate = (request, whyFollowing, urlAnalysis = null) => {
+  const completeWatchUpdate = async (request, whyFollowing, urlAnalysis = null) => {
     const keywordValues = getKeywordValues();
     const originalRequest = localizeField(editingWatch, 'request') || '';
     const requestChanged = request.trim() !== originalRequest.trim();
@@ -1911,9 +1894,13 @@ export function initForm() {
     const keywordsChanged = JSON.stringify(keywordValues.keywords) !== JSON.stringify(originalKeywords)
       || JSON.stringify(keywordValues.selectedKeywords) !== JSON.stringify(originalSelectedKeywords);
     const monitoringCriteriaChanged = requestChanged || categoryChanged || keywordsChanged;
+    const monitoringSummary = requestChanged && !urlAnalysis
+      ? await generateMonitoringSummary(request)
+      : null;
     const derivedData = deriveWatchData(request, urlAnalysis, {
       category,
       categorySource,
+      monitoringSummary,
       ...keywordValues,
     });
     const changes = {
@@ -2420,7 +2407,7 @@ export function initForm() {
       ) {
         creationInProgress = true;
         setCreationControlsDisabled(true);
-        completeWatchUpdate(request, whyFollowing, pendingAnalysis);
+        await completeWatchUpdate(request, whyFollowing, pendingAnalysis);
         return;
       }
       await startUrlAnalysis(request, whyFollowing);
@@ -2430,13 +2417,14 @@ export function initForm() {
     creationInProgress = true;
     setCreationControlsDisabled(true);
     if (isEditMode) {
-      completeWatchUpdate(request, whyFollowing);
+      await completeWatchUpdate(request, whyFollowing);
     } else {
+      const monitoringSummary = await generateMonitoringSummary(request);
       completeWatchCreation(createWatchObject(
         request,
         whyFollowing,
         null,
-        getCreateOptions(),
+        { ...getCreateOptions(), monitoringSummary },
       ));
     }
   });
@@ -2445,7 +2433,7 @@ export function initForm() {
     setReviewEditing(!review?.classList.contains('is-editing'));
   });
 
-  reviewCreate?.addEventListener('click', () => {
+  reviewCreate?.addEventListener('click', async () => {
     if (creationInProgress) {
       return;
     }
@@ -2467,7 +2455,7 @@ export function initForm() {
       sourceUrl: pendingAnalysis?.sourceUrl || pendingRequest,
     };
     if (isEditMode) {
-      completeWatchUpdate(pendingRequest, pendingWhyFollowing, analysis);
+      await completeWatchUpdate(pendingRequest, pendingWhyFollowing, analysis);
     } else {
       completeWatchCreation(createWatchObject(
         pendingRequest,
