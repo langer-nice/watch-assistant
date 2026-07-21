@@ -1,6 +1,6 @@
 import {
   getWatches,
-  getStoredWatches,
+  hydrateWatchStorage,
   addWatch,
   updateWatch,
   deleteWatch,
@@ -2505,11 +2505,31 @@ export function initForm() {
   }
 }
 
-export const initApp = () => {
-  if (document.querySelector('.page--home') && getStoredWatches().length === 0) {
-    window.location.replace(
-      hasCompletedOnboarding() ? 'new-watch.html' : getReplayIntroFlow(),
+const resolveInitialHomeRoute = () => {
+  if (!document.querySelector('.page--home')) return null;
+
+  const homeUrl = new URL(window.location.href);
+  const isExplicitHomeNavigation = homeUrl.searchParams.get('entry') === 'navigation';
+  if (isExplicitHomeNavigation) {
+    homeUrl.searchParams.delete('entry');
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${homeUrl.pathname}${homeUrl.search}${homeUrl.hash}`,
     );
+    return null;
+  }
+
+  const storageState = hydrateWatchStorage();
+  if (!storageState.isHydrated || storageState.watches.length > 0) return null;
+
+  return hasCompletedOnboarding() ? 'new-watch.html' : getReplayIntroFlow();
+};
+
+export const initApp = () => {
+  const initialRoute = resolveInitialHomeRoute();
+  if (initialRoute) {
+    window.location.replace(initialRoute);
     return;
   }
 

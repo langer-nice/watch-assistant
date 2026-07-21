@@ -1,6 +1,8 @@
 import { t, translatePage } from './i18n.js';
 import { createLanguageControl } from './language-control.js';
 
+const HOME_DESTINATION = 'index.html?entry=navigation';
+
 const profileIcon = `
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <circle cx="12" cy="8" r="4"></circle>
@@ -18,14 +20,14 @@ const getNavigationConfig = () => {
   if (document.querySelector('.page--watches')) {
     return {
       pattern: 'single',
-      destination: { href: 'index.html', labelKey: 'common.home' },
+      destination: { href: HOME_DESTINATION, labelKey: 'common.home' },
     };
   }
   if (document.querySelector('.page--detail')) {
     return {
       pattern: 'breadcrumb',
       destinations: [
-        { href: 'index.html', labelKey: 'common.home' },
+        { href: HOME_DESTINATION, labelKey: 'common.home' },
         { href: 'watches.html', labelKey: 'detail.allWatches' },
       ],
     };
@@ -36,7 +38,7 @@ const getNavigationConfig = () => {
       pattern: 'single',
       destination: fromWatches
         ? { href: 'watches.html', labelKey: 'newWatch.allWatchesBack' }
-        : { href: 'index.html', labelKey: 'newWatch.back' },
+        : { href: HOME_DESTINATION, labelKey: 'newWatch.back' },
       backId: 'newWatchBack',
     };
   }

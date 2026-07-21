@@ -38,13 +38,13 @@ export function setBriefingGeneratedAt(date = new Date()) {
 }
 
 export function getStoredWatches() {
-  const json = localStorage.getItem(STORAGE_KEY);
-  if (!json) {
-    return [];
-  }
-
   try {
-    return JSON.parse(json) || [];
+    const json = localStorage.getItem(STORAGE_KEY);
+    if (!json) {
+      return [];
+    }
+    const watches = JSON.parse(json);
+    return Array.isArray(watches) ? watches : [];
   } catch (error) {
     console.warn('Could not read stored watches', error);
     return [];
@@ -72,6 +72,13 @@ export function getWatches() {
     (watch) => !mockIds.has(watch.id) && !deletedIds.has(watch.id),
   );
   return [...seededWatches, ...customWatches];
+}
+
+export function hydrateWatchStorage() {
+  return {
+    isHydrated: true,
+    watches: getWatches(),
+  };
 }
 
 export function addWatch(watch) {
