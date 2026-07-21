@@ -1,5 +1,5 @@
 import { t } from './i18n.js';
-import { initLanguageSwitcher } from './language-switcher.js';
+import { mountOnboardingLanguageControl } from './language-control.js';
 import { getWatches } from './watch-storage.js';
 import { markOnboardingCompleted, registerCurrentIntroFlow } from './intro-flow.js';
 import { initializeFlowLanguage } from './flow-language-gate.js';
@@ -58,7 +58,7 @@ const renderSampleBriefing = () => {
   }).join('');
 };
 
-const initFlow = () => {
+const initFlow = (languageControl) => {
   const steps = [...document.querySelectorAll('[data-flow-step]')];
   let activeStep = 0;
 
@@ -70,6 +70,7 @@ const initFlow = () => {
     steps[activeStep].hidden = true;
     steps[nextStep].hidden = false;
     activeStep = nextStep;
+    languageControl?.setTheme(activeStep === 0 ? 'dark' : 'light');
     steps[activeStep].focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
@@ -87,8 +88,8 @@ const initFlow = () => {
 
 initializeFlowLanguage().then(() => {
   registerCurrentIntroFlow();
-  initLanguageSwitcher();
-  initFlow();
+  const languageControl = mountOnboardingLanguageControl();
+  initFlow(languageControl);
   renderSampleBriefing();
   document.addEventListener('i18n:languageChanged', renderSampleBriefing);
 });

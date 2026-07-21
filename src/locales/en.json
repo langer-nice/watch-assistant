@@ -11,8 +11,6 @@
   },
   "languageSwitcher": {
     "label": "Language",
-    "english": "Switch to English",
-    "french": "Switch to French",
     "englishName": "English",
     "frenchName": "Français"
   },

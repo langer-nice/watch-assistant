@@ -1,16 +1,5 @@
-import { getLanguage, setLanguage, t, translatePage } from './i18n.js';
-
-const LANGUAGE_OPTIONS = [
-  { code: 'en', labelKey: 'languageSwitcher.englishName' },
-  { code: 'fr', labelKey: 'languageSwitcher.frenchName' },
-];
-
-const globeIcon = `
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    <circle cx="12" cy="12" r="9"></circle>
-    <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"></path>
-  </svg>
-`;
+import { t, translatePage } from './i18n.js';
+import { createLanguageControl } from './language-control.js';
 
 const profileIcon = `
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -104,32 +93,6 @@ export const initTopNavigation = () => {
         <button
           class="top-navigation__icon-button"
           type="button"
-          data-language-trigger
-          aria-controls="topNavigationLanguageMenu"
-          aria-haspopup="menu"
-          aria-expanded="false"
-          data-i18n-aria-label="topNavigation.changeLanguage"
-        >${globeIcon}</button>
-        <div
-          class="top-navigation__popover top-navigation__language-menu"
-          id="topNavigationLanguageMenu"
-          role="menu"
-          data-language-menu
-          data-i18n-aria-label="languageSwitcher.label"
-          hidden
-        >
-          ${LANGUAGE_OPTIONS.map(({ code, labelKey }) => `
-            <button type="button" role="menuitemradio" data-language="${code}">
-              <span class="top-navigation__check" aria-hidden="true">✓</span>
-              <span data-i18n="${labelKey}"></span>
-            </button>
-          `).join('')}
-        </div>
-      </div>
-      <div class="top-navigation__control">
-        <button
-          class="top-navigation__icon-button"
-          type="button"
           data-profile-trigger
           aria-controls="topNavigationProfileMenu"
           aria-haspopup="dialog"
@@ -154,78 +117,35 @@ export const initTopNavigation = () => {
   navigation.setAttribute('aria-label', t('topNavigation.label'));
   translatePage(navigation);
 
-  const languageTrigger = navigation.querySelector('[data-language-trigger]');
-  const languageMenu = navigation.querySelector('[data-language-menu]');
+  const controls = navigation.querySelector('.top-navigation__controls');
+  controls.prepend(createLanguageControl({ theme: 'light' }));
   const profileTrigger = navigation.querySelector('[data-profile-trigger]');
   const profileMenu = navigation.querySelector('[data-profile-menu]');
 
-  const updateLanguageSelection = () => {
-    const activeLanguage = getLanguage();
-    navigation.querySelectorAll('[data-language]').forEach((button) => {
-      const selected = button.dataset.language === activeLanguage;
-      button.classList.toggle('is-selected', selected);
-      button.setAttribute('aria-checked', String(selected));
-    });
-  };
-
-  const openLanguageMenu = () => {
-    closePopover(profileMenu, profileTrigger, { restoreFocus: false });
-    languageMenu.hidden = false;
-    languageTrigger.setAttribute('aria-expanded', 'true');
-    const selected = languageMenu.querySelector('[aria-checked="true"]');
-    window.requestAnimationFrame(() => selected?.focus({ preventScroll: true }));
-  };
-
   const openProfileMenu = () => {
-    closePopover(languageMenu, languageTrigger, { restoreFocus: false });
+    document.dispatchEvent(new CustomEvent('profile-control:opening'));
     profileMenu.hidden = false;
     profileTrigger.setAttribute('aria-expanded', 'true');
   };
-
-  languageTrigger.addEventListener('click', () => {
-    if (languageMenu.hidden) openLanguageMenu();
-    else closePopover(languageMenu, languageTrigger);
-  });
 
   profileTrigger.addEventListener('click', () => {
     if (profileMenu.hidden) openProfileMenu();
     else closePopover(profileMenu, profileTrigger);
   });
 
-  languageMenu.addEventListener('click', (event) => {
-    const option = event.target.closest('[data-language]');
-    if (!option) return;
-    setLanguage(option.dataset.language);
-    closePopover(languageMenu, languageTrigger);
-  });
-
-  languageMenu.addEventListener('keydown', (event) => {
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    const options = [...languageMenu.querySelectorAll('[data-language]')];
-    const currentIndex = options.indexOf(document.activeElement);
-    const nextIndex = event.key === 'Home'
-      ? 0
-      : event.key === 'End'
-        ? options.length - 1
-        : (currentIndex + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
-    options[nextIndex]?.focus();
-  });
-
   document.addEventListener('click', (event) => {
-    if (languageMenu.hidden && profileMenu.hidden) return;
-    if (!navigation.contains(event.target)) {
-      closePopover(languageMenu, languageTrigger);
-      closePopover(profileMenu, profileTrigger);
-    }
+    if (profileMenu.hidden || navigation.contains(event.target)) return;
+    closePopover(profileMenu, profileTrigger, {
+      restoreFocus: navigation.contains(document.activeElement),
+    });
+  });
+
+  document.addEventListener('language-control:opening', () => {
+    closePopover(profileMenu, profileTrigger, { restoreFocus: false });
   });
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    if (!languageMenu.hidden) closePopover(languageMenu, languageTrigger);
-    else if (!profileMenu.hidden) closePopover(profileMenu, profileTrigger);
+    if (!profileMenu.hidden) closePopover(profileMenu, profileTrigger);
   });
-
-  document.addEventListener('i18n:languageChanged', updateLanguageSelection);
-  updateLanguageSelection();
 };

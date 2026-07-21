@@ -1,0 +1,108 @@
+.language-control {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.language-control__trigger {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  place-items: center;
+  color: var(--color-text-muted);
+  background: var(--color-transparent);
+  border: 1px solid var(--color-transparent);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    color var(--transition-default),
+    background-color var(--transition-default),
+    border-color var(--transition-default);
+}
+
+.language-control__trigger:hover,
+.language-control__trigger:focus-visible,
+.language-control__trigger[aria-expanded='true'] {
+  color: var(--color-text);
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.language-control__trigger svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+}
+
+.language-control__menu {
+  position: absolute;
+  top: calc(100% + var(--space-xxs));
+  right: 0;
+  z-index: 30;
+  min-width: 11rem;
+  padding: var(--space-xxs);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-control);
+}
+
+.language-control__menu[hidden] {
+  display: none;
+}
+
+.language-control__menu button {
+  display: grid;
+  width: 100%;
+  min-height: 2.75rem;
+  grid-template-columns: 1rem 1fr;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0 var(--space-sm);
+  color: var(--color-text);
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  text-align: left;
+}
+
+.language-control__menu button:hover,
+.language-control__menu button:focus-visible,
+.language-control__menu button.is-selected {
+  background: var(--color-surface-subtle);
+}
+
+.language-control__check {
+  color: var(--color-text);
+  opacity: 0;
+}
+
+.language-control__menu button.is-selected .language-control__check {
+  opacity: 1;
+}
+
+.language-control--dark .language-control__trigger {
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.language-control--dark .language-control__trigger:hover,
+.language-control--dark .language-control__trigger:focus-visible,
+.language-control--dark .language-control__trigger[aria-expanded='true'] {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.language-control--onboarding {
+  position: absolute;
+  top: calc(var(--space-sm) + env(safe-area-inset-top));
+  right: max(var(--space-xl), env(safe-area-inset-right));
+  z-index: 50;
+}

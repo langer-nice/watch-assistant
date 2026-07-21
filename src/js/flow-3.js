@@ -1,6 +1,6 @@
 import { markOnboardingCompleted, registerCurrentIntroFlow } from './intro-flow.js';
 import { setLanguage, t } from './i18n.js';
-import { initLanguageSwitcher } from './language-switcher.js';
+import { mountOnboardingLanguageControl } from './language-control.js';
 import { initializeFlowLanguage } from './flow-language-gate.js';
 
 const screens = [...document.querySelectorAll('[data-flow-3-screen]')];
@@ -19,6 +19,7 @@ const timelines = prefersReducedMotion ? reducedMotionTimelines : standardTimeli
 let activeScreenIndex = 0;
 let sequenceVersion = 0;
 let sequenceRunning = false;
+let onboardingLanguageControl = null;
 let activeTimer = null;
 let resolveActiveDelay = null;
 
@@ -251,13 +252,14 @@ const showScreen = (screenIndex) => {
   activeScreenIndex = screenIndex;
   resetScreen(screens[activeScreenIndex]);
   screens[activeScreenIndex].hidden = false;
+  onboardingLanguageControl?.setTheme(activeScreenIndex === 1 ? 'light' : 'dark');
   screens[activeScreenIndex].focus({ preventScroll: true });
   window.scrollTo({ top: 0, behavior: 'auto' });
   runSequence(activeScreenIndex);
 };
 
 const handleFlowClick = (event) => {
-  if (event.target.closest('.language-switcher')) {
+  if (event.target.closest('.language-control')) {
     return;
   }
 
@@ -285,7 +287,7 @@ initializeFlowLanguage({
   },
 }).then(async () => {
   registerCurrentIntroFlow();
-  initLanguageSwitcher();
+  onboardingLanguageControl = mountOnboardingLanguageControl();
   screens.forEach((screen, index) => {
     if (index > 0) resetScreen(screen);
   });
