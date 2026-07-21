@@ -752,12 +752,14 @@ const renderWatchList = () => {
         : getMonitoringSummary(watch, title);
       return `
       <a class="watch-row${isPaused ? ' watch-row--paused' : ''}" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
-        <div>
+        <div class="watch-row__metadata">
           <p class="watch-row__category">${escapeHtml(t(`categories.${watch.category}`))}</p>
+          ${statusLabel}
+        </div>
+        <div class="watch-row__content">
           <h2>${escapeHtml(title)}</h2>
           ${subtitle ? `<p class="watch-row__summary">${escapeHtml(subtitle)}</p>` : ''}
         </div>
-        ${statusLabel}
       </a>
     `;
     })
