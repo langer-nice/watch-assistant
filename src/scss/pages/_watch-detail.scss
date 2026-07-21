@@ -355,7 +355,7 @@ body.is-watch-edit-open {
   border-radius: 0;
 }
 
-.page--detail.is-paused .detail-card > .detail-label {
+.page--detail.is-paused .detail-card > .section-heading {
   padding: 0;
 }
 
@@ -385,10 +385,6 @@ body.is-watch-edit-open {
   border-radius: 0;
 }
 
-.page--detail.is-paused .personal-note .detail-label {
-  color: var(--color-text-subtle);
-}
-
 .page--detail.is-paused .personal-note blockquote {
   color: var(--color-text-muted);
 }
@@ -415,11 +411,6 @@ body.is-watch-edit-open {
 .page--detail.is-paused > .watch-management {
   margin-inline: var(--space-xs);
   margin-top: var(--space-xl);
-}
-
-.page--detail.is-paused .external-actions > .detail-label,
-.page--detail.is-paused .watch-management > .detail-label {
-  margin-inline: 0;
 }
 
 .page--detail.is-paused .detail-card,
@@ -633,10 +624,6 @@ body.is-watch-edit-open {
   margin-top: var(--space-xs);
   color: var(--color-status-success);
   font-size: var(--font-size-xs);
-}
-
-.watch-management > .detail-label {
-  margin: 0 0 var(--space-md);
 }
 
 .watch-management__controls {

@@ -196,16 +196,6 @@
   border-top: 1px solid var(--color-border);
 }
 
-.briefing-group__label {
-  margin: 0 0 var(--space-xs);
-  color: var(--color-text-subtle);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.16em;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
 @media (min-width: 48rem) {
   .page--home {
     padding-top: var(--space-sm);

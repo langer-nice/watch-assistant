@@ -13,6 +13,10 @@ import {
 import { getLanguage, t } from './i18n.js';
 import { analyseUrl } from './url-analysis.js';
 import {
+  extractMonitoringConcepts,
+  MONITORING_CONCEPTS_VERSION,
+} from './monitoring-concepts.js';
+import {
   getReplayIntroFlow,
   hasCompletedOnboarding,
   markOnboardingCompleted,
@@ -410,27 +414,6 @@ const inferCategory = (request) => {
   return 'general';
 };
 
-const KEYWORD_STOP_WORDS = new Set([
-  'about', 'after', 'again', 'also', 'avec', 'dans', 'elle', 'from', 'have', 'je',
-  'know', 'let', 'like', 'mais', 'me', 'notify', 'pour', 'quand', 'that', 'the',
-  'this', 'une', 'watch', 'when', 'will', 'with', 'your', 'vous', 'www', 'https',
-]);
-
-const extractKeywords = (value, limit = 6) => {
-  const words = String(value || '')
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLocaleLowerCase()
-    .match(/[\p{L}\p{N}]{3,}/gu) || [];
-  const uniqueWords = [];
-  words.forEach((word) => {
-    if (!KEYWORD_STOP_WORDS.has(word) && !uniqueWords.includes(word)) {
-      uniqueWords.push(word);
-    }
-  });
-  return uniqueWords.slice(0, limit);
-};
-
 const hasReleaseIntent = (request) => (
   /(release date|released|comes out|coming out|publication date|date de sortie|date de parution|sortie|parution|publi[ée])/
     .test(request.toLowerCase())
@@ -595,7 +578,7 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
   const category = options.category || inferredCategory;
   const keywords = Array.isArray(options.keywords)
     ? options.keywords
-    : extractKeywords([request, urlAnalysis?.title].filter(Boolean).join(' '));
+    : extractMonitoringConcepts([request, urlAnalysis?.title].filter(Boolean).join(' '));
   const selectedKeywords = Array.isArray(options.selectedKeywords)
     ? options.selectedKeywords
     : keywords;
@@ -610,6 +593,7 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     categorySource: options.categorySource || 'inferred',
     keywords,
     selectedKeywords,
+    monitoringConceptsVersion: MONITORING_CONCEPTS_VERSION,
     structuredCriteria,
     ...structuredCriteria,
     monitoringSummary: urlAnalysis?.summary || null,
@@ -1591,6 +1575,7 @@ export function initForm() {
   let noteCollapseTimer = null;
   let keywordRegenerationTimer = null;
   let keywordItems = [];
+  let editingConceptIndex = null;
   let keywordsManuallyEdited = false;
   let categorySource = editingWatch?.categorySource || 'inferred';
   let keywordSourceRequest = '';
@@ -1643,34 +1628,76 @@ export function initForm() {
 
   const getKeywordValues = () => ({
     keywords: keywordItems.map((item) => item.label),
-    selectedKeywords: keywordItems.filter((item) => item.selected).map((item) => item.label),
+    selectedKeywords: keywordItems.map((item) => item.label),
   });
 
   const renderKeywords = () => {
     if (!keywordChipsEl) return;
     keywordChipsEl.innerHTML = keywordItems
-      .map((item, index) => `
-        <span class="watch-keyword${item.selected ? ' is-selected' : ''}">
-          <button
-            class="watch-keyword__toggle"
-            type="button"
-            data-keyword-toggle="${index}"
-            aria-pressed="${item.selected}"
-          >${escapeHtml(item.label)}</button>
+      .map((item, index) => {
+        const labelControl = editingConceptIndex === index
+          ? `<input
+              class="watch-keyword__edit"
+              type="text"
+              value="${escapeHtml(item.label)}"
+              data-concept-edit="${index}"
+              aria-label="${escapeHtml(t('newWatch.renameConcept', { concept: item.label }))}"
+              style="width: ${Math.max(5, Math.min(28, [...item.label].length + 1))}ch"
+            />`
+          : `<button
+              class="watch-keyword__toggle"
+              type="button"
+              data-concept-rename="${index}"
+              aria-label="${escapeHtml(t('newWatch.renameConcept', { concept: item.label }))}"
+            >${escapeHtml(item.label)}</button>`;
+        return `
+        <span class="watch-keyword is-selected">
+          ${labelControl}
           <button
             class="watch-keyword__remove"
             type="button"
             data-keyword-remove="${index}"
-            aria-label="${escapeHtml(t('newWatch.removeKeyword', { keyword: item.label }))}"
+            aria-label="${escapeHtml(t('newWatch.removeConcept', { concept: item.label }))}"
           >×</button>
         </span>
-      `)
+      `;
+      })
       .join('');
     refreshEditSaveState();
   };
 
+  const beginConceptRename = (index) => {
+    if (!keywordItems[index]) return;
+    editingConceptIndex = index;
+    renderKeywords();
+    window.requestAnimationFrame(() => {
+      const editor = keywordChipsEl?.querySelector(`[data-concept-edit="${index}"]`);
+      editor?.focus();
+      editor?.select();
+    });
+  };
+
+  const finishConceptRename = (index, value, { cancel = false } = {}) => {
+    if (editingConceptIndex !== index) return;
+    const label = value.trim();
+    if (!cancel && label) {
+      keywordsManuallyEdited = true;
+      const duplicateIndex = keywordItems.findIndex((item, itemIndex) => (
+        itemIndex !== index && item.label.toLocaleLowerCase() === label.toLocaleLowerCase()
+      ));
+      if (duplicateIndex >= 0) {
+        keywordItems.splice(index, 1);
+      } else {
+        keywordItems[index].label = label;
+        keywordItems[index].selected = true;
+      }
+    }
+    editingConceptIndex = null;
+    renderKeywords();
+  };
+
   const replaceSuggestedKeywords = (request) => {
-    keywordItems = extractKeywords(request).map((label) => ({ label, selected: true }));
+    keywordItems = extractMonitoringConcepts(request).map((label) => ({ label, selected: true }));
     keywordSourceRequest = request;
     renderKeywords();
   };
@@ -1848,7 +1875,7 @@ export function initForm() {
     const categoryChanged = category !== editingWatch.category;
     const originalKeywords = Array.isArray(editingWatch.keywords)
       ? editingWatch.keywords
-      : extractKeywords(originalRequest);
+      : extractMonitoringConcepts(originalRequest);
     const originalSelectedKeywords = Array.isArray(editingWatch.selectedKeywords)
       ? editingWatch.selectedKeywords
       : originalKeywords;
@@ -1868,6 +1895,7 @@ export function initForm() {
       category,
       categorySource,
       ...keywordValues,
+      monitoringConceptsVersion: MONITORING_CONCEPTS_VERSION,
       inputType: derivedData.inputType,
       sourceUrl: derivedData.sourceUrl,
       sourceName: derivedData.sourceName,
@@ -2064,15 +2092,17 @@ export function initForm() {
       const originalRequest = localizeField(editingWatch, 'request') || '';
       const originalUrl = editingWatch.inputType === 'url' ? editingWatch.sourceUrl : '';
       const inputValue = originalUrl || originalRequest;
-      const existingKeywords = Array.isArray(editingWatch.keywords)
-        ? editingWatch.keywords.filter((keyword) => typeof keyword === 'string' && keyword.trim())
-        : extractKeywords(inputValue);
-      const selectedKeywords = new Set(
-        Array.isArray(editingWatch.selectedKeywords)
-          ? editingWatch.selectedKeywords
-          : existingKeywords,
+      const conceptSource = [
+        originalRequest,
+        localizeField(editingWatch, 'sourceTitle'),
+        localizeField(editingWatch, 'title'),
+      ].filter(Boolean).join(' ');
+      const hasCurrentMonitoringConcepts = (
+        editingWatch.monitoringConceptsVersion === MONITORING_CONCEPTS_VERSION
       );
-
+      const existingKeywords = hasCurrentMonitoringConcepts && Array.isArray(editingWatch.keywords)
+        ? editingWatch.keywords.filter((keyword) => typeof keyword === 'string' && keyword.trim())
+        : extractMonitoringConcepts(conceptSource);
       if (headingEl) {
         headingEl.dataset.i18n = 'newWatch.editHeading';
         headingEl.textContent = t('newWatch.editHeading');
@@ -2112,7 +2142,7 @@ export function initForm() {
       }
       keywordItems = existingKeywords.map((label) => ({
         label,
-        selected: selectedKeywords.has(label),
+        selected: true,
       }));
       keywordSourceRequest = inputValue;
       if (categoryInputEl) {
@@ -2141,7 +2171,7 @@ export function initForm() {
         watchOptionsEl.hidden = true;
       }
       keywordSourceRequest = input?.value || '';
-      keywordItems = extractKeywords(keywordSourceRequest)
+      keywordItems = extractMonitoringConcepts(keywordSourceRequest)
         .map((label) => ({ label, selected: true }));
       if (categoryInputEl) {
         categoryInputEl.value = inferCategory(keywordSourceRequest);
@@ -2240,19 +2270,33 @@ export function initForm() {
   });
 
   keywordChipsEl?.addEventListener('click', (event) => {
-    const toggle = event.target.closest('[data-keyword-toggle]');
+    const rename = event.target.closest('[data-concept-rename]');
     const remove = event.target.closest('[data-keyword-remove]');
-    if (toggle) {
-      keywordsManuallyEdited = true;
-      const item = keywordItems[Number(toggle.dataset.keywordToggle)];
-      if (item) item.selected = !item.selected;
-      renderKeywords();
+    if (rename) {
+      beginConceptRename(Number(rename.dataset.conceptRename));
     }
     if (remove) {
       keywordsManuallyEdited = true;
       keywordItems.splice(Number(remove.dataset.keywordRemove), 1);
       renderKeywords();
     }
+  });
+
+  keywordChipsEl?.addEventListener('keydown', (event) => {
+    const editor = event.target.closest('[data-concept-edit]');
+    if (!editor || !['Enter', 'Escape'].includes(event.key)) return;
+    event.preventDefault();
+    finishConceptRename(
+      Number(editor.dataset.conceptEdit),
+      editor.value,
+      { cancel: event.key === 'Escape' },
+    );
+  });
+
+  keywordChipsEl?.addEventListener('focusout', (event) => {
+    const editor = event.target.closest('[data-concept-edit]');
+    if (!editor) return;
+    finishConceptRename(Number(editor.dataset.conceptEdit), editor.value);
   });
 
   keywordAddEl?.addEventListener('click', addKeyword);
