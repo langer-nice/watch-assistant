@@ -8,14 +8,23 @@
   --color-text-on-dark: #ffffff;
   --color-border: #d9d6d2;
   --color-divider: #e7e3de;
-  --color-action: #5e7285;
-  --color-action-hover: #526678;
-  --color-action-tint: #e9eef2;
+  --color-ink-blue-700: #526678;
+  --color-ink-blue-600: #5e7285;
+  --color-ink-blue-500: #6f879b;
+  --color-ink-blue-400: #88a0b4;
+  --color-ink-blue-100: #e9eef2;
+  --color-action: var(--color-ink-blue-600);
+  --color-action-hover: var(--color-ink-blue-700);
+  --color-action-tint: var(--color-ink-blue-100);
   // Darker action text is used on the tint to maintain WCAG AA for body-sized text.
   --color-action-on-tint: var(--color-action-hover);
   --color-success: #5c8b72;
   --color-attention: #c76a61;
+  --color-attention-strong: #9f4f48;
   --color-personal: #f7f1e8;
+  --color-indicator-attention: #d94841;
+  --color-indicator-updated: #2e7dd7;
+  --color-indicator-unchanged: #2fa84f;
 
   // Supporting semantic roles
   --color-transparent: transparent;
@@ -50,12 +59,12 @@
   --color-danger: var(--color-attention);
 
   // Status and category roles
-  --color-status-action: var(--color-attention);
-  --color-status-action-bg: color-mix(in srgb, var(--color-attention) 12%, var(--color-surface));
-  --color-status-action-border: color-mix(in srgb, var(--color-attention) 34%, var(--color-border));
-  --color-status-update: var(--color-action);
-  --color-status-update-text: var(--color-text-on-dark);
-  --color-status-update-bg: var(--color-action);
+  --color-status-action: var(--color-attention-strong);
+  --color-status-action-bg: color-mix(in srgb, var(--color-attention) 18%, var(--color-surface));
+  --color-status-action-border: color-mix(in srgb, var(--color-attention) 46%, var(--color-border));
+  --color-status-update: var(--color-ink-blue-500);
+  --color-status-update-text: var(--color-ink-blue-500);
+  --color-status-update-bg: var(--color-ink-blue-100);
   --color-status-neutral-surface: #f1f1ef;
   --color-status-neutral-emphasis: color-mix(in srgb, var(--color-text-secondary) 85%, var(--color-text-primary));
   --color-status-watching: #777777;

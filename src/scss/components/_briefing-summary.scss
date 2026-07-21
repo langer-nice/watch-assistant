@@ -107,13 +107,13 @@
 }
 
 .briefing-summary__status--action .briefing-summary__dot {
-  color: var(--color-status-action);
+  color: var(--color-indicator-attention);
 }
 
 .briefing-summary__status--update .briefing-summary__dot {
-  color: var(--color-status-update);
+  color: var(--color-indicator-updated);
 }
 
 .briefing-summary__status--success .briefing-summary__dot {
-  color: var(--color-status-success);
+  color: var(--color-indicator-unchanged);
 }
