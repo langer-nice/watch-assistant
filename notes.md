@@ -10,7 +10,7 @@ git status
 git branch
 
 # Créer une nouvelle branche
-git switch -c feature/URL-paste-issue
+git switch -c feature/navigation
 
 # Changer de branche
 git switch master

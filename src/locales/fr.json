@@ -12,7 +12,16 @@
   "languageSwitcher": {
     "label": "Langue",
     "english": "Passer en anglais",
-    "french": "Passer en français"
+    "french": "Passer en français",
+    "englishName": "English",
+    "frenchName": "Français"
+  },
+  "topNavigation": {
+    "label": "Navigation du produit",
+    "changeLanguage": "Changer de langue",
+    "openProfile": "Ouvrir le menu du profil",
+    "accountMenu": "Compte",
+    "accountComingSoon": "Compte bientôt disponible"
   },
   "meta": {
     "home": "Watch Assistant — Rapport du matin",
@@ -67,6 +76,8 @@
     "meaningfulUpdates": "présentent des mises à jour importantes",
     "noChanges": "ont été vérifiés sans changement",
     "briefingItemsLabel": "Éléments qui méritent votre attention",
+    "needsAttentionSection": "Demande votre attention",
+    "updatedSection": "Mises à jour",
     "actNow": "Agir maintenant",
     "updated": "Actualisé",
     "everythingLabel": "Tout le reste",
@@ -334,6 +345,46 @@
       "timelineTwo": "Critères de recherche enregistrés",
       "timelineThree": "Nouveau bien correspondant trouvé",
       "externalActionOne": "Voir l’annonce immobilière"
+    },
+    "watch-004": {
+      "title": "Billets de train pour Paris à moins de 50 €",
+      "request": "Prévenez-moi lorsque les billets de train pour Paris passent sous les 50 €",
+      "monitoringSummary": "Surveillance des tarifs ferroviaires vers Paris sous les 50 €.",
+      "currentSituation": "Aucun tarif correspondant n’est encore disponible.",
+      "lastChecked": "Aujourd’hui · 7 h 20",
+      "sourceOne": "Compagnies ferroviaires et services de réservation"
+    },
+    "watch-005": {
+      "title": "Billets pour Wimbledon",
+      "request": "Prévenez-moi lorsque les billets pour Wimbledon seront mis en vente au grand public",
+      "monitoringSummary": "Surveillance de la disponibilité officielle des billets pour Wimbledon.",
+      "currentSituation": "Les billets grand public ne sont pas encore en vente.",
+      "lastChecked": "Aujourd’hui · 7 h 18",
+      "sourceOne": "Site officiel de Wimbledon"
+    },
+    "watch-006": {
+      "title": "iPhone à moins de 800 €",
+      "request": "Prévenez-moi lorsque le dernier iPhone passe sous les 800 €",
+      "monitoringSummary": "Surveillance des revendeurs fiables pour un prix inférieur à 800 €.",
+      "currentSituation": "Aucun prix correspondant n’a encore été trouvé.",
+      "lastChecked": "Aujourd’hui · 7 h 15",
+      "sourceOne": "Principaux revendeurs d’électronique"
+    },
+    "watch-007": {
+      "title": "Réglementation européenne sur l’IA",
+      "request": "Tenez-moi au courant des changements importants de la réglementation européenne sur l’IA",
+      "monitoringSummary": "Surveillance des sources officielles pour les évolutions réglementaires importantes.",
+      "currentSituation": "Aucune nouvelle évolution ne requiert votre attention.",
+      "lastChecked": "Aujourd’hui · 7 h 12",
+      "sourceOne": "Institutions européennes officielles"
+    },
+    "watch-008": {
+      "title": "Bureau en coworking à Monaco",
+      "request": "Prévenez-moi lorsqu’un bureau flexible en coworking se libère à Monaco",
+      "monitoringSummary": "Surveillance des espaces de coworking locaux pour une disponibilité flexible.",
+      "currentSituation": "Aucune disponibilité adaptée n’a encore été annoncée.",
+      "lastChecked": "Aujourd’hui · 7 h 08",
+      "sourceOne": "Espaces de coworking locaux"
     }
   },
   "dev": {

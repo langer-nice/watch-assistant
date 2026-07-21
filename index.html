@@ -64,7 +64,17 @@
         </section>
 
         <section class="briefing-feed" aria-label="Briefing items" data-i18n-aria-label="home.briefingItemsLabel">
-          <div id="homeBriefingList"></div>
+          <div id="homeBriefingList">
+            <section class="briefing-group" id="homeAttentionSection" aria-labelledby="homeAttentionSectionLabel" hidden>
+              <p class="briefing-group__label" id="homeAttentionSectionLabel" data-i18n="home.needsAttentionSection"></p>
+              <div id="homeAttentionList"></div>
+            </section>
+
+            <section class="briefing-group" id="homeUpdatedSection" aria-labelledby="homeUpdatedSectionLabel" hidden>
+              <p class="briefing-group__label" id="homeUpdatedSectionLabel" data-i18n="home.updatedSection"></p>
+              <div id="homeUpdatedList"></div>
+            </section>
+          </div>
 
           <section class="all-quiet" id="homeAllQuiet" aria-labelledby="allQuietTitle">
             <p class="all-quiet__label" data-i18n="home.everythingLabel"></p>

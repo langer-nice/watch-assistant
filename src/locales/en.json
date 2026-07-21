@@ -12,7 +12,16 @@
   "languageSwitcher": {
     "label": "Language",
     "english": "Switch to English",
-    "french": "Switch to French"
+    "french": "Switch to French",
+    "englishName": "English",
+    "frenchName": "Français"
+  },
+  "topNavigation": {
+    "label": "Product navigation",
+    "changeLanguage": "Change language",
+    "openProfile": "Open profile menu",
+    "accountMenu": "Account",
+    "accountComingSoon": "Account coming soon"
   },
   "meta": {
     "home": "Watch Assistant — Morning Report",
@@ -67,6 +76,8 @@
     "meaningfulUpdates": "have meaningful updates",
     "noChanges": "were checked with no changes",
     "briefingItemsLabel": "Items that deserve your attention",
+    "needsAttentionSection": "Needs your attention",
+    "updatedSection": "Updated",
     "actNow": "Act now",
     "updated": "Updated",
     "everythingLabel": "Everything else",
@@ -334,6 +345,46 @@
       "timelineTwo": "Search criteria saved",
       "timelineThree": "New matching property found",
       "externalActionOne": "View property listing"
+    },
+    "watch-004": {
+      "title": "Train tickets to Paris below €50",
+      "request": "Tell me when train tickets to Paris fall below €50",
+      "monitoringSummary": "Watching train fares to Paris for a price below €50.",
+      "currentSituation": "No qualifying fare is available yet.",
+      "lastChecked": "Today · 7:20 AM",
+      "sourceOne": "Train operators and booking services"
+    },
+    "watch-005": {
+      "title": "Wimbledon tickets",
+      "request": "Tell me when Wimbledon tickets go on general sale",
+      "monitoringSummary": "Watching for official Wimbledon ticket availability.",
+      "currentSituation": "General-sale tickets have not been released yet.",
+      "lastChecked": "Today · 7:18 AM",
+      "sourceOne": "Official Wimbledon website"
+    },
+    "watch-006": {
+      "title": "iPhone below €800",
+      "request": "Tell me when the latest iPhone falls below €800",
+      "monitoringSummary": "Watching trusted retailers for a price below €800.",
+      "currentSituation": "No matching price has been found yet.",
+      "lastChecked": "Today · 7:15 AM",
+      "sourceOne": "Major electronics retailers"
+    },
+    "watch-007": {
+      "title": "European AI regulation",
+      "request": "Keep me updated on meaningful changes to European AI regulation",
+      "monitoringSummary": "Watching official sources for meaningful regulatory developments.",
+      "currentSituation": "No new development requires your attention.",
+      "lastChecked": "Today · 7:12 AM",
+      "sourceOne": "Official European institutions"
+    },
+    "watch-008": {
+      "title": "Coworking desk in Monaco",
+      "request": "Tell me when a flexible coworking desk becomes available in Monaco",
+      "monitoringSummary": "Watching local coworking spaces for flexible desk availability.",
+      "currentSituation": "No suitable availability has been announced yet.",
+      "lastChecked": "Today · 7:08 AM",
+      "sourceOne": "Local coworking spaces"
     }
   },
   "dev": {

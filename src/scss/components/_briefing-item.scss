@@ -52,6 +52,12 @@
   line-height: 1.55;
 }
 
+.briefing-item .briefing-item__time {
+  margin-bottom: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+
 .briefing-item__link:hover .editorial-link,
 .briefing-item__link:focus-visible .editorial-link {
   text-decoration: underline;
