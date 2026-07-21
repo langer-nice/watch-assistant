@@ -7,7 +7,7 @@
 }
 
 .watch-composer:focus-within {
-  border-color: var(--color-primary);
+  border-color: var(--color-action);
   box-shadow: var(--shadow-focus);
 }
 
@@ -120,7 +120,7 @@
   min-height: 2.75rem;
   padding: 0 var(--space-md);
   color: var(--color-text-on-dark);
-  background: var(--color-primary);
+  background: var(--color-action);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -129,7 +129,7 @@
 }
 
 .watch-composer__submit:hover:not(:disabled) {
-  background: var(--color-primary-hover);
+  background: var(--color-action-hover);
 }
 
 .watch-composer__submit:disabled {
@@ -201,7 +201,7 @@
   width: fit-content;
   margin-inline: var(--space-xxs);
   padding: var(--space-xxs) 0;
-  color: var(--color-text-muted);
+  color: var(--color-action);
   background: var(--color-transparent);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -210,7 +210,7 @@
 
 .watch-reason-toggle:hover,
 .watch-reason-toggle:focus-visible {
-  color: var(--color-text);
+  color: var(--color-action-hover);
   text-decoration: underline;
   text-underline-offset: var(--space-3xs);
 }
@@ -248,9 +248,9 @@
 
 .watch-reason textarea:focus,
 .watch-reason textarea:focus-visible {
-  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+  border-color: color-mix(in srgb, var(--color-action) 45%, var(--color-border));
   outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 8%, var(--color-transparent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-action) 12%, var(--color-transparent));
 }
 
 .watch-composer__feedback {

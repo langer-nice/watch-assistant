@@ -631,6 +631,20 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, optio
 
 const getHomeWatches = () => getDemoWatches();
 
+const STATUS_LABEL_VARIANTS = {
+  attention: 'attention',
+  checking: 'checking',
+  completed: 'completed',
+  error: 'error',
+  paused: 'paused',
+  stable: 'stable',
+  updated: 'updated',
+  watching: 'watching',
+};
+
+const getStatusLabelVariant = (status) => STATUS_LABEL_VARIANTS[status] || 'checking';
+const shouldDisplayStatusLabel = (status) => status !== 'watching';
+
 const getHomeReport = () => {
   const activeWatches = getHomeWatches().filter((watch) => watch.status !== 'completed');
   const hasDisplayableUpdate = (watch) => (
@@ -670,8 +684,8 @@ const renderHomeWatchCards = (watches) => watches
     }
 
     const needsAttention = watch.requiresAttention || watch.status === 'attention';
-    const statusModifier = needsAttention ? 'action' : 'update';
-    const status = t(needsAttention ? 'home.actNow' : 'home.updated');
+    const statusModifier = needsAttention ? 'attention' : 'updated';
+    const status = t(needsAttention ? 'statuses.attention' : 'statuses.updated');
     const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
     const categoryModifier = watch.category || 'general';
     const latestChangeAt = localizeField(watch, 'latestChangeAt');
@@ -681,7 +695,7 @@ const renderHomeWatchCards = (watches) => watches
         <a class="briefing-item__link" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
           <div class="briefing-item__labels">
             <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
-            <span class="status-badge status-badge--${statusModifier}">${escapeHtml(status)}</span>
+            <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
           </div>
           <h2>${escapeHtml(title)}</h2>
           <p>${escapeHtml(latestChange)}</p>
@@ -728,6 +742,11 @@ const renderWatchList = () => {
       const storedTitle = localizeField(watch, 'title');
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
       const isPaused = watch.status === 'paused';
+      const status = STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking';
+      const statusModifier = getStatusLabelVariant(status);
+      const statusLabel = shouldDisplayStatusLabel(status)
+        ? `<span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(t(`statuses.${status}`))}</span>`
+        : '';
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : getMonitoringSummary(watch, title);
@@ -738,7 +757,7 @@ const renderWatchList = () => {
           <h2>${escapeHtml(title)}</h2>
           ${subtitle ? `<p class="watch-row__summary">${escapeHtml(subtitle)}</p>` : ''}
         </div>
-        <span class="watch-row__status${isPaused ? ' status-badge status-badge--paused' : ''}">${escapeHtml(t(`statuses.${watch.status}`))}</span>
+        ${statusLabel}
       </a>
     `;
     })
@@ -889,15 +908,14 @@ const renderWatchDetail = () => {
   }
 
   if (statusEl) {
-    const status = watch.status && t(`statuses.${watch.status}`);
-    const statusModifier = watch.status === 'attention'
-      ? 'action'
-      : watch.status === 'stable'
-        ? 'success'
-        : watch.status === 'paused' ? 'paused' : 'update';
+    const statusKey = STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking';
+    const status = watch.status && t(`statuses.${statusKey}`);
+    const statusModifier = getStatusLabelVariant(statusKey);
     statusEl.textContent = status || '';
-    statusEl.hidden = !status || watch.status === 'paused';
-    statusEl.className = `status-badge status-badge--with-dot status-badge--${statusModifier}`;
+    statusEl.hidden = !status
+      || watch.status === 'paused'
+      || !shouldDisplayStatusLabel(watch.status);
+    statusEl.className = `status-label status-label--${statusModifier}`;
   }
   if (pausedStateEl) {
     pausedStateEl.hidden = watch.status !== 'paused';

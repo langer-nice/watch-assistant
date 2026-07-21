@@ -33,7 +33,7 @@ body.is-watch-edit-open {
 }
 
 .detail-first-watch-home {
-  color: var(--color-primary);
+  color: var(--color-action);
   font-weight: var(--font-weight-regular);
   text-decoration: none;
 }
@@ -44,7 +44,7 @@ body.is-watch-edit-open {
 }
 
 .detail-first-watch-home:active {
-  color: var(--color-primary-hover);
+  color: var(--color-action-hover);
 }
 
 .detail-first-watch-home {
@@ -83,9 +83,9 @@ body.is-watch-edit-open {
   align-items: center;
   gap: var(--space-xs);
   padding: 0 var(--space-sm);
-  color: var(--color-primary);
+  color: var(--color-action);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-action);
   border-radius: var(--radius-input);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -98,7 +98,9 @@ body.is-watch-edit-open {
 
 .detail-edit-action:hover,
 .detail-edit-action:focus-visible {
-  border-color: var(--color-primary);
+  color: var(--color-action-on-tint);
+  background: var(--color-action-tint);
+  border-color: var(--color-action);
 }
 
 .detail-edit-action svg {
@@ -139,7 +141,7 @@ body.is-watch-edit-open {
 }
 
 .watch-edit-sheet::backdrop {
-  background: rgba(15, 23, 42, 0.28);
+  background: var(--color-overlay);
   animation: watch-edit-backdrop-in 240ms ease-out both;
 }
 
@@ -166,7 +168,7 @@ body.is-watch-edit-open {
   min-height: calc(3.5rem + env(safe-area-inset-top));
   padding-top: env(safe-area-inset-top);
   background: var(--color-new-watch-background);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-divider);
 }
 
 .watch-edit-sheet__header-content {
@@ -205,7 +207,7 @@ body.is-watch-edit-open {
 
 .watch-edit-sheet__action--save {
   justify-self: end;
-  color: var(--color-text);
+  color: var(--color-action);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -278,7 +280,7 @@ body.is-watch-edit-open {
 }
 
 .detail-header > .detail-paused-state,
-.detail-header > .status-badge,
+.detail-header > .status-label,
 .detail-header > .detail-header__message {
   grid-column: 1 / -1;
 }
@@ -295,7 +297,7 @@ body.is-watch-edit-open {
   padding: 0 0 var(--space-xl);
   color: var(--color-text);
   background: transparent;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-divider);
 }
 
 .detail-paused-state[hidden] {
@@ -381,7 +383,7 @@ body.is-watch-edit-open {
 
 .page--detail.is-paused .detail-card__metadata > section + section {
   padding-top: var(--space-xl);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-divider);
 }
 
 .page--detail.is-paused .personal-note {
@@ -555,7 +557,7 @@ body.is-watch-edit-open {
   width: 1.5rem;
   height: 1.5rem;
   border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border-top-color: var(--color-action);
   border-radius: var(--radius-pill);
   animation: watch-spinner 800ms linear infinite;
 }
@@ -592,9 +594,9 @@ body.is-watch-edit-open {
   align-items: center;
   gap: var(--space-xs);
   padding: 0 var(--space-sm);
-  color: var(--color-primary);
+  color: var(--color-action);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-action);
   border-radius: var(--radius-input);
   cursor: pointer;
   font-size: var(--font-size-xs);
@@ -603,7 +605,9 @@ body.is-watch-edit-open {
 
 .watch-fact-check__button:hover,
 .watch-fact-check__button:focus-visible {
-  border-color: var(--color-primary);
+  color: var(--color-action-on-tint);
+  background: var(--color-action-tint);
+  border-color: var(--color-action);
 }
 
 .watch-fact-check__button:disabled {
@@ -616,7 +620,7 @@ body.is-watch-edit-open {
   height: 0.875rem;
   flex: 0 0 auto;
   border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border-top-color: var(--color-action);
   border-radius: var(--radius-pill);
   animation: watch-spinner 700ms linear infinite;
 }
@@ -661,11 +665,18 @@ body.is-watch-edit-open {
   gap: var(--space-xs);
   padding-inline: var(--space-lg);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-action);
   border-radius: var(--radius-lg);
   box-shadow: none;
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
+}
+
+.watch-management__controls .watch-management__pause:hover,
+.watch-management__controls .watch-management__pause:focus-visible {
+  color: var(--color-action-on-tint);
+  background: var(--color-action-tint);
+  border-color: var(--color-action);
 }
 
 .watch-secondary-action {
@@ -677,9 +688,9 @@ body.is-watch-edit-open {
   gap: var(--space-xs);
   margin-block: var(--space-sm);
   padding-inline: var(--space-lg);
-  color: var(--color-primary);
+  color: var(--color-action);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-action);
   border-radius: var(--radius-lg);
   box-shadow: none;
   cursor: pointer;
@@ -695,8 +706,9 @@ body.is-watch-edit-open {
 
 .watch-secondary-action:hover,
 .watch-secondary-action:focus-visible {
-  background: var(--color-surface-subtle);
-  border-color: var(--color-text-subtle);
+  color: var(--color-action-on-tint);
+  background: var(--color-action-tint);
+  border-color: var(--color-action);
 }
 
 .watch-management__pause svg,
@@ -713,6 +725,14 @@ body.is-watch-edit-open {
 
 .watch-management__delete {
   color: var(--color-status-action);
+  border-color: var(--color-attention);
+}
+
+.watch-management__delete:hover,
+.watch-management__delete:focus-visible {
+  color: var(--color-attention);
+  background: color-mix(in srgb, var(--color-attention) 10%, var(--color-surface));
+  border-color: var(--color-attention);
 }
 
 .watch-delete-dialog {
@@ -726,7 +746,7 @@ body.is-watch-edit-open {
 }
 
 .watch-delete-dialog::backdrop {
-  background: rgba(15, 23, 42, 0.42);
+  background: var(--color-overlay-strong);
 }
 
 .watch-delete-dialog h2 {
@@ -755,7 +775,7 @@ body.is-watch-edit-open {
 }
 
 .watch-delete-dialog__confirm:hover {
-  background: #b42318;
+  background: var(--color-attention);
 }
 
 @keyframes watch-spinner {

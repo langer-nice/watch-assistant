@@ -135,7 +135,7 @@
   align-self: center;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-divider);
   list-style: none;
   counter-reset: flow-example;
 }
@@ -146,7 +146,7 @@
   gap: var(--space-md);
   padding: var(--space-md) 0;
   color: var(--color-text);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-divider);
   font-size: var(--font-size-md);
   line-height: 1.55;
   counter-increment: flow-example;
@@ -203,12 +203,12 @@
 
 .flow-2__briefing-items {
   align-self: center;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-divider);
 }
 
 .flow-2__briefing-items article {
   padding: var(--space-md) 0;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-divider);
 }
 
 .flow-2__briefing-items h2 {

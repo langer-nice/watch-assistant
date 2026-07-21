@@ -1,0 +1,50 @@
+.status-label {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 1.375rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem var(--space-xs);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.status-label[hidden] {
+  display: none;
+}
+
+.status-label--updated {
+  color: var(--color-status-update-text);
+  background: var(--color-status-update-bg);
+}
+
+.status-label--watching {
+  color: var(--color-status-watching);
+  background: var(--color-status-watching-bg);
+}
+
+.status-label--paused {
+  color: var(--color-status-paused);
+  background: var(--color-status-paused-bg);
+}
+
+.status-label--checking {
+  color: var(--color-status-checking);
+  background: var(--color-status-checking-bg);
+}
+
+.status-label--attention,
+.status-label--error {
+  color: var(--color-status-action);
+  background: var(--color-status-action-bg);
+}
+
+.status-label--completed,
+.status-label--stable {
+  color: var(--color-status-success);
+  background: var(--color-status-success-bg);
+}

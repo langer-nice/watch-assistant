@@ -47,11 +47,11 @@ const renderSampleBriefing = () => {
   if (!list) return;
   list.innerHTML = briefingWatches.map((watch) => {
     const needsAttention = watch.requiresAttention || watch.status === 'attention';
-    const statusModifier = needsAttention ? 'action' : 'update';
-    const status = t(needsAttention ? 'home.actNow' : 'home.updated');
+    const statusModifier = needsAttention ? 'attention' : 'updated';
+    const status = t(needsAttention ? 'statuses.attention' : 'statuses.updated');
     return `
       <article>
-        <span class="status-badge status-badge--${statusModifier}">${escapeHtml(status)}</span>
+        <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
         <h2>${escapeHtml(localizeField(watch, 'latestChange'))}</h2>
       </article>
     `;

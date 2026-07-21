@@ -259,12 +259,14 @@
     "general": "Général"
   },
   "statuses": {
-    "attention": "Agir maintenant",
+    "attention": "Nécessite votre attention",
     "watching": "Sous surveillance",
     "updated": "Mis à jour",
     "stable": "Stable",
     "paused": "En pause",
-    "completed": "Terminée"
+    "completed": "Terminée",
+    "checking": "Vérification...",
+    "error": "Erreur"
   },
   "confidence": {
     "high": "Élevé",

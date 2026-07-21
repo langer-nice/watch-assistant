@@ -49,22 +49,4 @@
 
 .watch-row__status {
   align-self: center;
-  font-size: var(--font-size-sm);
-  color: var(--color-primary);
-  font-weight: var(--font-weight-semibold);
-}
-
-.watch-row__status.status-badge--paused {
-  align-self: center;
-  min-height: auto;
-  padding: 0;
-  color: var(--color-text-muted);
-  background: transparent;
-  border: 0;
-  font-weight: var(--font-weight-medium);
-  white-space: nowrap;
-}
-
-.watch-row__status.status-badge--paused::before {
-  display: none;
 }
