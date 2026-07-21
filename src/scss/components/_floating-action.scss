@@ -15,12 +15,12 @@
 }
 
 .floating-action--home {
-  right: var(--space-lg);
+  right: var(--app-content-padding-inline);
   bottom: var(--space-lg);
-  left: var(--space-lg);
+  left: var(--app-content-padding-inline);
   z-index: 20;
   gap: var(--space-xs);
-  max-width: calc(var(--content-editorial-width) - (var(--space-xl) * 2));
+  max-width: calc(var(--app-content-max-width) - (var(--app-content-padding-inline) * 2));
   min-height: 3rem;
   margin: 0 auto;
   border-radius: var(--radius-lg);
@@ -41,12 +41,12 @@
 }
 
 .floating-action--detail {
-  right: var(--space-xl);
+  right: var(--app-content-padding-inline);
   bottom: var(--space-lg);
-  left: var(--space-xl);
+  left: var(--app-content-padding-inline);
   z-index: 20;
   gap: var(--space-xs);
-  max-width: calc(var(--content-detail-width) - (var(--space-xl) * 2));
+  max-width: calc(var(--app-content-max-width) - (var(--app-content-padding-inline) * 2));
   min-height: 3.25rem;
   margin: 0 auto;
   border-radius: var(--radius-lg);

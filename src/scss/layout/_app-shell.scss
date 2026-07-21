@@ -8,7 +8,8 @@
 
 .page {
   width: 100%;
-  max-width: var(--content-max-width);
+  max-width: var(--app-content-max-width);
   margin: 0 auto;
-  padding: var(--space-lg) var(--space-md) calc(var(--space-3xl) + var(--space-lg));
+  padding-block: var(--space-lg) calc(var(--space-3xl) + var(--space-lg));
+  padding-inline: var(--app-content-padding-inline);
 }

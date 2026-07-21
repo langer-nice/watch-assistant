@@ -34,9 +34,7 @@
 }
 
 .page--home {
-  max-width: var(--content-editorial-width);
-  padding: var(--space-sm) var(--space-lg)
-    calc((var(--space-3xl) * 2) + var(--space-xl));
+  padding-block: var(--space-sm) calc((var(--space-3xl) * 2) + var(--space-xl));
   background: var(--color-surface-subtle);
 }
 
@@ -172,10 +170,10 @@
 }
 
 .briefing-feed {
-  --briefing-gutter: var(--space-lg);
+  --briefing-gutter: var(--app-content-padding-inline);
 
-  margin-inline: calc(var(--space-lg) * -1);
-  padding-inline: var(--space-lg);
+  margin-inline: calc(var(--briefing-gutter) * -1);
+  padding-inline: var(--briefing-gutter);
   background: var(--color-briefing-surface);
 }
 
@@ -199,17 +197,10 @@
 @media (min-width: 48rem) {
   .page--home {
     padding-top: var(--space-sm);
-    padding-inline: var(--space-xl);
   }
 
   .page--home > .top-navigation {
     margin-bottom: var(--space-xl);
   }
 
-  .briefing-feed {
-    --briefing-gutter: var(--space-xl);
-
-    margin-inline: calc(var(--space-xl) * -1);
-    padding-inline: var(--space-xl);
-  }
 }

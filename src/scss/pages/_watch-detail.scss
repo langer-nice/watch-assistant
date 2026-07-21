@@ -28,9 +28,7 @@ body.is-watch-edit-open {
 }
 
 .page--detail {
-  max-width: var(--content-detail-width);
-  padding: var(--space-md) var(--space-xl)
-    calc((var(--space-3xl) * 2) + var(--space-xl));
+  padding-block: var(--space-md) calc((var(--space-3xl) * 2) + var(--space-xl));
   background: var(--color-detail-background);
 }
 
@@ -51,7 +49,7 @@ body.is-watch-edit-open {
 
 .detail-first-watch-home {
   display: inline-flex;
-  margin: 0 var(--space-xs) var(--space-xs);
+  margin: 0 0 var(--space-xs);
   font-size: var(--font-size-sm);
 }
 
@@ -70,7 +68,7 @@ body.is-watch-edit-open {
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: var(--space-md);
   row-gap: var(--space-md);
-  margin: var(--space-xl) var(--space-xs) var(--space-lg);
+  margin: var(--space-xl) 0 var(--space-lg);
 }
 
 .detail-edit-action {
@@ -79,7 +77,7 @@ body.is-watch-edit-open {
   grid-row: 1;
   align-self: center;
   justify-self: end;
-  margin-right: calc(var(--space-xs) * -1);
+  margin-right: 0;
   display: inline-flex;
   min-height: 2.25rem;
   align-items: center;
@@ -164,17 +162,25 @@ body.is-watch-edit-open {
 .watch-edit-sheet__header {
   position: relative;
   z-index: 20;
-  display: grid;
   flex: 0 0 auto;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
   min-height: calc(3.5rem + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) var(--space-xl) 0;
+  padding-top: env(safe-area-inset-top);
   background: var(--color-new-watch-background);
   border-bottom: 1px solid var(--color-border);
 }
 
-.watch-edit-sheet__header h1 {
+.watch-edit-sheet__header-content {
+  display: grid;
+  width: 100%;
+  max-width: var(--app-content-max-width);
+  min-height: 3.5rem;
+  margin-inline: auto;
+  padding-inline: var(--app-content-padding-inline);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.watch-edit-sheet__header-content h1 {
   margin: 0;
   font-family: var(--font-family-body);
   font-size: var(--font-size-sm);
@@ -409,7 +415,7 @@ body.is-watch-edit-open {
 .page--detail.is-paused > .external-actions,
 .page--detail.is-paused > .watch-preparing,
 .page--detail.is-paused > .watch-management {
-  margin-inline: var(--space-xs);
+  margin-inline: 0;
   margin-top: var(--space-xl);
 }
 

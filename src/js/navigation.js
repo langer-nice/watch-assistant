@@ -1571,7 +1571,7 @@ export function initForm() {
   let pendingAnalysis = null;
   let analysisInProgress = false;
   let creationInProgress = false;
-  let resizeFrame = null;
+  const resizeFrames = new WeakMap();
   let noteCollapseTimer = null;
   let keywordRegenerationTimer = null;
   let keywordItems = [];
@@ -1757,34 +1757,43 @@ export function initForm() {
     }
   };
 
-  const resizeInput = ({ immediate = false } = {}) => {
-    if (!input) return;
+  const resizeTextarea = (textarea, { immediate = false, maxLines = 7 } = {}) => {
+    if (!textarea) return;
 
-    if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
-    const previousHeight = input.getBoundingClientRect().height;
-    input.style.height = 'auto';
-    const styles = window.getComputedStyle(input);
+    const pendingFrame = resizeFrames.get(textarea);
+    if (pendingFrame !== undefined) window.cancelAnimationFrame(pendingFrame);
+    const previousHeight = textarea.getBoundingClientRect().height;
+    textarea.style.height = 'auto';
+    const styles = window.getComputedStyle(textarea);
     const lineHeight = Number.parseFloat(styles.lineHeight)
       || Number.parseFloat(styles.fontSize) * 1.55;
     const verticalPadding = Number.parseFloat(styles.paddingTop)
       + Number.parseFloat(styles.paddingBottom);
-    const maxHeight = (lineHeight * 7) + verticalPadding;
-    const contentHeight = input.scrollHeight;
-    const nextHeight = Math.min(contentHeight, maxHeight);
-    input.style.overflowY = contentHeight > maxHeight + 1 ? 'auto' : 'hidden';
+    const cssMinHeight = Number.parseFloat(styles.minHeight) || 0;
+    const cssMaxHeight = Number.parseFloat(styles.maxHeight);
+    const maxHeight = Number.isFinite(cssMaxHeight)
+      ? cssMaxHeight
+      : (lineHeight * maxLines) + verticalPadding;
+    const contentHeight = textarea.scrollHeight;
+    const nextHeight = Math.max(cssMinHeight, Math.min(contentHeight, maxHeight));
+    textarea.style.overflowY = contentHeight > maxHeight + 1 ? 'auto' : 'hidden';
 
     if (immediate) {
-      input.style.height = `${nextHeight}px`;
-      resizeFrame = null;
+      textarea.style.height = `${nextHeight}px`;
+      resizeFrames.delete(textarea);
       return;
     }
 
-    input.style.height = `${previousHeight}px`;
-    resizeFrame = window.requestAnimationFrame(() => {
-      input.style.height = `${nextHeight}px`;
-      resizeFrame = null;
+    textarea.style.height = `${Math.max(previousHeight, cssMinHeight)}px`;
+    const nextFrame = window.requestAnimationFrame(() => {
+      textarea.style.height = `${nextHeight}px`;
+      resizeFrames.delete(textarea);
     });
+    resizeFrames.set(textarea, nextFrame);
   };
+
+  const resizeInput = (options) => resizeTextarea(input, options);
+  const resizeNote = (options) => resizeTextarea(noteInput, { maxLines: 12, ...options });
 
   const setSubmitLabel = (key = isEditMode ? 'newWatch.saveChanges' : 'newWatch.submit') => {
     if (submitLabel) {
@@ -2320,11 +2329,18 @@ export function initForm() {
     window.requestAnimationFrame(() => {
       noteRegion.classList.add('is-visible');
       updateNoteCloseLabel();
+      resizeNote({ immediate: true });
       noteInput?.focus();
+      window.requestAnimationFrame(() => {
+        noteInput?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      });
     });
   });
 
-  noteInput?.addEventListener('input', updateNoteCloseLabel);
+  noteInput?.addEventListener('input', () => {
+    updateNoteCloseLabel();
+    resizeNote();
+  });
 
   noteClose?.addEventListener('click', () => {
     if (!noteRegion || !noteToggle) return;
@@ -2332,6 +2348,7 @@ export function initForm() {
     if (noteInput?.value) {
       noteInput.value = '';
       updateNoteCloseLabel();
+      resizeNote();
       noteInput.focus();
       return;
     }
@@ -2530,6 +2547,8 @@ export function initForm() {
 
   document.addEventListener('i18n:languageChanged', () => {
     updateNoteCloseLabel();
+    resizeInput({ immediate: true });
+    resizeNote({ immediate: true });
     if (analysisInProgress) {
       setSubmitLabel('newWatch.urlProcessingButton');
     }
@@ -2543,7 +2562,11 @@ export function initForm() {
   initializeFormMode();
   updateComposer();
   resizeInput({ immediate: true });
-  document.fonts?.ready.then(() => resizeInput({ immediate: true }));
+  resizeNote({ immediate: true });
+  document.fonts?.ready.then(() => {
+    resizeInput({ immediate: true });
+    resizeNote({ immediate: true });
+  });
   if (isEditMode) {
     initialEditState = JSON.stringify(getEditState());
     refreshEditSaveState();

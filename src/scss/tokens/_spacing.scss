@@ -13,4 +13,6 @@
   --content-detail-width: 30rem;
   --content-heading-width: 18rem;
   --content-wide-width: 72rem;
+  --app-content-max-width: var(--content-editorial-width);
+  --app-content-padding-inline: var(--space-lg);
 }

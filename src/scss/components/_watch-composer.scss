@@ -182,8 +182,7 @@
 .watch-reason__close,
 .watch-reason__microphone {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  top: var(--space-sm);
 }
 
 .watch-reason__close {
@@ -216,29 +215,39 @@
   text-underline-offset: var(--space-3xs);
 }
 
-.watch-reason input {
+.watch-reason textarea {
+  display: block;
   width: 100%;
-  min-height: 2.75rem;
+  min-height: 5.5rem;
+  max-height: 18rem;
   padding: var(--space-sm) calc((2.25rem * 2) + (var(--space-xs) * 2) + var(--space-lg)) var(--space-sm) var(--space-md);
   color: var(--color-text);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
-  font-size: var(--font-size-sm);
+  font-family: var(--font-family-body);
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  resize: none;
+  transition: height var(--transition-default);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.watch-reason input::placeholder {
+.watch-reason textarea::placeholder {
   color: var(--color-placeholder);
   opacity: 1;
 }
 
-.watch-reason input:hover {
+.watch-reason textarea:hover {
   border-color: var(--color-text-subtle);
 }
 
-.watch-reason input:focus,
-.watch-reason input:focus-visible {
+.watch-reason textarea:focus,
+.watch-reason textarea:focus-visible {
   border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
   outline: none;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 8%, var(--color-transparent));
