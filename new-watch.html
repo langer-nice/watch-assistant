@@ -150,8 +150,9 @@
                 <input id="urlReviewTitle" type="text" required disabled />
               </div>
               <div class="url-review__field">
-                <label for="urlReviewSummary" data-i18n="newWatch.urlReviewWatchingFor"></label>
-                <textarea id="urlReviewSummary" rows="3" required disabled></textarea>
+                <label for="urlReviewSummary" data-i18n="newWatch.urlReviewWatchingForRequired"></label>
+                <textarea id="urlReviewSummary" rows="3" required aria-describedby="urlReviewSummaryError" disabled></textarea>
+                <p class="url-review__field-error" id="urlReviewSummaryError" data-i18n="newWatch.urlReviewWatchingForError" hidden></p>
               </div>
               <div class="url-review__source">
                 <span data-i18n="newWatch.urlReviewSource"></span>

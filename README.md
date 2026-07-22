@@ -22,6 +22,15 @@ npm install
 - `npm run build` — builds production assets into `dist/`
 - `npm run preview` — previews the production build locally
 
+## URL Watch prototype
+
+URL-based Watch suggestions use two development-server endpoints: one reads only
+the target page's `<head>` to extract `og:title` or `<title>`, and the other sends
+only that title to the OpenAI Responses API. Copy `.env.example` to `.env` and set
+`OPENAI_API_KEY` before running `npm run dev` or `npm run preview`. The optional
+`OPENAI_MODEL` setting defaults to `gpt-5.6-luna`. Restart the Vite server after
+adding or changing these values so the server-side middleware reloads them.
+
 > The HTML files reference the stylesheet as `/src/scss/main.scss` so Vite can compile the SCSS automatically.
 
 ## Demo data behavior

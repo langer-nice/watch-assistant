@@ -109,6 +109,17 @@
   resize: vertical;
 }
 
+.url-review__field-error {
+  margin: 0;
+  color: var(--color-status-action);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+.url-review__field-error[hidden] {
+  display: none;
+}
+
 .url-review:not(.is-editing) .url-review__field input,
 .url-review:not(.is-editing) .url-review__field textarea {
   padding-inline: 0;

@@ -1539,6 +1539,7 @@ export function initForm() {
   const reviewFailure = document.querySelector('#urlReviewFailure');
   const reviewTitle = document.querySelector('#urlReviewTitle');
   const reviewSummary = document.querySelector('#urlReviewSummary');
+  const reviewSummaryError = document.querySelector('#urlReviewSummaryError');
   const reviewSource = document.querySelector('#urlReviewSource');
   const reviewCreate = document.querySelector('#urlReviewCreate');
   const reviewEdit = document.querySelector('#urlReviewEdit');
@@ -1573,6 +1574,9 @@ export function initForm() {
   let pendingWhyFollowing = '';
   let pendingAnalysis = null;
   let analysisInProgress = false;
+  let urlAnalysisProgressKey = null;
+  let urlAnalysisController = null;
+  let urlAnalysisRequestId = 0;
   let creationInProgress = false;
   const resizeFrames = new WeakMap();
   let noteCollapseTimer = null;
@@ -1995,6 +1999,21 @@ export function initForm() {
     }
   };
 
+  const validateReviewSummary = ({ focus = false } = {}) => {
+    const valid = Boolean(reviewSummary?.value.trim());
+    if (reviewSummary) {
+      reviewSummary.setAttribute('aria-invalid', String(!valid));
+    }
+    if (reviewSummaryError) {
+      reviewSummaryError.hidden = valid;
+    }
+    if (reviewCreate) {
+      reviewCreate.disabled = creationInProgress || !valid;
+    }
+    if (!valid && focus) reviewSummary?.focus();
+    return valid;
+  };
+
   const showReview = (analysis) => {
     const failed = analysis?.status !== 'success';
     pendingAnalysis = analysis;
@@ -2022,6 +2041,19 @@ export function initForm() {
     if (reviewSource) {
       reviewSource.textContent = analysis?.source || t('newWatch.urlReviewUnknownSource');
     }
+    if (!failed && Array.isArray(analysis?.keywords)) {
+      keywordItems = analysis.keywords.map((label) => ({ label, selected: true }));
+      keywordSourceRequest = pendingRequest;
+      keywordsManuallyEdited = false;
+      renderKeywords();
+      if (categorySource === 'inferred' && categoryInputEl) {
+        categoryInputEl.value = inferCategory([
+          analysis.title,
+          analysis.sourceTitle,
+          ...analysis.keywords,
+        ].filter(Boolean).join(' '));
+      }
+    }
     if (reviewEdit) {
       reviewEdit.hidden = failed;
     }
@@ -2029,15 +2061,22 @@ export function initForm() {
       reviewCancel.hidden = !failed;
     }
     setReviewEditing(failed);
+    validateReviewSummary();
     if (!failed) review?.focus();
   };
 
   const startUrlAnalysis = async (request, whyFollowing) => {
+    urlAnalysisController?.abort();
+    const requestId = urlAnalysisRequestId + 1;
+    const controller = new AbortController();
+    urlAnalysisRequestId = requestId;
+    urlAnalysisController = controller;
     analysisInProgress = true;
     pendingRequest = request;
     pendingWhyFollowing = whyFollowing;
     form.classList.add('is-analysing');
     setCreationControlsDisabled(true);
+    if (watchClear) watchClear.disabled = false;
     setSubmitLabel('newWatch.urlProcessingButton');
     if (analysisSection) {
       analysisSection.hidden = false;
@@ -2049,40 +2088,89 @@ export function initForm() {
       review.hidden = true;
     }
 
-    const messageKeys = [
-      'newWatch.urlProcessingAnalyzing',
-      'newWatch.urlProcessingReading',
-      'newWatch.urlProcessingPreparing',
-    ];
-    let messageIndex = 0;
-    if (processingMessage) {
-      processingMessage.textContent = t(messageKeys[messageIndex]);
-    }
-    const messageTimer = window.setInterval(() => {
-      messageIndex = Math.min(messageIndex + 1, messageKeys.length - 1);
+    const showProgress = (stage) => {
+      urlAnalysisProgressKey = stage === 'generating-watch'
+        ? 'newWatch.urlProcessingGeneratingWatch'
+        : 'newWatch.urlProcessingFetchingTitle';
       if (processingMessage) {
-        processingMessage.textContent = t(messageKeys[messageIndex]);
+        processingMessage.textContent = t(urlAnalysisProgressKey);
       }
-    }, 450);
+    };
+    showProgress('fetching-title');
 
     try {
       // Yield once so the browser paints the disabled button and processing state.
       await new Promise((resolve) => window.requestAnimationFrame(resolve));
-      const analysis = await analyseUrl(request);
+      const analysis = await analyseUrl(request, {
+        onProgress: showProgress,
+        signal: controller.signal,
+      });
+      if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
       showReview(analysis);
     } catch (error) {
+      if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
       console.error('URL analysis failed:', error);
       showReview({
         status: 'failure',
-        source: t('newWatch.urlReviewUnknownSource'),
-        sourceUrl: request,
+        title: error.partialAnalysis?.sourceTitle || '',
+        source: error.partialAnalysis?.source || t('newWatch.urlReviewUnknownSource'),
+        sourceTitle: error.partialAnalysis?.sourceTitle || '',
+        sourceUrl: error.partialAnalysis?.sourceUrl || request,
       });
     } finally {
-      window.clearInterval(messageTimer);
+      if (requestId !== urlAnalysisRequestId) return;
       analysisInProgress = false;
+      urlAnalysisProgressKey = null;
+      urlAnalysisController = null;
       form.classList.remove('is-analysing');
       setSubmitLabel();
     }
+  };
+
+  const resetUrlFlow = ({ clearInput = false } = {}) => {
+    urlAnalysisRequestId += 1;
+    urlAnalysisController?.abort();
+    urlAnalysisController = null;
+    analysisInProgress = false;
+    urlAnalysisProgressKey = null;
+    pendingRequest = '';
+    pendingWhyFollowing = '';
+    pendingAnalysis = null;
+    form.classList.remove('is-analysing', 'is-reviewing');
+    if (analysisSection) analysisSection.hidden = true;
+    if (processingState) processingState.hidden = true;
+    if (processingMessage) processingMessage.textContent = '';
+    if (review) {
+      review.hidden = true;
+      review.classList.remove('is-editing');
+    }
+    if (reviewTitle) {
+      reviewTitle.value = '';
+      reviewTitle.disabled = true;
+    }
+    if (reviewSummary) {
+      reviewSummary.value = '';
+      reviewSummary.disabled = true;
+      reviewSummary.setAttribute('aria-invalid', 'false');
+    }
+    if (reviewSummaryError) reviewSummaryError.hidden = true;
+    if (reviewSource) reviewSource.textContent = '';
+    [reviewCreate, reviewEdit, reviewCancel].forEach((control) => {
+      if (control) control.disabled = false;
+    });
+    keywordItems = [];
+    keywordSourceRequest = '';
+    keywordsManuallyEdited = false;
+    renderKeywords();
+    if (categorySource === 'inferred' && categoryInputEl) {
+      categoryInputEl.value = 'general';
+    }
+    if (clearInput && input) input.value = '';
+    setCreationControlsDisabled(false);
+    setSubmitLabel();
+    updateComposer();
+    resizeInput();
+    input?.focus();
   };
 
   const updateComposer = () => {
@@ -2279,10 +2367,7 @@ export function initForm() {
 
   watchClear?.addEventListener('click', () => {
     if (!input) return;
-
-    input.value = '';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.focus();
+    resetUrlFlow({ clearInput: true });
   });
 
   keywordChipsEl?.addEventListener('click', (event) => {
@@ -2433,12 +2518,20 @@ export function initForm() {
     setReviewEditing(!review?.classList.contains('is-editing'));
   });
 
+  reviewSummary?.addEventListener('input', () => {
+    validateReviewSummary();
+  });
+
   reviewCreate?.addEventListener('click', async () => {
-    if (creationInProgress) {
+    if (
+      creationInProgress
+      || pendingAnalysis?.status !== 'success'
+      || !pendingRequest
+    ) {
       return;
     }
 
-    if (!reviewTitle?.reportValidity() || !reviewSummary?.reportValidity()) {
+    if (!validateReviewSummary({ focus: true }) || !reviewTitle?.reportValidity()) {
       return;
     }
 
@@ -2467,27 +2560,7 @@ export function initForm() {
   });
 
   reviewCancel?.addEventListener('click', () => {
-    pendingRequest = '';
-    pendingWhyFollowing = '';
-    pendingAnalysis = null;
-    analysisInProgress = false;
-    form.classList.remove('is-reviewing');
-    if (analysisSection) {
-      analysisSection.hidden = true;
-    }
-    if (review) {
-      review.hidden = true;
-    }
-    if (reviewTitle) {
-      reviewTitle.disabled = true;
-    }
-    if (reviewSummary) {
-      reviewSummary.disabled = true;
-    }
-    setCreationControlsDisabled(false);
-    setSubmitLabel();
-    updateComposer();
-    input?.focus();
+    resetUrlFlow();
   });
 
   if (isEditMode) {
@@ -2559,6 +2632,9 @@ export function initForm() {
     resizeNote({ immediate: true });
     if (analysisInProgress) {
       setSubmitLabel('newWatch.urlProcessingButton');
+      if (processingMessage && urlAnalysisProgressKey) {
+        processingMessage.textContent = t(urlAnalysisProgressKey);
+      }
     }
     if (review?.classList.contains('is-editing') && reviewEdit && !reviewEdit.hidden) {
       reviewEdit.textContent = t('newWatch.urlReviewDone');

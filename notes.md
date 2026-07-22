@@ -10,16 +10,16 @@ git status
 git branch
 
 # Créer une nouvelle branche
-git switch -c feature/intro-update
+git switch -c feature/url-flow
 
 # Changer de branche
 git switch master
-git switch feature/intro-update
+git switch feature/url-flow
 
 # Merge une branche dans master
 git switch master
-git merge feature/intro-update
+git merge feature/url-flow
 git push origin master
 
 # Supprimer la branche - Quand tout est fusionné :
-git branch -d feature/intro-update
+git branch -d feature/url-flow
