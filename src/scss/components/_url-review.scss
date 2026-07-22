@@ -13,6 +13,7 @@
 .url-analysis__processing {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-md);
   min-height: 8rem;
   padding: var(--space-xl);
@@ -23,8 +24,14 @@
 }
 
 .url-analysis__processing p {
+  flex: 1 1 12rem;
   margin: 0;
   font-size: var(--font-size-md);
+}
+
+.url-analysis__cancel {
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 .url-analysis__spinner {
@@ -149,6 +156,10 @@
 .url-review__actions .button {
   width: 100%;
   margin: 0;
+}
+
+.url-review__actions #urlReviewCreate {
+  grid-column: 1 / -1;
 }
 
 @keyframes url-analysis-spin {

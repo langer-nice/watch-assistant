@@ -1,5 +1,6 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import he from 'he';
 
 const MAX_REQUEST_BYTES = 8 * 1024;
 const MAX_HEAD_BYTES = 512 * 1024;
@@ -23,20 +24,8 @@ const WATCH_SUGGESTION_SCHEMA = {
   required: ['watchTitle', 'watchingFor', 'keywords', 'description'],
 };
 
-const decodeHtmlEntities = (value) => String(value || '')
-  .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-  .replace(/&#x([\da-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
-  .replace(/&(?:amp|quot|apos|lt|gt|nbsp);/gi, (entity) => ({
-    '&amp;': '&',
-    '&quot;': '"',
-    '&apos;': "'",
-    '&lt;': '<',
-    '&gt;': '>',
-    '&nbsp;': ' ',
-  })[entity.toLowerCase()]);
-
-const cleanTitle = (value) => decodeHtmlEntities(value)
-  .replace(/<[^>]*>/g, '')
+const cleanTitle = (value) => he
+  .decode(String(value || '').replace(/<[^>]*>/g, ''))
   .replace(/\s+/g, ' ')
   .trim();
 
