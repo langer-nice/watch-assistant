@@ -51,6 +51,30 @@ const journeys = [
       ],
     },
   },
+  {
+    id: 'coworking-owner',
+    label: 'Coworking Owner (Monaco)',
+    examples: {
+      en: [
+        'Changes to Monaco business regulations or employment laws.',
+        'An office supply or printer consumable is back in stock.',
+        'A new coworking space opens nearby.',
+        'A company announces a new office opening in Monaco.',
+        'EasyJet opens Christmas flights to London.',
+        'The euro reaches $1.05 against the US dollar.',
+        "A concert or event you're interested in is announced.",
+      ],
+      fr: [
+        'Les évolutions de la réglementation des entreprises ou du droit du travail à Monaco.',
+        'Une fourniture de bureau ou un consommable d’imprimante est de nouveau en stock.',
+        'Un nouvel espace de coworking ouvre à proximité.',
+        'Une entreprise annonce l’ouverture de nouveaux bureaux à Monaco.',
+        'EasyJet ouvre les vols de Noël vers Londres.',
+        'L’euro atteint 1,05 $ face au dollar américain.',
+        'Un concert ou un événement qui vous intéresse est annoncé.',
+      ],
+    },
+  },
 ];
 
 const journeysById = new Map(journeys.map((journey) => [journey.id, journey]));
@@ -66,6 +90,11 @@ const flowMappings = [
     id: '2',
     journeyId: 'sales-marketing',
     description: 'Personalized onboarding for Sales & Marketing users.',
+  },
+  {
+    id: '3',
+    journeyId: 'coworking-owner',
+    description: 'Personalized onboarding for a Monaco coworking space owner.',
   },
 ];
 const flowsById = new Map(flowMappings.map((flow) => [flow.id, flow]));

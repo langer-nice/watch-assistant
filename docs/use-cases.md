@@ -452,8 +452,8 @@ Les changements de prix chez vos concurrents.
 Les nouvelles campagnes marketing d'une marque.
 Les offres d'emploi publiées par vos concurrents.
 Les nouvelles tendances de votre marché.
-👨‍💻 Développeur
 
+👨‍💻 Développeur
 Que vérifiez-vous sans arrêt ?
 
 Une nouvelle version de React, Angular ou Vue.
@@ -463,6 +463,7 @@ Une API qui change.
 Une bibliothèque qui passe en version stable.
 Les annonces d'OpenAI, Anthropic ou Google AI.
 Les discussions Reddit sur votre stack.
+
 📈 Investisseur
 L'action Tesla passe sous 250 $.
 L'euro atteint 1,05 $.
@@ -471,6 +472,7 @@ Berkshire Hathaway publie ses résultats.
 Nvidia annonce ses résultats trimestriels.
 Une entreprise entre en procédure de rachat.
 Le Bitcoin dépasse un seuil.
+
 🏡 Immobilier
 Un bien correspondant à vos critères est mis en vente.
 Une baisse de prix sur un bien suivi.
@@ -479,6 +481,7 @@ Une commune modifie son PLU.
 Les taux immobiliers évoluent.
 Une enchère immobilière est publiée.
 Une nouvelle réglementation locative.
+
 ✈️ Voyage
 EasyJet ouvre les vols de Noël.
 Les billets passent sous 150 €.
@@ -487,6 +490,7 @@ Les formalités d'un pays changent.
 Une grève est annoncée.
 Une promotion Air France apparaît.
 Un hôtel baisse de prix.
+
 Parent
 L'école publie une information importante.
 Les inscriptions aux activités ouvrent.
