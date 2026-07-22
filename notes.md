@@ -10,16 +10,16 @@ git status
 git branch
 
 # Créer une nouvelle branche
-git switch -c feature/colour-rebrand
+git switch -c feature/intro-update
 
 # Changer de branche
 git switch master
-git switch feature/colour-rebrand
+git switch feature/intro-update
 
 # Merge une branche dans master
 git switch master
-git merge feature/colour-rebrand
+git merge feature/intro-update
 git push origin master
 
 # Supprimer la branche - Quand tout est fusionné :
-git branch -d feature/colour-rebrand
+git branch -d feature/intro-update

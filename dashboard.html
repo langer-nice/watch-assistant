@@ -61,13 +61,6 @@
         box-shadow: var(--shadow-soft);
       }
 
-      .introduction-card__audience {
-        margin: 0 0 0.75rem;
-        color: var(--color-primary);
-        font-size: var(--font-size-sm);
-        font-weight: var(--font-weight-semibold);
-      }
-
       .introduction-card h2 {
         margin: 0;
         font-size: var(--font-size-xl);
@@ -115,92 +108,12 @@
       <header class="demo-dashboard__header">
         <p class="demo-dashboard__eyebrow">Watch · Internal</p>
         <h1>Demo Dashboard</h1>
-        <p class="demo-dashboard__subtitle">Internal tool for launching different Watch onboarding experiences.</p>
+        <p class="demo-dashboard__subtitle">Internal tools for previewing Watch experiences.</p>
       </header>
 
-      <section class="introduction-grid" aria-label="Onboarding flows">
-        <article class="introduction-card">
-          <p class="introduction-card__audience">General users</p>
-          <h2>Generic Introduction</h2>
-          <p class="introduction-card__description">Current Flow 2 onboarding.</p>
-
-          <div class="introduction-card__actions">
-            <a class="button button--primary" href="flow-3.html">Launch</a>
-            <button
-              class="button button--secondary introduction-card__copy"
-              type="button"
-              data-copy-link="flow-3.html"
-              aria-describedby="genericCopyStatus"
-            >
-              Copy Link
-            </button>
-            <span class="introduction-card__status" id="genericCopyStatus" role="status" aria-live="polite"></span>
-          </div>
-        </article> 
-        
-
-        <article class="introduction-card">
-          <p class="introduction-card__audience">General users</p>
-          <h2>Flow 2 — Previous Reference</h2>
-          <p class="introduction-card__description">Previous onboarding version kept for comparison.</p>
-
-          <div class="introduction-card__actions">
-            <a class="button button--primary" href="flow-2.html">Launch</a>
-            <button
-              class="button button--secondary introduction-card__copy"
-              type="button"
-              data-copy-link="flow-2.html"
-              aria-describedby="flow2CopyStatus"
-            >
-              Copy Link
-            </button>
-            <span class="introduction-card__status" id="flow2CopyStatus" role="status" aria-live="polite"></span>
-          </div>
-        </article>
-
-        <!-- Add future introduction cards here. Keep each flow in its own .introduction-card article. -->
-      </section>
+      <section class="introduction-grid" aria-label="Onboarding flows" data-dashboard-journeys></section>
     </main>
 
-    <script>
-      const copyButtons = document.querySelectorAll('[data-copy-link]');
-
-      async function copyText(text) {
-        if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(text);
-          return;
-        }
-
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        textArea.setAttribute('readonly', '');
-        textArea.style.position = 'fixed';
-        textArea.style.opacity = '0';
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        textArea.remove();
-      }
-
-      copyButtons.forEach((button) => {
-        let statusTimer;
-
-        button.addEventListener('click', async () => {
-          const status = document.getElementById(button.getAttribute('aria-describedby'));
-          const url = new URL(button.dataset.copyLink, document.baseURI).href;
-
-          try {
-            await copyText(url);
-            status.textContent = 'Copied!';
-            clearTimeout(statusTimer);
-            statusTimer = setTimeout(() => {
-              status.textContent = '';
-            }, 1800);
-          } catch {
-            status.textContent = 'Copy failed';
-          }
-        });
-      });
-    </script>
+    <script type="module" src="src/js/dashboard.js"></script>
   </body>
 </html>

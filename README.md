@@ -53,7 +53,7 @@ A visible “Reset demo data” button appears only in development mode, not in 
 ## Folder structure
 
 - `index.html` — home / morning report page
-- `dashboard.html` — internal launcher for onboarding demos
+- `dashboard.html` — internal selector for audience-specific onboarding journeys
 - `flow-*.html` — public onboarding flow entry pages
 - `watches.html` — list of all watch items
 - `watch-detail.html` — watch detail and action page
@@ -72,7 +72,7 @@ To add the gate to a future persona flow:
 
 1. Add `data-flow-language-gate` to the page's `<body>` so its onboarding shell stays hidden before JavaScript initializes.
 2. Import and await `initializeFlowLanguage()` before attaching flow behavior or starting animations.
-3. Add the flow's bare URL to the internal `dashboard.html`; the language choice will add the query parameter for the external user.
+3. Add the journey's localized content object to `src/js/onboarding-journeys.js`; the internal selector renders it automatically.
 
 ## Design tokens
 

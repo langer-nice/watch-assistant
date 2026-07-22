@@ -182,6 +182,23 @@
   width: 100%;
 }
 
+.home-secondary-navigation {
+  padding-top: var(--space-xl);
+  text-align: center;
+}
+
+.home-secondary-navigation a {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+}
+
+.home-secondary-navigation a:hover,
+.home-secondary-navigation a:focus-visible {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
 .briefing-group {
   padding-top: var(--space-xl);
 }

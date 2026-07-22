@@ -74,6 +74,8 @@
     "meaningfulUpdates": "have meaningful updates",
     "noChanges": "were checked with no changes",
     "briefingItemsLabel": "Items that deserve your attention",
+    "prototypePreviewsLabel": "Prototype previews",
+    "introductionJourneys": "Introduction journeys",
     "needsAttentionSection": "Needs your attention",
     "updatedSection": "Updated",
     "actNow": "Act now",

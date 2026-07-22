@@ -1,20 +1,14 @@
 import { markOnboardingCompleted, registerCurrentIntroFlow } from './intro-flow.js';
-import { setLanguage, t } from './i18n.js';
+import { getLanguage, setLanguage, t } from './i18n.js';
 import { mountOnboardingLanguageControl } from './language-control.js';
 import { initializeFlowLanguage } from './flow-language-gate.js';
+import { getJourneyExamples, getJourneyFromLocation } from './onboarding-journeys.js';
 
 const screens = [...document.querySelectorAll('[data-flow-3-screen]')];
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const standardTimelines = [
-  [],
-  [1400, 1400, 1400, 1400, 1400, 1400, 1400, 1500],
-  [1800, 1600, 1600],
-];
-const reducedMotionTimelines = standardTimelines.map((timeline) => (
-  timeline.map(() => 0)
-));
-const timelines = prefersReducedMotion ? reducedMotionTimelines : standardTimelines;
+const activeJourney = getJourneyFromLocation();
+const examplesList = document.querySelector('[data-flow-3-examples]');
 
 let activeScreenIndex = 0;
 let sequenceVersion = 0;
@@ -24,6 +18,39 @@ let activeTimer = null;
 let resolveActiveDelay = null;
 
 const wordSequences = [...document.querySelectorAll('[data-flow-3-word-sequence]')];
+
+const renderJourneyExamples = () => {
+  const examples = getJourneyExamples(activeJourney, getLanguage());
+  const currentItems = [...examplesList.children];
+
+  if (currentItems.length === examples.length) {
+    currentItems.forEach((item, index) => {
+      item.textContent = examples[index];
+    });
+    return;
+  }
+
+  const items = examples.map((example) => {
+    const item = document.createElement('li');
+    item.className = 'flow-3__reveal';
+    item.setAttribute('data-flow-3-reveal', '');
+    item.textContent = example;
+    item.hidden = true;
+    return item;
+  });
+  examplesList.replaceChildren(...items);
+};
+
+const getTimeline = (screenIndex, revealCount) => {
+  if (prefersReducedMotion) return Array(revealCount).fill(0);
+  if (screenIndex === 1) {
+    return Array.from({ length: revealCount }, (_, index) => (
+      index === revealCount - 1 ? 1500 : 1400
+    ));
+  }
+  if (screenIndex === 2) return [1800, 1600, 1600];
+  return [];
+};
 
 const wait = (duration) => new Promise((resolve) => {
   const finishDelay = () => {
@@ -197,7 +224,7 @@ const startIntroFromLanguageSelection = async (language, revealFlow) => {
 const runSequence = async (screenIndex) => {
   const screen = screens[screenIndex];
   const revealElements = [...screen.querySelectorAll('[data-flow-3-reveal]')];
-  const timeline = timelines[screenIndex];
+  const timeline = getTimeline(screenIndex, revealElements.length);
   const version = sequenceVersion;
   sequenceRunning = true;
 
@@ -287,11 +314,13 @@ initializeFlowLanguage({
   },
 }).then(async () => {
   registerCurrentIntroFlow();
+  renderJourneyExamples();
   onboardingLanguageControl = mountOnboardingLanguageControl();
   screens.forEach((screen, index) => {
     if (index > 0) resetScreen(screen);
   });
   document.addEventListener('i18n:languageChanged', () => {
+    renderJourneyExamples();
     wordSequences.forEach((element) => prepareWordSequence(element, { preserveProgress: true }));
   });
   document.addEventListener('click', handleFlowClick);
