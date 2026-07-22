@@ -1534,6 +1534,7 @@ export function initForm() {
   const analysisSection = document.querySelector('#urlAnalysis');
   const processingState = document.querySelector('#urlAnalysisProcessing');
   const processingMessage = document.querySelector('#urlAnalysisMessage');
+  const analysisCancel = document.querySelector('#urlAnalysisCancel');
   const review = document.querySelector('#urlReview');
   const reviewSuccess = document.querySelector('#urlReviewSuccess');
   const reviewFailure = document.querySelector('#urlReviewFailure');
@@ -2057,9 +2058,7 @@ export function initForm() {
     if (reviewEdit) {
       reviewEdit.hidden = failed;
     }
-    if (reviewCancel) {
-      reviewCancel.hidden = !failed;
-    }
+    if (reviewCancel) reviewCancel.hidden = false;
     setReviewEditing(failed);
     validateReviewSummary();
     if (!failed) review?.focus();
@@ -2136,14 +2135,17 @@ export function initForm() {
     pendingRequest = '';
     pendingWhyFollowing = '';
     pendingAnalysis = null;
+    creationInProgress = false;
     form.classList.remove('is-analysing', 'is-reviewing');
     if (analysisSection) analysisSection.hidden = true;
     if (processingState) processingState.hidden = true;
     if (processingMessage) processingMessage.textContent = '';
     if (review) {
       review.hidden = true;
-      review.classList.remove('is-editing');
     }
+    setReviewEditing(false);
+    if (reviewSuccess) reviewSuccess.hidden = false;
+    if (reviewFailure) reviewFailure.hidden = true;
     if (reviewTitle) {
       reviewTitle.value = '';
       reviewTitle.disabled = true;
@@ -2155,17 +2157,37 @@ export function initForm() {
     }
     if (reviewSummaryError) reviewSummaryError.hidden = true;
     if (reviewSource) reviewSource.textContent = '';
+    if (watchError) watchError.textContent = '';
+    if (hint) {
+      hint.textContent = '';
+      hint.hidden = true;
+    }
     [reviewCreate, reviewEdit, reviewCancel].forEach((control) => {
       if (control) control.disabled = false;
     });
     keywordItems = [];
     keywordSourceRequest = '';
     keywordsManuallyEdited = false;
+    editingConceptIndex = null;
+    categorySource = 'inferred';
+    if (keywordInputEl) keywordInputEl.value = '';
     renderKeywords();
-    if (categorySource === 'inferred' && categoryInputEl) {
-      categoryInputEl.value = 'general';
+    if (categoryInputEl) categoryInputEl.value = 'general';
+    if (clearInput && input) {
+      input.value = '';
+      if (noteInput) noteInput.value = '';
+      if (noteRegion) {
+        noteRegion.hidden = true;
+        noteRegion.classList.remove('is-visible');
+      }
+      if (noteToggle) {
+        noteToggle.hidden = false;
+        noteToggle.setAttribute('aria-expanded', 'false');
+      }
+      if (watchOptionsEl && !isEditMode) watchOptionsEl.hidden = true;
+      updateNoteCloseLabel();
+      resizeNote();
     }
-    if (clearInput && input) input.value = '';
     setCreationControlsDisabled(false);
     setSubmitLabel();
     updateComposer();
@@ -2560,7 +2582,11 @@ export function initForm() {
   });
 
   reviewCancel?.addEventListener('click', () => {
-    resetUrlFlow();
+    resetUrlFlow({ clearInput: true });
+  });
+
+  analysisCancel?.addEventListener('click', () => {
+    resetUrlFlow({ clearInput: true });
   });
 
   if (isEditMode) {

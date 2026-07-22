@@ -133,6 +133,12 @@
             <div class="url-analysis__processing" id="urlAnalysisProcessing" hidden>
               <span class="url-analysis__spinner" aria-hidden="true"></span>
               <p id="urlAnalysisMessage"></p>
+              <button
+                class="button button--secondary url-analysis__cancel"
+                id="urlAnalysisCancel"
+                type="button"
+                data-i18n="newWatch.urlReviewCancel"
+              ></button>
             </div>
 
             <div class="url-review" id="urlReview" tabindex="-1" hidden>
@@ -162,7 +168,7 @@
               <div class="url-review__actions">
                 <button class="button button--primary" id="urlReviewCreate" type="button" data-i18n="newWatch.urlReviewCreate"></button>
                 <button class="button button--secondary" id="urlReviewEdit" type="button" data-i18n="newWatch.urlReviewEdit"></button>
-                <button class="button button--secondary" id="urlReviewCancel" type="button" data-i18n="newWatch.urlReviewCancel" hidden></button>
+                <button class="button button--secondary" id="urlReviewCancel" type="button" data-i18n="newWatch.urlReviewCancel"></button>
               </div>
             </div>
           </section>

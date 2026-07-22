@@ -5,6 +5,44 @@ const DELETED_WATCHES_STORAGE_KEY = 'watchAssistant.deletedWatchIds';
 const BRIEFING_GENERATED_AT_KEY = 'watchAssistant.briefingGeneratedAt';
 const DEMO_DATA_VERSION_KEY = 'watchAssistant.demoDataVersion';
 const DEMO_DATA_VERSION = 'home-report-v1';
+const HTML_ENTITY_MIGRATION_KEY = 'watchAssistant.htmlEntityDecodeVersion';
+const HTML_ENTITY_MIGRATION_VERSION = '1';
+
+const decodeHtmlEntities = (value) => {
+  if (typeof value !== 'string' || !value.includes('&')) return value;
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = value;
+  return textarea.value;
+};
+
+const migrateStoredWatchTitles = (watches) => {
+  try {
+    if (localStorage.getItem(HTML_ENTITY_MIGRATION_KEY) === HTML_ENTITY_MIGRATION_VERSION) {
+      return watches;
+    }
+  } catch {
+    // Continue with an in-memory migration when storage cannot be updated.
+  }
+
+  let changed = false;
+  const migratedWatches = watches.map((watch) => {
+    const title = decodeHtmlEntities(watch.title);
+    const sourceTitle = decodeHtmlEntities(watch.sourceTitle);
+    if (title === watch.title && sourceTitle === watch.sourceTitle) return watch;
+    changed = true;
+    return { ...watch, title, sourceTitle };
+  });
+
+  try {
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(migratedWatches));
+    }
+    localStorage.setItem(HTML_ENTITY_MIGRATION_KEY, HTML_ENTITY_MIGRATION_VERSION);
+  } catch {
+    // The decoded in-memory data can still be rendered for this session.
+  }
+  return migratedWatches;
+};
 
 const getDeletedWatchIds = () => {
   try {
@@ -46,7 +84,7 @@ export function getStoredWatches() {
       return [];
     }
     const watches = JSON.parse(json);
-    return Array.isArray(watches) ? watches : [];
+    return Array.isArray(watches) ? migrateStoredWatchTitles(watches) : [];
   } catch (error) {
     console.warn('Could not read stored watches', error);
     return [];
@@ -76,6 +114,7 @@ export function resetStoredWatches() {
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(DELETED_WATCHES_STORAGE_KEY);
   localStorage.removeItem(DEMO_DATA_VERSION_KEY);
+  localStorage.removeItem(HTML_ENTITY_MIGRATION_KEY);
 }
 
 export function getWatches() {
