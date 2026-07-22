@@ -5,7 +5,7 @@ This document captures real-world reasons people would use Watch Assistant.
 The goal is not to define features, but to understand what users want to know without repeatedly checking.
 
 ---
-
+# Notify me when the euro reaches 1.05 US dollars (EUR/USD ≥ 1.05).
 ## News
 
 - Tell me when a trial reaches a verdict.
@@ -436,3 +436,60 @@ The goal is for users to naturally say things such as:
 - “This Watch was updated.”
 
 Future user interviews should test whether this language feels natural and whether users adopt it without prompting.
+
+
+# ======================
+# Onboarding 
+
+👩‍💼 Sales & Marketing
+
+Que vérifiez-vous sans arrêt ?
+
+Les lancements de produits de vos concurrents.
+Les mentions de votre entreprise dans la presse ou sur les réseaux.
+Les nouveaux appels d'offres dans votre secteur.
+Les changements de prix chez vos concurrents.
+Les nouvelles campagnes marketing d'une marque.
+Les offres d'emploi publiées par vos concurrents.
+Les nouvelles tendances de votre marché.
+👨‍💻 Développeur
+
+Que vérifiez-vous sans arrêt ?
+
+Une nouvelle version de React, Angular ou Vue.
+Une CVE critique concernant une technologie que vous utilisez.
+Un nouveau dépôt GitHub intéressant.
+Une API qui change.
+Une bibliothèque qui passe en version stable.
+Les annonces d'OpenAI, Anthropic ou Google AI.
+Les discussions Reddit sur votre stack.
+📈 Investisseur
+L'action Tesla passe sous 250 $.
+L'euro atteint 1,05 $.
+La BCE modifie ses taux.
+Berkshire Hathaway publie ses résultats.
+Nvidia annonce ses résultats trimestriels.
+Une entreprise entre en procédure de rachat.
+Le Bitcoin dépasse un seuil.
+🏡 Immobilier
+Un bien correspondant à vos critères est mis en vente.
+Une baisse de prix sur un bien suivi.
+Un nouveau programme immobilier est annoncé.
+Une commune modifie son PLU.
+Les taux immobiliers évoluent.
+Une enchère immobilière est publiée.
+Une nouvelle réglementation locative.
+✈️ Voyage
+EasyJet ouvre les vols de Noël.
+Les billets passent sous 150 €.
+Une nouvelle ligne Nice–Tokyo est annoncée.
+Les formalités d'un pays changent.
+Une grève est annoncée.
+Une promotion Air France apparaît.
+Un hôtel baisse de prix.
+Parent
+L'école publie une information importante.
+Les inscriptions aux activités ouvrent.
+Une place se libère dans une activité.
+Les résultats d'examen sont publiés.
+Une alerte météo concerne l'école.
