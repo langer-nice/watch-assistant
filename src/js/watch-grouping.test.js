@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { groupWatches } from './watch-grouping.js';
+import { mockWatches } from './data/mock-watches.js';
+import { getBriefingWatchGroups, groupWatches } from './watch-grouping.js';
 
 const options = {
-  briefingGeneratedAt: '2026-07-23T08:00:00+02:00',
   getMeaningfulUpdate: (watch) => watch.latestChange || '',
   language: 'en',
   now: new Date('2026-07-23T12:00:00+02:00'),
@@ -83,4 +83,41 @@ test('does not categorise an update without meaningful update content', () => {
   ], options);
 
   assert.equal(groups[0].type, 'historical');
+});
+
+test('Home briefing and All Watches share the same attention and updated records', () => {
+  const metallica = {
+    id: 'metallica',
+    title: 'Metallica tickets',
+    createdAt: '2026-07-23T11:45:00+02:00',
+    status: 'watching',
+  };
+  const watches = [...mockWatches, metallica];
+  const sharedOptions = {
+    getMeaningfulUpdate: (watch) => (
+      watch.latestChangeKey ? 'Localized meaningful update' : watch.latestChange || ''
+    ),
+    isDisplayableWatch: (watch) => Boolean(watch.titleKey || watch.title),
+  };
+  const briefing = getBriefingWatchGroups(watches, sharedOptions);
+  const groups = groupWatches(watches, { ...options, ...sharedOptions });
+  const actionRequired = groups.find((group) => group.type === 'actionRequired');
+  const updated = groups.find((group) => group.type === 'updated');
+  const newWatches = groups.find((group) => group.type === 'new');
+
+  assert.deepEqual(briefing.attentionWatches.map((watch) => watch.id), ['watch-001']);
+  assert.deepEqual(briefing.updatedWatches.map((watch) => watch.id), ['watch-002', 'watch-003']);
+  assert.deepEqual(
+    actionRequired.watches.map((watch) => watch.id),
+    briefing.attentionWatches.map((watch) => watch.id),
+  );
+  assert.deepEqual(
+    updated.watches.map((watch) => watch.id),
+    briefing.updatedWatches.map((watch) => watch.id),
+  );
+  assert.deepEqual(newWatches.watches.map((watch) => watch.id), ['metallica']);
+  assert.equal(
+    new Set(groups.flatMap((group) => group.watches.map((watch) => watch.id))).size,
+    watches.length,
+  );
 });

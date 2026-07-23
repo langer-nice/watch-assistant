@@ -19,21 +19,15 @@ const newestFirst = (getWatchTimestamp) => (first, second) => (
 );
 
 export const groupWatches = (watches, {
-  briefingGeneratedAt,
   getMeaningfulUpdate,
+  isDisplayableWatch = () => true,
   language = 'en',
   now = new Date(),
 } = {}) => {
-  const briefingTimestamp = getTimestamp(briefingGeneratedAt);
-  const requiresAction = (watch) => (
-    watch.status === 'attention' || watch.requiresAttention === true
-  );
-  const hasMeaningfulUpdate = (watch) => {
-    const timestamp = updateTimestamp(watch);
-    return Boolean(getMeaningfulUpdate?.(watch)?.trim())
-      && timestamp > 0
-      && (watch.status === 'updated' || timestamp > briefingTimestamp);
-  };
+  const { attentionWatches, updatedWatches } = getBriefingWatchGroups(watches, {
+    getMeaningfulUpdate,
+    isDisplayableWatch,
+  });
   const wasCreatedToday = (watch) => {
     const createdAt = new Date(watch.createdAt);
     return !Number.isNaN(createdAt.getTime())
@@ -42,13 +36,9 @@ export const groupWatches = (watches, {
       && createdAt.getDate() === now.getDate();
   };
 
-  const actionRequired = watches
-    .filter(requiresAction)
-    .sort(newestFirst(activityTimestamp));
+  const actionRequired = attentionWatches.sort(newestFirst(activityTimestamp));
   const assignedIds = new Set(actionRequired.map((watch) => watch.id));
-  const updated = watches
-    .filter((watch) => !assignedIds.has(watch.id) && hasMeaningfulUpdate(watch))
-    .sort(newestFirst(updateTimestamp));
+  const updated = updatedWatches.sort(newestFirst(updateTimestamp));
   updated.forEach((watch) => assignedIds.add(watch.id));
   const newWatches = watches
     .filter((watch) => !assignedIds.has(watch.id) && wasCreatedToday(watch))
@@ -91,4 +81,34 @@ export const groupWatches = (watches, {
       })),
     { type: 'older', watches: watchesWithoutCreationDate },
   ].filter((group) => group.watches.length > 0);
+};
+
+export const getBriefingWatchGroups = (watches, {
+  getMeaningfulUpdate,
+  isDisplayableWatch = () => true,
+} = {}) => {
+  const activeWatches = watches.filter((watch) => watch.status !== 'completed');
+  const hasDisplayableUpdate = (watch) => (
+    isDisplayableWatch(watch)
+    && Boolean(getMeaningfulUpdate?.(watch)?.trim())
+  );
+  const attentionWatches = activeWatches.filter((watch) => (
+    hasDisplayableUpdate(watch)
+    && (watch.requiresAttention === true || watch.status === 'attention')
+  ));
+  const attentionIds = new Set(attentionWatches.map((watch) => watch.id));
+  const updatedWatches = activeWatches.filter((watch) => (
+    !attentionIds.has(watch.id)
+    && hasDisplayableUpdate(watch)
+  ));
+  const visibleIds = new Set([
+    ...attentionIds,
+    ...updatedWatches.map((watch) => watch.id),
+  ]);
+
+  return {
+    attentionWatches,
+    updatedWatches,
+    quietWatches: activeWatches.filter((watch) => !visibleIds.has(watch.id)),
+  };
 };

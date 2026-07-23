@@ -1,6 +1,5 @@
 import {
   getWatches,
-  getDemoWatches,
   hydrateWatchStorage,
   addWatch,
   updateWatch,
@@ -13,7 +12,7 @@ import {
 import { getLanguage, t } from './i18n.js';
 import { analyseUrl } from './url-analysis.js';
 import { clarifyWatchRequest } from './request-clarification.js';
-import { groupWatches } from './watch-grouping.js';
+import { getBriefingWatchGroups, groupWatches } from './watch-grouping.js';
 import {
   extractMonitoringConcepts,
   MONITORING_CONCEPTS_VERSION,
@@ -623,8 +622,6 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, optio
   };
 };
 
-const getHomeWatches = () => getDemoWatches();
-
 const STATUS_LABEL_VARIANTS = {
   attention: 'attention',
   checking: 'checking',
@@ -639,25 +636,18 @@ const STATUS_LABEL_VARIANTS = {
 const getStatusLabelVariant = (status) => STATUS_LABEL_VARIANTS[status] || 'checking';
 
 const getHomeReport = () => {
-  const activeWatches = getHomeWatches().filter((watch) => watch.status !== 'completed');
-  const hasDisplayableUpdate = (watch) => (
+  const watches = getWatches();
+  const isDisplayableWatch = (watch) => (
     hasMeaningfulText(localizeField(watch, 'title'))
-    && hasMeaningfulText(getLatestChange(watch))
   );
-  const attentionWatches = activeWatches.filter((watch) => (
-    hasDisplayableUpdate(watch)
-    && (watch.requiresAttention || watch.status === 'attention')
-  ));
-  const updatedWatches = activeWatches.filter((watch) => (
-    hasDisplayableUpdate(watch)
-    && !watch.requiresAttention
-    && watch.status !== 'attention'
-  ));
-  const visibleWatchIds = new Set([
-    ...attentionWatches.map((watch) => watch.id),
-    ...updatedWatches.map((watch) => watch.id),
-  ]);
-  const quietWatches = activeWatches.filter((watch) => !visibleWatchIds.has(watch.id));
+  const {
+    attentionWatches,
+    updatedWatches,
+    quietWatches,
+  } = getBriefingWatchGroups(watches, {
+    getMeaningfulUpdate: getLatestChange,
+    isDisplayableWatch,
+  });
   const unchangedCount = quietWatches.length;
 
   return {
@@ -731,19 +721,26 @@ const renderWatchList = () => {
   }
 
   const groups = groupWatches(watches, {
-    briefingGeneratedAt: getBriefingGeneratedAt(),
     getMeaningfulUpdate: getLatestChange,
+    isDisplayableWatch: (watch) => hasMeaningfulText(localizeField(watch, 'title')),
     language: getLanguage(),
   });
 
-  const renderWatchCards = (groupWatches) => groupWatches
+  const renderWatchCards = (group) => group.watches
     .map((watch) => {
       const storedTitle = localizeField(watch, 'title');
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
       const isPaused = watch.status === 'paused';
-      const status = STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking';
+      const status = group.type === 'actionRequired'
+        ? 'attention'
+        : group.type === 'updated'
+          ? 'updated'
+          : STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking';
       const statusModifier = getStatusLabelVariant(status);
-      const statusLabel = `<span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(t(`statuses.${status}`))}</span>`;
+      const statusText = status === 'attention'
+        ? t('watches.needsAttention')
+        : t(`statuses.${status}`);
+      const statusLabel = `<span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(statusText)}</span>`;
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : getMonitoringSummary(watch, title);
@@ -764,11 +761,14 @@ const renderWatchList = () => {
 
   list.innerHTML = groups
     .map((group, index) => {
+      if (['actionRequired', 'updated'].includes(group.type)) {
+        return renderWatchCards(group);
+      }
       const headingId = `watch-list-group-${index}`;
       return `
         <section class="watch-list__group" aria-labelledby="${headingId}">
           <h2 class="section-heading" id="${headingId}">${escapeHtml((group.label || t(`watches.${group.type}`)).toLocaleUpperCase(getLanguage()))}</h2>
-          <div class="watch-list">${renderWatchCards(group.watches)}</div>
+          <div class="watch-list">${renderWatchCards(group)}</div>
         </section>
       `;
     })

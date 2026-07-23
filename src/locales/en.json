@@ -96,6 +96,7 @@
     "updated": "Updated",
     "new": "New",
     "older": "Older",
+    "needsAttention": "Needs your attention",
     "monitoringPaused": "Automatic monitoring paused.",
     "empty": "Everything is under control. No active watches right now."
   },

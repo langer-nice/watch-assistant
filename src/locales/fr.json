@@ -96,6 +96,7 @@
     "updated": "Actualisées",
     "new": "Nouvelles",
     "older": "Plus anciennes",
+    "needsAttention": "Nécessite votre attention",
     "monitoringPaused": "Surveillance automatique en pause.",
     "empty": "Tout est sous contrôle. Aucune Watch active pour le moment."
   },
