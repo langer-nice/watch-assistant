@@ -12,6 +12,7 @@ import {
 } from './watch-storage.js';
 import { getLanguage, t } from './i18n.js';
 import { analyseUrl } from './url-analysis.js';
+import { clarifyWatchRequest } from './request-clarification.js';
 import {
   extractMonitoringConcepts,
   MONITORING_CONCEPTS_VERSION,
@@ -1663,6 +1664,12 @@ export function initForm() {
   const reviewCreate = document.querySelector('#urlReviewCreate');
   const reviewEdit = document.querySelector('#urlReviewEdit');
   const reviewCancel = document.querySelector('#urlReviewCancel');
+  const clarification = document.querySelector('#requestClarification');
+  const clarificationOriginal = document.querySelector('#clarificationOriginal');
+  const clarificationSuggestion = document.querySelector('#clarificationSuggestion');
+  const clarificationKeep = document.querySelector('#clarificationKeepOriginal');
+  const clarificationUse = document.querySelector('#clarificationUseSuggested');
+  const clarificationEdit = document.querySelector('#clarificationEdit');
   const input = form?.watchRequest;
   const composer = input?.closest('.watch-composer');
   const watchClear = form?.querySelector('[data-watch-clear]');
@@ -1693,7 +1700,9 @@ export function initForm() {
   let pendingWhyFollowing = '';
   let pendingAnalysis = null;
   let analysisInProgress = false;
+  let clarificationInProgress = false;
   let creationInProgress = false;
+  let pendingClarificationWhyFollowing = '';
   const resizeFrames = new WeakMap();
   let noteCollapseTimer = null;
   let keywordRegenerationTimer = null;
@@ -2098,6 +2107,49 @@ export function initForm() {
     ...getKeywordValues(),
   });
 
+  const createPlainTextWatch = (request, whyFollowing) => {
+    const selectedRequest = request.trim();
+    if (!selectedRequest || creationInProgress) return;
+
+    creationInProgress = true;
+    if (input) input.value = selectedRequest;
+    synchronizeInferredFields(selectedRequest);
+    setCreationControlsDisabled(true);
+    completeWatchCreation(createWatchObject(
+      selectedRequest,
+      whyFollowing,
+      null,
+      getCreateOptions(),
+    ));
+  };
+
+  const setClarificationEditing = (editing) => {
+    clarification?.classList.toggle('is-editing', editing);
+    if (clarificationOriginal) clarificationOriginal.readOnly = !editing;
+    if (clarificationSuggestion) clarificationSuggestion.readOnly = !editing;
+    if (clarificationEdit) {
+      clarificationEdit.textContent = t(
+        editing ? 'newWatch.clarificationDone' : 'newWatch.clarificationEdit',
+      );
+    }
+    if (editing) clarificationOriginal?.focus();
+  };
+
+  const showClarification = (original, suggested, whyFollowing) => {
+    pendingClarificationWhyFollowing = whyFollowing;
+    if (clarificationOriginal) clarificationOriginal.value = original;
+    if (clarificationSuggestion) clarificationSuggestion.value = suggested;
+    clarificationInProgress = false;
+    setCreationControlsDisabled(false);
+    setSubmitLabel();
+    setClarificationEditing(false);
+    form.classList.add('is-clarifying');
+    if (clarification) {
+      clarification.hidden = false;
+      clarification.focus();
+    }
+  };
+
   const setReviewEditing = (editing) => {
     review?.classList.toggle('is-editing', editing);
     if (reviewTitle) {
@@ -2497,7 +2549,13 @@ export function initForm() {
       return;
     }
 
-    if (analysisInProgress || creationInProgress || form.classList.contains('is-reviewing')) {
+    if (
+      analysisInProgress
+      || clarificationInProgress
+      || creationInProgress
+      || form.classList.contains('is-reviewing')
+      || form.classList.contains('is-clarifying')
+    ) {
       return;
     }
 
@@ -2533,18 +2591,48 @@ export function initForm() {
       return;
     }
 
-    creationInProgress = true;
-    setCreationControlsDisabled(true);
     if (isEditMode) {
+      creationInProgress = true;
+      setCreationControlsDisabled(true);
       completeWatchUpdate(request, whyFollowing);
-    } else {
-      completeWatchCreation(createWatchObject(
-        request,
-        whyFollowing,
-        null,
-        getCreateOptions(),
-      ));
+      return;
     }
+
+    clarificationInProgress = true;
+    setCreationControlsDisabled(true);
+    setSubmitLabel('newWatch.clarificationChecking');
+    const result = await clarifyWatchRequest(request, { language: getLanguage() });
+    if (result.needsClarification) {
+      showClarification(request, result.suggestedRequest, whyFollowing);
+      return;
+    }
+
+    clarificationInProgress = false;
+    createPlainTextWatch(request, whyFollowing);
+  });
+
+  clarificationKeep?.addEventListener('click', () => {
+    if (!clarificationOriginal?.value.trim()) {
+      setClarificationEditing(true);
+      clarificationOriginal?.focus();
+      clarificationOriginal?.reportValidity();
+      return;
+    }
+    createPlainTextWatch(clarificationOriginal.value, pendingClarificationWhyFollowing);
+  });
+
+  clarificationUse?.addEventListener('click', () => {
+    if (!clarificationSuggestion?.value.trim()) {
+      setClarificationEditing(true);
+      clarificationSuggestion?.focus();
+      clarificationSuggestion?.reportValidity();
+      return;
+    }
+    createPlainTextWatch(clarificationSuggestion.value, pendingClarificationWhyFollowing);
+  });
+
+  clarificationEdit?.addEventListener('click', () => {
+    setClarificationEditing(!clarification?.classList.contains('is-editing'));
   });
 
   reviewEdit?.addEventListener('click', () => {
@@ -2735,7 +2823,14 @@ export function initForm() {
       reviewEdit.textContent = t('newWatch.urlReviewDone');
     }
     renderKeywords();
-    setSubmitLabel(analysisInProgress ? 'newWatch.urlProcessingButton' : undefined);
+    if (clarification?.classList.contains('is-editing') && clarificationEdit) {
+      clarificationEdit.textContent = t('newWatch.clarificationDone');
+    }
+    setSubmitLabel(
+      analysisInProgress
+        ? 'newWatch.urlProcessingButton'
+        : clarificationInProgress ? 'newWatch.clarificationChecking' : undefined,
+    );
   });
 
   initializeFormMode();

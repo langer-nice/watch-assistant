@@ -127,6 +127,26 @@
 
           <p class="watch-composer__feedback" id="inputTypeHint" aria-live="polite" hidden></p>
 
+          <section class="request-clarification" id="requestClarification" aria-labelledby="requestClarificationTitle" tabindex="-1" hidden>
+            <h2 id="requestClarificationTitle" data-i18n="newWatch.clarificationTitle"></h2>
+            <p class="request-clarification__intro" data-i18n="newWatch.clarificationIntro"></p>
+
+            <div class="request-clarification__field">
+              <label for="clarificationOriginal" data-i18n="newWatch.clarificationOriginal"></label>
+              <textarea id="clarificationOriginal" rows="3" required readonly></textarea>
+            </div>
+            <div class="request-clarification__field">
+              <label for="clarificationSuggestion" data-i18n="newWatch.clarificationSuggestion"></label>
+              <textarea id="clarificationSuggestion" rows="3" required readonly></textarea>
+            </div>
+
+            <div class="request-clarification__actions">
+              <button class="button button--secondary" id="clarificationKeepOriginal" type="button" data-i18n="newWatch.clarificationKeep"></button>
+              <button class="button button--primary" id="clarificationUseSuggested" type="button" data-i18n="newWatch.clarificationUse"></button>
+              <button class="button button--secondary" id="clarificationEdit" type="button" data-i18n="newWatch.clarificationEdit"></button>
+            </div>
+          </section>
+
           <section class="url-analysis" id="urlAnalysis" aria-live="polite" hidden>
             <div class="url-analysis__processing" id="urlAnalysisProcessing" hidden>
               <span class="url-analysis__spinner" aria-hidden="true"></span>

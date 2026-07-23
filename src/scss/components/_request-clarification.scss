@@ -1,0 +1,88 @@
+.watch-form.is-clarifying > :not(.request-clarification) {
+  display: none;
+}
+
+.request-clarification[hidden] {
+  display: none;
+}
+
+.request-clarification {
+  padding: var(--space-xl);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.request-clarification h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: 1.2;
+}
+
+.request-clarification__intro {
+  margin: var(--space-xs) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.request-clarification__field {
+  display: grid;
+  gap: var(--space-xs);
+  margin-top: var(--space-lg);
+}
+
+.request-clarification__field label {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.request-clarification__field textarea {
+  width: 100%;
+  padding: 0;
+  color: var(--color-text);
+  background: var(--color-transparent);
+  border: 1px solid var(--color-transparent);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  resize: none;
+}
+
+.request-clarification.is-editing .request-clarification__field textarea {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+  resize: vertical;
+}
+
+.request-clarification__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
+}
+
+.request-clarification__actions .button {
+  width: 100%;
+  margin: 0;
+}
+
+.request-clarification__actions .button:last-child {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 34rem) {
+  .request-clarification__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .request-clarification__actions .button:last-child {
+    grid-column: auto;
+  }
+}
