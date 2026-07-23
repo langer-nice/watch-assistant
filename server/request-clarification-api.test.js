@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createRequestClarificationMiddleware,
   generateRequestClarification,
-} from '../server/request-clarification-api.js';
+} from './request-clarification-api.js';
 
 const createResponse = () => ({
   statusCode: 200,
