@@ -5,7 +5,7 @@
 
 
 # Owner masking
-# https://ton-site.vercel.app/?owner=1
+https://watch-assistant-omega.vercel.app/?owner=1
 
 
 # GIT Commands
@@ -14,16 +14,16 @@ git status
 git branch
 
 # Créer une nouvelle branche
-git switch -c feature/url-flow
+git switch -c feature/micro
 
 # Changer de branche
 git switch master
-git switch feature/url-flow
+git switch feature/micro
 
 # Merge une branche dans master
 git switch master
-git merge feature/url-flow
+git merge feature/micro
 git push origin master
 
 # Supprimer la branche - Quand tout est fusionné :
-git branch -d feature/url-flow
+git branch -d feature/micro

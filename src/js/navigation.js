@@ -1602,6 +1602,9 @@ export function initForm() {
   let pendingNavigationUrl = '';
   let editNavigationAllowed = false;
   let refreshEditSaveState = () => {};
+  let activeVoiceTooltip = null;
+  let voiceTooltipDismissTimer = null;
+  let voiceTooltipHideTimer = null;
 
   if (!form) {
     return;
@@ -2633,10 +2636,58 @@ export function initForm() {
     resetUrlFlow({ clearInput: true, trackCancellation: true });
   });
 
+  const showVoiceInputTooltip = (microphone) => {
+    window.clearTimeout(voiceTooltipDismissTimer);
+    window.clearTimeout(voiceTooltipHideTimer);
+
+    if (activeVoiceTooltip && activeVoiceTooltip.parentElement !== microphone) {
+      activeVoiceTooltip.hidden = true;
+      activeVoiceTooltip.classList.remove('is-visible', 'is-leaving', 'is-below');
+    }
+
+    let tooltip = microphone.querySelector('.microphone-tooltip');
+    if (!tooltip) {
+      tooltip = document.createElement('span');
+      tooltip.className = 'microphone-tooltip';
+      tooltip.setAttribute('role', 'status');
+      tooltip.setAttribute('aria-live', 'polite');
+      microphone.append(tooltip);
+    }
+
+    activeVoiceTooltip = tooltip;
+    tooltip.textContent = t('newWatch.voiceUnavailable');
+    tooltip.hidden = false;
+    tooltip.classList.remove('is-visible', 'is-leaving', 'is-below');
+    const availableSpaceAbove = microphone.getBoundingClientRect().top;
+    tooltip.classList.toggle(
+      'is-below',
+      availableSpaceAbove < tooltip.offsetHeight + 12,
+    );
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (!tooltip.hidden) tooltip.classList.add('is-visible');
+      });
+    });
+
+    voiceTooltipDismissTimer = window.setTimeout(() => {
+      tooltip.classList.remove('is-visible');
+      tooltip.classList.add('is-leaving');
+      voiceTooltipHideTimer = window.setTimeout(() => {
+        tooltip.hidden = true;
+        tooltip.classList.remove('is-leaving', 'is-below');
+        if (activeVoiceTooltip === tooltip) activeVoiceTooltip = null;
+        voiceTooltipHideTimer = null;
+      }, 180);
+      voiceTooltipDismissTimer = null;
+    }, 2500);
+  };
+
   form.querySelectorAll('.watch-composer__microphone, .watch-reason__microphone')
     .forEach((microphone) => {
-      microphone.addEventListener('pointerdown', () => {
+      microphone.addEventListener('click', () => {
         if (!isEditMode) trackProductEvent(PRODUCT_EVENTS.MICROPHONE_CLICKED);
+        showVoiceInputTooltip(microphone);
       });
     });
 

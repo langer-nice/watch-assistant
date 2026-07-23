@@ -147,7 +147,7 @@
     "label": "Que dois-je surveiller ?",
     "placeholder": "Prévenez-moi quand...",
     "urlHelper": "Ou collez une URL.",
-    "voiceUnavailable": "Saisie vocale bientôt disponible",
+    "voiceUnavailable": "Saisie vocale bientôt disponible.",
     "clearWatchInput": "Effacer la description de la Watch",
     "understood": "CE QUE J’AI COMPRIS",
     "conceptsHelper": "Vérifiez les concepts que j’utiliserai pour surveiller cette Watch. Vous pouvez les ajouter, les supprimer ou les modifier si nécessaire.",

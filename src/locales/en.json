@@ -147,7 +147,7 @@
     "label": "What should I keep an eye on?",
     "placeholder": "Tell me when...",
     "urlHelper": "Or paste a URL.",
-    "voiceUnavailable": "Voice input coming soon",
+    "voiceUnavailable": "Voice input coming soon.",
     "clearWatchInput": "Clear Watch description",
     "understood": "WHAT I UNDERSTOOD",
     "conceptsHelper": "Review the concepts I’ll use to monitor this Watch. You can add, remove or edit them if needed.",
