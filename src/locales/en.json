@@ -94,8 +94,9 @@
     "intro": "Review the watch list and open any item for more context.",
     "actionRequired": "Action required",
     "updated": "Updated",
-    "new": "New",
-    "older": "Older",
+    "today": "Today",
+    "last7Days": "Last 7 days",
+    "unknownDate": "Date unknown",
     "needsAttention": "Needs your attention",
     "monitoringPaused": "Automatic monitoring paused.",
     "empty": "Everything is under control. No active watches right now."

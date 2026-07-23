@@ -94,8 +94,9 @@
     "intro": "Consultez la liste des Watches et ouvrez-en une pour en savoir plus.",
     "actionRequired": "Action requise",
     "updated": "Actualisées",
-    "new": "Nouvelles",
-    "older": "Plus anciennes",
+    "today": "Aujourd’hui",
+    "last7Days": "7 derniers jours",
+    "unknownDate": "Date inconnue",
     "needsAttention": "Nécessite votre attention",
     "monitoringPaused": "Surveillance automatique en pause.",
     "empty": "Tout est sous contrôle. Aucune Watch active pour le moment."

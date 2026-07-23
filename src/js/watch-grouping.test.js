@@ -23,14 +23,14 @@ test('groups Watches once in the required precedence order', () => {
     },
     {
       id: 'updated',
-      createdAt: '2026-07-23T10:00:00+02:00',
+      createdAt: '2026-07-21T10:00:00+02:00',
       latestChange: 'Tickets are now available.',
       latestChangeAt: '2026-07-23T10:30:00+02:00',
       status: 'updated',
     },
     {
       id: 'action',
-      createdAt: '2026-07-23T08:00:00+02:00',
+      createdAt: '2026-07-20T08:00:00+02:00',
       latestChange: 'Booking closes soon.',
       latestChangeAt: '2026-07-23T11:00:00+02:00',
       requiresAttention: true,
@@ -39,6 +39,11 @@ test('groups Watches once in the required precedence order', () => {
     {
       id: 'new-newer',
       createdAt: '2026-07-23T11:30:00+02:00',
+      status: 'watching',
+    },
+    {
+      id: 'recent',
+      createdAt: '2026-07-22T11:20:00+02:00',
       status: 'watching',
     },
     {
@@ -52,13 +57,37 @@ test('groups Watches once in the required precedence order', () => {
   assert.deepEqual(groups.map((group) => group.type), [
     'actionRequired',
     'updated',
-    'new',
+    'today',
+    'last7Days',
     'historical',
     'historical',
   ]);
   assert.deepEqual(groups[2].watches.map((watch) => watch.id), ['new-newer', 'new-older']);
-  assert.deepEqual(groups.slice(3).map((group) => group.label), ['July 2026', 'June 2026']);
+  assert.deepEqual(groups[3].watches.map((watch) => watch.id), ['recent']);
+  assert.deepEqual(groups.slice(4).map((group) => group.label), ['July 2026', 'June 2026']);
   assert.equal(new Set(groups.flatMap((group) => group.watches.map((watch) => watch.id))).size, watches.length);
+});
+
+test('keeps every Watch created today and sorts them newest first', () => {
+  const groups = groupWatches([
+    {
+      id: 'gbp',
+      title: 'GBP reaches 1.18 against the EUR',
+      createdAt: '2026-07-23T16:30:00+02:00',
+      latestChange: 'The exchange rate changed.',
+      latestChangeAt: '2026-07-23T16:45:00+02:00',
+      status: 'updated',
+    },
+    {
+      id: 'metallica',
+      title: 'Tickets Metallica on sale',
+      createdAt: '2026-07-23T17:06:00+02:00',
+      status: 'watching',
+    },
+  ], options);
+
+  assert.deepEqual(groups.map((group) => group.type), ['today']);
+  assert.deepEqual(groups[0].watches.map((watch) => watch.id), ['metallica', 'gbp']);
 });
 
 test('omits empty sections and sorts historical Watches newest first', () => {
@@ -103,7 +132,8 @@ test('Home briefing and All Watches share the same attention and updated records
   const groups = groupWatches(watches, { ...options, ...sharedOptions });
   const actionRequired = groups.find((group) => group.type === 'actionRequired');
   const updated = groups.find((group) => group.type === 'updated');
-  const newWatches = groups.find((group) => group.type === 'new');
+  const newWatches = groups.find((group) => group.type === 'today');
+  const unknownDate = groups.find((group) => group.type === 'unknownDate');
 
   assert.deepEqual(briefing.attentionWatches.map((watch) => watch.id), ['watch-001']);
   assert.deepEqual(briefing.updatedWatches.map((watch) => watch.id), ['watch-002', 'watch-003']);
@@ -116,8 +146,30 @@ test('Home briefing and All Watches share the same attention and updated records
     briefing.updatedWatches.map((watch) => watch.id),
   );
   assert.deepEqual(newWatches.watches.map((watch) => watch.id), ['metallica']);
+  assert.deepEqual(
+    unknownDate.watches.map((watch) => watch.id),
+    ['watch-004', 'watch-005', 'watch-006', 'watch-007', 'watch-008'],
+  );
   assert.equal(
     new Set(groups.flatMap((group) => group.watches.map((watch) => watch.id))).size,
     watches.length,
   );
+});
+
+test('uses the previous seven local calendar days before historical months', () => {
+  const groups = groupWatches([
+    { id: 'yesterday', createdAt: '2026-07-22T10:00:00+02:00', status: 'watching' },
+    { id: 'seven-days', createdAt: '2026-07-16T00:00:00+02:00', status: 'watching' },
+    { id: 'eight-days', createdAt: '2026-07-15T23:59:59+02:00', status: 'watching' },
+    { id: 'unknown', status: 'watching' },
+  ], options);
+
+  assert.deepEqual(groups.map((group) => group.type), [
+    'last7Days',
+    'historical',
+    'unknownDate',
+  ]);
+  assert.deepEqual(groups[0].watches.map((watch) => watch.id), ['yesterday', 'seven-days']);
+  assert.deepEqual(groups[1].watches.map((watch) => watch.id), ['eight-days']);
+  assert.deepEqual(groups[2].watches.map((watch) => watch.id), ['unknown']);
 });

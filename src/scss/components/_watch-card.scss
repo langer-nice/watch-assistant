@@ -60,6 +60,12 @@
   color: var(--color-text-muted);
 }
 
+.watch-row__created {
+  margin: var(--space-xs) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
 .watch-row__status {
   flex: 0 0 auto;
 }

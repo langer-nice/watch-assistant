@@ -1,3 +1,5 @@
+import { getLocalDateBoundaries, getWatchCreationDate } from './watch-dates.js';
+
 const getTimestamp = (...values) => {
   for (const value of values) {
     const timestamp = Date.parse(value);
@@ -6,14 +8,13 @@ const getTimestamp = (...values) => {
   return 0;
 };
 
-const creationTimestamp = (watch) => getTimestamp(watch.createdAt);
+const creationTimestamp = (watch) => getWatchCreationDate(watch)?.getTime() || 0;
 const updateTimestamp = (watch) => getTimestamp(watch.latestChangeAt, watch.updatedAt);
 const activityTimestamp = (watch) => getTimestamp(
   watch.latestChangeAt,
   watch.updatedAt,
   watch.lastChecked,
-  watch.createdAt,
-);
+) || creationTimestamp(watch);
 const newestFirst = (getWatchTimestamp) => (first, second) => (
   getWatchTimestamp(second) - getWatchTimestamp(first)
 );
@@ -28,30 +29,47 @@ export const groupWatches = (watches, {
     getMeaningfulUpdate,
     isDisplayableWatch,
   });
-  const wasCreatedToday = (watch) => {
-    const createdAt = new Date(watch.createdAt);
-    return !Number.isNaN(createdAt.getTime())
-      && createdAt.getFullYear() === now.getFullYear()
-      && createdAt.getMonth() === now.getMonth()
-      && createdAt.getDate() === now.getDate();
-  };
+  const {
+    today: todayStart,
+    tomorrow: tomorrowStart,
+    last7Days: last7DaysStart,
+  } = getLocalDateBoundaries(now);
 
-  const actionRequired = attentionWatches.sort(newestFirst(activityTimestamp));
-  const assignedIds = new Set(actionRequired.map((watch) => watch.id));
-  const updated = updatedWatches.sort(newestFirst(updateTimestamp));
-  updated.forEach((watch) => assignedIds.add(watch.id));
-  const newWatches = watches
-    .filter((watch) => !assignedIds.has(watch.id) && wasCreatedToday(watch))
+  const today = watches
+    .filter((watch) => {
+      const createdAt = getWatchCreationDate(watch);
+      return createdAt
+        && createdAt >= todayStart
+        && createdAt < tomorrowStart;
+    })
     .sort(newestFirst(creationTimestamp));
-  newWatches.forEach((watch) => assignedIds.add(watch.id));
+  const assignedIds = new Set(today.map((watch) => watch.id));
+  const actionRequired = attentionWatches
+    .filter((watch) => !assignedIds.has(watch.id))
+    .sort(newestFirst(activityTimestamp));
+  actionRequired.forEach((watch) => assignedIds.add(watch.id));
+  const updated = updatedWatches
+    .filter((watch) => !assignedIds.has(watch.id))
+    .sort(newestFirst(updateTimestamp));
+  updated.forEach((watch) => assignedIds.add(watch.id));
+  const last7Days = watches
+    .filter((watch) => {
+      const createdAt = getWatchCreationDate(watch);
+      return !assignedIds.has(watch.id)
+        && createdAt
+        && createdAt >= last7DaysStart
+        && createdAt < todayStart;
+    })
+    .sort(newestFirst(creationTimestamp));
+  last7Days.forEach((watch) => assignedIds.add(watch.id));
 
   const historicalMonths = new Map();
-  const watchesWithoutCreationDate = [];
+  const unknownDate = [];
   watches.forEach((watch) => {
     if (assignedIds.has(watch.id)) return;
-    const createdAt = new Date(watch.createdAt);
-    if (Number.isNaN(createdAt.getTime())) {
-      watchesWithoutCreationDate.push(watch);
+    const createdAt = getWatchCreationDate(watch);
+    if (!createdAt) {
+      unknownDate.push(watch);
       return;
     }
     const monthKey = `${createdAt.getFullYear()}-${createdAt.getMonth()}`;
@@ -72,14 +90,15 @@ export const groupWatches = (watches, {
   return [
     { type: 'actionRequired', watches: actionRequired },
     { type: 'updated', watches: updated },
-    { type: 'new', watches: newWatches },
+    { type: 'today', watches: today },
+    { type: 'last7Days', watches: last7Days },
     ...[...historicalMonths.values()]
       .sort((first, second) => second.timestamp - first.timestamp)
       .map((group) => ({
         ...group,
         watches: group.watches.sort(newestFirst(creationTimestamp)),
       })),
-    { type: 'older', watches: watchesWithoutCreationDate },
+    { type: 'unknownDate', watches: unknownDate },
   ].filter((group) => group.watches.length > 0);
 };
 

@@ -1,4 +1,5 @@
 import { mockWatches } from './data/mock-watches.js';
+import { normalizeWatchCreationDate } from './watch-dates.js';
 
 const STORAGE_KEY = 'watchAssistant.watches';
 const DELETED_WATCHES_STORAGE_KEY = 'watchAssistant.deletedWatchIds';
@@ -7,6 +8,29 @@ const DEMO_DATA_VERSION_KEY = 'watchAssistant.demoDataVersion';
 const DEMO_DATA_VERSION = 'home-report-v1';
 const HTML_ENTITY_MIGRATION_KEY = 'watchAssistant.htmlEntityDecodeVersion';
 const HTML_ENTITY_MIGRATION_VERSION = '1';
+const creationDateWarnings = new Set();
+
+const normalizeWatchCreationDates = (watches, { persist = false } = {}) => {
+  let changed = false;
+  const normalizedWatches = watches.map((watch) => {
+    const result = normalizeWatchCreationDate(watch);
+    if (!result.valid) {
+      const warningId = watch.id || '(missing id)';
+      if (!creationDateWarnings.has(warningId)) {
+        console.warn(
+          `[Watch storage] Could not recover createdAt for Watch ${warningId}; it will be shown under DATE UNKNOWN.`,
+        );
+        creationDateWarnings.add(warningId);
+      }
+      return watch;
+    }
+    changed ||= result.migrated;
+    return result.watch;
+  });
+
+  if (changed && persist) saveWatches(normalizedWatches);
+  return normalizedWatches;
+};
 
 const decodeHtmlEntities = (value) => {
   if (typeof value !== 'string' || !value.includes('&')) return value;
@@ -84,7 +108,9 @@ export function getStoredWatches() {
       return [];
     }
     const watches = JSON.parse(json);
-    return Array.isArray(watches) ? migrateStoredWatchTitles(watches) : [];
+    return Array.isArray(watches)
+      ? normalizeWatchCreationDates(migrateStoredWatchTitles(watches), { persist: true })
+      : [];
   } catch (error) {
     console.warn('Could not read stored watches', error);
     return [];
@@ -129,7 +155,7 @@ export function getWatches() {
   const customWatches = stored.filter(
     (watch) => !mockIds.has(watch.id) && !deletedIds.has(watch.id),
   );
-  return [...seededWatches, ...customWatches];
+  return normalizeWatchCreationDates([...seededWatches, ...customWatches]);
 }
 
 export function getDemoWatches() {

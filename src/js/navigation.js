@@ -14,6 +14,11 @@ import { analyseUrl } from './url-analysis.js';
 import { clarifyWatchRequest } from './request-clarification.js';
 import { getBriefingWatchGroups, groupWatches } from './watch-grouping.js';
 import {
+  formatWatchCreationMetadata,
+  formatWatchCreationTime,
+  getWatchCreationDate,
+} from './watch-dates.js';
+import {
   extractMonitoringConcepts,
   MONITORING_CONCEPTS_VERSION,
 } from './monitoring-concepts.js';
@@ -741,6 +746,13 @@ const renderWatchList = () => {
         ? t('watches.needsAttention')
         : t(`statuses.${status}`);
       const statusLabel = `<span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(statusText)}</span>`;
+      const showCreationMetadata = group.type === 'last7Days';
+      const creationMetadata = showCreationMetadata
+        ? formatWatchCreationMetadata(getWatchCreationDate(watch), {
+          groupType: group.type,
+          language: getLanguage(),
+        })
+        : '';
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : getMonitoringSummary(watch, title);
@@ -753,6 +765,7 @@ const renderWatchList = () => {
         <div class="watch-row__content">
           <h2>${escapeHtml(title)}</h2>
           ${subtitle ? `<p class="watch-row__summary">${escapeHtml(subtitle)}</p>` : ''}
+          ${creationMetadata ? `<p class="watch-row__created">${escapeHtml(creationMetadata)}</p>` : ''}
         </div>
       </a>
     `;
@@ -764,13 +777,31 @@ const renderWatchList = () => {
       if (['actionRequired', 'updated'].includes(group.type)) {
         return renderWatchCards(group);
       }
-      const headingId = `watch-list-group-${index}`;
-      return `
+      const headingLabel = (group.label || t(`watches.${group.type}`))
+        .toLocaleUpperCase(getLanguage());
+      const renderDatedGroup = (watchesInGroup, headingId, headingTime = '') => `
         <section class="watch-list__group" aria-labelledby="${headingId}">
-          <h2 class="section-heading" id="${headingId}">${escapeHtml((group.label || t(`watches.${group.type}`)).toLocaleUpperCase(getLanguage()))}</h2>
-          <div class="watch-list">${renderWatchCards(group)}</div>
+          <h2 class="section-heading${headingTime ? ' section-heading--with-time' : ''}" id="${headingId}">
+            <span>${escapeHtml(headingLabel)}</span>
+            ${headingTime ? `<span class="section-heading__time">${escapeHtml(headingTime)}</span>` : ''}
+          </h2>
+          <div class="watch-list">${renderWatchCards({ ...group, watches: watchesInGroup })}</div>
         </section>
       `;
+
+      if (group.type === 'today') {
+        return group.watches
+          .map((watch, watchIndex) => renderDatedGroup(
+            [watch],
+            `watch-list-group-${index}-${watchIndex}`,
+            formatWatchCreationTime(getWatchCreationDate(watch), {
+              language: getLanguage(),
+            }),
+          ))
+          .join('');
+      }
+
+      return renderDatedGroup(group.watches, `watch-list-group-${index}`);
     })
     .join('');
 };
