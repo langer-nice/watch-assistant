@@ -35,6 +35,32 @@
   background: var(--color-primary-hover);
 }
 
+.app-shell:has(> .page--watches) > .floating-action {
+  right: var(--app-content-padding-inline);
+  bottom: calc(var(--space-lg) + env(safe-area-inset-bottom));
+  left: var(--app-content-padding-inline);
+  z-index: 20;
+  gap: var(--space-xs);
+  width: auto;
+  max-width: calc(var(--app-content-max-width) - (var(--app-content-padding-inline) * 2));
+  min-height: 3.625rem;
+  margin: 0 auto;
+  padding: 0 var(--space-lg);
+  background: var(--color-floating-action);
+  box-shadow: var(--shadow-floating-action);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.app-shell:has(> .page--watches) > .floating-action:hover,
+.app-shell:has(> .page--watches) > .floating-action:focus-visible {
+  background: var(--color-floating-action-hover);
+}
+
+.app-shell:has(> .page--watches) > .page--watches {
+  padding-bottom: calc(3.625rem + (var(--space-lg) * 3) + env(safe-area-inset-bottom));
+}
+
 .floating-action--home:hover,
 .floating-action--home:focus-visible {
   background: var(--color-floating-action-hover);

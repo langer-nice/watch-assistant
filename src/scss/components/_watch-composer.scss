@@ -103,6 +103,54 @@
   stroke-width: 1.75;
 }
 
+.microphone-tooltip {
+  position: absolute;
+  z-index: 10;
+  right: 0;
+  bottom: calc(100% + var(--space-xs));
+  width: max-content;
+  max-width: calc(100vw - (var(--space-lg) * 2));
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(var(--space-xxs));
+  transition:
+    opacity var(--transition-default),
+    transform var(--transition-default);
+  white-space: nowrap;
+}
+
+.microphone-tooltip[hidden] {
+  display: none;
+}
+
+.microphone-tooltip.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.microphone-tooltip.is-leaving {
+  opacity: 0;
+}
+
+.microphone-tooltip.is-below {
+  top: calc(100% + var(--space-xs));
+  bottom: auto;
+  transform: translateY(calc(var(--space-xxs) * -1));
+}
+
+.microphone-tooltip.is-below.is-visible {
+  transform: translateY(0);
+}
+
 .watch-composer__clear:hover,
 .watch-composer__clear:focus-visible,
 .watch-reason__close:hover,

@@ -3,6 +3,8 @@
 # The built pages in dist will reference CSS, not SCSS.
 # http://localhost:5173
 
+# Owner masking
+https://watch-assistant-omega.vercel.app/?owner=1
 
 # GIT Commands
 # Vérifier où tu es

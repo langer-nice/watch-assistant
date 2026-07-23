@@ -90,6 +90,10 @@
   "watches": {
     "title": "All watches",
     "intro": "Review the watch list and open any item for more context.",
+    "actionRequired": "Action required",
+    "updated": "Updated",
+    "new": "New",
+    "older": "Older",
     "monitoringPaused": "Automatic monitoring paused.",
     "empty": "Everything is under control. No active watches right now."
   },
@@ -145,7 +149,7 @@
     "label": "What should I keep an eye on?",
     "placeholder": "Tell me when...",
     "urlHelper": "Or paste a URL.",
-    "voiceUnavailable": "Voice input coming soon",
+    "voiceUnavailable": "Voice input coming soon.",
     "clearWatchInput": "Clear Watch description",
     "understood": "WHAT I UNDERSTOOD",
     "conceptsHelper": "Review the concepts I’ll use to monitor this Watch. You can add, remove or edit them if needed.",

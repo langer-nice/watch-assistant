@@ -90,6 +90,10 @@
   "watches": {
     "title": "Toutes les veilles",
     "intro": "Consultez la liste des veilles et ouvrez un élément pour en savoir plus.",
+    "actionRequired": "Action requise",
+    "updated": "Actualisées",
+    "new": "Nouvelles",
+    "older": "Plus anciennes",
     "monitoringPaused": "Surveillance automatique en pause.",
     "empty": "Tout est sous contrôle. Aucune veille active pour le moment."
   },
@@ -145,7 +149,7 @@
     "label": "Que dois-je surveiller ?",
     "placeholder": "Prévenez-moi quand...",
     "urlHelper": "Ou collez une URL.",
-    "voiceUnavailable": "Saisie vocale bientôt disponible",
+    "voiceUnavailable": "Saisie vocale bientôt disponible.",
     "clearWatchInput": "Effacer la description de la veille",
     "understood": "CE QUE J’AI COMPRIS",
     "conceptsHelper": "Vérifiez les concepts que j’utiliserai pour surveiller cette veille. Vous pouvez les ajouter, les supprimer ou les modifier si nécessaire.",

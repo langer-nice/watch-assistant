@@ -723,24 +723,147 @@ const renderWatchList = () => {
     return;
   }
 
-  list.innerHTML = watches
+  const getTimestamp = (...values) => {
+    for (const value of values) {
+      const timestamp = Date.parse(value);
+      if (!Number.isNaN(timestamp)) return timestamp;
+    }
+    return 0;
+  };
+  const getCreationTimestamp = (watch) => getTimestamp(watch.createdAt);
+  const getUpdateTimestamp = (watch) => getTimestamp(
+    watch.latestChangeAt,
+    watch.updatedAt,
+  );
+  const getRelevantActivityTimestamp = (watch) => getTimestamp(
+    watch.latestChangeAt,
+    watch.updatedAt,
+    watch.lastChecked,
+    watch.createdAt,
+  );
+  const sortByTimestamp = (getWatchTimestamp) => (first, second) => (
+    getWatchTimestamp(second) - getWatchTimestamp(first)
+  );
+  const isActionRequired = (watch) => (
+    watch.status === 'attention' || watch.requiresAttention === true
+  );
+  const briefingGeneratedAt = getTimestamp(getBriefingGeneratedAt());
+  const isUpdated = (watch) => {
+    if (watch.status === 'updated') return true;
+    const updateTimestamp = getTimestamp(watch.latestChangeAt, watch.updatedAt);
+    return hasMeaningfulText(getLatestChange(watch))
+      && updateTimestamp > 0
+      && updateTimestamp > briefingGeneratedAt;
+  };
+  const today = new Date();
+  const isCreatedToday = (watch) => {
+    const createdAt = new Date(watch.createdAt);
+    return !Number.isNaN(createdAt.getTime())
+      && createdAt.getFullYear() === today.getFullYear()
+      && createdAt.getMonth() === today.getMonth()
+      && createdAt.getDate() === today.getDate();
+  };
+
+  const actionRequired = watches
+    .filter(isActionRequired)
+    .sort(sortByTimestamp(getRelevantActivityTimestamp));
+  const actionRequiredIds = new Set(actionRequired.map((watch) => watch.id));
+  const updated = watches
+    .filter((watch) => !actionRequiredIds.has(watch.id) && isUpdated(watch))
+    .sort(sortByTimestamp(getUpdateTimestamp));
+  const updatedIds = new Set(updated.map((watch) => watch.id));
+  const newWatches = watches
+    .filter((watch) => (
+      !actionRequiredIds.has(watch.id)
+      && !updatedIds.has(watch.id)
+      && isCreatedToday(watch)
+    ))
+    .sort(sortByTimestamp(getCreationTimestamp));
+  const categorisedIds = new Set([
+    ...actionRequiredIds,
+    ...updatedIds,
+    ...newWatches.map((watch) => watch.id),
+  ]);
+
+  const historicalByMonth = new Map();
+  const watchesWithoutCreationDate = [];
+  watches.forEach((watch) => {
+    if (categorisedIds.has(watch.id)) return;
+    const createdAt = new Date(watch.createdAt);
+    if (Number.isNaN(createdAt.getTime())) {
+      watchesWithoutCreationDate.push(watch);
+      return;
+    }
+    const monthStart = new Date(createdAt.getFullYear(), createdAt.getMonth(), 1);
+    const monthKey = monthStart.toISOString();
+    if (!historicalByMonth.has(monthKey)) {
+      historicalByMonth.set(monthKey, {
+        timestamp: monthStart.getTime(),
+        label: new Intl.DateTimeFormat(getLanguage(), {
+          month: 'long',
+          year: 'numeric',
+        }).format(createdAt),
+        watches: [],
+      });
+    }
+    historicalByMonth.get(monthKey).watches.push(watch);
+  });
+
+  const groups = [
+    { label: t('watches.actionRequired'), watches: actionRequired },
+    { label: t('watches.updated'), watches: updated },
+    { label: t('watches.new'), watches: newWatches },
+    ...[...historicalByMonth.values()]
+      .sort((first, second) => second.timestamp - first.timestamp)
+      .map((group) => ({
+        ...group,
+        watches: group.watches.sort(sortByTimestamp(getCreationTimestamp)),
+      })),
+    { label: t('watches.older'), watches: watchesWithoutCreationDate },
+  ].filter((group) => group.watches.length > 0);
+
+  const supportedWatchListStatuses = new Set([
+    'attention',
+    'completed',
+    'paused',
+    'stable',
+    'updated',
+    'watching',
+  ]);
+  const renderWatchCards = (groupWatches) => groupWatches
     .map((watch) => {
       const storedTitle = localizeField(watch, 'title');
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
       const isPaused = watch.status === 'paused';
+      const status = supportedWatchListStatuses.has(watch.status) ? watch.status : 'watching';
+      const statusLabel = `<span class="watch-row__status status-label status-label--${status}">${escapeHtml(t(`statuses.${status}`))}</span>`;
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : getMonitoringSummary(watch, title);
       return `
       <a class="watch-row${isPaused ? ' watch-row--paused' : ''}" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
-        <div>
+        <div class="watch-row__metadata">
           <p class="watch-row__category">${escapeHtml(t(`categories.${watch.category}`))}</p>
+          ${statusLabel}
+        </div>
+        <div class="watch-row__content">
           <h2>${escapeHtml(title)}</h2>
           ${subtitle ? `<p class="watch-row__summary">${escapeHtml(subtitle)}</p>` : ''}
         </div>
-        <span class="watch-row__status${isPaused ? ' status-badge status-badge--paused' : ''}">${escapeHtml(t(`statuses.${watch.status}`))}</span>
       </a>
     `;
+    })
+    .join('');
+
+  list.innerHTML = groups
+    .map((group, index) => {
+      const headingId = `watch-list-group-${index}`;
+      return `
+        <section class="watch-list__group" aria-labelledby="${headingId}">
+          <h2 class="section-heading" id="${headingId}">${escapeHtml(group.label.toLocaleUpperCase(getLanguage()))}</h2>
+          <div class="watch-list">${renderWatchCards(group.watches)}</div>
+        </section>
+      `;
     })
     .join('');
 };
@@ -1583,6 +1706,9 @@ export function initForm() {
   let pendingNavigationUrl = '';
   let editNavigationAllowed = false;
   let refreshEditSaveState = () => {};
+  let activeVoiceTooltip = null;
+  let voiceTooltipDismissTimer = null;
+  let voiceTooltipHideTimer = null;
 
   if (!form) {
     return;
@@ -2481,6 +2607,59 @@ export function initForm() {
     updateComposer();
     input?.focus();
   });
+
+  const showVoiceInputTooltip = (microphone) => {
+    window.clearTimeout(voiceTooltipDismissTimer);
+    window.clearTimeout(voiceTooltipHideTimer);
+
+    if (activeVoiceTooltip && activeVoiceTooltip.parentElement !== microphone) {
+      activeVoiceTooltip.hidden = true;
+      activeVoiceTooltip.classList.remove('is-visible', 'is-leaving', 'is-below');
+    }
+
+    let tooltip = microphone.querySelector('.microphone-tooltip');
+    if (!tooltip) {
+      tooltip = document.createElement('span');
+      tooltip.className = 'microphone-tooltip';
+      tooltip.setAttribute('role', 'status');
+      tooltip.setAttribute('aria-live', 'polite');
+      microphone.append(tooltip);
+    }
+
+    activeVoiceTooltip = tooltip;
+    tooltip.textContent = t('newWatch.voiceUnavailable');
+    tooltip.hidden = false;
+    tooltip.classList.remove('is-visible', 'is-leaving', 'is-below');
+    tooltip.classList.toggle(
+      'is-below',
+      microphone.getBoundingClientRect().top < tooltip.offsetHeight + 12,
+    );
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (!tooltip.hidden) tooltip.classList.add('is-visible');
+      });
+    });
+
+    voiceTooltipDismissTimer = window.setTimeout(() => {
+      tooltip.classList.remove('is-visible');
+      tooltip.classList.add('is-leaving');
+      voiceTooltipHideTimer = window.setTimeout(() => {
+        tooltip.hidden = true;
+        tooltip.classList.remove('is-leaving', 'is-below');
+        if (activeVoiceTooltip === tooltip) activeVoiceTooltip = null;
+        voiceTooltipHideTimer = null;
+      }, 180);
+      voiceTooltipDismissTimer = null;
+    }, 2500);
+  };
+
+  form.querySelectorAll('.watch-composer__microphone, .watch-reason__microphone')
+    .forEach((microphone) => {
+      microphone.addEventListener('click', () => {
+        showVoiceInputTooltip(microphone);
+      });
+    });
 
   if (isEditMode) {
     discardDialog?.addEventListener('cancel', () => {
