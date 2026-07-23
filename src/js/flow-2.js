@@ -3,6 +3,15 @@ import { mountOnboardingLanguageControl } from './language-control.js';
 import { getWatches } from './watch-storage.js';
 import { markOnboardingCompleted, registerCurrentIntroFlow } from './intro-flow.js';
 import { initializeFlowLanguage } from './flow-language-gate.js';
+import {
+  initializeAnalytics,
+  PRODUCT_EVENTS,
+  trackProductEvent,
+  trackProductEventOnce,
+} from './analytics.js';
+
+initializeAnalytics();
+trackProductEventOnce(PRODUCT_EVENTS.LANDING_PAGE_VIEWED, { onboarding_flow: 'flow-2' });
 
 const escapeHtml = (value) => String(value)
   .replaceAll('&', '&amp;')
@@ -77,11 +86,24 @@ const initFlow = (languageControl) => {
 
   document.addEventListener('click', (event) => {
     if (event.target.closest('[data-complete-onboarding]')) {
+      trackProductEventOnce(PRODUCT_EVENTS.ONBOARDING_COMPLETED, { onboarding_flow: 'flow-2' });
       markOnboardingCompleted();
     } else if (event.target.closest('[data-flow-next]')) {
+      if (activeStep === 0) {
+        trackProductEventOnce(PRODUCT_EVENTS.ONBOARDING_STARTED, { onboarding_flow: 'flow-2' });
+      }
       showStep(activeStep + 1);
     } else if (event.target.closest('[data-flow-back]')) {
       showStep(activeStep - 1);
+    } else {
+      const example = event.target.closest('.flow-2__examples li');
+      if (example) {
+        const exampleIndex = [...example.parentElement.children].indexOf(example) + 1;
+        trackProductEvent(PRODUCT_EVENTS.EXAMPLE_SELECTED, {
+          onboarding_flow: 'flow-2',
+          example_position: exampleIndex,
+        });
+      }
     }
   });
 };

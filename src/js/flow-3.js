@@ -3,6 +3,15 @@ import { getLanguage, setLanguage, t } from './i18n.js';
 import { mountOnboardingLanguageControl } from './language-control.js';
 import { initializeFlowLanguage } from './flow-language-gate.js';
 import { getJourneyExamples, getJourneyFromLocation } from './onboarding-journeys.js';
+import {
+  initializeAnalytics,
+  PRODUCT_EVENTS,
+  trackProductEvent,
+  trackProductEventOnce,
+} from './analytics.js';
+
+initializeAnalytics();
+trackProductEventOnce(PRODUCT_EVENTS.LANDING_PAGE_VIEWED, { onboarding_flow: 'flow-3' });
 
 const screens = [...document.querySelectorAll('[data-flow-3-screen]')];
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -291,8 +300,18 @@ const handleFlowClick = (event) => {
   }
 
   if (event.target.closest('[data-complete-onboarding]')) {
+    trackProductEventOnce(PRODUCT_EVENTS.ONBOARDING_COMPLETED, { onboarding_flow: 'flow-3' });
     markOnboardingCompleted();
     return;
+  }
+
+  const example = event.target.closest('[data-flow-3-examples] li');
+  if (example) {
+    const exampleIndex = [...example.parentElement.children].indexOf(example) + 1;
+    trackProductEvent(PRODUCT_EVENTS.EXAMPLE_SELECTED, {
+      onboarding_flow: 'flow-3',
+      example_position: exampleIndex,
+    });
   }
 
   if (sequenceRunning) {
@@ -301,7 +320,11 @@ const handleFlowClick = (event) => {
   }
 
   if (event.target.closest('[data-flow-3-next]')) {
+    if (activeScreenIndex === 0) {
+      trackProductEventOnce(PRODUCT_EVENTS.ONBOARDING_STARTED, { onboarding_flow: 'flow-3' });
+    }
     showScreen(activeScreenIndex + 1);
+    return;
   }
 };
 

@@ -4,6 +4,10 @@
 # http://localhost:5173
 
 
+# Owner masking
+# https://ton-site.vercel.app/?owner=1
+
+
 # GIT Commands
 # Vérifier où tu es
 git status

@@ -1,4 +1,7 @@
 import { getFlowUrl, getOnboardingFlows } from './onboarding-journeys.js';
+import { initializeAnalytics } from './analytics.js';
+
+initializeAnalytics();
 
 const journeyList = document.querySelector('[data-dashboard-journeys]');
 

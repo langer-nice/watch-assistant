@@ -26,6 +26,11 @@ import {
   markOnboardingCompleted,
   ONBOARDING_COMPLETED_STORAGE_KEY,
 } from './intro-flow.js';
+import {
+  PRODUCT_EVENTS,
+  trackProductEvent,
+  trackProductEventOnce,
+} from './analytics.js';
 
 let homeCreatedWatchId = null;
 let homeCreatedWatchFeedbackTimer = null;
@@ -869,6 +874,12 @@ const renderWatchDetail = () => {
     return;
   }
 
+  trackProductEventOnce(
+    PRODUCT_EVENTS.WATCH_DETAIL_VIEWED,
+    { watch_state: watch.monitoringState || 'unknown' },
+    'watch-detail-viewed',
+  );
+
   const request = localizeField(watch, 'request');
   titleEl.textContent = localizeField(watch, 'title') || t('detail.title');
   if (editActionEl) {
@@ -1601,6 +1612,10 @@ export function initForm() {
     return;
   }
 
+  if (!isEditMode) {
+    trackProductEventOnce(PRODUCT_EVENTS.CREATE_WATCH_PAGE_VIEWED);
+  }
+
   if (isModalEditMode) {
     document.documentElement.classList.add('is-edit-modal-root');
     document.body.classList.add('is-edit-modal');
@@ -1844,6 +1859,9 @@ export function initForm() {
   };
 
   const completeWatchCreation = (watch) => {
+    trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, {
+      input_type: watch.inputType === 'url' ? 'url' : 'text',
+    });
     addWatch(watch);
     markOnboardingCompleted();
     sessionStorage.removeItem('watchAssistant.newWatchId');
@@ -2017,6 +2035,12 @@ export function initForm() {
 
   const showReview = (analysis) => {
     const failed = analysis?.status !== 'success';
+    trackProductEvent(
+      failed ? PRODUCT_EVENTS.URL_ANALYSIS_FAILED : PRODUCT_EVENTS.URL_ANALYSIS_SUCCEEDED,
+    );
+    trackProductEvent(PRODUCT_EVENTS.WATCH_REVIEW_DISPLAYED, {
+      analysis_result: failed ? 'failure' : 'success',
+    });
     pendingAnalysis = analysis;
     form.classList.add('is-reviewing');
     if (processingState) {
@@ -2073,6 +2097,7 @@ export function initForm() {
     analysisInProgress = true;
     pendingRequest = request;
     pendingWhyFollowing = whyFollowing;
+    trackProductEvent(PRODUCT_EVENTS.URL_ANALYSIS_STARTED);
     form.classList.add('is-analysing');
     setCreationControlsDisabled(true);
     if (watchClear) watchClear.disabled = false;
@@ -2126,7 +2151,13 @@ export function initForm() {
     }
   };
 
-  const resetUrlFlow = ({ clearInput = false } = {}) => {
+  const resetUrlFlow = ({ clearInput = false, trackCancellation = false } = {}) => {
+    const hadActiveCreation = analysisInProgress || pendingRequest || pendingAnalysis;
+    if (trackCancellation && hadActiveCreation) {
+      trackProductEvent(PRODUCT_EVENTS.WATCH_CREATION_CANCELLED, {
+        stage: pendingAnalysis ? 'review' : 'analysis',
+      });
+    }
     urlAnalysisRequestId += 1;
     urlAnalysisController?.abort();
     urlAnalysisController = null;
@@ -2370,10 +2401,23 @@ export function initForm() {
     requestDiscardConfirmation(destination);
   };
 
-  input?.addEventListener('input', () => {
+  input?.addEventListener('input', (event) => {
+    if (
+      !isEditMode
+      && event.inputType !== 'insertFromPaste'
+      && hasMeaningfulRequest()
+    ) {
+      trackProductEventOnce(PRODUCT_EVENTS.TEXT_ENTERED);
+    }
     updateComposer();
     resizeInput();
     scheduleKeywordRegeneration();
+  });
+  input?.addEventListener('paste', (event) => {
+    const pastedValue = event.clipboardData?.getData('text')?.trim() || '';
+    if (!isEditMode && isUrl(pastedValue)) {
+      trackProductEventOnce(PRODUCT_EVENTS.URL_PASTED);
+    }
   });
   input?.addEventListener('keydown', (event) => {
     if (
@@ -2582,12 +2626,31 @@ export function initForm() {
   });
 
   reviewCancel?.addEventListener('click', () => {
-    resetUrlFlow({ clearInput: true });
+    resetUrlFlow({ clearInput: true, trackCancellation: true });
   });
 
   analysisCancel?.addEventListener('click', () => {
-    resetUrlFlow({ clearInput: true });
+    resetUrlFlow({ clearInput: true, trackCancellation: true });
   });
+
+  form.querySelectorAll('.watch-composer__microphone, .watch-reason__microphone')
+    .forEach((microphone) => {
+      microphone.addEventListener('pointerdown', () => {
+        if (!isEditMode) trackProductEvent(PRODUCT_EVENTS.MICROPHONE_CLICKED);
+      });
+    });
+
+  if (!isEditMode) {
+    backEl?.addEventListener('click', () => {
+      if (hasMeaningfulRequest()) {
+        trackProductEventOnce(
+          PRODUCT_EVENTS.WATCH_CREATION_CANCELLED,
+          { stage: 'composer' },
+          'composer-cancelled',
+        );
+      }
+    });
+  }
 
   if (isEditMode) {
     discardDialog?.addEventListener('cancel', () => {
@@ -2709,6 +2772,10 @@ export const initApp = () => {
   if (initialRoute) {
     window.location.replace(initialRoute);
     return;
+  }
+
+  if (document.querySelector('.page--home')) {
+    trackProductEventOnce(PRODUCT_EVENTS.MORNING_REPORT_VIEWED);
   }
 
   renderHomeSummary();

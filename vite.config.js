@@ -22,6 +22,9 @@ export default defineConfig(({ mode }) => {
     root: '.',
     publicDir: 'public',
     plugins: [urlWatchPlugin],
+    define: {
+      'import.meta.env.VITE_VERCEL_ENV': JSON.stringify(process.env.VERCEL_ENV || ''),
+    },
     build: {
       outDir: 'dist',
       emptyOutDir: true,

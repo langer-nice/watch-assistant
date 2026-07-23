@@ -73,6 +73,22 @@ A visible “Reset demo data” button appears only in development mode, not in 
 - `src/scss/main.scss` — imports all SCSS modules
 - `public/` — static assets served as-is
 
+## Product analytics
+
+The production deployment uses Vercel Web Analytics through the shared
+`src/js/analytics.js` helper. Analytics is not loaded on localhost, Vercel preview
+deployments, the internal `dashboard.html` route, browsers with Global Privacy
+Control or Do Not Track enabled, or browsers that explicitly opt out.
+
+Enable Web Analytics for the Vercel project from its Analytics dashboard before
+deploying. Custom product events require a Vercel plan that includes Custom Events;
+page-view analytics continues to work without that entitlement.
+
+Open any public page with `?owner=1` once to exclude that browser and device. The
+setting is stored as `watchAssistantAnalyticsExcluded=true` in local storage and the
+query parameter is removed without a reload. Open a page with `?owner=0` to clear the
+setting; analytics resumes on the next page load.
+
 ## Onboarding flow language gate
 
 Public onboarding URLs require `?lang=en` or `?lang=fr`. Without a valid language, the shared gate in `src/js/flow-language-gate.js` displays the language-selection screen and does not start the flow.
