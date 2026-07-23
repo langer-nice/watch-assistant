@@ -13,16 +13,26 @@ import {
 import { getLanguage, t } from './i18n.js';
 import { analyseUrl } from './url-analysis.js';
 import { clarifyWatchRequest } from './request-clarification.js';
+import { groupWatches } from './watch-grouping.js';
 import {
   extractMonitoringConcepts,
   MONITORING_CONCEPTS_VERSION,
 } from './monitoring-concepts.js';
+import {
+  createLocalEditorialSummary,
+  generateMonitoringSummary,
+} from './monitoring-summary.js';
 import {
   getReplayIntroFlow,
   hasCompletedOnboarding,
   markOnboardingCompleted,
   ONBOARDING_COMPLETED_STORAGE_KEY,
 } from './intro-flow.js';
+import {
+  PRODUCT_EVENTS,
+  trackProductEvent,
+  trackProductEventOnce,
+} from './analytics.js';
 
 let homeCreatedWatchId = null;
 let homeCreatedWatchFeedbackTimer = null;
@@ -345,7 +355,7 @@ const getMonitoringSummary = (watch, title) => {
   }
 
   const requestText = hasMeaningfulText(request) ? request : '';
-  const fallback = t(inferMonitoringSummaryKey(requestText, watch.category));
+  const fallback = createLocalEditorialSummary(requestText);
   return (
     normalizeComparableText(fallback) !== normalizeComparableText(title) ? fallback : ''
   );
@@ -419,21 +429,6 @@ const hasReleaseIntent = (request) => (
   /(release date|released|comes out|coming out|publication date|date de sortie|date de parution|sortie|parution|publi[ée])/
     .test(request.toLowerCase())
 );
-
-const inferMonitoringSummaryKey = (request, category) => {
-  if (hasReleaseIntent(request)) {
-    return 'watchData.monitoringSummaries.release';
-  }
-
-  const keysByCategory = {
-    price: 'watchData.monitoringSummaries.price',
-    travel: 'watchData.monitoringSummaries.travel',
-    news: 'watchData.monitoringSummaries.news',
-    events: 'watchData.monitoringSummaries.event',
-  };
-
-  return keysByCategory[category] || 'watchData.monitoringSummaries.general';
-};
 
 const inferCurrentSituationKey = (request, category) => {
   const text = request.toLowerCase();
@@ -597,10 +592,8 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     monitoringConceptsVersion: MONITORING_CONCEPTS_VERSION,
     structuredCriteria,
     ...structuredCriteria,
-    monitoringSummary: urlAnalysis?.summary || null,
-    monitoringSummaryKey: isUrlRequest
-      ? null
-      : inferMonitoringSummaryKey(request, category),
+    monitoringSummary: urlAnalysis?.summary || options.monitoringSummary || null,
+    monitoringSummaryKey: null,
     currentSituationKey: inferCurrentSituationKey(request, category),
   };
 };
@@ -631,6 +624,19 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, optio
 };
 
 const getHomeWatches = () => getDemoWatches();
+
+const STATUS_LABEL_VARIANTS = {
+  attention: 'attention',
+  checking: 'checking',
+  completed: 'completed',
+  error: 'error',
+  paused: 'paused',
+  stable: 'stable',
+  updated: 'updated',
+  watching: 'watching',
+};
+
+const getStatusLabelVariant = (status) => STATUS_LABEL_VARIANTS[status] || 'checking';
 
 const getHomeReport = () => {
   const activeWatches = getHomeWatches().filter((watch) => watch.status !== 'completed');
@@ -671,8 +677,8 @@ const renderHomeWatchCards = (watches) => watches
     }
 
     const needsAttention = watch.requiresAttention || watch.status === 'attention';
-    const statusModifier = needsAttention ? 'action' : 'update';
-    const status = t(needsAttention ? 'home.actNow' : 'home.updated');
+    const statusModifier = needsAttention ? 'attention' : 'updated';
+    const status = t(needsAttention ? 'statuses.attention' : 'statuses.updated');
     const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
     const categoryModifier = watch.category || 'general';
     const latestChangeAt = localizeField(watch, 'latestChangeAt');
@@ -682,7 +688,7 @@ const renderHomeWatchCards = (watches) => watches
         <a class="briefing-item__link" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
           <div class="briefing-item__labels">
             <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
-            <span class="status-badge status-badge--${statusModifier}">${escapeHtml(status)}</span>
+            <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
           </div>
           <h2>${escapeHtml(title)}</h2>
           <p>${escapeHtml(latestChange)}</p>
@@ -724,120 +730,20 @@ const renderWatchList = () => {
     return;
   }
 
-  const getTimestamp = (...values) => {
-    for (const value of values) {
-      const timestamp = Date.parse(value);
-      if (!Number.isNaN(timestamp)) return timestamp;
-    }
-    return 0;
-  };
-  const getCreationTimestamp = (watch) => getTimestamp(watch.createdAt);
-  const getUpdateTimestamp = (watch) => getTimestamp(
-    watch.latestChangeAt,
-    watch.updatedAt,
-  );
-  const getRelevantActivityTimestamp = (watch) => getTimestamp(
-    watch.latestChangeAt,
-    watch.updatedAt,
-    watch.lastChecked,
-    watch.createdAt,
-  );
-  const sortByTimestamp = (getWatchTimestamp) => (first, second) => (
-    getWatchTimestamp(second) - getWatchTimestamp(first)
-  );
-  const isActionRequired = (watch) => (
-    watch.status === 'attention' || watch.requiresAttention === true
-  );
-  const briefingGeneratedAt = getTimestamp(getBriefingGeneratedAt());
-  const isUpdated = (watch) => {
-    if (watch.status === 'updated') return true;
-    const updateTimestamp = getTimestamp(watch.latestChangeAt, watch.updatedAt);
-    return hasMeaningfulText(getLatestChange(watch))
-      && updateTimestamp > 0
-      && updateTimestamp > briefingGeneratedAt;
-  };
-  const today = new Date();
-  const isCreatedToday = (watch) => {
-    const createdAt = new Date(watch.createdAt);
-    return !Number.isNaN(createdAt.getTime())
-      && createdAt.getFullYear() === today.getFullYear()
-      && createdAt.getMonth() === today.getMonth()
-      && createdAt.getDate() === today.getDate();
-  };
-
-  const actionRequired = watches
-    .filter(isActionRequired)
-    .sort(sortByTimestamp(getRelevantActivityTimestamp));
-  const actionRequiredIds = new Set(actionRequired.map((watch) => watch.id));
-  const updated = watches
-    .filter((watch) => !actionRequiredIds.has(watch.id) && isUpdated(watch))
-    .sort(sortByTimestamp(getUpdateTimestamp));
-  const updatedIds = new Set(updated.map((watch) => watch.id));
-  const newWatches = watches
-    .filter((watch) => (
-      !actionRequiredIds.has(watch.id)
-      && !updatedIds.has(watch.id)
-      && isCreatedToday(watch)
-    ))
-    .sort(sortByTimestamp(getCreationTimestamp));
-  const categorisedIds = new Set([
-    ...actionRequiredIds,
-    ...updatedIds,
-    ...newWatches.map((watch) => watch.id),
-  ]);
-
-  const historicalByMonth = new Map();
-  const watchesWithoutCreationDate = [];
-  watches.forEach((watch) => {
-    if (categorisedIds.has(watch.id)) return;
-    const createdAt = new Date(watch.createdAt);
-    if (Number.isNaN(createdAt.getTime())) {
-      watchesWithoutCreationDate.push(watch);
-      return;
-    }
-    const monthStart = new Date(createdAt.getFullYear(), createdAt.getMonth(), 1);
-    const monthKey = monthStart.toISOString();
-    if (!historicalByMonth.has(monthKey)) {
-      historicalByMonth.set(monthKey, {
-        timestamp: monthStart.getTime(),
-        label: new Intl.DateTimeFormat(getLanguage(), {
-          month: 'long',
-          year: 'numeric',
-        }).format(createdAt),
-        watches: [],
-      });
-    }
-    historicalByMonth.get(monthKey).watches.push(watch);
+  const groups = groupWatches(watches, {
+    briefingGeneratedAt: getBriefingGeneratedAt(),
+    getMeaningfulUpdate: getLatestChange,
+    language: getLanguage(),
   });
 
-  const groups = [
-    { label: t('watches.actionRequired'), watches: actionRequired },
-    { label: t('watches.updated'), watches: updated },
-    { label: t('watches.new'), watches: newWatches },
-    ...[...historicalByMonth.values()]
-      .sort((first, second) => second.timestamp - first.timestamp)
-      .map((group) => ({
-        ...group,
-        watches: group.watches.sort(sortByTimestamp(getCreationTimestamp)),
-      })),
-    { label: t('watches.older'), watches: watchesWithoutCreationDate },
-  ].filter((group) => group.watches.length > 0);
-
-  const supportedWatchListStatuses = new Set([
-    'attention',
-    'completed',
-    'paused',
-    'stable',
-    'updated',
-    'watching',
-  ]);
   const renderWatchCards = (groupWatches) => groupWatches
     .map((watch) => {
       const storedTitle = localizeField(watch, 'title');
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
       const isPaused = watch.status === 'paused';
-      const status = supportedWatchListStatuses.has(watch.status) ? watch.status : 'watching';
-      const statusLabel = `<span class="watch-row__status status-label status-label--${status}">${escapeHtml(t(`statuses.${status}`))}</span>`;
+      const status = STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking';
+      const statusModifier = getStatusLabelVariant(status);
+      const statusLabel = `<span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(t(`statuses.${status}`))}</span>`;
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : getMonitoringSummary(watch, title);
@@ -861,7 +767,7 @@ const renderWatchList = () => {
       const headingId = `watch-list-group-${index}`;
       return `
         <section class="watch-list__group" aria-labelledby="${headingId}">
-          <h2 class="section-heading" id="${headingId}">${escapeHtml(group.label.toLocaleUpperCase(getLanguage()))}</h2>
+          <h2 class="section-heading" id="${headingId}">${escapeHtml((group.label || t(`watches.${group.type}`)).toLocaleUpperCase(getLanguage()))}</h2>
           <div class="watch-list">${renderWatchCards(group.watches)}</div>
         </section>
       `;
@@ -988,6 +894,12 @@ const renderWatchDetail = () => {
     return;
   }
 
+  trackProductEventOnce(
+    PRODUCT_EVENTS.WATCH_DETAIL_VIEWED,
+    { watch_state: watch.monitoringState || 'unknown' },
+    'watch-detail-viewed',
+  );
+
   const request = localizeField(watch, 'request');
   titleEl.textContent = localizeField(watch, 'title') || t('detail.title');
   if (editActionEl) {
@@ -1013,15 +925,13 @@ const renderWatchDetail = () => {
   }
 
   if (statusEl) {
-    const status = watch.status && t(`statuses.${watch.status}`);
-    const statusModifier = watch.status === 'attention'
-      ? 'action'
-      : watch.status === 'stable'
-        ? 'success'
-        : watch.status === 'paused' ? 'paused' : 'update';
+    const statusKey = STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking';
+    const status = watch.status && t(`statuses.${statusKey}`);
+    const statusModifier = getStatusLabelVariant(statusKey);
     statusEl.textContent = status || '';
-    statusEl.hidden = !status || watch.status === 'paused';
-    statusEl.className = `status-badge status-badge--with-dot status-badge--${statusModifier}`;
+    statusEl.hidden = !status
+      || watch.status === 'paused';
+    statusEl.className = `status-label status-label--${statusModifier}`;
   }
   if (pausedStateEl) {
     pausedStateEl.hidden = watch.status !== 'paused';
@@ -1655,11 +1565,13 @@ export function initForm() {
   const analysisSection = document.querySelector('#urlAnalysis');
   const processingState = document.querySelector('#urlAnalysisProcessing');
   const processingMessage = document.querySelector('#urlAnalysisMessage');
+  const analysisCancel = document.querySelector('#urlAnalysisCancel');
   const review = document.querySelector('#urlReview');
   const reviewSuccess = document.querySelector('#urlReviewSuccess');
   const reviewFailure = document.querySelector('#urlReviewFailure');
   const reviewTitle = document.querySelector('#urlReviewTitle');
   const reviewSummary = document.querySelector('#urlReviewSummary');
+  const reviewSummaryError = document.querySelector('#urlReviewSummaryError');
   const reviewSource = document.querySelector('#urlReviewSource');
   const reviewCreate = document.querySelector('#urlReviewCreate');
   const reviewEdit = document.querySelector('#urlReviewEdit');
@@ -1701,6 +1613,9 @@ export function initForm() {
   let pendingAnalysis = null;
   let analysisInProgress = false;
   let clarificationInProgress = false;
+  let urlAnalysisProgressKey = null;
+  let urlAnalysisController = null;
+  let urlAnalysisRequestId = 0;
   let creationInProgress = false;
   let pendingClarificationWhyFollowing = '';
   const resizeFrames = new WeakMap();
@@ -1726,6 +1641,10 @@ export function initForm() {
   if (editWatchId && !editingWatch) {
     window.location.replace('watches.html');
     return;
+  }
+
+  if (!isEditMode) {
+    trackProductEventOnce(PRODUCT_EVENTS.CREATE_WATCH_PAGE_VIEWED);
   }
 
   if (isModalEditMode) {
@@ -1971,6 +1890,9 @@ export function initForm() {
   };
 
   const completeWatchCreation = (watch) => {
+    trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, {
+      input_type: watch.inputType === 'url' ? 'url' : 'text',
+    });
     addWatch(watch);
     markOnboardingCompleted();
     sessionStorage.removeItem('watchAssistant.newWatchId');
@@ -2011,7 +1933,7 @@ export function initForm() {
     fallbackTimer = window.setTimeout(notifyParent, viewport ? 360 : 0);
   };
 
-  const completeWatchUpdate = (request, whyFollowing, urlAnalysis = null) => {
+  const completeWatchUpdate = async (request, whyFollowing, urlAnalysis = null) => {
     const keywordValues = getKeywordValues();
     const originalRequest = localizeField(editingWatch, 'request') || '';
     const requestChanged = request.trim() !== originalRequest.trim();
@@ -2026,9 +1948,13 @@ export function initForm() {
     const keywordsChanged = JSON.stringify(keywordValues.keywords) !== JSON.stringify(originalKeywords)
       || JSON.stringify(keywordValues.selectedKeywords) !== JSON.stringify(originalSelectedKeywords);
     const monitoringCriteriaChanged = requestChanged || categoryChanged || keywordsChanged;
+    const monitoringSummary = requestChanged && !urlAnalysis
+      ? await generateMonitoringSummary(request)
+      : null;
     const derivedData = deriveWatchData(request, urlAnalysis, {
       category,
       categorySource,
+      monitoringSummary,
       ...keywordValues,
     });
     const changes = {
@@ -2107,7 +2033,7 @@ export function initForm() {
     ...getKeywordValues(),
   });
 
-  const createPlainTextWatch = (request, whyFollowing) => {
+  const createPlainTextWatch = async (request, whyFollowing) => {
     const selectedRequest = request.trim();
     if (!selectedRequest || creationInProgress) return;
 
@@ -2115,11 +2041,12 @@ export function initForm() {
     if (input) input.value = selectedRequest;
     synchronizeInferredFields(selectedRequest);
     setCreationControlsDisabled(true);
+    const monitoringSummary = await generateMonitoringSummary(selectedRequest);
     completeWatchCreation(createWatchObject(
       selectedRequest,
       whyFollowing,
       null,
-      getCreateOptions(),
+      { ...getCreateOptions(), monitoringSummary },
     ));
   };
 
@@ -2166,8 +2093,29 @@ export function initForm() {
     }
   };
 
+  const validateReviewSummary = ({ focus = false } = {}) => {
+    const valid = Boolean(reviewSummary?.value.trim());
+    if (reviewSummary) {
+      reviewSummary.setAttribute('aria-invalid', String(!valid));
+    }
+    if (reviewSummaryError) {
+      reviewSummaryError.hidden = valid;
+    }
+    if (reviewCreate) {
+      reviewCreate.disabled = creationInProgress || !valid;
+    }
+    if (!valid && focus) reviewSummary?.focus();
+    return valid;
+  };
+
   const showReview = (analysis) => {
     const failed = analysis?.status !== 'success';
+    trackProductEvent(
+      failed ? PRODUCT_EVENTS.URL_ANALYSIS_FAILED : PRODUCT_EVENTS.URL_ANALYSIS_SUCCEEDED,
+    );
+    trackProductEvent(PRODUCT_EVENTS.WATCH_REVIEW_DISPLAYED, {
+      analysis_result: failed ? 'failure' : 'success',
+    });
     pendingAnalysis = analysis;
     form.classList.add('is-reviewing');
     if (processingState) {
@@ -2193,22 +2141,41 @@ export function initForm() {
     if (reviewSource) {
       reviewSource.textContent = analysis?.source || t('newWatch.urlReviewUnknownSource');
     }
+    if (!failed && Array.isArray(analysis?.keywords)) {
+      keywordItems = analysis.keywords.map((label) => ({ label, selected: true }));
+      keywordSourceRequest = pendingRequest;
+      keywordsManuallyEdited = false;
+      renderKeywords();
+      if (categorySource === 'inferred' && categoryInputEl) {
+        categoryInputEl.value = inferCategory([
+          analysis.title,
+          analysis.sourceTitle,
+          ...analysis.keywords,
+        ].filter(Boolean).join(' '));
+      }
+    }
     if (reviewEdit) {
       reviewEdit.hidden = failed;
     }
-    if (reviewCancel) {
-      reviewCancel.hidden = !failed;
-    }
+    if (reviewCancel) reviewCancel.hidden = false;
     setReviewEditing(failed);
+    validateReviewSummary();
     if (!failed) review?.focus();
   };
 
   const startUrlAnalysis = async (request, whyFollowing) => {
+    urlAnalysisController?.abort();
+    const requestId = urlAnalysisRequestId + 1;
+    const controller = new AbortController();
+    urlAnalysisRequestId = requestId;
+    urlAnalysisController = controller;
     analysisInProgress = true;
     pendingRequest = request;
     pendingWhyFollowing = whyFollowing;
+    trackProductEvent(PRODUCT_EVENTS.URL_ANALYSIS_STARTED);
     form.classList.add('is-analysing');
     setCreationControlsDisabled(true);
+    if (watchClear) watchClear.disabled = false;
     setSubmitLabel('newWatch.urlProcessingButton');
     if (analysisSection) {
       analysisSection.hidden = false;
@@ -2220,40 +2187,118 @@ export function initForm() {
       review.hidden = true;
     }
 
-    const messageKeys = [
-      'newWatch.urlProcessingAnalyzing',
-      'newWatch.urlProcessingReading',
-      'newWatch.urlProcessingPreparing',
-    ];
-    let messageIndex = 0;
-    if (processingMessage) {
-      processingMessage.textContent = t(messageKeys[messageIndex]);
-    }
-    const messageTimer = window.setInterval(() => {
-      messageIndex = Math.min(messageIndex + 1, messageKeys.length - 1);
+    const showProgress = (stage) => {
+      urlAnalysisProgressKey = stage === 'generating-watch'
+        ? 'newWatch.urlProcessingGeneratingWatch'
+        : 'newWatch.urlProcessingFetchingTitle';
       if (processingMessage) {
-        processingMessage.textContent = t(messageKeys[messageIndex]);
+        processingMessage.textContent = t(urlAnalysisProgressKey);
       }
-    }, 450);
+    };
+    showProgress('fetching-title');
 
     try {
       // Yield once so the browser paints the disabled button and processing state.
       await new Promise((resolve) => window.requestAnimationFrame(resolve));
-      const analysis = await analyseUrl(request);
+      const analysis = await analyseUrl(request, {
+        onProgress: showProgress,
+        signal: controller.signal,
+      });
+      if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
       showReview(analysis);
     } catch (error) {
+      if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
       console.error('URL analysis failed:', error);
       showReview({
         status: 'failure',
-        source: t('newWatch.urlReviewUnknownSource'),
-        sourceUrl: request,
+        title: error.partialAnalysis?.sourceTitle || '',
+        source: error.partialAnalysis?.source || t('newWatch.urlReviewUnknownSource'),
+        sourceTitle: error.partialAnalysis?.sourceTitle || '',
+        sourceUrl: error.partialAnalysis?.sourceUrl || request,
       });
     } finally {
-      window.clearInterval(messageTimer);
+      if (requestId !== urlAnalysisRequestId) return;
       analysisInProgress = false;
+      urlAnalysisProgressKey = null;
+      urlAnalysisController = null;
       form.classList.remove('is-analysing');
       setSubmitLabel();
     }
+  };
+
+  const resetUrlFlow = ({ clearInput = false, trackCancellation = false } = {}) => {
+    const hadActiveCreation = analysisInProgress || pendingRequest || pendingAnalysis;
+    if (trackCancellation && hadActiveCreation) {
+      trackProductEvent(PRODUCT_EVENTS.WATCH_CREATION_CANCELLED, {
+        stage: pendingAnalysis ? 'review' : 'analysis',
+      });
+    }
+    urlAnalysisRequestId += 1;
+    urlAnalysisController?.abort();
+    urlAnalysisController = null;
+    analysisInProgress = false;
+    urlAnalysisProgressKey = null;
+    pendingRequest = '';
+    pendingWhyFollowing = '';
+    pendingAnalysis = null;
+    creationInProgress = false;
+    form.classList.remove('is-analysing', 'is-reviewing');
+    if (analysisSection) analysisSection.hidden = true;
+    if (processingState) processingState.hidden = true;
+    if (processingMessage) processingMessage.textContent = '';
+    if (review) {
+      review.hidden = true;
+    }
+    setReviewEditing(false);
+    if (reviewSuccess) reviewSuccess.hidden = false;
+    if (reviewFailure) reviewFailure.hidden = true;
+    if (reviewTitle) {
+      reviewTitle.value = '';
+      reviewTitle.disabled = true;
+    }
+    if (reviewSummary) {
+      reviewSummary.value = '';
+      reviewSummary.disabled = true;
+      reviewSummary.setAttribute('aria-invalid', 'false');
+    }
+    if (reviewSummaryError) reviewSummaryError.hidden = true;
+    if (reviewSource) reviewSource.textContent = '';
+    if (watchError) watchError.textContent = '';
+    if (hint) {
+      hint.textContent = '';
+      hint.hidden = true;
+    }
+    [reviewCreate, reviewEdit, reviewCancel].forEach((control) => {
+      if (control) control.disabled = false;
+    });
+    keywordItems = [];
+    keywordSourceRequest = '';
+    keywordsManuallyEdited = false;
+    editingConceptIndex = null;
+    categorySource = 'inferred';
+    if (keywordInputEl) keywordInputEl.value = '';
+    renderKeywords();
+    if (categoryInputEl) categoryInputEl.value = 'general';
+    if (clearInput && input) {
+      input.value = '';
+      if (noteInput) noteInput.value = '';
+      if (noteRegion) {
+        noteRegion.hidden = true;
+        noteRegion.classList.remove('is-visible');
+      }
+      if (noteToggle) {
+        noteToggle.hidden = false;
+        noteToggle.setAttribute('aria-expanded', 'false');
+      }
+      if (watchOptionsEl && !isEditMode) watchOptionsEl.hidden = true;
+      updateNoteCloseLabel();
+      resizeNote();
+    }
+    setCreationControlsDisabled(false);
+    setSubmitLabel();
+    updateComposer();
+    resizeInput();
+    input?.focus();
   };
 
   const updateComposer = () => {
@@ -2431,10 +2476,23 @@ export function initForm() {
     requestDiscardConfirmation(destination);
   };
 
-  input?.addEventListener('input', () => {
+  input?.addEventListener('input', (event) => {
+    if (
+      !isEditMode
+      && event.inputType !== 'insertFromPaste'
+      && hasMeaningfulRequest()
+    ) {
+      trackProductEventOnce(PRODUCT_EVENTS.TEXT_ENTERED);
+    }
     updateComposer();
     resizeInput();
     scheduleKeywordRegeneration();
+  });
+  input?.addEventListener('paste', (event) => {
+    const pastedValue = event.clipboardData?.getData('text')?.trim() || '';
+    if (!isEditMode && isUrl(pastedValue)) {
+      trackProductEventOnce(PRODUCT_EVENTS.URL_PASTED);
+    }
   });
   input?.addEventListener('keydown', (event) => {
     if (
@@ -2450,10 +2508,7 @@ export function initForm() {
 
   watchClear?.addEventListener('click', () => {
     if (!input) return;
-
-    input.value = '';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.focus();
+    resetUrlFlow({ clearInput: true });
   });
 
   keywordChipsEl?.addEventListener('click', (event) => {
@@ -2584,7 +2639,7 @@ export function initForm() {
       ) {
         creationInProgress = true;
         setCreationControlsDisabled(true);
-        completeWatchUpdate(request, whyFollowing, pendingAnalysis);
+        await completeWatchUpdate(request, whyFollowing, pendingAnalysis);
         return;
       }
       await startUrlAnalysis(request, whyFollowing);
@@ -2594,7 +2649,7 @@ export function initForm() {
     if (isEditMode) {
       creationInProgress = true;
       setCreationControlsDisabled(true);
-      completeWatchUpdate(request, whyFollowing);
+      await completeWatchUpdate(request, whyFollowing);
       return;
     }
 
@@ -2608,27 +2663,33 @@ export function initForm() {
     }
 
     clarificationInProgress = false;
-    createPlainTextWatch(request, whyFollowing);
+    await createPlainTextWatch(request, whyFollowing);
   });
 
-  clarificationKeep?.addEventListener('click', () => {
+  clarificationKeep?.addEventListener('click', async () => {
     if (!clarificationOriginal?.value.trim()) {
       setClarificationEditing(true);
       clarificationOriginal?.focus();
       clarificationOriginal?.reportValidity();
       return;
     }
-    createPlainTextWatch(clarificationOriginal.value, pendingClarificationWhyFollowing);
+    await createPlainTextWatch(
+      clarificationOriginal.value,
+      pendingClarificationWhyFollowing,
+    );
   });
 
-  clarificationUse?.addEventListener('click', () => {
+  clarificationUse?.addEventListener('click', async () => {
     if (!clarificationSuggestion?.value.trim()) {
       setClarificationEditing(true);
       clarificationSuggestion?.focus();
       clarificationSuggestion?.reportValidity();
       return;
     }
-    createPlainTextWatch(clarificationSuggestion.value, pendingClarificationWhyFollowing);
+    await createPlainTextWatch(
+      clarificationSuggestion.value,
+      pendingClarificationWhyFollowing,
+    );
   });
 
   clarificationEdit?.addEventListener('click', () => {
@@ -2639,12 +2700,20 @@ export function initForm() {
     setReviewEditing(!review?.classList.contains('is-editing'));
   });
 
-  reviewCreate?.addEventListener('click', () => {
-    if (creationInProgress) {
+  reviewSummary?.addEventListener('input', () => {
+    validateReviewSummary();
+  });
+
+  reviewCreate?.addEventListener('click', async () => {
+    if (
+      creationInProgress
+      || pendingAnalysis?.status !== 'success'
+      || !pendingRequest
+    ) {
       return;
     }
 
-    if (!reviewTitle?.reportValidity() || !reviewSummary?.reportValidity()) {
+    if (!validateReviewSummary({ focus: true }) || !reviewTitle?.reportValidity()) {
       return;
     }
 
@@ -2661,7 +2730,7 @@ export function initForm() {
       sourceUrl: pendingAnalysis?.sourceUrl || pendingRequest,
     };
     if (isEditMode) {
-      completeWatchUpdate(pendingRequest, pendingWhyFollowing, analysis);
+      await completeWatchUpdate(pendingRequest, pendingWhyFollowing, analysis);
     } else {
       completeWatchCreation(createWatchObject(
         pendingRequest,
@@ -2673,27 +2742,11 @@ export function initForm() {
   });
 
   reviewCancel?.addEventListener('click', () => {
-    pendingRequest = '';
-    pendingWhyFollowing = '';
-    pendingAnalysis = null;
-    analysisInProgress = false;
-    form.classList.remove('is-reviewing');
-    if (analysisSection) {
-      analysisSection.hidden = true;
-    }
-    if (review) {
-      review.hidden = true;
-    }
-    if (reviewTitle) {
-      reviewTitle.disabled = true;
-    }
-    if (reviewSummary) {
-      reviewSummary.disabled = true;
-    }
-    setCreationControlsDisabled(false);
-    setSubmitLabel();
-    updateComposer();
-    input?.focus();
+    resetUrlFlow({ clearInput: true, trackCancellation: true });
+  });
+
+  analysisCancel?.addEventListener('click', () => {
+    resetUrlFlow({ clearInput: true, trackCancellation: true });
   });
 
   const showVoiceInputTooltip = (microphone) => {
@@ -2718,9 +2771,10 @@ export function initForm() {
     tooltip.textContent = t('newWatch.voiceUnavailable');
     tooltip.hidden = false;
     tooltip.classList.remove('is-visible', 'is-leaving', 'is-below');
+    const availableSpaceAbove = microphone.getBoundingClientRect().top;
     tooltip.classList.toggle(
       'is-below',
-      microphone.getBoundingClientRect().top < tooltip.offsetHeight + 12,
+      availableSpaceAbove < tooltip.offsetHeight + 12,
     );
 
     window.requestAnimationFrame(() => {
@@ -2745,9 +2799,22 @@ export function initForm() {
   form.querySelectorAll('.watch-composer__microphone, .watch-reason__microphone')
     .forEach((microphone) => {
       microphone.addEventListener('click', () => {
+        if (!isEditMode) trackProductEvent(PRODUCT_EVENTS.MICROPHONE_CLICKED);
         showVoiceInputTooltip(microphone);
       });
     });
+
+  if (!isEditMode) {
+    backEl?.addEventListener('click', () => {
+      if (hasMeaningfulRequest()) {
+        trackProductEventOnce(
+          PRODUCT_EVENTS.WATCH_CREATION_CANCELLED,
+          { stage: 'composer' },
+          'composer-cancelled',
+        );
+      }
+    });
+  }
 
   if (isEditMode) {
     discardDialog?.addEventListener('cancel', () => {
@@ -2818,6 +2885,9 @@ export function initForm() {
     resizeNote({ immediate: true });
     if (analysisInProgress) {
       setSubmitLabel('newWatch.urlProcessingButton');
+      if (processingMessage && urlAnalysisProgressKey) {
+        processingMessage.textContent = t(urlAnalysisProgressKey);
+      }
     }
     if (review?.classList.contains('is-editing') && reviewEdit && !reviewEdit.hidden) {
       reviewEdit.textContent = t('newWatch.urlReviewDone');
@@ -2873,6 +2943,10 @@ export const initApp = () => {
   if (initialRoute) {
     window.location.replace(initialRoute);
     return;
+  }
+
+  if (document.querySelector('.page--home')) {
+    trackProductEventOnce(PRODUCT_EVENTS.MORNING_REPORT_VIEWED);
   }
 
   renderHomeSummary();

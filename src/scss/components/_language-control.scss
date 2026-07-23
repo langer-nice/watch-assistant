@@ -87,17 +87,17 @@
 }
 
 .language-control--dark .language-control__trigger {
-  color: rgba(255, 255, 255, 0.78);
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--color-on-dark-muted);
+  background: var(--color-on-dark-surface);
+  border-color: var(--color-on-dark-border);
 }
 
 .language-control--dark .language-control__trigger:hover,
 .language-control--dark .language-control__trigger:focus-visible,
 .language-control--dark .language-control__trigger[aria-expanded='true'] {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.11);
-  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--color-text-on-dark);
+  background: var(--color-on-dark-surface-hover);
+  border-color: var(--color-on-dark-border-hover);
 }
 
 .language-control--onboarding {

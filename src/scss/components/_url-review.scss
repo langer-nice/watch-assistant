@@ -13,6 +13,7 @@
 .url-analysis__processing {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-md);
   min-height: 8rem;
   padding: var(--space-xl);
@@ -23,8 +24,14 @@
 }
 
 .url-analysis__processing p {
+  flex: 1 1 12rem;
   margin: 0;
   font-size: var(--font-size-md);
+}
+
+.url-analysis__cancel {
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 .url-analysis__spinner {
@@ -32,7 +39,7 @@
   height: 1.25rem;
   flex: 0 0 auto;
   border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border-top-color: var(--color-action);
   border-radius: var(--radius-pill);
   animation: url-analysis-spin 800ms linear infinite;
 }
@@ -109,6 +116,17 @@
   resize: vertical;
 }
 
+.url-review__field-error {
+  margin: 0;
+  color: var(--color-status-action);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+.url-review__field-error[hidden] {
+  display: none;
+}
+
 .url-review:not(.is-editing) .url-review__field input,
 .url-review:not(.is-editing) .url-review__field textarea {
   padding-inline: 0;
@@ -138,6 +156,10 @@
 .url-review__actions .button {
   width: 100%;
   margin: 0;
+}
+
+.url-review__actions #urlReviewCreate {
+  grid-column: 1 / -1;
 }
 
 @keyframes url-analysis-spin {

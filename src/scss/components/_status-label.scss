@@ -14,20 +14,30 @@
   white-space: nowrap;
 }
 
+.status-label[hidden] {
+  display: none;
+}
+
 .status-label--updated {
-  color: var(--color-status-update);
+  color: var(--color-status-update-text);
   background: var(--color-status-update-bg);
 }
 
 .status-label--watching,
 .status-label--paused {
-  border-color: var(--color-border);
-  color: var(--color-text-muted);
-  background: transparent;
+  border-color: var(--color-status-state-border);
+  color: var(--color-status-state);
+  background: var(--color-status-state-bg);
   font-weight: var(--font-weight-medium);
 }
 
-.status-label--attention {
+.status-label--checking {
+  color: var(--color-status-checking);
+  background: var(--color-status-checking-bg);
+}
+
+.status-label--attention,
+.status-label--error {
   color: var(--color-status-action);
   background: var(--color-status-action-bg);
 }

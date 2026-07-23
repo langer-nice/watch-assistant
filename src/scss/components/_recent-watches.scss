@@ -20,7 +20,7 @@
 
 .recent-watch:hover,
 .recent-watch:focus-visible {
-  border-color: var(--color-primary);
+  border-color: var(--color-action);
 }
 
 .recent-watch strong,
@@ -45,13 +45,20 @@
   width: var(--space-xs);
   height: var(--space-xs);
   border-radius: var(--radius-pill);
-  background: var(--color-status-success);
+  background: var(--color-indicator-unchanged);
 }
 
-.recent-watch__dot--attention {
-  background: var(--color-status-action);
+.recent-watch__dot--attention,
+.recent-watch__dot--error {
+  background: var(--color-indicator-attention);
 }
 
+.recent-watch__dot--updated {
+  background: var(--color-indicator-updated);
+}
+
+.recent-watch__dot--paused,
+.recent-watch__dot--checking,
 .recent-watch__dot--completed {
   background: var(--color-border);
 }

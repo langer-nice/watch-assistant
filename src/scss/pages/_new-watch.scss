@@ -187,13 +187,19 @@ body.is-edit-modal .language-control {
 
 .watch-keywords__add button {
   padding: 0 var(--space-md);
-  color: var(--color-primary);
+  color: var(--color-action);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-action);
   border-radius: var(--radius-input);
   cursor: pointer;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
+}
+
+.watch-keywords__add button:hover,
+.watch-keywords__add button:focus-visible {
+  color: var(--color-action-on-tint);
+  background: var(--color-action-tint);
 }
 
 .watch-category select {
@@ -226,7 +232,7 @@ body.is-edit-modal .language-control {
 }
 
 .edit-discard-dialog::backdrop {
-  background: rgba(15, 23, 42, 0.42);
+  background: var(--color-overlay-strong);
 }
 
 .edit-discard-dialog h2 {
@@ -259,7 +265,7 @@ body.is-edit-modal .language-control {
 }
 
 .edit-discard-dialog__confirm:hover {
-  background: #b42318;
+  background: var(--color-attention);
 }
 
 @media (max-width: 26rem) {

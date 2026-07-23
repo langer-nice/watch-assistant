@@ -1,88 +1,32 @@
 .floating-action {
   position: fixed;
-  right: var(--space-md);
-  bottom: var(--space-md);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 48px;
-  padding: 0 var(--space-lg);
-  border-radius: var(--radius-pill);
-  background: var(--color-primary);
-  color: var(--color-text-on-dark);
-  text-decoration: none;
-  box-shadow: var(--shadow-card);
-}
-
-.floating-action--home {
-  right: var(--app-content-padding-inline);
-  bottom: var(--space-lg);
-  left: var(--app-content-padding-inline);
-  z-index: 20;
-  gap: var(--space-xs);
-  max-width: calc(var(--app-content-max-width) - (var(--app-content-padding-inline) * 2));
-  min-height: 3rem;
-  margin: 0 auto;
-  border-radius: var(--radius-lg);
-  background: var(--color-floating-action);
-  box-shadow: var(--shadow-floating-action);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-}
-
-.floating-action:focus-visible,
-.floating-action:hover {
-  background: var(--color-primary-hover);
-}
-
-.app-shell:has(> .page--watches) > .floating-action {
   right: var(--app-content-padding-inline);
   bottom: calc(var(--space-lg) + env(safe-area-inset-bottom));
   left: var(--app-content-padding-inline);
   z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: var(--space-xs);
   width: auto;
   max-width: calc(var(--app-content-max-width) - (var(--app-content-padding-inline) * 2));
   min-height: 3.625rem;
   margin: 0 auto;
   padding: 0 var(--space-lg);
+  border-radius: var(--radius-pill);
   background: var(--color-floating-action);
+  color: var(--color-text-on-dark);
   box-shadow: var(--shadow-floating-action);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
+  text-decoration: none;
 }
 
-.app-shell:has(> .page--watches) > .floating-action:hover,
-.app-shell:has(> .page--watches) > .floating-action:focus-visible {
+.floating-action:hover,
+.floating-action:focus-visible {
   background: var(--color-floating-action-hover);
 }
 
-.app-shell:has(> .page--watches) > .page--watches {
+.app-shell:has(> .floating-action) > .page {
   padding-bottom: calc(3.625rem + (var(--space-lg) * 3) + env(safe-area-inset-bottom));
-}
-
-.floating-action--home:hover,
-.floating-action--home:focus-visible {
-  background: var(--color-floating-action-hover);
-}
-
-.floating-action--detail {
-  right: var(--app-content-padding-inline);
-  bottom: var(--space-lg);
-  left: var(--app-content-padding-inline);
-  z-index: 20;
-  gap: var(--space-xs);
-  max-width: calc(var(--app-content-max-width) - (var(--app-content-padding-inline) * 2));
-  min-height: 3.25rem;
-  margin: 0 auto;
-  border-radius: var(--radius-lg);
-  background: var(--color-floating-action);
-  box-shadow: var(--shadow-floating-action);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.floating-action--detail:hover,
-.floating-action--detail:focus-visible {
-  background: var(--color-floating-action-hover);
 }

@@ -1,5 +1,5 @@
 .briefing-item + .briefing-item {
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-divider);
 }
 
 .briefing-item__link {
@@ -12,7 +12,7 @@
 
 .briefing-item__link:hover h2,
 .briefing-item__link:focus-visible h2 {
-  color: var(--color-primary);
+  color: var(--color-action);
 }
 
 .briefing-item__link:focus-visible {

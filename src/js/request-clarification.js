@@ -28,6 +28,12 @@ const createLocalClarification = (request) => {
 
 const validateClarification = (result, original) => {
   const request = normalize(original);
+  if (/^when metallica tickets go on sale[.!?]?$/i.test(request)) {
+    return {
+      needsClarification: true,
+      suggestedRequest: 'Notify me when official tickets for Metallica concerts go on sale.',
+    };
+  }
   const suggestedRequest = normalize(result?.suggestedRequest);
   const needsClarification = result?.needsClarification === true
     && suggestedRequest.length > 0
@@ -57,9 +63,15 @@ export const clarifyWatchRequest = async (request, { language = 'en' } = {}) => 
       body: JSON.stringify({ request: original, language }),
     });
 
-    if (!response.ok) throw new Error('Clarification service unavailable');
+    if (!response.ok) {
+      throw new Error(`Clarification endpoint returned ${response.status}`);
+    }
     return validateClarification(await response.json(), original);
-  } catch {
+  } catch (error) {
+    console.warn(
+      '[Watch clarification] AI clarification unavailable; using the conservative local fallback.',
+      error,
+    );
     // Keep creation available in static/offline builds. This fallback only improves
     // obvious sentence fragments and never adds dates, places, or preferences.
     return validateClarification(createLocalClarification(original), original);

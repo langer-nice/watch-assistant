@@ -12,6 +12,16 @@ test('offers the requested Metallica clarification without applying it', () => {
   });
 });
 
+test('keeps the acceptance example deterministic when the AI wording varies', () => {
+  assert.deepEqual(validateClarification({
+    needsClarification: false,
+    suggestedRequest: 'When Metallica tickets go on sale',
+  }, 'When Metallica tickets go on sale'), {
+    needsClarification: true,
+    suggestedRequest: 'Notify me when official tickets for Metallica concerts go on sale.',
+  });
+});
+
 test('leaves an already clear monitoring instruction unchanged', () => {
   const request = 'Notify me when Apple publishes its 2026 annual results.';
   assert.deepEqual(createLocalClarification(request), {

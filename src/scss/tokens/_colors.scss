@@ -1,49 +1,93 @@
 :root {
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-secondary: #0f766e;
-  --color-background: #f7f7f5;
-  --color-page-bg: #f8fafc;
+  // Core editorial palette
+  --color-background: #f8f8f6;
   --color-surface: #ffffff;
-  --color-surface-subtle: #faf9f7;
-  --color-briefing-surface: #fafaf8;
-  --color-all-quiet-surface: #fafaf8;
-  --color-detail-background: #f5f5f8;
-  --color-new-watch-background: var(--color-detail-background);
-  --color-note-background: #fffcf4;
-  --color-note-border: #eadfbd;
-  --color-note-text: #765b3f;
-  --color-note-label: #9a7650;
-  --color-text: #202124;
-  --color-text-muted: #65666a;
-  --color-text-subtle: #a0a2a7;
+  --color-text-primary: #222222;
+  --color-text-secondary: #6f6f73;
+  --color-text-tertiary: #929195;
   --color-text-on-dark: #ffffff;
-  --color-border: #d8dadd;
-  --color-border-strong: #2d2e30;
+  --color-border: #d9d6d2;
+  --color-divider: #e7e3de;
+  --color-ink-blue-700: #526678;
+  --color-ink-blue-600: #5e7285;
+  --color-ink-blue-500: #6f879b;
+  --color-ink-blue-400: #88a0b4;
+  --color-ink-blue-100: #e9eef2;
+  --color-action: var(--color-ink-blue-600);
+  --color-action-hover: var(--color-ink-blue-700);
+  --color-action-tint: var(--color-ink-blue-100);
+  // Darker action text is used on the tint to maintain WCAG AA for body-sized text.
+  --color-action-on-tint: var(--color-action-hover);
+  --color-success: #5c8b72;
+  --color-attention: #c76a61;
+  --color-attention-strong: #9f4f48;
+  --color-personal: #f7f1e8;
+  --color-indicator-attention: #d94841;
+  --color-indicator-updated: #2e7dd7;
+  --color-indicator-unchanged: #2fa84f;
+
+  // Supporting semantic roles
   --color-transparent: transparent;
-  --color-success: #16a34a;
-  --color-info: #0ea5e9;
-  --color-warning: #eab308;
-  --color-danger: #dc2626;
-  --color-status-action: #d92d20;
-  --color-status-action-bg: #fdeceb;
-  --color-status-action-border: #ffc7c2;
-  --color-status-update: #0878dd;
-  --color-status-update-bg: #e5f1ff;
-  --color-status-success: #20a653;
-  --color-status-success-bg: #eaf8ef;
-  --color-category-travel: #8b8d92;
-  --color-category-travel-pill: #109a45;
-  --color-category-travel-pill-bg: #e7faed;
-  --color-category-finance: #8b8d92;
-  --color-category-news: #8b8d92;
-  --color-category-price: #8b8d92;
-  --color-category-events: #8b8d92;
-  --color-floating-action: #202124;
-  --color-floating-action-hover: #343538;
-  --color-external-icon: #c5c8ce;
-  --color-timeline-line: #e2e3e7;
-  --color-control-disabled: #dedee3;
-  --color-control-disabled-text: #96979d;
-  --color-placeholder: #b8bac0;
+  --color-overlay: rgba(34, 34, 34, 0.28);
+  --color-overlay-strong: rgba(34, 34, 34, 0.42);
+  --color-on-dark-muted: rgba(255, 255, 255, 0.78);
+  --color-on-dark-surface: rgba(255, 255, 255, 0.06);
+  --color-on-dark-surface-hover: rgba(255, 255, 255, 0.11);
+  --color-on-dark-border: rgba(255, 255, 255, 0.12);
+  --color-on-dark-border-hover: rgba(255, 255, 255, 0.2);
+
+  // Page and component surfaces
+  --color-page-bg: var(--color-background);
+  --color-surface-subtle: var(--color-background);
+  --color-briefing-surface: var(--color-background);
+  --color-all-quiet-surface: var(--color-background);
+  --color-detail-background: var(--color-background);
+  --color-new-watch-background: var(--color-background);
+  --color-note-background: var(--color-personal);
+  --color-note-border: color-mix(in srgb, var(--color-personal) 62%, var(--color-border));
+  --color-note-text: var(--color-text-primary);
+  --color-note-label: var(--color-text-secondary);
+
+  // Compatibility aliases for existing neutral component roles
+  --color-text: var(--color-text-primary);
+  --color-text-muted: var(--color-text-secondary);
+  --color-text-subtle: var(--color-text-tertiary);
+  --color-border-strong: var(--color-text-primary);
+  --color-secondary: var(--color-success);
+  --color-info: var(--color-action);
+  --color-warning: var(--color-attention);
+  --color-danger: var(--color-attention);
+
+  // Status and category roles
+  --color-status-action: var(--color-attention-strong);
+  --color-status-action-bg: color-mix(in srgb, var(--color-attention) 18%, var(--color-surface));
+  --color-status-action-border: color-mix(in srgb, var(--color-attention) 46%, var(--color-border));
+  --color-status-update: var(--color-ink-blue-500);
+  --color-status-update-text: var(--color-ink-blue-500);
+  --color-status-update-bg: var(--color-ink-blue-100);
+  --color-status-neutral-surface: #f1f1ef;
+  --color-status-neutral-emphasis: color-mix(in srgb, var(--color-text-secondary) 85%, var(--color-text-primary));
+  --color-status-state: #6b7280;
+  --color-status-state-border: var(--color-border);
+  --color-status-state-bg: transparent;
+  --color-status-checking: var(--color-status-neutral-emphasis);
+  --color-status-checking-bg: color-mix(in srgb, var(--color-text-secondary) 9%, var(--color-surface));
+  --color-status-success: var(--color-success);
+  --color-status-success-bg: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
+  --color-category-travel: var(--color-text-secondary);
+  --color-category-travel-pill: var(--color-success);
+  --color-category-travel-pill-bg: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
+  --color-category-finance: var(--color-text-secondary);
+  --color-category-news: var(--color-text-secondary);
+  --color-category-price: var(--color-text-secondary);
+  --color-category-events: var(--color-text-secondary);
+
+  // Supporting controls
+  --color-floating-action: var(--color-action);
+  --color-floating-action-hover: var(--color-action-hover);
+  --color-external-icon: color-mix(in srgb, var(--color-text-secondary) 42%, var(--color-surface));
+  --color-timeline-line: var(--color-divider);
+  --color-control-disabled: color-mix(in srgb, var(--color-border) 72%, var(--color-background));
+  --color-control-disabled-text: var(--color-text-tertiary);
+  --color-placeholder: color-mix(in srgb, var(--color-text-secondary) 66%, var(--color-surface));
 }
