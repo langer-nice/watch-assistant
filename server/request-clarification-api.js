@@ -64,8 +64,11 @@ export const generateRequestClarification = async ({
       store: false,
       instructions: [
         'Evaluate a request for an automated monitoring Watch.',
-        'If it is already clear and actionable, set needsClarification to false and return it unchanged.',
-        'Otherwise suggest one concise, readable monitoring instruction in the requested language.',
+        'Return resultType "clear" when it is already clear and actionable; return the original wording in suggestedRequest and leave clarificationMessage empty.',
+        'Return resultType "suggestion" only when you can provide one complete, precise monitoring instruction that can be used directly as a Watch; leave clarificationMessage empty.',
+        'A suggestion must state what to monitor and the expected change or event. It must never be a question or an instruction asking the user to clarify, specify, explain, or add details.',
+        'Return resultType "clarification_required" when the request is too ambiguous or incoherent to produce a reliable Watch.',
+        'For clarification_required, leave suggestedRequest empty and provide a brief clarificationMessage that asks for the missing person, organisation, place or event and the change that matters.',
         'Clarify wording only. Preserve the user intent, named entities, and every explicit constraint.',
         'Never invent dates, locations, venues, tours, channels, thresholds, preferences, or other details.',
         'Do not broaden or narrow the requested event. The user will make the final choice.',
@@ -82,10 +85,14 @@ export const generateRequestClarification = async ({
           schema: {
             type: 'object',
             properties: {
-              needsClarification: { type: 'boolean' },
+              resultType: {
+                type: 'string',
+                enum: ['clear', 'suggestion', 'clarification_required'],
+              },
               suggestedRequest: { type: 'string' },
+              clarificationMessage: { type: 'string' },
             },
-            required: ['needsClarification', 'suggestedRequest'],
+            required: ['resultType', 'suggestedRequest', 'clarificationMessage'],
             additionalProperties: false,
           },
         },
@@ -99,18 +106,23 @@ export const generateRequestClarification = async ({
     throw error;
   }
   const result = JSON.parse(extractOutputText(await response.json()) || '');
+  const validTypes = new Set(['clear', 'suggestion', 'clarification_required']);
   if (
-    typeof result.needsClarification !== 'boolean'
+    !validTypes.has(result.resultType)
     || typeof result.suggestedRequest !== 'string'
-    || !result.suggestedRequest.trim()
+    || typeof result.clarificationMessage !== 'string'
+    || (result.resultType === 'suggestion' && !result.suggestedRequest.trim())
+    || (result.resultType === 'clarification_required' && !result.clarificationMessage.trim())
+    || (result.resultType === 'clarification_required' && result.suggestedRequest.trim())
   ) {
     const error = new Error('The AI returned an invalid clarification.');
     error.statusCode = 502;
     throw error;
   }
   return {
-    needsClarification: result.needsClarification,
+    resultType: result.resultType,
     suggestedRequest: result.suggestedRequest.trim(),
+    clarificationMessage: result.clarificationMessage.trim(),
   };
 };
 

@@ -51,8 +51,9 @@ test('requests a strict clarification response from the configured model', async
       async json() {
         return {
           output_text: JSON.stringify({
-            needsClarification: true,
+            resultType: 'suggestion',
             suggestedRequest: 'Notify me when official tickets for Metallica concerts go on sale.',
+            clarificationMessage: '',
           }),
         };
       },
@@ -70,8 +71,39 @@ test('requests a strict clarification response from the configured model', async
   assert.equal(requestBody.store, false);
   assert.equal(requestBody.text.format.type, 'json_schema');
   assert.equal(requestBody.text.format.strict, true);
+  assert.deepEqual(
+    requestBody.text.format.schema.properties.resultType.enum,
+    ['clear', 'suggestion', 'clarification_required'],
+  );
+  assert.match(requestBody.instructions, /must never be a question/i);
   assert.deepEqual(result, {
-    needsClarification: true,
+    resultType: 'suggestion',
     suggestedRequest: 'Notify me when official tickets for Metallica concerts go on sale.',
+    clarificationMessage: '',
+  });
+});
+
+test('supports clarification required without returning a false suggestion', async () => {
+  const fetchImpl = async () => ({
+    ok: true,
+    async json() {
+      return {
+        output_text: JSON.stringify({
+          resultType: 'clarification_required',
+          suggestedRequest: '',
+          clarificationMessage: 'Add the person, organisation, place or event to monitor.',
+        }),
+      };
+    },
+  });
+
+  assert.deepEqual(await generateRequestClarification({
+    request: 'Xxc',
+    apiKey: 'test-key',
+    fetchImpl,
+  }), {
+    resultType: 'clarification_required',
+    suggestedRequest: '',
+    clarificationMessage: 'Add the person, organisation, place or event to monitor.',
   });
 });

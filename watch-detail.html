@@ -62,6 +62,20 @@
           <p class="detail-header__message" id="watchNotFound" hidden></p>
         </header>
 
+        <aside class="detail-clarity-warning" id="watchClarityWarning" aria-labelledby="watchClarityWarningTitle" hidden>
+          <svg class="detail-clarity-warning__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 3 2.8 20h18.4L12 3Z"></path>
+            <path d="M12 9v5M12 17.25v.1"></path>
+          </svg>
+          <div class="detail-clarity-warning__content">
+            <h2 id="watchClarityWarningTitle" data-i18n="detail.clarityWarningTitle"></h2>
+            <p data-i18n="detail.clarityWarningCopy"></p>
+            <a class="detail-clarity-warning__edit" id="watchClarityWarningEdit" href="new-watch.html">
+              <span data-i18n="detail.editWatch"></span>
+            </a>
+          </div>
+        </aside>
+
         <a class="detail-first-watch-home" id="watchCreatedHomeAction" href="index.html?entry=navigation" data-i18n="detail.viewHomeReport" hidden></a>
 
         <section class="detail-card" id="watchBriefing" aria-labelledby="whatIKnowTitle">

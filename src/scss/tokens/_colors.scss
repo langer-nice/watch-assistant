@@ -21,6 +21,7 @@
   --color-success: #5c8b72;
   --color-attention: #c76a61;
   --color-attention-strong: #9f4f48;
+  --color-attention-tint: color-mix(in srgb, var(--color-attention) 8%, var(--color-surface));
   --color-personal: #f7f1e8;
   --color-indicator-attention: #d94841;
   --color-indicator-updated: #2e7dd7;

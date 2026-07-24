@@ -11,7 +11,12 @@ import {
 } from './watch-storage.js';
 import { getLanguage, t } from './i18n.js';
 import { analyseUrl } from './url-analysis.js';
-import { clarifyWatchRequest } from './request-clarification.js';
+import {
+  CLARIFICATION_ACTIONS,
+  clarifyWatchRequest,
+  CLARIFICATION_TYPES,
+  getClarificationActions,
+} from './request-clarification.js';
 import { getBriefingWatchGroups, groupWatches } from './watch-grouping.js';
 import {
   formatWatchCreationMetadata,
@@ -880,6 +885,8 @@ const renderWatchDetail = () => {
   const confirmationTitleEl = document.querySelector('#watchConfirmationTitle');
   const confirmationCopyEl = document.querySelector('#watchConfirmationCopy');
   const editActionEl = document.querySelector('#watchEditAction');
+  const clarityWarningEl = document.querySelector('#watchClarityWarning');
+  const clarityWarningEditEl = document.querySelector('#watchClarityWarningEdit');
   const homeActionEl = document.querySelector('#watchCreatedHomeAction');
   const preparingEl = document.querySelector('#watchPreparing');
   const managementEl = document.querySelector('#watchManagement');
@@ -905,6 +912,7 @@ const renderWatchDetail = () => {
       timelineSectionEl,
       actionsSectionEl,
       confirmationEl,
+      clarityWarningEl,
       preparingEl,
       managementEl,
     ]
@@ -948,13 +956,22 @@ const renderWatchDetail = () => {
 
   const request = localizeField(watch, 'request');
   titleEl.textContent = localizeField(watch, 'title') || t('detail.title');
+  const editWatchHref = `new-watch.html?edit=${encodeURIComponent(watch.id)}`;
+  const openExistingWatchEditor = (event) => {
+    event.preventDefault();
+    openWatchEditSheet(watch.id);
+  };
   if (editActionEl) {
     editActionEl.hidden = false;
-    editActionEl.href = `new-watch.html?edit=${encodeURIComponent(watch.id)}`;
-    editActionEl.onclick = (event) => {
-      event.preventDefault();
-      openWatchEditSheet(watch.id);
-    };
+    editActionEl.href = editWatchHref;
+    editActionEl.onclick = openExistingWatchEditor;
+  }
+  if (clarityWarningEl) {
+    clarityWarningEl.hidden = watch.createdAsWrittenAfterClarityWarning !== true;
+  }
+  if (clarityWarningEditEl) {
+    clarityWarningEditEl.href = editWatchHref;
+    clarityWarningEditEl.onclick = openExistingWatchEditor;
   }
   if (homeActionEl) {
     homeActionEl.hidden = detailCreatedWatchId !== watch.id;
@@ -1624,10 +1641,11 @@ export function initForm() {
   const reviewCancel = document.querySelector('#urlReviewCancel');
   const clarification = document.querySelector('#requestClarification');
   const clarificationOriginal = document.querySelector('#clarificationOriginal');
+  const clarificationMessage = document.querySelector('#clarificationMessage');
+  const clarificationWarning = document.querySelector('#clarificationWarning');
   const clarificationSuggestion = document.querySelector('#clarificationSuggestion');
-  const clarificationKeep = document.querySelector('#clarificationKeepOriginal');
-  const clarificationUse = document.querySelector('#clarificationUseSuggested');
-  const clarificationEdit = document.querySelector('#clarificationEdit');
+  const clarificationSuggestionField = document.querySelector('#clarificationSuggestionField');
+  const clarificationActions = document.querySelector('#clarificationActions');
   const input = form?.watchRequest;
   const composer = input?.closest('.watch-composer');
   const watchClear = form?.querySelector('[data-watch-clear]');
@@ -1665,6 +1683,10 @@ export function initForm() {
   let urlAnalysisRequestId = 0;
   let creationInProgress = false;
   let pendingClarificationWhyFollowing = '';
+  let pendingClarificationOriginal = '';
+  let pendingClarificationSuggestion = '';
+  let pendingClarificationType = CLARIFICATION_TYPES.CLEAR;
+  let pendingClarificationHasSuggestion = false;
   const resizeFrames = new WeakMap();
   let noteCollapseTimer = null;
   let keywordRegenerationTimer = null;
@@ -1981,7 +2003,15 @@ export function initForm() {
     fallbackTimer = window.setTimeout(notifyParent, viewport ? 360 : 0);
   };
 
-  const completeWatchUpdate = async (request, whyFollowing, urlAnalysis = null) => {
+  const completeWatchUpdate = async (
+    request,
+    whyFollowing,
+    urlAnalysis = null,
+    {
+      createdAsWrittenAfterClarityWarning,
+      useRequestAsTitle = false,
+    } = {},
+  ) => {
     const keywordValues = getKeywordValues();
     const originalRequest = localizeField(editingWatch, 'request') || '';
     const requestChanged = request.trim() !== originalRequest.trim();
@@ -2030,8 +2060,12 @@ export function initForm() {
       monitoringConceptsManuallyEdited: derivedData.monitoringConceptsManuallyEdited,
     };
 
+    if (typeof createdAsWrittenAfterClarityWarning === 'boolean') {
+      changes.createdAsWrittenAfterClarityWarning = createdAsWrittenAfterClarityWarning;
+    }
+
     if (requestChanged) {
-      changes.title = derivedData.title;
+      changes.title = useRequestAsTitle ? request : derivedData.title;
       changes.titleKey = null;
     }
 
@@ -2096,44 +2130,120 @@ export function initForm() {
     };
   };
 
-  const createPlainTextWatch = async (request, whyFollowing) => {
-    const selectedRequest = request.trim();
-    if (!selectedRequest || creationInProgress) return;
+  const savePlainTextWatch = async (
+    request,
+    whyFollowing,
+    {
+      preserveOriginalWording = false,
+      useRequestAsTitle = false,
+      createdAsWrittenAfterClarityWarning,
+    } = {},
+  ) => {
+    const selectedRequest = preserveOriginalWording ? request : request.trim();
+    if (!selectedRequest.trim() || creationInProgress) return;
 
     creationInProgress = true;
     if (input) input.value = selectedRequest;
     synchronizeInferredFields(selectedRequest);
     setCreationControlsDisabled(true);
+    if (isEditMode) {
+      await completeWatchUpdate(selectedRequest, whyFollowing, null, {
+        createdAsWrittenAfterClarityWarning,
+        useRequestAsTitle,
+      });
+      return;
+    }
     const monitoringSummary = await generateMonitoringSummary(selectedRequest);
-    completeWatchCreation(createWatchObject(
+    const watch = createWatchObject(
       selectedRequest,
       whyFollowing,
       null,
       { ...getCreateOptions(), monitoringSummary },
-    ));
-  };
-
-  const setClarificationEditing = (editing) => {
-    clarification?.classList.toggle('is-editing', editing);
-    if (clarificationOriginal) clarificationOriginal.readOnly = !editing;
-    if (clarificationSuggestion) clarificationSuggestion.readOnly = !editing;
-    if (clarificationEdit) {
-      clarificationEdit.textContent = t(
-        editing ? 'newWatch.clarificationDone' : 'newWatch.clarificationEdit',
-      );
+    );
+    if (useRequestAsTitle) watch.title = selectedRequest;
+    if (createdAsWrittenAfterClarityWarning === true) {
+      watch.createdAsWrittenAfterClarityWarning = true;
     }
-    if (editing) clarificationOriginal?.focus();
+    completeWatchCreation(watch);
   };
 
-  const showClarification = (original, suggested, whyFollowing) => {
+  const renderClarificationActions = () => {
+    if (!clarificationActions) return;
+    clarificationActions.replaceChildren();
+
+    const actions = getClarificationActions({
+      type: pendingClarificationType,
+      hasSuggestion: pendingClarificationHasSuggestion,
+      suggestedRequest: pendingClarificationSuggestion,
+    });
+    const actionConfig = {
+      [CLARIFICATION_ACTIONS.KEEP_ORIGINAL]: {
+        label: 'newWatch.clarificationKeep',
+        modifier: 'secondary',
+      },
+      [CLARIFICATION_ACTIONS.USE_SUGGESTION]: {
+        label: 'newWatch.clarificationUse',
+        modifier: 'primary',
+      },
+      [CLARIFICATION_ACTIONS.EDIT_REQUEST]: {
+        label: 'newWatch.clarificationEditRequest',
+        modifier: pendingClarificationType === CLARIFICATION_TYPES.CLARIFICATION_REQUIRED
+          ? 'primary'
+          : 'secondary',
+      },
+      [CLARIFICATION_ACTIONS.CREATE_AS_WRITTEN]: {
+        label: 'newWatch.clarificationCreateAsWritten',
+        modifier: 'secondary',
+      },
+    };
+
+    actions.forEach((action) => {
+      const config = actionConfig[action];
+      const button = document.createElement('button');
+      button.className = `button button--${config.modifier}`;
+      button.type = 'button';
+      button.dataset.clarificationAction = action;
+      button.textContent = t(config.label);
+      clarificationActions.append(button);
+    });
+  };
+
+  const showClarification = (original, result, whyFollowing) => {
+    const hasSuggestion = result.type === CLARIFICATION_TYPES.SUGGESTION
+      && result.hasSuggestion === true
+      && Boolean(result.suggestedRequest?.trim());
+    const canCreateAsWritten = getClarificationActions({
+      type: result.type,
+      hasSuggestion,
+      suggestedRequest: hasSuggestion ? result.suggestedRequest : '',
+    }).includes(CLARIFICATION_ACTIONS.CREATE_AS_WRITTEN);
     pendingClarificationWhyFollowing = whyFollowing;
-    if (clarificationOriginal) clarificationOriginal.value = original;
-    if (clarificationSuggestion) clarificationSuggestion.value = suggested;
+    pendingClarificationOriginal = original;
+    pendingClarificationSuggestion = hasSuggestion ? result.suggestedRequest : '';
+    pendingClarificationType = result.type;
+    pendingClarificationHasSuggestion = hasSuggestion;
+    if (clarificationOriginal) clarificationOriginal.textContent = original;
+    if (clarificationSuggestion) {
+      clarificationSuggestion.textContent = pendingClarificationSuggestion;
+    }
+    if (clarificationMessage) {
+      clarificationMessage.textContent = result.clarificationMessage || '';
+      clarificationMessage.hidden = hasSuggestion;
+    }
+    if (clarificationWarning) {
+      clarificationWarning.hidden = result.type !== CLARIFICATION_TYPES.CLARIFICATION_REQUIRED
+        || hasSuggestion
+        || !canCreateAsWritten;
+    }
+    if (clarificationSuggestionField) clarificationSuggestionField.hidden = !hasSuggestion;
+    renderClarificationActions();
     clarificationInProgress = false;
     setCreationControlsDisabled(false);
     setSubmitLabel();
-    setClarificationEditing(false);
+    clarification?.classList.toggle('request-clarification--suggestion', hasSuggestion);
+    clarification?.classList.toggle('request-clarification--needs-input', !hasSuggestion);
     form.classList.add('is-clarifying');
+    refreshEditSaveState();
     if (clarification) {
       clarification.hidden = false;
       clarification.focus();
@@ -2560,6 +2670,7 @@ export function initForm() {
       && !analysisInProgress
       && !conceptRegenerationInProgress
       && !form.classList.contains('is-reviewing')
+      && !form.classList.contains('is-clarifying')
       && hasMeaningfulRequest()
       && hasUnsavedEditChanges();
     if (isModalEditMode) {
@@ -2741,7 +2852,8 @@ export function initForm() {
       return;
     }
 
-    const request = input?.value.trim() || '';
+    const originalRequest = input?.value || '';
+    const request = originalRequest.trim();
     const whyFollowing = form.whyFollowing?.value || '';
 
     if (!hasMeaningfulRequest()) {
@@ -2773,10 +2885,13 @@ export function initForm() {
       return;
     }
 
-    if (isEditMode) {
+    const storedRequest = isEditMode
+      ? (localizeField(editingWatch, 'request') || '')
+      : '';
+    if (isEditMode && originalRequest === storedRequest) {
       creationInProgress = true;
       setCreationControlsDisabled(true);
-      await completeWatchUpdate(request, whyFollowing);
+      await completeWatchUpdate(originalRequest, whyFollowing);
       return;
     }
 
@@ -2785,42 +2900,88 @@ export function initForm() {
     setSubmitLabel('newWatch.clarificationChecking');
     const result = await clarifyWatchRequest(request, { language: getLanguage() });
     if (result.needsClarification) {
-      showClarification(request, result.suggestedRequest, whyFollowing);
+      showClarification(originalRequest, result, whyFollowing);
       return;
     }
 
     clarificationInProgress = false;
-    await createPlainTextWatch(request, whyFollowing);
+    await savePlainTextWatch(isEditMode ? originalRequest : request, whyFollowing, {
+      preserveOriginalWording: isEditMode,
+      createdAsWrittenAfterClarityWarning: false,
+    });
   });
 
-  clarificationKeep?.addEventListener('click', async () => {
-    if (!clarificationOriginal?.value.trim()) {
-      setClarificationEditing(true);
-      clarificationOriginal?.focus();
-      clarificationOriginal?.reportValidity();
+  clarificationActions?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-clarification-action]');
+    if (!button || !clarificationActions.contains(button)) return;
+    const action = button.dataset.clarificationAction;
+
+    if (action === CLARIFICATION_ACTIONS.KEEP_ORIGINAL) {
+      if (
+        pendingClarificationType !== CLARIFICATION_TYPES.SUGGESTION
+        || !pendingClarificationHasSuggestion
+      ) return;
+      await savePlainTextWatch(
+        pendingClarificationOriginal,
+        pendingClarificationWhyFollowing,
+        {
+          preserveOriginalWording: true,
+          createdAsWrittenAfterClarityWarning: false,
+        },
+      );
       return;
     }
-    await createPlainTextWatch(
-      clarificationOriginal.value,
-      pendingClarificationWhyFollowing,
-    );
-  });
 
-  clarificationUse?.addEventListener('click', async () => {
-    if (!clarificationSuggestion?.value.trim()) {
-      setClarificationEditing(true);
-      clarificationSuggestion?.focus();
-      clarificationSuggestion?.reportValidity();
+    if (action === CLARIFICATION_ACTIONS.USE_SUGGESTION) {
+      const displayedSuggestion = clarificationSuggestion?.textContent || '';
+      if (
+        pendingClarificationType !== CLARIFICATION_TYPES.SUGGESTION
+        || !pendingClarificationHasSuggestion
+        || !pendingClarificationSuggestion.trim()
+        || clarificationSuggestionField?.hidden !== false
+        || !displayedSuggestion.trim()
+        || displayedSuggestion !== pendingClarificationSuggestion
+      ) return;
+      await savePlainTextWatch(
+        displayedSuggestion,
+        pendingClarificationWhyFollowing,
+        {
+          preserveOriginalWording: true,
+          createdAsWrittenAfterClarityWarning: false,
+        },
+      );
       return;
     }
-    await createPlainTextWatch(
-      clarificationSuggestion.value,
-      pendingClarificationWhyFollowing,
-    );
-  });
 
-  clarificationEdit?.addEventListener('click', () => {
-    setClarificationEditing(!clarification?.classList.contains('is-editing'));
+    if (action === CLARIFICATION_ACTIONS.CREATE_AS_WRITTEN) {
+      if (
+        pendingClarificationType !== CLARIFICATION_TYPES.CLARIFICATION_REQUIRED
+        || pendingClarificationHasSuggestion
+        || !pendingClarificationOriginal.trim()
+      ) return;
+      await savePlainTextWatch(
+        pendingClarificationOriginal,
+        pendingClarificationWhyFollowing,
+        {
+          preserveOriginalWording: true,
+          useRequestAsTitle: true,
+          createdAsWrittenAfterClarityWarning: true,
+        },
+      );
+      return;
+    }
+
+    if (action !== CLARIFICATION_ACTIONS.EDIT_REQUEST) return;
+    form.classList.remove('is-clarifying');
+    if (clarification) clarification.hidden = true;
+    if (input) {
+      input.value = pendingClarificationOriginal;
+      updateComposer();
+      resizeInput({ immediate: true });
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+    refreshEditSaveState();
   });
 
   reviewEdit?.addEventListener('click', () => {
@@ -3020,9 +3181,7 @@ export function initForm() {
       reviewEdit.textContent = t('newWatch.urlReviewDone');
     }
     renderKeywords();
-    if (clarification?.classList.contains('is-editing') && clarificationEdit) {
-      clarificationEdit.textContent = t('newWatch.clarificationDone');
-    }
+    if (!clarification?.hidden) renderClarificationActions();
     setSubmitLabel(
       analysisInProgress
         ? 'newWatch.urlProcessingButton'

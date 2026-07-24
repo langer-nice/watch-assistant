@@ -132,19 +132,23 @@
             <p class="request-clarification__intro" data-i18n="newWatch.clarificationIntro"></p>
 
             <div class="request-clarification__field">
-              <label for="clarificationOriginal" data-i18n="newWatch.clarificationOriginal"></label>
-              <textarea id="clarificationOriginal" rows="3" required readonly></textarea>
+              <span class="request-clarification__label" data-i18n="newWatch.clarificationOriginal"></span>
+              <p class="request-clarification__value" id="clarificationOriginal"></p>
+              <p class="request-clarification__message" id="clarificationMessage" hidden></p>
             </div>
-            <div class="request-clarification__field">
-              <label for="clarificationSuggestion" data-i18n="newWatch.clarificationSuggestion"></label>
-              <textarea id="clarificationSuggestion" rows="3" required readonly></textarea>
+            <div class="request-clarification__warning" id="clarificationWarning" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M12 3 2.8 20h18.4L12 3Z"></path>
+                <path d="M12 9v5M12 17.25v.1"></path>
+              </svg>
+              <p data-i18n="newWatch.clarificationWarning"></p>
+            </div>
+            <div class="request-clarification__field request-clarification__suggestion" id="clarificationSuggestionField">
+              <span class="request-clarification__label" data-i18n="newWatch.clarificationSuggestion"></span>
+              <p class="request-clarification__value" id="clarificationSuggestion"></p>
             </div>
 
-            <div class="request-clarification__actions">
-              <button class="button button--secondary" id="clarificationKeepOriginal" type="button" data-i18n="newWatch.clarificationKeep"></button>
-              <button class="button button--primary" id="clarificationUseSuggested" type="button" data-i18n="newWatch.clarificationUse"></button>
-              <button class="button button--secondary" id="clarificationEdit" type="button" data-i18n="newWatch.clarificationEdit"></button>
-            </div>
+            <div class="request-clarification__actions" id="clarificationActions"></div>
           </section>
 
           <section class="url-analysis" id="urlAnalysis" aria-live="polite" hidden>
