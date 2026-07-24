@@ -23,6 +23,11 @@ import {
   MONITORING_CONCEPTS_VERSION,
 } from './monitoring-concepts.js';
 import {
+  createRegeneratedFingerprintChanges,
+  getVisibleConceptLabels,
+  shouldRegenerateStoryFingerprint,
+} from './story-fingerprint-migration.js';
+import {
   createLocalEditorialSummary,
   generateMonitoringSummary,
 } from './monitoring-summary.js';
@@ -583,6 +588,9 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     ? options.selectedKeywords
     : keywords;
   const structuredCriteria = extractStructuredCriteria(request);
+  const storyFingerprint = Object.hasOwn(options, 'storyFingerprint')
+    ? options.storyFingerprint
+    : urlAnalysis?.storyFingerprint;
   return {
     title: urlAnalysis?.title || createTitle(request),
     inputType: isUrlRequest ? 'url' : 'text',
@@ -594,6 +602,13 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     keywords,
     selectedKeywords,
     monitoringConceptsVersion: MONITORING_CONCEPTS_VERSION,
+    monitoringConceptsManuallyEdited: Boolean(options.monitoringConceptsManuallyEdited),
+    storyFingerprint: Array.isArray(storyFingerprint)
+      ? storyFingerprint
+      : null,
+    conceptSourceFields: Array.isArray(urlAnalysis?.conceptSourceFields)
+      ? urlAnalysis.conceptSourceFields
+      : null,
     structuredCriteria,
     ...structuredCriteria,
     monitoringSummary: urlAnalysis?.summary || options.monitoringSummary || null,
@@ -1626,6 +1641,7 @@ export function initForm() {
   const recentSectionEl = document.querySelector('#recentWatchesSection');
   const watchOptionsEl = document.querySelector('#watchOptions');
   const keywordChipsEl = document.querySelector('#watchKeywordChips');
+  const keywordHelperEl = document.querySelector('.watch-keywords__helper');
   const keywordInputEl = document.querySelector('#watchKeywordInput');
   const keywordAddEl = document.querySelector('#watchKeywordAdd');
   const categoryInputEl = document.querySelector('#watchCategoryInput');
@@ -1634,7 +1650,7 @@ export function initForm() {
   const discardChangesButton = document.querySelector('#editDiscardChanges');
   const formParams = new URLSearchParams(window.location.search);
   const editWatchId = formParams.get('edit');
-  const editingWatch = editWatchId ? getWatchById(editWatchId) : null;
+  let editingWatch = editWatchId ? getWatchById(editWatchId) : null;
   const isEditMode = Boolean(editingWatch);
   const isModalEditMode = isEditMode
     && formParams.get('presentation') === 'modal'
@@ -1655,6 +1671,7 @@ export function initForm() {
   let keywordItems = [];
   let editingConceptIndex = null;
   let keywordsManuallyEdited = false;
+  let conceptRegenerationInProgress = false;
   let categorySource = editingWatch?.categorySource || 'inferred';
   let keywordSourceRequest = '';
   let initialEditState = null;
@@ -1986,6 +2003,11 @@ export function initForm() {
       category,
       categorySource,
       monitoringSummary,
+      storyFingerprint: keywordsManuallyEdited
+        ? keywordValues.keywords.map((label) => ({ label, type: 'supporting' }))
+        : urlAnalysis?.storyFingerprint,
+      monitoringConceptsManuallyEdited: keywordsManuallyEdited
+        || editingWatch.monitoringConceptsManuallyEdited === true,
       ...keywordValues,
     });
     const changes = {
@@ -2003,6 +2025,9 @@ export function initForm() {
       sourceNameKey: null,
       sourceTitle: derivedData.sourceTitle,
       sourceTitleKey: null,
+      storyFingerprint: derivedData.storyFingerprint,
+      conceptSourceFields: derivedData.conceptSourceFields,
+      monitoringConceptsManuallyEdited: derivedData.monitoringConceptsManuallyEdited,
     };
 
     if (requestChanged) {
@@ -2058,11 +2083,18 @@ export function initForm() {
     window.location.href = `watch-detail.html?id=${encodeURIComponent(editingWatch.id)}&watchUpdated=${encodeURIComponent(editingWatch.id)}`;
   };
 
-  const getCreateOptions = () => ({
-    category: categoryInputEl?.value || undefined,
-    categorySource,
-    ...getKeywordValues(),
-  });
+  const getCreateOptions = () => {
+    const keywordValues = getKeywordValues();
+    return {
+      category: categoryInputEl?.value || undefined,
+      categorySource,
+      storyFingerprint: keywordsManuallyEdited
+        ? keywordValues.keywords.map((label) => ({ label, type: 'supporting' }))
+        : pendingAnalysis?.storyFingerprint,
+      monitoringConceptsManuallyEdited: keywordsManuallyEdited,
+      ...keywordValues,
+    };
+  };
 
   const createPlainTextWatch = async (request, whyFollowing) => {
     const selectedRequest = request.trim();
@@ -2360,11 +2392,12 @@ export function initForm() {
         localizeField(editingWatch, 'sourceTitle'),
         localizeField(editingWatch, 'title'),
       ].filter(Boolean).join(' ');
-      const hasCurrentMonitoringConcepts = (
-        editingWatch.monitoringConceptsVersion === MONITORING_CONCEPTS_VERSION
+      const visibleConcepts = getVisibleConceptLabels(
+        editingWatch,
+        MONITORING_CONCEPTS_VERSION,
       );
-      const existingKeywords = hasCurrentMonitoringConcepts && Array.isArray(editingWatch.keywords)
-        ? editingWatch.keywords.filter((keyword) => typeof keyword === 'string' && keyword.trim())
+      const existingKeywords = visibleConcepts.length
+        ? visibleConcepts
         : extractMonitoringConcepts(conceptSource);
       if (headingEl) {
         headingEl.dataset.i18n = 'newWatch.editHeading';
@@ -2420,6 +2453,9 @@ export function initForm() {
           sourceName: editingWatch.sourceName || '',
           sourceTitle: editingWatch.sourceTitle || '',
           sourceUrl: editingWatch.sourceUrl || inputValue,
+          storyFingerprint: editingWatch.storyFingerprint || null,
+          keywords: existingKeywords,
+          conceptSourceFields: editingWatch.conceptSourceFields || null,
         }
         : null;
     } else {
@@ -2446,6 +2482,65 @@ export function initForm() {
     setSubmitLabel();
   };
 
+  const setConceptRegenerationLoading = (loading) => {
+    conceptRegenerationInProgress = loading;
+    keywordChipsEl?.setAttribute('aria-busy', String(loading));
+    if (keywordHelperEl) {
+      keywordHelperEl.textContent = t(
+        loading ? 'newWatch.conceptsRegenerating' : 'newWatch.conceptsHelper',
+      );
+    }
+    if (keywordInputEl) keywordInputEl.disabled = loading;
+    if (keywordAddEl) keywordAddEl.disabled = loading;
+    refreshEditSaveState();
+  };
+
+  const regenerateLegacyUrlConcepts = async () => {
+    if (!isEditMode || editingWatch.inputType !== 'url') return;
+    const forceRegeneration = import.meta.env.DEV
+      && formParams.get('forceConceptRegeneration') === '1';
+    if (!shouldRegenerateStoryFingerprint(
+      editingWatch,
+      MONITORING_CONCEPTS_VERSION,
+      {
+        force: forceRegeneration,
+        legacyGeneratedKeywords: extractMonitoringConcepts(
+          editingWatch.sourceTitle || editingWatch.title || '',
+          8,
+        ),
+      },
+    )) return;
+
+    const sourceUrl = editingWatch.sourceUrl || editingWatch.request;
+    if (!isUrl(sourceUrl)) return;
+    if (import.meta.env.DEV) {
+      console.info(
+        `[Story Fingerprint] ${forceRegeneration ? 'Forced' : 'Legacy'} regeneration for Watch ${editingWatch.id}`,
+      );
+    }
+    setConceptRegenerationLoading(true);
+    try {
+      const analysis = await analyseUrl(sourceUrl);
+      const changes = createRegeneratedFingerprintChanges(
+        analysis,
+        MONITORING_CONCEPTS_VERSION,
+      );
+      const regeneratedKeywords = changes.keywords;
+      if (!regeneratedKeywords?.length) throw new Error('No strong concepts were returned.');
+
+      editingWatch = updateWatch(editingWatch.id, changes);
+      keywordItems = regeneratedKeywords.map((label) => ({ label, selected: true }));
+      keywordSourceRequest = sourceUrl;
+      pendingAnalysis = { ...pendingAnalysis, ...analysis };
+      renderKeywords();
+      initialEditState = JSON.stringify(getEditState());
+    } catch (error) {
+      console.warn('[Story Fingerprint] Existing Watch regeneration failed.', error);
+    } finally {
+      setConceptRegenerationLoading(false);
+    }
+  };
+
   const getEditState = () => ({
     request: input?.value || '',
     sourceUrl: isUrl(input?.value || '') ? (input?.value || '') : '',
@@ -2463,6 +2558,7 @@ export function initForm() {
   refreshEditSaveState = () => {
     const canSave = !creationInProgress
       && !analysisInProgress
+      && !conceptRegenerationInProgress
       && !form.classList.contains('is-reviewing')
       && hasMeaningfulRequest()
       && hasUnsavedEditChanges();
@@ -2945,6 +3041,7 @@ export function initForm() {
   if (isEditMode) {
     initialEditState = JSON.stringify(getEditState());
     refreshEditSaveState();
+    void regenerateLegacyUrlConcepts();
   }
 }
 

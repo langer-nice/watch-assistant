@@ -1,9 +1,14 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import he from 'he';
+import {
+  normalizeStoryFingerprint,
+  STORY_CONCEPT_TYPES,
+} from '../src/js/monitoring-concepts.js';
 
-const MAX_REQUEST_BYTES = 8 * 1024;
-const MAX_HEAD_BYTES = 512 * 1024;
+const MAX_REQUEST_BYTES = 32 * 1024;
+const MAX_PAGE_BYTES = 1024 * 1024;
+const MAX_ARTICLE_TEXT_LENGTH = 12_000;
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 8000;
 
@@ -13,19 +18,35 @@ const WATCH_SUGGESTION_SCHEMA = {
   properties: {
     watchTitle: { type: 'string', minLength: 1, maxLength: 100 },
     watchingFor: { type: 'string', minLength: 1, maxLength: 300 },
-    keywords: {
+    storyFingerprint: {
       type: 'array',
-      minItems: 4,
-      maxItems: 6,
-      items: { type: 'string', minLength: 1, maxLength: 40 },
+      minItems: 1,
+      maxItems: 8,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          label: { type: 'string', minLength: 1, maxLength: 40 },
+          type: { type: 'string', enum: STORY_CONCEPT_TYPES },
+        },
+        required: ['label', 'type'],
+      },
     },
     description: { type: 'string', minLength: 1, maxLength: 300 },
   },
-  required: ['watchTitle', 'watchingFor', 'keywords', 'description'],
+  required: ['watchTitle', 'watchingFor', 'storyFingerprint', 'description'],
 };
 
 const cleanTitle = (value) => he
   .decode(String(value || '').replace(/<[^>]*>/g, ''))
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const cleanPageText = (value) => he
+  .decode(String(value || '')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
+    .replace(/<[^>]*>/g, ' '))
   .replace(/\s+/g, ' ')
   .trim();
 
@@ -40,19 +61,60 @@ const getTagAttributes = (tag) => {
   return attributes;
 };
 
-export const extractPageTitle = (html) => {
-  const headEnd = html.search(/<\/head\s*>/i);
-  const head = html.slice(0, headEnd >= 0 ? headEnd : MAX_HEAD_BYTES);
-  const metaTags = head.match(/<meta\b[^>]*>/gi) || [];
-  const openGraphTitle = metaTags
-    .map(getTagAttributes)
-    .find((attributes) => (
-      (attributes.property || attributes.name || '').toLowerCase() === 'og:title'
-      && attributes.content
-    ))?.content;
-  const htmlTitle = head.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i)?.[1];
-  return cleanTitle(openGraphTitle || htmlTitle);
+const findJsonLdArticle = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(findJsonLdArticle).find(Boolean) || null;
+  }
+  if (!value || typeof value !== 'object') return null;
+  if (typeof value.articleBody === 'string') return value;
+  return Object.values(value).map(findJsonLdArticle).find(Boolean) || null;
 };
+
+export const extractPageMetadata = (html, sourceUrl = '') => {
+  const headEnd = html.search(/<\/head\s*>/i);
+  const head = html.slice(0, headEnd >= 0 ? headEnd : MAX_PAGE_BYTES);
+  const metaTags = head.match(/<meta\b[^>]*>/gi) || [];
+  const metadata = metaTags.map(getTagAttributes);
+  const findMetaContent = (names) => metadata.find((attributes) => (
+    names.includes((attributes.property || attributes.name || '').toLowerCase())
+    && attributes.content
+  ))?.content;
+  const openGraphTitle = findMetaContent(['og:title', 'twitter:title']);
+  const description = cleanPageText(findMetaContent([
+    'og:description',
+    'description',
+    'twitter:description',
+  ]));
+  const metadataAuthor = cleanPageText(findMetaContent(['author', 'article:author']));
+  const htmlTitle = head.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i)?.[1];
+  const jsonLdArticle = (html.match(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script\s*>/gi) || [])
+    .map((script) => script.replace(/^.*?>|<\/script\s*>$/gis, ''))
+    .map((json) => {
+      try {
+        return findJsonLdArticle(JSON.parse(json));
+      } catch {
+        return null;
+      }
+    })
+    .find(Boolean);
+  const articleHtml = html.match(/<article\b[^>]*>([\s\S]*?)<\/article\s*>/i)?.[1] || '';
+  const articleText = cleanPageText(jsonLdArticle?.articleBody || articleHtml)
+    .slice(0, MAX_ARTICLE_TEXT_LENGTH);
+  const title = cleanTitle(openGraphTitle || htmlTitle || jsonLdArticle?.headline);
+  const structuredAuthor = cleanPageText(jsonLdArticle?.author?.name);
+  const author = [metadataAuthor, structuredAuthor]
+    .find((value) => value && !/^https?:\/\//i.test(value)) || '';
+
+  return {
+    title,
+    description: description || cleanPageText(jsonLdArticle?.description),
+    articleText,
+    author,
+    sourceUrl,
+  };
+};
+
+export const extractPageTitle = (html) => extractPageMetadata(html).title;
 
 const isPublicIpAddress = (address) => {
   if (net.isIPv4(address)) {
@@ -104,25 +166,24 @@ const validatePublicUrl = async (value) => {
   return url;
 };
 
-const readHeadHtml = async (response) => {
+const readPageHtml = async (response) => {
   const reader = response.body?.getReader();
   if (!reader) return '';
 
   const decoder = new TextDecoder();
   let html = '';
   let byteCount = 0;
-  while (byteCount < MAX_HEAD_BYTES) {
+  while (byteCount < MAX_PAGE_BYTES) {
     const { done, value } = await reader.read();
     if (done) break;
     byteCount += value.byteLength;
     html += decoder.decode(value, { stream: true });
-    if (/<\/head\s*>/i.test(html)) break;
   }
   await reader.cancel();
   return html;
 };
 
-export const fetchPageTitle = async (input, fetchImpl = fetch) => {
+export const fetchPageMetadata = async (input, fetchImpl = fetch) => {
   let url = await validatePublicUrl(input);
 
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
@@ -151,22 +212,29 @@ export const fetchPageTitle = async (input, fetchImpl = fetch) => {
       throw new Error('The URL did not return an HTML page.');
     }
 
-    const title = extractPageTitle(await readHeadHtml(response));
-    if (!title) throw new Error('No page title was found.');
-    return title;
+    const metadata = extractPageMetadata(await readPageHtml(response), url.href);
+    if (!metadata.title) throw new Error('No page title was found.');
+    return metadata;
   }
 
   throw new Error('The page title could not be fetched.');
 };
+
+export const fetchPageTitle = async (input, fetchImpl = fetch) => (
+  (await fetchPageMetadata(input, fetchImpl)).title
+);
 
 const extractResponseText = (response) => response.output
   ?.flatMap((item) => item.content || [])
   .find((content) => content.type === 'output_text')?.text;
 
 const validateSuggestion = (suggestion) => {
-  const keywords = Array.isArray(suggestion?.keywords)
-    ? [...new Set(suggestion.keywords.map((keyword) => String(keyword).trim()).filter(Boolean))]
-    : [];
+  const storyFingerprint = normalizeStoryFingerprint(
+    suggestion?.storyFingerprint
+      || suggestion?.keywords?.map((label) => ({ label, type: 'supporting' })),
+    8,
+  );
+  const keywords = storyFingerprint.map(({ label }) => label);
   const description = typeof suggestion?.description === 'string'
     ? suggestion.description.trim()
     : '';
@@ -177,8 +245,8 @@ const validateSuggestion = (suggestion) => {
   if (
     typeof suggestion?.watchTitle !== 'string'
     || !suggestion.watchTitle.trim()
-    || keywords.length < 4
-    || keywords.length > 6
+    || keywords.length < 1
+    || keywords.length > 8
     || !watchingFor
     || !description
     || sentenceCount > 2
@@ -188,16 +256,43 @@ const validateSuggestion = (suggestion) => {
   return {
     watchTitle: suggestion.watchTitle.trim(),
     watchingFor,
+    storyFingerprint,
     keywords,
     description,
   };
 };
 
-export const generateWatchSuggestion = async ({ title, apiKey, model, fetchImpl = fetch }) => {
+export const generateWatchSuggestion = async ({
+  title,
+  description = '',
+  articleText = '',
+  author = '',
+  slug = '',
+  apiKey,
+  model,
+  fetchImpl = fetch,
+}) => {
   if (!apiKey) {
     const error = new Error('OPENAI_API_KEY is not configured.');
     error.statusCode = 503;
     throw error;
+  }
+
+  const source = {
+    title: String(title || '').trim(),
+    description: String(description || '').trim(),
+    articleText: String(articleText || '').trim(),
+    author: String(author || '').trim(),
+    slug: String(slug || '').trim(),
+  };
+  const sourceFields = Object.entries(source)
+    .filter(([, value]) => value)
+    .map(([field]) => field);
+  if (process.env.NODE_ENV !== 'production') {
+    console.info(`[Story Fingerprint] AI source fields: ${sourceFields.join(', ') || 'none'}`);
+    if (!source.description && !source.articleText) {
+      console.info('[Story Fingerprint] Limited source: using title/slug only.');
+    }
   }
 
   const response = await fetchImpl('https://api.openai.com/v1/responses', {
@@ -209,8 +304,12 @@ export const generateWatchSuggestion = async ({ title, apiKey, model, fetchImpl 
     body: JSON.stringify({
       model,
       store: false,
-      instructions: 'From the supplied page title, generate a concise Watch title, a natural one-sentence monitoring instruction named watchingFor, 4 to 6 monitoring keywords, and a short explanation of no more than two sentences. Base every field only on the supplied page title. Do not infer or mention article-body details.',
-      input: title,
+      instructions: `Build a Story Fingerprint from the supplied page title, alongside a concise Watch title, a natural one-sentence monitoring instruction named watchingFor, and a short explanation of no more than two sentences.
+
+Return normally 3 to 8 typed Story Fingerprint concepts in this exact priority: people, organizations, precise locations, the main event, then genuinely identifying supporting concepts. A named person central to the story should almost always be included and their complete name must remain one concept. Do not treat byline authors, photographers, or publishers as story concepts unless they are themselves central to the event. Preserve complete organization and location names. Express events as semantic noun phrases that can match later reporting even when wording changes, for example "Search operation", "Court ruling", or "Product launch", but only when the supplied title supports that meaning.
+
+Use source fields in this order: title, description, articleText, then slug only as a fallback. The author field is extracted page metadata and may support a person concept. Do not merely select frequent or long words. Exclude articles, conjunctions, prepositions, pronouns, filler, generic geography, and generic news terms. Never return isolated fragments when a stronger phrase exists. Deduplicate concepts and omit weaker concepts contained in stronger ones. Return fewer concepts rather than weak ones when fewer than 3 are reliable. Base every field only on the supplied source content, preserve its intent, and never invent a person, organization, location, event, or detail absent from or unsupported by it.`,
+      input: JSON.stringify(source),
       reasoning: { effort: 'low' },
       max_output_tokens: 300,
       text: {
@@ -280,14 +379,27 @@ export const createUrlWatchMiddleware = ({ apiKey, model = 'gpt-5.6-luna' } = {}
       if (isTitleRequest) {
         const input = String(body.url || '').trim();
         const url = new URL(/^https?:\/\//i.test(input) ? input : `https://${input}`);
-        const title = await fetchPageTitle(url.href);
-        sendJson(response, 200, { title, sourceUrl: url.href });
+        const metadata = await fetchPageMetadata(url.href);
+        const sourceFields = ['title', 'description', 'articleText', 'author']
+          .filter((field) => metadata[field]);
+        if (process.env.NODE_ENV !== 'production') {
+          console.info(`[Story Fingerprint] Retrieved source fields: ${sourceFields.join(', ')}`);
+        }
+        sendJson(response, 200, { ...metadata, conceptSourceFields: sourceFields });
         return;
       }
 
       const title = String(body.title || '').trim();
       if (!title) throw new Error('A page title is required.');
-      const suggestion = await generateWatchSuggestion({ title, apiKey, model });
+      const suggestion = await generateWatchSuggestion({
+        title,
+        description: body.description,
+        articleText: body.articleText,
+        author: body.author,
+        slug: body.slug,
+        apiKey,
+        model,
+      });
       sendJson(response, 200, suggestion);
     } catch (error) {
       console.error('URL Watch prototype request failed:', error);

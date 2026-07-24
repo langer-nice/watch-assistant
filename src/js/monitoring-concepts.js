@@ -2,12 +2,14 @@ const STOP_WORDS = new Set([
   'a', 'about', 'after', 'again', 'alert', 'also', 'an', 'and', 'anything', 'are',
   'at', 'available', 'be', 'become', 'becomes', 'below', 'by', 'can', 'change',
   'changes', 'could', 'drop', 'drops', 'fall', 'falls', 'find', 'for', 'from',
-  'get', 'gets', 'go', 'goes', 'have', 'in', 'into', 'is', 'it', 'its', 'keep',
+  'experience', 'get', 'gets', 'go', 'goes', 'has', 'have', 'he', 'her', 'hers',
+  'him', 'his', 'hunt', 'i', 'in', 'into', 'is', 'it', 'its', 'keep',
   'know', 'latest', 'less', 'let', 'look', 'looking', 'me', 'meaningful', 'monitor',
   'monitoring', 'need', 'new', 'notify', 'of', 'on', 'open', 'opened', 'opens',
-  'or', 'please', 'reach', 'reaches', 'show', 'something', 'tell', 'than', 'that',
+  'or', 'our', 'ours', 'please', 'reach', 'reaches', 'reporting', 'she', 'show',
+  'something', 'story', 'tell', 'than', 'that', 'their', 'theirs', 'them', 'they',
   'the', 'this', 'to', 'under', 'update', 'updated', 'us', 'want', 'watch', 'when',
-  'will', 'with', 'would', 'your',
+  'we', 'will', 'with', 'would', 'you', 'your', 'yours',
   'a', 'au', 'aux', 'avec', 'avertir', 'avertis', 'avertissez', 'baisse',
   'baissent', 'ce', 'ces', 'cette', 'change', 'changent', 'chercher', 'd', 'dans',
   'de', 'des', 'dites', 'du', 'en', 'est', 'et', 'etre', 'faites', 'il', 'je',
@@ -20,9 +22,21 @@ const STOP_WORDS = new Set([
   'vous',
 ]);
 
-const PHRASE_CONNECTORS = new Set(['de', 'of']);
+const PHRASE_CONNECTORS = new Set(['and', 'de', 'et', 'of']);
 
-export const MONITORING_CONCEPTS_VERSION = 1;
+export const MONITORING_CONCEPTS_VERSION = 3;
+
+export const STORY_CONCEPT_TYPES = Object.freeze([
+  'person',
+  'organization',
+  'location',
+  'event',
+  'supporting',
+]);
+
+const STORY_CONCEPT_PRIORITY = new Map(
+  STORY_CONCEPT_TYPES.map((type, index) => [type, index]),
+);
 
 const normalizeWord = (value) => String(value)
   .normalize('NFKD')
@@ -40,6 +54,105 @@ const formatConcept = (tokens) => {
   return `${label.charAt(0).toLocaleUpperCase()}${label.slice(1)}`;
 };
 
+const getConceptTokens = (value) => (
+  String(value || '').match(/[€$£]\s?\d[\d.,]*|\d[\d.,]*\s?(?:€|\$|£)?|[\p{L}][\p{L}\p{N}'’.-]*/gu) || []
+);
+
+const cleanConcepts = (value) => {
+  const tokens = getConceptTokens(value);
+  const concepts = [];
+  let phrase = [];
+  const addPhrase = () => {
+    const concept = formatConcept(phrase);
+    phrase = [];
+    if (concept) concepts.push(concept);
+  };
+
+  tokens.forEach((token, index) => {
+    const possessiveMatch = token.match(/^(.+?)[’']s$/iu);
+    if (possessiveMatch) {
+      addPhrase();
+      concepts.push(formatConcept([possessiveMatch[1]]));
+      return;
+    }
+
+    const normalized = normalizeWord(token);
+    if (!STOP_WORDS.has(normalized)) {
+      phrase.push(token);
+      return;
+    }
+
+    const hasFollowingContent = tokens
+      .slice(index + 1)
+      .some((candidate) => !STOP_WORDS.has(normalizeWord(candidate)));
+    if (PHRASE_CONNECTORS.has(normalized) && phrase.length && hasFollowingContent) {
+      phrase.push(token);
+      return;
+    }
+    addPhrase();
+  });
+  addPhrase();
+  return concepts.filter(Boolean);
+};
+
+export const normalizeMonitoringConcepts = (values, limit = 8) => {
+  const uniqueConcepts = [];
+  (Array.isArray(values) ? values : []).forEach((value) => {
+    cleanConcepts(value).forEach((concept) => {
+      const normalized = normalizeWord(concept);
+      if (!normalized || uniqueConcepts.some((item) => normalizeWord(item) === normalized)) return;
+      uniqueConcepts.push(concept);
+    });
+  });
+
+  return uniqueConcepts
+    .filter((concept, index, concepts) => {
+      const tokens = getConceptTokens(concept).map(normalizeWord);
+      return !concepts.some((candidate, candidateIndex) => {
+        if (candidateIndex === index) return false;
+        const candidateTokens = getConceptTokens(candidate).map(normalizeWord);
+        return candidateTokens.length > tokens.length
+          && tokens.every((token) => candidateTokens.includes(token));
+      });
+    })
+    .slice(0, limit);
+};
+
+export const normalizeStoryFingerprint = (values, limit = 8) => {
+  const candidates = (Array.isArray(values) ? values : [])
+    .map((value, index) => ({
+      label: typeof value === 'string' ? value : value?.label,
+      type: STORY_CONCEPT_PRIORITY.has(value?.type) ? value.type : 'supporting',
+      index,
+    }))
+    .flatMap((candidate) => {
+      const labels = ['person', 'organization', 'location'].includes(candidate.type)
+        ? [formatConcept(getConceptTokens(candidate.label))].filter(Boolean)
+        : normalizeMonitoringConcepts([candidate.label], limit);
+      return labels.map((label) => ({ ...candidate, label }));
+    })
+    .sort((first, second) => (
+      STORY_CONCEPT_PRIORITY.get(first.type) - STORY_CONCEPT_PRIORITY.get(second.type)
+      || first.index - second.index
+    ));
+  const uniqueCandidates = candidates.filter((candidate, index) => (
+    candidates.findIndex((item) => normalizeWord(item.label) === normalizeWord(candidate.label))
+      === index
+  ));
+  return uniqueCandidates
+    .filter((concept, index, concepts) => {
+      const tokens = getConceptTokens(concept.label).map(normalizeWord);
+      return !concepts.some((candidate, candidateIndex) => {
+        if (candidateIndex === index) return false;
+        const candidateTokens = getConceptTokens(candidate.label).map(normalizeWord);
+        return candidateTokens.length > tokens.length
+          && tokens.every((token) => candidateTokens.includes(token));
+      });
+    })
+    .slice(0, limit)
+    .map(({ label, type }) => ({ label, type }));
+};
+
 export const extractMonitoringConcepts = (value, limit = 4) => {
   const source = String(value || '')
     .replace(/https?:\/\/\S+/gi, ' ')
@@ -47,7 +160,7 @@ export const extractMonitoringConcepts = (value, limit = 4) => {
     .trim();
   if (!source) return [];
 
-  const tokenPattern = /[€$£]\s?\d[\d.,]*|\d[\d.,]*\s?(?:€|\$|£)?|[\p{L}][\p{L}\p{N}]*/gu;
+  const tokenPattern = /[€$£]\s?\d[\d.,]*|\d[\d.,]*\s?(?:€|\$|£)?|[\p{L}][\p{L}\p{N}'’.-]*/gu;
   const matches = [...source.matchAll(tokenPattern)];
   const concepts = [];
   let phrase = [];
@@ -58,20 +171,24 @@ export const extractMonitoringConcepts = (value, limit = 4) => {
     phrase = [];
     if (!concept) return;
     const normalized = normalizeWord(concept);
-    if (!normalized || concepts.some((item) => normalizeWord(item) === normalized)) return;
-    concepts.push(concept);
+    if (concept) concepts.push(concept);
   };
 
   matches.forEach((match) => {
     const token = match[0].trim();
-    const normalized = normalizeWord(token);
+    const possessiveMatch = token.match(/^(.+?)[’']s$/iu);
+    const normalized = normalizeWord(possessiveMatch?.[1] || token);
     const gap = source.slice(previousEnd, match.index);
     const startsNewPhrase = /[,;:!?()[\]{}|/\\]/.test(gap);
-    const continuesProperName = phrase.length > 0
-      && /^\p{Lu}/u.test(token)
-      && phrase.every((part) => /^\p{Lu}/u.test(part));
+    if (possessiveMatch) {
+      addPhrase();
+      phrase.push(possessiveMatch[1]);
+      addPhrase();
+      previousEnd = match.index + match[0].length;
+      return;
+    }
     const continuesPhrase = phrase.length > 0 && PHRASE_CONNECTORS.has(normalized);
-    const isStopWord = STOP_WORDS.has(normalized) && !continuesProperName && !continuesPhrase;
+    const isStopWord = STOP_WORDS.has(normalized) && !continuesPhrase;
     if (startsNewPhrase || isStopWord) addPhrase();
 
     if (!isStopWord) {
@@ -82,5 +199,5 @@ export const extractMonitoringConcepts = (value, limit = 4) => {
   });
   addPhrase();
 
-  return concepts.slice(0, limit);
+  return normalizeMonitoringConcepts(concepts, limit);
 };
