@@ -1,5 +1,9 @@
 .page {
+  width: min(100%, var(--app-content-max-width));
   min-height: 100vh;
+  margin-inline: auto;
+  padding-block: var(--space-md) calc(var(--space-3xl) + var(--space-lg));
+  padding-inline: var(--app-content-padding-inline);
 }
 
 .page__section {

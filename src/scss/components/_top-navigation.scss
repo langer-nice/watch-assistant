@@ -2,8 +2,8 @@
   position: relative;
   z-index: 20;
   display: grid;
+  height: var(--app-header-height);
   min-width: 0;
-  min-height: 2.75rem;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-xxs);
@@ -30,7 +30,7 @@
 .top-navigation__back {
   display: inline-flex;
   max-width: 100%;
-  min-height: 2.75rem;
+  height: var(--app-header-height);
   align-items: center;
   gap: var(--space-xs);
   white-space: nowrap;
@@ -73,8 +73,8 @@
 
 .top-navigation__icon-button {
   display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: var(--app-header-height);
+  height: var(--app-header-height);
   padding: 0;
   place-items: center;
   color: var(--color-text-muted);
@@ -168,7 +168,7 @@
 
   .top-navigation__new-watch {
     display: inline-flex;
-    min-height: 2.75rem;
+    height: var(--app-header-height);
     align-items: center;
     justify-content: center;
     gap: var(--space-xxs);

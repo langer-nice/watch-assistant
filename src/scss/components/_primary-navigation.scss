@@ -10,7 +10,7 @@
   position: relative;
   display: inline-flex;
   min-width: 0;
-  min-height: 2.75rem;
+  height: var(--app-header-height);
   align-items: center;
   padding: 0 var(--space-xs);
   color: var(--color-text-muted);
@@ -47,11 +47,12 @@
   bottom: 0;
   left: 0;
   z-index: 40;
+  box-sizing: border-box;
   padding:
     var(--space-xl)
-    max(var(--space-lg), env(safe-area-inset-right))
-    calc(var(--space-sm) + env(safe-area-inset-bottom))
-    max(var(--space-lg), env(safe-area-inset-left));
+    max(var(--app-content-padding-inline), env(safe-area-inset-right))
+    calc(var(--space-lg) + env(safe-area-inset-bottom))
+    max(var(--app-content-padding-inline), env(safe-area-inset-left));
   background: linear-gradient(
     to bottom,
     var(--color-transparent),
@@ -63,16 +64,15 @@
 .mobile-new-watch-action__button {
   display: flex;
   width: 100%;
-  max-width: var(--content-detail-width);
-  min-height: 3.5rem;
-  margin-inline: auto;
+  max-width: none;
+  min-height: var(--mobile-new-watch-action-height);
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
   color: var(--color-surface);
   background: var(--color-action);
   border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-mobile-action);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   line-height: 1;
