@@ -1,7 +1,11 @@
 import { t } from './i18n.js';
 import { mountOnboardingLanguageControl } from './language-control.js';
 import { getWatches } from './watch-storage.js';
-import { markOnboardingCompleted, registerCurrentIntroFlow } from './intro-flow.js';
+import {
+  beginOnboardingFirstWatch,
+  registerCurrentIntroFlow,
+  skipOnboarding,
+} from './intro-flow.js';
 import { initializeFlowLanguage } from './flow-language-gate.js';
 import {
   initializeAnalytics,
@@ -85,9 +89,12 @@ const initFlow = (languageControl) => {
   };
 
   document.addEventListener('click', (event) => {
-    if (event.target.closest('[data-complete-onboarding]')) {
+    if (event.target.closest('[data-onboarding-first-watch]')) {
       trackProductEventOnce(PRODUCT_EVENTS.ONBOARDING_COMPLETED, { onboarding_flow: 'flow-2' });
-      markOnboardingCompleted();
+      beginOnboardingFirstWatch();
+    } else if (event.target.closest('[data-onboarding-skip]')) {
+      trackProductEventOnce(PRODUCT_EVENTS.ONBOARDING_COMPLETED, { onboarding_flow: 'flow-2' });
+      skipOnboarding();
     } else if (event.target.closest('[data-flow-next]')) {
       if (activeStep === 0) {
         trackProductEventOnce(PRODUCT_EVENTS.ONBOARDING_STARTED, { onboarding_flow: 'flow-2' });

@@ -1,6 +1,6 @@
 import {
   getWatches,
-  hydrateWatchStorage,
+  getUserCreatedWatches,
   addWatch,
   updateWatch,
   deleteWatch,
@@ -40,6 +40,10 @@ import {
   getReplayIntroFlow,
   hasCompletedOnboarding,
   markOnboardingCompleted,
+  cancelOnboardingFirstWatch,
+  completeOnboardingFirstWatch,
+  consumeFirstWatchConfirmation,
+  isOnboardingFirstWatch,
   ONBOARDING_COMPLETED_STORAGE_KEY,
 } from './intro-flow.js';
 import {
@@ -49,6 +53,8 @@ import {
 } from './analytics.js';
 
 let homeCreatedWatchId = null;
+let homeFirstWatchConfirmation = false;
+let homeFirstWatchConfirmationChecked = false;
 let homeCreatedWatchFeedbackTimer = null;
 let detailConfirmationAutoTimer = null;
 let detailConfirmationHideTimer = null;
@@ -1397,6 +1403,11 @@ const renderHomeSummary = () => {
   const confirmationCopy = document.querySelector('#homeConfirmationCopy');
   const confirmationLink = document.querySelector('#homeConfirmationLink');
   const confirmationDismiss = document.querySelector('#homeConfirmationDismiss');
+  const confirmationTitle = document.querySelector('#homeConfirmationTitle');
+  const confirmationBody = document.querySelector('#homeConfirmationBody');
+  const briefingReport = document.querySelector('#homeBriefingReport');
+  const briefingFeed = document.querySelector('#homeBriefingFeed');
+  const emptyState = document.querySelector('#homeEmptyState');
   const briefingDate = document.querySelector('#homeBriefingDate');
   const greeting = document.querySelector('#homeSummaryLabel');
   const checkedSummary = document.querySelector('#homeCheckedSummary');
@@ -1410,6 +1421,20 @@ const renderHomeSummary = () => {
 
   if (!confirmationBanner && !briefingDate) {
     return;
+  }
+
+  const hasUserCreatedWatches = getUserCreatedWatches().length > 0;
+  if (briefingReport) briefingReport.hidden = !hasUserCreatedWatches;
+  if (briefingFeed) briefingFeed.hidden = !hasUserCreatedWatches;
+  if (emptyState) emptyState.hidden = hasUserCreatedWatches;
+
+  if (!homeFirstWatchConfirmationChecked) {
+    const firstWatchId = consumeFirstWatchConfirmation();
+    homeFirstWatchConfirmationChecked = true;
+    if (firstWatchId) {
+      homeCreatedWatchId = firstWatchId;
+      homeFirstWatchConfirmation = true;
+    }
   }
 
   if (briefingDate) {
@@ -1508,11 +1533,27 @@ const renderHomeSummary = () => {
       const createdWatch = getWatchById(createdWatchId);
       if (createdWatch) {
         confirmationBanner.hidden = false;
-        if (confirmationCopy) {
+        if (confirmationTitle) {
+          confirmationTitle.textContent = t(homeFirstWatchConfirmation
+            ? 'home.firstConfirmationTitle'
+            : 'home.confirmationTitle');
+        }
+        if (confirmationBody) {
+          confirmationBody.textContent = t(homeFirstWatchConfirmation
+            ? 'home.firstConfirmationCopy'
+            : 'home.confirmationCopy');
+        }
+        if (confirmationCopy && homeFirstWatchConfirmation) {
+          confirmationCopy.hidden = true;
+        } else if (confirmationCopy) {
+          confirmationCopy.hidden = false;
           confirmationCopy.textContent = localizeField(createdWatch, 'title');
         }
         if (confirmationLink) {
           confirmationLink.href = `watch-detail.html?id=${encodeURIComponent(createdWatch.id)}`;
+          confirmationLink.textContent = t(homeFirstWatchConfirmation
+            ? 'home.viewMyWatch'
+            : 'home.viewWatch');
         }
         if (confirmationDismiss) {
           confirmationDismiss.onclick = () => {
@@ -1524,6 +1565,7 @@ const renderHomeSummary = () => {
             }
             confirmationBanner.hidden = true;
             homeCreatedWatchId = null;
+            homeFirstWatchConfirmation = false;
           };
         }
         if (shouldRevealCreatedWatch) {
@@ -1964,8 +2006,13 @@ export function initForm() {
       input_type: watch.inputType === 'url' ? 'url' : 'text',
     });
     addWatch(watch);
-    markOnboardingCompleted();
     sessionStorage.removeItem('watchAssistant.newWatchId');
+    if (isOnboardingFirstWatch()) {
+      completeOnboardingFirstWatch(watch.id);
+      window.location.href = 'index.html';
+      return;
+    }
+    markOnboardingCompleted();
     window.location.href = `watch-detail.html?id=${encodeURIComponent(watch.id)}&watchCreated=${encodeURIComponent(watch.id)}`;
   };
 
@@ -3208,21 +3255,17 @@ const resolveInitialHomeRoute = () => {
   if (!document.querySelector('.page--home')) return null;
 
   const homeUrl = new URL(window.location.href);
-  const isExplicitHomeNavigation = homeUrl.searchParams.get('entry') === 'navigation';
-  if (isExplicitHomeNavigation) {
+  if (homeUrl.searchParams.has('entry')) {
     homeUrl.searchParams.delete('entry');
     window.history.replaceState(
       window.history.state,
       '',
       `${homeUrl.pathname}${homeUrl.search}${homeUrl.hash}`,
     );
-    return null;
   }
-
-  const storageState = hydrateWatchStorage();
-  if (!storageState.isHydrated || storageState.watches.length > 0) return null;
-
-  return hasCompletedOnboarding() ? 'new-watch.html' : getReplayIntroFlow();
+  if (!hasCompletedOnboarding()) return getReplayIntroFlow();
+  cancelOnboardingFirstWatch();
+  return null;
 };
 
 export const initApp = () => {

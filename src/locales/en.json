@@ -3,6 +3,7 @@
     "brand": "Watch Assistant",
     "back": "Back",
     "home": "Home",
+    "watches": "All Watches",
     "newWatch": "New watch",
     "openSource": "Open source",
     "unknown": "Unknown",
@@ -19,7 +20,8 @@
     "changeLanguage": "Change language",
     "openProfile": "Open profile menu",
     "accountMenu": "Account",
-    "accountComingSoon": "Account coming soon"
+    "accountComingSoon": "Account coming soon",
+    "newWatch": "New Watch"
   },
   "meta": {
     "home": "Watch Assistant — Morning Report",
@@ -35,6 +37,12 @@
     "confirmationTitle": "Now watching",
     "confirmationPlaceholder": "Argentina v England world cup match",
     "confirmationCopy": "I’ll keep an eye on this for you.",
+    "firstConfirmationTitle": "Your first Watch is active.",
+    "firstConfirmationCopy": "Meaningful updates will appear in your Morning Report.",
+    "viewMyWatch": "View my Watch",
+    "emptyTitle": "Your Morning Report starts here",
+    "emptyCopy": "Create a Watch and meaningful updates will appear here when something changes.",
+    "emptyAction": "Create my first Watch",
     "viewWatch": "View watch →",
     "dismiss": "Dismiss",
     "briefLabel": "Afternoon brief",
@@ -103,6 +111,7 @@
   },
   "detail": {
     "allWatches": "All Watches",
+    "backToAllWatches": "Back to All Watches",
     "breadcrumbLabel": "Watch location",
     "viewHomeReport": "View Home report",
     "title": "Watch detail",
@@ -257,7 +266,8 @@
     "solutionOpening": "That’s a lot to keep track of.",
     "solutionWatch": "We’ll watch it for you.",
     "solutionRelief": "And let you know when it matters.",
-    "createWatch": "Create your first Watch"
+    "createWatch": "Create my first Watch",
+    "skip": "Skip for now"
   },
   "followStory": {
     "back": "Back to watches",

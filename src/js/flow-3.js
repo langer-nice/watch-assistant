@@ -1,4 +1,8 @@
-import { markOnboardingCompleted, registerCurrentIntroFlow } from './intro-flow.js';
+import {
+  beginOnboardingFirstWatch,
+  registerCurrentIntroFlow,
+  skipOnboarding,
+} from './intro-flow.js';
 import { getLanguage, setLanguage, t } from './i18n.js';
 import { mountOnboardingLanguageControl } from './language-control.js';
 import { initializeFlowLanguage } from './flow-language-gate.js';
@@ -299,9 +303,15 @@ const handleFlowClick = (event) => {
     return;
   }
 
-  if (event.target.closest('[data-complete-onboarding]')) {
+  if (event.target.closest('[data-onboarding-first-watch]')) {
     trackProductEventOnce(PRODUCT_EVENTS.ONBOARDING_COMPLETED, { onboarding_flow: 'flow-3' });
-    markOnboardingCompleted();
+    beginOnboardingFirstWatch();
+    return;
+  }
+
+  if (event.target.closest('[data-onboarding-skip]')) {
+    trackProductEventOnce(PRODUCT_EVENTS.ONBOARDING_COMPLETED, { onboarding_flow: 'flow-3' });
+    skipOnboarding();
     return;
   }
 

@@ -1,0 +1,126 @@
+.primary-navigation--header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+}
+
+.primary-navigation__item {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  min-height: 2.75rem;
+  align-items: center;
+  padding: 0 var(--space-xs);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.primary-navigation__item svg {
+  display: none;
+}
+
+.primary-navigation__item:hover,
+.primary-navigation__item:focus-visible,
+.primary-navigation__item[aria-current='page'] {
+  color: var(--color-text);
+}
+
+.primary-navigation__item[aria-current='page']::after {
+  position: absolute;
+  right: var(--space-xs);
+  bottom: 0;
+  left: var(--space-xs);
+  height: 2px;
+  background: var(--color-text);
+  border-radius: var(--radius-pill);
+  content: '';
+}
+
+.mobile-new-watch-action {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  padding:
+    var(--space-xl)
+    max(var(--space-lg), env(safe-area-inset-right))
+    calc(var(--space-sm) + env(safe-area-inset-bottom))
+    max(var(--space-lg), env(safe-area-inset-left));
+  background: linear-gradient(
+    to bottom,
+    var(--color-transparent),
+    color-mix(in srgb, var(--color-surface) 92%, var(--color-transparent)) 35%
+  );
+  pointer-events: none;
+}
+
+.mobile-new-watch-action__button {
+  display: flex;
+  width: 100%;
+  max-width: var(--content-detail-width);
+  min-height: 3.5rem;
+  margin-inline: auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  color: var(--color-surface);
+  background: var(--color-action);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  pointer-events: auto;
+  transition: background-color var(--transition-default);
+}
+
+.mobile-new-watch-action__button:hover,
+.mobile-new-watch-action__button:focus-visible,
+.mobile-new-watch-action__button:active {
+  background: var(--color-action-hover);
+}
+
+.app-shell:has(> .mobile-new-watch-action) > .page {
+  padding-bottom: calc((var(--space-3xl) * 2) + var(--space-xl) + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 22rem) {
+  .primary-navigation__item {
+    padding-inline: var(--space-3xs);
+    font-size: var(--font-size-sm);
+  }
+
+  .primary-navigation__item[aria-current='page']::after {
+    right: var(--space-3xs);
+    left: var(--space-3xs);
+  }
+}
+
+@media (min-width: 48rem) {
+  .mobile-new-watch-action {
+    display: none;
+  }
+
+  .primary-navigation--header {
+    gap: var(--space-xxs);
+  }
+
+  .primary-navigation__item--header {
+    padding: 0 var(--space-sm);
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-sm);
+  }
+
+  .primary-navigation__item--header[aria-current='page']::after {
+    right: var(--space-sm);
+    left: var(--space-sm);
+  }
+}

@@ -25,7 +25,7 @@
       </a>
 
       <main class="page page--home">
-        <section class="briefing-report" aria-labelledby="homeSummaryLabel">
+        <section class="briefing-report" id="homeBriefingReport" aria-labelledby="homeSummaryLabel">
           <header class="briefing-summary__masthead">
             <p data-i18n="home.briefLabel"></p>
             <time class="briefing-summary__timestamp" id="homeBriefingDate"></time>
@@ -54,16 +54,22 @@
 
         <section class="confirmation-banner confirmation-banner--watch-created" id="homeConfirmation" hidden>
           <span class="confirmation-banner__new-badge" id="homeConfirmationBadge" data-i18n="home.newBadge" hidden></span>
-          <p class="banner-title" data-i18n="home.confirmationTitle"></p>
+          <p class="banner-title" id="homeConfirmationTitle" data-i18n="home.confirmationTitle"></p>
           <p class="banner-watch" id="homeConfirmationCopy" data-i18n="home.confirmationPlaceholder"></p>
-          <p class="banner-copy" data-i18n="home.confirmationCopy"></p>
+          <p class="banner-copy" id="homeConfirmationBody" data-i18n="home.confirmationCopy"></p>
           <div class="banner-actions">
             <a class="banner-link" id="homeConfirmationLink" href="#" data-i18n="home.viewWatch"></a>
             <button class="banner-dismiss" type="button" id="homeConfirmationDismiss" data-i18n="home.dismiss"></button>
           </div>
         </section>
 
-        <section class="briefing-feed" aria-label="Briefing items" data-i18n-aria-label="home.briefingItemsLabel">
+        <section class="home-empty-state" id="homeEmptyState" aria-labelledby="homeEmptyTitle" hidden>
+          <h1 id="homeEmptyTitle" data-i18n="home.emptyTitle"></h1>
+          <p data-i18n="home.emptyCopy"></p>
+          <a class="button button--primary" href="new-watch.html" data-i18n="home.emptyAction"></a>
+        </section>
+
+        <section class="briefing-feed" id="homeBriefingFeed" aria-label="Briefing items" data-i18n-aria-label="home.briefingItemsLabel">
           <div id="homeBriefingList">
             <section class="briefing-group" id="homeAttentionSection" aria-labelledby="homeAttentionSectionLabel" hidden>
               <p class="section-heading" id="homeAttentionSectionLabel" data-i18n="home.needsAttentionSection"></p>
@@ -83,7 +89,6 @@
               <span id="homeEverythingChecked"></span>
               <span data-i18n="home.everythingNoChanges"></span>
             </p>
-            <a class="editorial-link" href="watches.html" data-i18n="home.allWatches"></a>
           </section>
         </section>
 
@@ -92,10 +97,6 @@
         </nav>
       </main>
 
-      <a class="floating-action floating-action--home" href="new-watch.html">
-        <span aria-hidden="true">+</span>
-        <span data-i18n="common.newWatch"></span>
-      </a>
     </div>
 
     <script type="module" src="src/js/main.js"></script>

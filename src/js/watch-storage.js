@@ -163,6 +163,14 @@ export function getDemoWatches() {
   return getWatches().filter((watch) => demoIds.has(watch.id));
 }
 
+export function getUserCreatedWatches() {
+  const demoIds = new Set(mockWatches.map((watch) => watch.id));
+  const deletedIds = new Set(getDeletedWatchIds());
+  return getStoredWatches().filter(
+    (watch) => !demoIds.has(watch.id) && !deletedIds.has(watch.id),
+  );
+}
+
 export function hydrateWatchStorage() {
   return {
     isHydrated: true,

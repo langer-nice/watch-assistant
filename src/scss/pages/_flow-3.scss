@@ -112,8 +112,23 @@
 
 .flow-3__actions {
   display: flex;
+  flex-direction: column;
   min-height: 3.5rem;
-  align-items: flex-end;
+  align-items: stretch;
+  gap: var(--space-sm);
+}
+
+.flow-3__skip {
+  align-self: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+}
+
+.flow-3__skip:hover,
+.flow-3__skip:focus-visible {
+  color: var(--color-text);
+  text-decoration: underline;
 }
 
 .flow-3__closing-copy {

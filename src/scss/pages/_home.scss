@@ -34,12 +34,32 @@
 }
 
 .page--home {
-  padding-block: var(--space-sm) calc((var(--space-3xl) * 2) + var(--space-xl));
+  padding-bottom: calc((var(--space-3xl) * 2) + var(--space-xl));
   background: var(--color-surface-subtle);
 }
 
 .page--home .confirmation-banner {
   margin-bottom: var(--space-xl);
+}
+
+.home-empty-state {
+  max-width: 34rem;
+  margin: clamp(var(--space-xl), 12vh, var(--space-3xl)) auto 0;
+  text-align: center;
+}
+
+.home-empty-state[hidden] {
+  display: none;
+}
+
+.home-empty-state h1 {
+  margin-bottom: var(--space-sm);
+  font-size: var(--font-size-2xl);
+}
+
+.home-empty-state p {
+  margin: 0 auto var(--space-lg);
+  color: var(--color-text-muted);
 }
 
 .briefing-report:has(+ .confirmation-banner--watch-created:not([hidden])) {
@@ -209,15 +229,4 @@
 
 .briefing-group + .briefing-group {
   border-top: 1px solid var(--color-divider);
-}
-
-@media (min-width: 48rem) {
-  .page--home {
-    padding-top: var(--space-sm);
-  }
-
-  .page--home > .top-navigation {
-    margin-bottom: var(--space-xl);
-  }
-
 }

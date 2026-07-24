@@ -1,5 +1,7 @@
 const INTRO_STORAGE_KEY = 'watchAssistantIntro';
 const ONBOARDING_COMPLETED_STORAGE_KEY = 'watchAssistant.onboardingCompleted';
+const ONBOARDING_FIRST_WATCH_SESSION_KEY = 'watchAssistant.onboardingFirstWatch';
+const FIRST_WATCH_CONFIRMATION_SESSION_KEY = 'watchAssistant.firstWatchConfirmation';
 const DEFAULT_INTRO_FLOW = 'flow-3.html';
 const INTRO_FILENAME_PATTERN = /^flow-[a-z0-9]+(?:-[a-z0-9]+)*\.html$/i;
 
@@ -50,6 +52,62 @@ export const hasCompletedOnboarding = () => {
   }
 };
 
+export const beginOnboardingFirstWatch = () => {
+  markOnboardingCompleted();
+  try {
+    sessionStorage.setItem(ONBOARDING_FIRST_WATCH_SESSION_KEY, 'true');
+  } catch {
+    // The query parameter remains available as an in-page fallback.
+  }
+};
+
+export const skipOnboarding = () => {
+  markOnboardingCompleted();
+  try {
+    sessionStorage.removeItem(ONBOARDING_FIRST_WATCH_SESSION_KEY);
+  } catch {
+    // Completion remains persisted even when session storage is unavailable.
+  }
+};
+
+export const isOnboardingFirstWatch = () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('onboarding') === 'first-watch') return true;
+  try {
+    return sessionStorage.getItem(ONBOARDING_FIRST_WATCH_SESSION_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
+export const cancelOnboardingFirstWatch = () => {
+  try {
+    sessionStorage.removeItem(ONBOARDING_FIRST_WATCH_SESSION_KEY);
+  } catch {
+    // There is no persistent state to clean up when session storage is unavailable.
+  }
+};
+
+export const completeOnboardingFirstWatch = (watchId) => {
+  markOnboardingCompleted();
+  try {
+    sessionStorage.removeItem(ONBOARDING_FIRST_WATCH_SESSION_KEY);
+    sessionStorage.setItem(FIRST_WATCH_CONFIRMATION_SESSION_KEY, watchId);
+  } catch {
+    // The Watch remains created even when temporary confirmation state is unavailable.
+  }
+};
+
+export const consumeFirstWatchConfirmation = () => {
+  try {
+    const watchId = sessionStorage.getItem(FIRST_WATCH_CONFIRMATION_SESSION_KEY);
+    sessionStorage.removeItem(FIRST_WATCH_CONFIRMATION_SESSION_KEY);
+    return watchId;
+  } catch {
+    return null;
+  }
+};
+
 export const initIntroReplayLink = () => {
   const replayLink = document.querySelector('[data-intro-replay]');
   if (replayLink) {
@@ -61,4 +119,6 @@ export {
   DEFAULT_INTRO_FLOW,
   INTRO_STORAGE_KEY,
   ONBOARDING_COMPLETED_STORAGE_KEY,
+  ONBOARDING_FIRST_WATCH_SESSION_KEY,
+  FIRST_WATCH_CONFIRMATION_SESSION_KEY,
 };

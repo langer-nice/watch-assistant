@@ -77,6 +77,21 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.flow-2__skip {
+  display: block;
+  margin-top: var(--space-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  text-decoration: none;
+}
+
+.flow-2__skip:hover,
+.flow-2__skip:focus-visible {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
 .flow-2__cta--light {
   color: var(--color-text);
   background: var(--color-surface);

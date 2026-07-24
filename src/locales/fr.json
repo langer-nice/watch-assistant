@@ -3,6 +3,7 @@
     "brand": "Watch Assistant",
     "back": "Retour",
     "home": "Accueil",
+    "watches": "Toutes les Watches",
     "newWatch": "Nouvelle Watch",
     "openSource": "Ouvrir la source",
     "unknown": "Inconnu",
@@ -19,7 +20,8 @@
     "changeLanguage": "Changer de langue",
     "openProfile": "Ouvrir le menu du profil",
     "accountMenu": "Compte",
-    "accountComingSoon": "Compte bientôt disponible"
+    "accountComingSoon": "Compte bientôt disponible",
+    "newWatch": "Nouvelle Watch"
   },
   "meta": {
     "home": "Watch Assistant — Rapport du matin",
@@ -35,6 +37,12 @@
     "confirmationTitle": "Nouvelle Watch",
     "confirmationPlaceholder": "Match Argentine-Angleterre de la Coupe du monde",
     "confirmationCopy": "Je garde un œil dessus pour vous.",
+    "firstConfirmationTitle": "Votre première Watch est active.",
+    "firstConfirmationCopy": "Les mises à jour importantes apparaîtront dans votre Morning Report.",
+    "viewMyWatch": "Voir ma Watch",
+    "emptyTitle": "Votre Morning Report commence ici",
+    "emptyCopy": "Créez une Watch et les mises à jour importantes apparaîtront ici lorsque quelque chose changera.",
+    "emptyAction": "Créer ma première Watch",
     "viewWatch": "Voir la Watch →",
     "dismiss": "Fermer",
     "briefLabel": "Brief de l’après-midi",
@@ -103,6 +111,7 @@
   },
   "detail": {
     "allWatches": "Toutes les Watches",
+    "backToAllWatches": "Retour à toutes les Watches",
     "breadcrumbLabel": "Emplacement de la Watch",
     "viewHomeReport": "Voir le rapport d’accueil",
     "title": "Détails de la Watch",
@@ -257,7 +266,8 @@
     "solutionOpening": "Une Watch est une veille personnalisée.",
     "solutionWatch": "Elle surveille pour vous un sujet qui vous intéresse.",
     "solutionRelief": "Et vous prévient lorsqu’il se passe quelque chose d’important.",
-    "createWatch": "Créez votre première Watch"
+    "createWatch": "Créer ma première Watch",
+    "skip": "Ignorer pour le moment"
   },
   "followStory": {
     "back": "Retour aux Watches",

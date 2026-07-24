@@ -28,7 +28,7 @@ body.is-watch-edit-open {
 }
 
 .page--detail {
-  padding-block: var(--space-md) calc((var(--space-3xl) * 2) + var(--space-xl));
+  padding-bottom: calc((var(--space-3xl) * 2) + var(--space-xl));
   background: var(--color-detail-background);
 }
 
@@ -68,7 +68,7 @@ body.is-watch-edit-open {
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: var(--space-md);
   row-gap: var(--space-md);
-  margin: var(--space-xl) 0 var(--space-lg);
+  margin: 0 0 var(--space-lg);
 }
 
 .detail-edit-action {
