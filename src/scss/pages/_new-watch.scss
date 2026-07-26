@@ -85,7 +85,8 @@ body.is-edit-modal .language-control {
   display: none;
 }
 
-.watch-category > span {
+.watch-category > span,
+.watch-monitoring-source > span {
   display: block;
   margin: 0 0 var(--space-xs);
   color: var(--color-text-muted);
@@ -175,7 +176,8 @@ body.is-edit-modal .language-control {
 }
 
 .watch-keywords__add input,
-.watch-category select {
+.watch-category select,
+.watch-monitoring-source input {
   min-height: 2.5rem;
   padding: 0 var(--space-sm);
   color: var(--color-text);
@@ -204,6 +206,29 @@ body.is-edit-modal .language-control {
 
 .watch-category select {
   width: 100%;
+}
+
+.watch-monitoring-source {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.watch-monitoring-source[hidden] {
+  display: none;
+}
+
+.watch-monitoring-source input {
+  width: 100%;
+}
+
+.watch-monitoring-source small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
 }
 
 .watch-form[hidden] {

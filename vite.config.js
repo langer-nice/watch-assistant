@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite';
 import { resolve } from 'path';
 import { createUrlWatchMiddleware } from './server/url-watch-api.js';
 import { createRequestClarificationMiddleware } from './server/request-clarification-api.js';
+import { createCheckWatchMiddleware } from './server/check-watch-api.js';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -13,15 +14,18 @@ export default defineConfig(({ mode }) => {
     apiKey: process.env.OPENAI_API_KEY || env.OPENAI_API_KEY,
     model: process.env.OPENAI_MODEL || env.OPENAI_MODEL || 'gpt-5.6-luna',
   });
+  const checkWatchMiddleware = createCheckWatchMiddleware();
   const urlWatchPlugin = {
     name: 'url-watch-prototype-api',
     configureServer(server) {
       server.middlewares.use(middleware);
       server.middlewares.use(clarificationMiddleware);
+      server.middlewares.use(checkWatchMiddleware);
     },
     configurePreviewServer(server) {
       server.middlewares.use(middleware);
       server.middlewares.use(clarificationMiddleware);
+      server.middlewares.use(checkWatchMiddleware);
     },
   };
 

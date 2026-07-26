@@ -709,6 +709,69 @@ body.is-watch-edit-open {
   font-size: var(--font-size-xs);
 }
 
+.detail-card__metadata .watch-fact-check__feedback[data-state='error'] {
+  color: var(--color-status-action);
+}
+
+.detail-card__metadata .watch-fact-check__feedback[data-state='info'] {
+  color: var(--color-text-muted);
+}
+
+.monitoring-updates > ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  list-style: none;
+}
+
+.monitoring-update {
+  display: grid;
+  gap: var(--space-xxs);
+  padding: var(--space-md) 0;
+}
+
+.monitoring-update + .monitoring-update {
+  border-top: 1px solid var(--color-divider);
+}
+
+.monitoring-update a,
+.monitoring-update__title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+}
+
+.monitoring-update a {
+  text-decoration: none;
+}
+
+.monitoring-update a:hover,
+.monitoring-update a:focus-visible {
+  color: var(--color-action);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.monitoring-update p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}
+
+.monitoring-update .monitoring-update__metadata {
+  font-size: 0.75rem;
+}
+
+@media (min-width: 36rem) {
+  .monitoring-updates > ul {
+    padding-inline: var(--space-xl);
+  }
+}
+
 .watch-management__controls {
   display: grid;
   gap: var(--space-sm);

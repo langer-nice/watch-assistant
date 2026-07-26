@@ -77,6 +77,20 @@
             </label>
           </section>
 
+          <label class="watch-monitoring-source" id="watchFeedUrlField" for="watchFeedUrlInput" hidden>
+            <span data-i18n="newWatch.feedUrl"></span>
+            <input
+              id="watchFeedUrlInput"
+              name="feedUrl"
+              type="url"
+              inputmode="url"
+              autocomplete="url"
+              pattern="https?://.*"
+              data-i18n-placeholder="newWatch.feedUrlPlaceholder"
+            />
+            <small data-i18n="newWatch.feedUrlHelper"></small>
+          </label>
+
           <button
             class="watch-reason-toggle"
             type="button"

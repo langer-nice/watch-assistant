@@ -86,6 +86,7 @@
     "introductionJourneys": "Introduction journeys",
     "needsAttentionSection": "Needs your attention",
     "updatedSection": "Updated",
+    "moreNewItems": "+{count} more new items",
     "actNow": "Act now",
     "updated": "Updated",
     "everythingLabel": "Everything else",
@@ -147,6 +148,17 @@
     "checkNow": "Check now",
     "checking": "Checking...",
     "noChangesFound": "No changes found.",
+    "notCheckedYet": "Not checked yet",
+    "baselineCreated": "Initial snapshot created. Future checks will show newly published items.",
+    "noNewUpdates": "No new updates",
+    "newItemsFound": {
+      "one": "Found {count} new item. It has not been reviewed for significance.",
+      "other": "Found {count} new items. These have not been reviewed for significance."
+    },
+    "checkFailed": "I couldn’t check this feed. Please try again.",
+    "feedUrlMissing": "Add an RSS or Atom feed URL by editing this Watch before checking.",
+    "newItems": "New feed items",
+    "untitledItem": "Untitled item",
     "pauseWatch": "Pause Watch",
     "resumeWatch": "Resume Watch",
     "deleteWatch": "Delete Watch",
@@ -175,6 +187,10 @@
     "addConcept": "Add",
     "removeConcept": "Remove {concept}",
     "category": "Category",
+    "feedUrl": "Monitoring feed URL",
+    "feedUrlPlaceholder": "https://example.com/feed.xml",
+    "feedUrlHelper": "Optional RSS or Atom feed used by Check now. The original article URL remains unchanged.",
+    "feedUrlError": "Enter a valid HTTP or HTTPS feed URL without credentials.",
     "addNote": "+ Add note",
     "noteHeading": "Add note",
     "closeNote": "Close note",
@@ -301,7 +317,8 @@
     "paused": "Paused",
     "completed": "Completed",
     "checking": "Checking...",
-    "error": "Error"
+    "error": "Error",
+    "new": "New"
   },
   "confidence": {
     "high": "High",

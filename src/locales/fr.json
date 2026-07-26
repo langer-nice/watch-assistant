@@ -86,6 +86,7 @@
     "introductionJourneys": "Parcours d’introduction",
     "needsAttentionSection": "Demande votre attention",
     "updatedSection": "Mises à jour",
+    "moreNewItems": "+{count} autres nouveaux éléments",
     "actNow": "Agir maintenant",
     "updated": "Actualisé",
     "everythingLabel": "Tout le reste",
@@ -147,6 +148,17 @@
     "checkNow": "Vérifier maintenant",
     "checking": "Vérification...",
     "noChangesFound": "Aucun changement détecté.",
+    "notCheckedYet": "Pas encore vérifiée",
+    "baselineCreated": "Instantané initial créé. Les prochaines vérifications afficheront les nouveaux éléments publiés.",
+    "noNewUpdates": "Aucune nouvelle mise à jour",
+    "newItemsFound": {
+      "one": "{count} nouvel élément trouvé. Son importance n’a pas encore été évaluée.",
+      "other": "{count} nouveaux éléments trouvés. Leur importance n’a pas encore été évaluée."
+    },
+    "checkFailed": "Impossible de vérifier ce flux. Réessayez.",
+    "feedUrlMissing": "Ajoutez l’URL d’un flux RSS ou Atom en modifiant cette Watch avant de la vérifier.",
+    "newItems": "Nouveaux éléments du flux",
+    "untitledItem": "Élément sans titre",
     "pauseWatch": "Mettre la Watch en pause",
     "resumeWatch": "Reprendre la Watch",
     "deleteWatch": "Supprimer la Watch",
@@ -175,6 +187,10 @@
     "addConcept": "Ajouter",
     "removeConcept": "Supprimer {concept}",
     "category": "Catégorie",
+    "feedUrl": "URL du flux de surveillance",
+    "feedUrlPlaceholder": "https://example.com/feed.xml",
+    "feedUrlHelper": "Flux RSS ou Atom facultatif utilisé par Vérifier maintenant. L’URL de l’article original reste inchangée.",
+    "feedUrlError": "Saisissez une URL de flux HTTP ou HTTPS valide sans identifiants.",
     "addNote": "+ Ajouter une note",
     "noteHeading": "Ajouter une note",
     "closeNote": "Fermer la note",
@@ -301,7 +317,8 @@
     "paused": "En pause",
     "completed": "Terminée",
     "checking": "Vérification...",
-    "error": "Erreur"
+    "error": "Erreur",
+    "new": "Nouveau"
   },
   "confidence": {
     "high": "Élevé",

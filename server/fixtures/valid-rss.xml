@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Example &amp; World News</title>
+    <link>https://news.example.com/</link>
+    <description>Example feed</description>
+    <item>
+      <guid isPermaLink="false">story-001</guid>
+      <title><![CDATA[  First <strong>world</strong> &amp; climate update  ]]></title>
+      <link>https://news.example.com/stories/first</link>
+      <pubDate>Fri, 24 Jul 2026 12:30:00 GMT</pubDate>
+      <description><![CDATA[<p>A detailed&nbsp;summary with <em>safe</em> text.</p>]]></description>
+      <dc:creator>Alex Example</dc:creator>
+    </item>
+    <item>
+      <title>Second item</title>
+      <link>/stories/second</link>
+      <pubDate>not-a-date</pubDate>
+      <source>Partner Desk</source>
+      <description>Brief update</description>
+    </item>
+  </channel>
+</rss>

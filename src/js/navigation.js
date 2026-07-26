@@ -51,6 +51,12 @@ import {
   trackProductEvent,
   trackProductEventOnce,
 } from './analytics.js';
+import {
+  createWatchCheckController,
+  getMonitoringUpdates,
+  MonitoringCheckError,
+  normalizeFeedUrl,
+} from './watch-monitoring.js';
 
 let homeCreatedWatchId = null;
 let homeFirstWatchConfirmation = false;
@@ -58,7 +64,6 @@ let homeFirstWatchConfirmationChecked = false;
 let homeCreatedWatchFeedbackTimer = null;
 let detailConfirmationAutoTimer = null;
 let detailConfirmationHideTimer = null;
-let detailCheckFeedbackTimer = null;
 let detailCheckInProgress = false;
 let detailCreatedWatchId = null;
 let firstMonitoringTimer = null;
@@ -67,24 +72,10 @@ let editSheetCloseTimer = null;
 let editSheetBackgroundScrollY = 0;
 
 const FIRST_MONITORING_DELAY = 3200;
-
-const checkWatchForUpdates = async (watch) => {
-  // Integration boundary for a monitoring service; the local prototype returns no change.
-  const result = typeof window.watchAssistantCheckWatch === 'function'
-    ? await window.watchAssistantCheckWatch(watch)
-    : await new Promise((resolve) => {
-      window.setTimeout(() => resolve({ changed: false, changes: {} }), 1200);
-    });
-
-  return {
-    changed: Boolean(result?.changed),
-    changes: {
-      ...(result?.changes || {}),
-      lastChecked: new Date().toISOString(),
-      lastCheckedKey: null,
-    },
-  };
-};
+const watchCheckController = createWatchCheckController({
+  getWatch: getWatchById,
+  saveWatch: updateWatch,
+});
 
 const dismissDetailConfirmation = (confirmationEl) => {
   window.clearTimeout(detailConfirmationAutoTimer);
@@ -359,6 +350,12 @@ const getLatestChange = (watch) => {
     : '';
 };
 
+const getHomeUpdateText = (watch) => {
+  const monitoringUpdates = getMonitoringUpdates(watch);
+  return monitoringUpdates[0]?.title
+    || (monitoringUpdates.length ? t('detail.untitledItem') : getLatestChange(watch));
+};
+
 const getMonitoringSummary = (watch, title) => {
   const request = localizeField(watch, 'request');
   const excludedValues = new Set(
@@ -413,6 +410,14 @@ const formatLastChecked = (watch) => {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
+};
+
+const formatMonitoringTimestamp = (value) => {
+  if (!value || Number.isNaN(Date.parse(value))) return value || '';
+  return new Intl.DateTimeFormat(getLanguage() === 'fr' ? 'fr-FR' : 'en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
 };
 
 const inferCategory = (request) => {
@@ -608,6 +613,7 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     sourceName: sourceName || null,
     sourceTitle: sourceTitle || null,
     sourceUrl: sourceUrl || null,
+    feedUrl: normalizeFeedUrl(options.feedUrl),
     category,
     categorySource: options.categorySource || 'inferred',
     keywords,
@@ -658,6 +664,7 @@ const STATUS_LABEL_VARIANTS = {
   checking: 'checking',
   completed: 'completed',
   error: 'error',
+  new: 'updated',
   paused: 'paused',
   stable: 'stable',
   updated: 'updated',
@@ -676,7 +683,7 @@ const getHomeReport = () => {
     updatedWatches,
     quietWatches,
   } = getBriefingWatchGroups(watches, {
-    getMeaningfulUpdate: getLatestChange,
+    getMeaningfulUpdate: getHomeUpdateText,
     isDisplayableWatch,
   });
   const unchangedCount = quietWatches.length;
@@ -692,17 +699,23 @@ const getHomeReport = () => {
 const renderHomeWatchCards = (watches) => watches
   .map((watch) => {
     const title = localizeField(watch, 'title');
-    const latestChange = getLatestChange(watch);
+    const monitoringUpdates = getMonitoringUpdates(watch);
+    const latestChange = getHomeUpdateText(watch);
     if (!hasMeaningfulText(title) || !hasMeaningfulText(latestChange)) {
       return '';
     }
 
     const needsAttention = watch.requiresAttention || watch.status === 'attention';
     const statusModifier = needsAttention ? 'attention' : 'updated';
-    const status = t(needsAttention ? 'statuses.attention' : 'statuses.updated');
+    const status = t(needsAttention
+      ? 'statuses.attention'
+      : monitoringUpdates.length ? 'statuses.new' : 'statuses.updated');
     const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
     const categoryModifier = watch.category || 'general';
-    const latestChangeAt = localizeField(watch, 'latestChangeAt');
+    const latestChangeAt = monitoringUpdates[0]?.detectedAt
+      ? formatMonitoringTimestamp(monitoringUpdates[0].detectedAt)
+      : localizeField(watch, 'latestChangeAt');
+    const visibleMonitoringUpdates = monitoringUpdates.slice(0, 3);
 
     return `
       <article class="briefing-item">
@@ -712,7 +725,12 @@ const renderHomeWatchCards = (watches) => watches
             <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
           </div>
           <h2>${escapeHtml(title)}</h2>
-          <p>${escapeHtml(latestChange)}</p>
+          ${visibleMonitoringUpdates.length
+    ? visibleMonitoringUpdates.map((item) => `<p>${escapeHtml(item.title || t('detail.untitledItem'))}</p>`).join('')
+    : `<p>${escapeHtml(latestChange)}</p>`}
+          ${monitoringUpdates.length > visibleMonitoringUpdates.length
+    ? `<p>${escapeHtml(t('home.moreNewItems', { count: monitoringUpdates.length - visibleMonitoringUpdates.length }))}</p>`
+    : ''}
           ${hasMeaningfulText(latestChangeAt)
     ? `<p class="briefing-item__time">${escapeHtml(latestChangeAt)}</p>`
     : ''}
@@ -752,7 +770,7 @@ const renderWatchList = () => {
   }
 
   const groups = groupWatches(watches, {
-    getMeaningfulUpdate: getLatestChange,
+    getMeaningfulUpdate: getHomeUpdateText,
     isDisplayableWatch: (watch) => hasMeaningfulText(localizeField(watch, 'title')),
     language: getLanguage(),
   });
@@ -765,7 +783,7 @@ const renderWatchList = () => {
       const status = group.type === 'actionRequired'
         ? 'attention'
         : group.type === 'updated'
-          ? 'updated'
+          ? getMonitoringUpdates(watch).length ? 'new' : 'updated'
           : STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking';
       const statusModifier = getStatusLabelVariant(status);
       const statusText = status === 'attention'
@@ -851,8 +869,6 @@ const renderWatchDetail = () => {
       monitoringState: 'monitoring',
       firstCheckCompletedAt: new Date().toISOString(),
       firstCheckCompletesAt: null,
-      lastChecked: new Date().toISOString(),
-      lastCheckedKey: null,
     });
   }
   const isPreparing = watch?.monitoringState === 'preparing';
@@ -900,6 +916,8 @@ const renderWatchDetail = () => {
   const checkNowLabelEl = document.querySelector('#watchCheckNowLabel');
   const checkSpinnerEl = document.querySelector('.watch-fact-check__spinner');
   const checkFeedbackEl = document.querySelector('#watchCheckFeedback');
+  const monitoringUpdatesEl = document.querySelector('#watchMonitoringUpdates');
+  const monitoringUpdatesListEl = document.querySelector('#watchMonitoringUpdatesList');
   const pauseResumeEl = document.querySelector('#watchPauseResume');
   const pauseResumeLabelEl = document.querySelector('#watchPauseResumeLabel');
   const pauseIconEl = document.querySelector('#watchPauseIcon');
@@ -920,6 +938,7 @@ const renderWatchDetail = () => {
       confirmationEl,
       clarityWarningEl,
       preparingEl,
+      monitoringUpdatesEl,
       managementEl,
     ]
       .forEach((element) => {
@@ -1082,13 +1101,15 @@ const renderWatchDetail = () => {
     latestChangeEl.textContent = hasLatestChange ? latestChange : '';
   }
   if (latestChangeAtEl) {
-    latestChangeAtEl.textContent = hasMeaningfulText(latestChangeAt) ? latestChangeAt : '';
+    latestChangeAtEl.textContent = hasMeaningfulText(latestChangeAt)
+      ? formatMonitoringTimestamp(latestChangeAt)
+      : '';
   }
   const latestChangeContainer = document.querySelector('[data-detail-field="latestChange"]');
   if (latestChangeContainer) {
     latestChangeContainer.hidden = !hasLatestChange;
   }
-  const lastChecked = formatLastChecked(watch);
+  const lastChecked = formatLastChecked(watch) || t('detail.notCheckedYet');
   const hasLastChecked = setOptionalField('lastChecked', lastCheckedEl, lastChecked);
 
   let confidence = localizeField(watch, 'confidence');
@@ -1191,6 +1212,32 @@ const renderWatchDetail = () => {
     actionsSectionEl.hidden = renderedActions.length === 0;
   }
 
+  const monitoringUpdates = getMonitoringUpdates(watch);
+  if (monitoringUpdatesListEl) {
+    monitoringUpdatesListEl.innerHTML = monitoringUpdates
+      .map((item) => {
+        const itemUrl = getSafeExternalUrl(item.url);
+        const title = item.title || t('detail.untitledItem');
+        const metadata = [
+          item.source,
+          item.publishedAt ? formatMonitoringTimestamp(item.publishedAt) : '',
+        ].filter(Boolean).join(' · ');
+        return `
+          <li class="monitoring-update">
+            ${itemUrl
+    ? `<a href="${escapeHtml(itemUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)} <span aria-hidden="true">↗</span></a>`
+    : `<p class="monitoring-update__title">${escapeHtml(title)}</p>`}
+            ${metadata ? `<p class="monitoring-update__metadata">${escapeHtml(metadata)}</p>` : ''}
+            ${item.excerpt ? `<p>${escapeHtml(item.excerpt)}</p>` : ''}
+          </li>
+        `;
+      })
+      .join('');
+  }
+  if (monitoringUpdatesEl) {
+    monitoringUpdatesEl.hidden = monitoringUpdates.length === 0;
+  }
+
   if (preparingEl) {
     preparingEl.hidden = !isPreparing;
     preparingEl.classList.remove('is-leaving');
@@ -1209,30 +1256,35 @@ const renderWatchDetail = () => {
     checkNowEl.hidden = isPreparing;
     checkNowEl.disabled = detailCheckInProgress || isPreparing;
     checkNowEl.onclick = async () => {
-      if (detailCheckInProgress) {
-        return;
-      }
+      if (detailCheckInProgress) return;
 
-      detailCheckInProgress = true;
-      window.clearTimeout(detailCheckFeedbackTimer);
-      checkNowEl.disabled = true;
-      if (checkNowLabelEl) checkNowLabelEl.textContent = t('detail.checking');
-      if (checkSpinnerEl) checkSpinnerEl.hidden = false;
-      if (checkFeedbackEl) checkFeedbackEl.hidden = true;
-
-      const result = await checkWatchForUpdates(watch);
-      updateWatch(watch.id, result.changes);
-      detailCheckInProgress = false;
-      renderWatchDetail();
-
-      if (!result.changed) {
-        const refreshedFeedbackEl = document.querySelector('#watchCheckFeedback');
-        if (refreshedFeedbackEl) {
-          refreshedFeedbackEl.textContent = t('detail.noChangesFound');
-          refreshedFeedbackEl.hidden = false;
-          detailCheckFeedbackTimer = window.setTimeout(() => {
-            refreshedFeedbackEl.hidden = true;
-          }, 3000);
+      try {
+        const result = await watchCheckController.check(watch.id, {
+          onCheckingChange: (checking) => {
+            detailCheckInProgress = checking;
+            checkNowEl.disabled = checking;
+            if (checkNowLabelEl) {
+              checkNowLabelEl.textContent = t(checking ? 'detail.checking' : 'detail.checkNow');
+            }
+            if (checkSpinnerEl) checkSpinnerEl.hidden = !checking;
+            if (checking && checkFeedbackEl) checkFeedbackEl.hidden = true;
+          },
+        });
+        setBriefingGeneratedAt(result.changes.lastChecked);
+        renderWatchDetail();
+      } catch (error) {
+        detailCheckInProgress = false;
+        checkNowEl.disabled = false;
+        if (checkNowLabelEl) checkNowLabelEl.textContent = t('detail.checkNow');
+        if (checkSpinnerEl) checkSpinnerEl.hidden = true;
+        if (checkFeedbackEl) {
+          checkFeedbackEl.textContent = t(
+            error instanceof MonitoringCheckError && error.code === 'MISSING_FEED_URL'
+              ? 'detail.feedUrlMissing'
+              : 'detail.checkFailed',
+          );
+          checkFeedbackEl.dataset.state = 'error';
+          checkFeedbackEl.hidden = false;
         }
       }
     };
@@ -1242,6 +1294,33 @@ const renderWatchDetail = () => {
   }
   if (checkSpinnerEl) {
     checkSpinnerEl.hidden = !detailCheckInProgress;
+  }
+  if (checkFeedbackEl && !detailCheckInProgress) {
+    const outcome = watch.lastCheckOutcome?.type;
+    const outcomeKey = outcome === 'baseline'
+      ? 'detail.baselineCreated'
+      : outcome === 'no-new-items'
+        ? 'detail.noNewUpdates'
+        : outcome === 'new-items' ? 'detail.newItemsFound' : null;
+    const hasFeedUrl = Boolean(normalizeFeedUrl(watch.feedUrl));
+    if (outcomeKey) {
+      const count = Array.isArray(watch.lastCheckOutcome.newItemIds)
+        ? watch.lastCheckOutcome.newItemIds.length
+        : 0;
+      const localizedOutcomeKey = outcome === 'new-items'
+        ? `${outcomeKey}.${count === 1 ? 'one' : 'other'}`
+        : outcomeKey;
+      checkFeedbackEl.textContent = t(localizedOutcomeKey, { count });
+      checkFeedbackEl.dataset.state = outcome === 'new-items' ? 'new' : 'success';
+      checkFeedbackEl.hidden = false;
+    } else if (!hasFeedUrl) {
+      checkFeedbackEl.textContent = t('detail.feedUrlMissing');
+      checkFeedbackEl.dataset.state = 'info';
+      checkFeedbackEl.hidden = false;
+    } else {
+      checkFeedbackEl.hidden = true;
+      delete checkFeedbackEl.dataset.state;
+    }
   }
 
   const isPaused = watch.status === 'paused';
@@ -1350,8 +1429,6 @@ function scheduleFirstMonitoringPass(watch, preparingEl) {
         monitoringState: 'monitoring',
         firstCheckCompletedAt: checkedAt,
         firstCheckCompletesAt: null,
-        lastChecked: checkedAt,
-        lastCheckedKey: null,
       });
       renderWatchDetail();
 
@@ -1705,6 +1782,8 @@ export function initForm() {
   const keywordInputEl = document.querySelector('#watchKeywordInput');
   const keywordAddEl = document.querySelector('#watchKeywordAdd');
   const categoryInputEl = document.querySelector('#watchCategoryInput');
+  const feedUrlFieldEl = document.querySelector('#watchFeedUrlField');
+  const feedUrlInputEl = document.querySelector('#watchFeedUrlInput');
   const discardDialog = document.querySelector('#editDiscardDialog');
   const keepEditingButton = document.querySelector('#editKeepEditing');
   const discardChangesButton = document.querySelector('#editDiscardChanges');
@@ -1791,6 +1870,15 @@ export function initForm() {
   }
 
   const hasMeaningfulRequest = () => hasMeaningfulText(input?.value || '');
+
+  const validateFeedUrl = ({ focus = false } = {}) => {
+    if (!feedUrlInputEl) return true;
+    const value = feedUrlInputEl.value.trim();
+    const valid = !value || Boolean(normalizeFeedUrl(value));
+    feedUrlInputEl.setCustomValidity(valid ? '' : t('newWatch.feedUrlError'));
+    if (!valid && focus) feedUrlInputEl.reportValidity();
+    return valid;
+  };
 
   const getKeywordValues = () => ({
     keywords: keywordItems.map((item) => item.label),
@@ -1992,6 +2080,9 @@ export function initForm() {
     if (categoryInputEl) {
       categoryInputEl.disabled = disabled;
     }
+    if (feedUrlInputEl) {
+      feedUrlInputEl.disabled = disabled;
+    }
     keywordChipsEl?.querySelectorAll('button').forEach((button) => {
       button.disabled = disabled;
     });
@@ -2059,6 +2150,11 @@ export function initForm() {
       useRequestAsTitle = false,
     } = {},
   ) => {
+    if (!validateFeedUrl({ focus: true })) {
+      creationInProgress = false;
+      setCreationControlsDisabled(false);
+      return;
+    }
     const keywordValues = getKeywordValues();
     const originalRequest = localizeField(editingWatch, 'request') || '';
     const requestChanged = request.trim() !== originalRequest.trim();
@@ -2073,6 +2169,9 @@ export function initForm() {
     const keywordsChanged = JSON.stringify(keywordValues.keywords) !== JSON.stringify(originalKeywords)
       || JSON.stringify(keywordValues.selectedKeywords) !== JSON.stringify(originalSelectedKeywords);
     const monitoringCriteriaChanged = requestChanged || categoryChanged || keywordsChanged;
+    const feedUrl = normalizeFeedUrl(feedUrlInputEl?.value || '');
+    const previousFeedUrl = normalizeFeedUrl(editingWatch.feedUrl || '');
+    const feedUrlChanged = feedUrl !== previousFeedUrl;
     const monitoringSummary = requestChanged && !urlAnalysis
       ? await generateMonitoringSummary(request)
       : null;
@@ -2097,6 +2196,7 @@ export function initForm() {
       ...keywordValues,
       monitoringConceptsVersion: MONITORING_CONCEPTS_VERSION,
       inputType: derivedData.inputType,
+      feedUrl,
       sourceUrl: derivedData.sourceUrl,
       sourceName: derivedData.sourceName,
       sourceNameKey: null,
@@ -2155,6 +2255,18 @@ export function initForm() {
       });
     }
 
+    if (feedUrlChanged) {
+      Object.assign(changes, {
+        monitoringSnapshot: null,
+        seenMonitoringItemIds: [],
+        monitoringUpdates: [],
+        monitoringReviewStatus: null,
+        lastCheckOutcome: null,
+        lastChecked: null,
+        lastCheckedKey: null,
+      });
+    }
+
     updateWatch(editingWatch.id, changes);
     editNavigationAllowed = true;
     if (isModalEditMode) {
@@ -2173,6 +2285,7 @@ export function initForm() {
         ? keywordValues.keywords.map((label) => ({ label, type: 'supporting' }))
         : pendingAnalysis?.storyFingerprint,
       monitoringConceptsManuallyEdited: keywordsManuallyEdited,
+      feedUrl: normalizeFeedUrl(feedUrlInputEl?.value || ''),
       ...keywordValues,
     };
   };
@@ -2601,6 +2714,8 @@ export function initForm() {
       if (categoryInputEl) {
         categoryInputEl.value = editingWatch.category || inferCategory(inputValue);
       }
+      if (feedUrlFieldEl) feedUrlFieldEl.hidden = false;
+      if (feedUrlInputEl) feedUrlInputEl.value = editingWatch.feedUrl || '';
       pendingAnalysis = editingWatch.inputType === 'url'
         ? {
           status: 'success',
@@ -2703,6 +2818,7 @@ export function initForm() {
     sourceUrl: isUrl(input?.value || '') ? (input?.value || '') : '',
     note: noteInput?.value || '',
     category: categoryInputEl?.value || '',
+    feedUrl: feedUrlInputEl?.value || '',
     keywords: keywordItems.map(({ label, selected }) => ({ label, selected })),
   });
 
@@ -2836,6 +2952,10 @@ export function initForm() {
 
   categoryInputEl?.addEventListener('change', () => {
     categorySource = 'manual';
+  });
+  feedUrlInputEl?.addEventListener('input', () => {
+    validateFeedUrl();
+    refreshEditSaveState();
   });
 
   noteToggle?.addEventListener('click', () => {

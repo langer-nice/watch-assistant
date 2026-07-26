@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Example Atom Feed</title>
+  <link href="https://atom.example.com/" rel="alternate" />
+  <link href="https://atom.example.com/feed.xml" rel="self" />
+  <updated>2026-07-25T09:00:00Z</updated>
+  <entry>
+    <id>tag:atom.example.com,2026:first</id>
+    <title type="html">Atom &amp;amp; entry</title>
+    <link href="https://atom.example.com/articles/first" rel="alternate" />
+    <published>2026-07-25T08:30:00+00:00</published>
+    <summary type="html">&lt;p&gt;A &lt;strong&gt;clean&lt;/strong&gt; Atom summary.&lt;/p&gt;</summary>
+    <author><name>Jamie Example</name></author>
+  </entry>
+  <entry>
+    <title>Entry without id or link</title>
+    <updated>invalid</updated>
+    <content type="text">Deterministic fallback identifier</content>
+  </entry>
+</feed>

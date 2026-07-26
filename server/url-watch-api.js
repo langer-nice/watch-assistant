@@ -1,6 +1,5 @@
-import dns from 'node:dns/promises';
-import net from 'node:net';
 import he from 'he';
+import { PublicUrlError, validatePublicUrl } from './public-url-security.js';
 import {
   normalizeStoryFingerprint,
   STORY_CONCEPT_TYPES,
@@ -11,6 +10,20 @@ const MAX_PAGE_BYTES = 1024 * 1024;
 const MAX_ARTICLE_TEXT_LENGTH = 12_000;
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 8000;
+
+const validatePageUrl = async (value) => {
+  try {
+    return await validatePublicUrl(value);
+  } catch (error) {
+    if (!(error instanceof PublicUrlError)) throw error;
+    if (error.code === 'INVALID_URL' && error.cause) throw error.cause;
+    if (error.code === 'INVALID_PROTOCOL') {
+      throw new Error('Only HTTP and HTTPS URLs are supported.');
+    }
+    if (error.code === 'DNS_FAILURE' && error.cause) throw error.cause;
+    throw new Error('This URL cannot be fetched.');
+  }
+};
 
 const WATCH_SUGGESTION_SCHEMA = {
   type: 'object',
@@ -116,56 +129,6 @@ export const extractPageMetadata = (html, sourceUrl = '') => {
 
 export const extractPageTitle = (html) => extractPageMetadata(html).title;
 
-const isPublicIpAddress = (address) => {
-  if (net.isIPv4(address)) {
-    const [a, b] = address.split('.').map(Number);
-    return !(
-      a === 0
-      || a === 10
-      || a === 127
-      || (a === 100 && b >= 64 && b <= 127)
-      || (a === 169 && b === 254)
-      || (a === 172 && b >= 16 && b <= 31)
-      || (a === 192 && b === 0)
-      || (a === 192 && b === 168)
-      || (a === 198 && (b === 18 || b === 19))
-      || a >= 224
-    );
-  }
-
-  if (net.isIPv6(address)) {
-    const normalized = address.toLowerCase();
-    if (normalized.startsWith('::ffff:')) {
-      return isPublicIpAddress(normalized.slice(7));
-    }
-    return !(
-      normalized === '::'
-      || normalized === '::1'
-      || normalized.startsWith('fc')
-      || normalized.startsWith('fd')
-      || /^fe[89ab]/.test(normalized)
-    );
-  }
-
-  return false;
-};
-
-const validatePublicUrl = async (value) => {
-  const url = new URL(value);
-  if (!['http:', 'https:'].includes(url.protocol)) {
-    throw new Error('Only HTTP and HTTPS URLs are supported.');
-  }
-  if (url.username || url.password || url.hostname.toLowerCase() === 'localhost') {
-    throw new Error('This URL cannot be fetched.');
-  }
-
-  const addresses = await dns.lookup(url.hostname, { all: true, verbatim: true });
-  if (!addresses.length || addresses.some(({ address }) => !isPublicIpAddress(address))) {
-    throw new Error('This URL cannot be fetched.');
-  }
-  return url;
-};
-
 const readPageHtml = async (response) => {
   const reader = response.body?.getReader();
   if (!reader) return '';
@@ -184,7 +147,7 @@ const readPageHtml = async (response) => {
 };
 
 export const fetchPageMetadata = async (input, fetchImpl = fetch) => {
-  let url = await validatePublicUrl(input);
+  let url = await validatePageUrl(input);
 
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
     const response = await fetchImpl(url, {
@@ -202,7 +165,7 @@ export const fetchPageMetadata = async (input, fetchImpl = fetch) => {
         throw new Error('The page redirected too many times.');
       }
       await response.body?.cancel();
-      url = await validatePublicUrl(new URL(location, url).href);
+      url = await validatePageUrl(new URL(location, url).href);
       continue;
     }
 
