@@ -41,9 +41,8 @@ const dependencies = (overrides = {}) => ({
   validateUrl: async (value) => new URL(value),
   fetchPageMetadataImpl: async () => page,
   generateWatchSuggestionImpl: async (options) => {
-    options.onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'request_started' });
     options.onDiagnostic?.({ stage: 'parsed', value: aiValue });
-    options.onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: true, outcomeCode: 'success' });
+    options.onDiagnostic?.({ stage: 'provider_attempt', attempt: 1, attempted: true, succeeded: true, durationMs: 42, outcomeCode: 'success', retryOccurred: false, retryScheduled: false, aborted: false });
     return aiValue;
   },
   ...overrides,
@@ -95,6 +94,8 @@ test('runs the reused pipeline and returns explicit safe AI provenance with dist
   assert.equal(result.provenance, 'ai');
   assert.equal(result.openAI.attempted, true);
   assert.equal(result.openAI.succeeded, true);
+  assert.equal(result.openAI.attempts[0].durationMs, 42);
+  assert.equal(result.openAI.retryOccurred, false);
   assert.deepEqual(result.openAI.preNormalizationStoryFingerprint, [{ label: 'Sue Kreitzman', type: 'person' }]);
   assert.deepEqual(result.openAI.parsedStructuredFields.primaryPeople, ['Sue Kreitzman']);
   assert.deepEqual(result.openAI.parsedStructuredFields.works, []);
@@ -126,6 +127,7 @@ test('provider failure returns stable fallback provenance and candidate origin m
   assert.equal(result.provenance, 'fallback');
   assert.equal(result.fallbackReasonCode, 'provider_auth_error');
   assert.equal(result.finalResult.limitedFallbackAnalysisWarning, true);
+  assert.notEqual(result.classification, 'no_material_problem');
   assert.ok(Array.isArray(result.fallback.candidates));
   result.fallback.candidates.forEach((candidate) => {
     assert.match(candidate.rule, /^[a-z0-9_]+$/);
@@ -137,6 +139,41 @@ test('provider failure returns stable fallback provenance and candidate origin m
   assert.doesNotMatch(JSON.stringify(result), /secret provider detail/);
 });
 
+test('diagnostics safely expose retry attempts and validation stages without raw provider data', async () => {
+  const result = await runArticleAnalysisDiagnostic(url, dependencies({
+    generateWatchSuggestionImpl: async ({ onDiagnostic }) => {
+      onDiagnostic?.({ stage: 'provider_attempt', attempt: 1, attempted: true, succeeded: false, durationMs: 20001, outcomeCode: 'provider_timeout', retryOccurred: false, retryScheduled: true, aborted: true });
+      onDiagnostic?.({ stage: 'provider_attempt', attempt: 2, attempted: true, succeeded: false, durationMs: 31, outcomeCode: 'provider_schema_invalid', retryOccurred: true, retryScheduled: false, aborted: false, validation: { stage: 'structured_schema', path: 'storyFingerprint[0]', rule: 'identifier_shape_invalid', description: 'A Story Identifier had an invalid label or type.' } });
+      const error = new Error('raw provider payload and secret header'); error.code = 'provider_schema_invalid'; throw error;
+    },
+    fallbackImpl: createSourceDerivedFallback,
+  }));
+  assert.equal(result.provenance, 'fallback');
+  assert.equal(result.openAI.retryOccurred, true);
+  assert.equal(result.openAI.aborted, true);
+  assert.equal(result.openAI.attempts.length, 2);
+  assert.deepEqual(result.openAI.validation, {
+    stage: 'structured_schema', path: 'storyFingerprint[0]', rule: 'identifier_shape_invalid',
+    description: 'A Story Identifier had an invalid label or type.',
+  });
+  assert.doesNotMatch(JSON.stringify(result), /raw provider payload|secret header|Authorization|stack/);
+  assert.notEqual(result.classification, 'no_material_problem');
+});
+
+test('an empty fallback fingerprint is classified as fallback_generation_failure', async () => {
+  const emptyFallback = {
+    watchTitle: page.title, watchingFor: 'Fallback analysis could not identify a stable concept.',
+    description: 'Fallback analysis could not identify a stable concept.', storyFingerprint: [], keywords: [],
+    storyProfile: { storySummary: 'Fallback analysis could not identify a stable concept.', primaryPeople: [], otherPeople: [], peopleRoles: [], locations: [], organizations: [], eventTypes: [], distinctiveFacts: [], aliases: [], uncertaintyPhrases: [] },
+    analysisProvider: 'deterministic', analysisStatus: 'fallback', fallbackReasonCode: 'provider_timeout',
+  };
+  const result = await runArticleAnalysisDiagnostic(url, dependencies({
+    generateWatchSuggestionImpl: async ({ onDiagnostic }) => { onDiagnostic?.({ stage: 'provider_attempt', attempt: 1, attempted: true, succeeded: false, durationMs: 20000, outcomeCode: 'provider_timeout' }); const error = new Error('timeout'); error.code = 'provider_timeout'; throw error; },
+    fallbackImpl: (_page, _url, { diagnosticCollector }) => { diagnosticCollector?.({ candidates: [], normalizedFingerprint: [], sourceText: articleText, sourceBlocks: [articleText] }); return emptyFallback; },
+  }));
+  assert.equal(result.classification, 'fallback_generation_failure');
+});
+
 test('normalization diagnostics report stable retained, removed and transformed rules', () => {
   const trace = describeNormalization([
     { label: 'Sue Kreitzman', type: 'person' },
@@ -146,6 +183,18 @@ test('normalization diagnostics report stable retained, removed and transformed 
   assert.equal(trace.transformations[0].rule, 'automatic_identifier_retained');
   assert.equal(trace.transformations[1].action, 'removed');
   assert.match(trace.transformations[1].rule, /^[a-z0-9_]+$/);
+});
+
+test('normalization diagnostics retain overlapping event and location with stable rules', () => {
+  const values = [
+    { label: 'Festival Center', type: 'location' },
+    { label: 'Festival Center shooting', type: 'event' },
+    { label: 'Brain fog', type: 'symptom' },
+    { label: 'Perimenopause', type: 'condition' },
+  ];
+  const trace = describeNormalization(values, values);
+  assert.equal(trace.transformations.every(({ action }) => action === 'retained'), true);
+  assert.equal(trace.transformations.every(({ rule }) => rule === 'automatic_identifier_retained'), true);
 });
 
 test('page requires explicit actions, prevents duplicate runs, keeps failures independent and never persists diagnostics', async () => {

@@ -52,7 +52,7 @@ const createOpenAiResponse = (suggestion = perimenopauseStructuredSuggestion) =>
   }),
 });
 
-const invokeSuggestionRoute = async ({ apiKey = 'test-key', fetchImpl }) => {
+const invokeSuggestionRoute = async ({ apiKey = 'test-key', fetchImpl, ...middlewareOptions }) => {
   const request = Readable.from([JSON.stringify({
     title: 'Brain fog and four easy ways to help fix it',
     description: 'Why memory and concentration can change during perimenopause.',
@@ -67,7 +67,7 @@ const invokeSuggestionRoute = async ({ apiKey = 'test-key', fetchImpl }) => {
     setHeader: (name, value) => { headers[name] = value; },
     end: (value) => { responseBody = value; },
   };
-  await createUrlWatchMiddleware({ apiKey, model: 'gpt-5.6-luna', fetchImpl })(
+  await createUrlWatchMiddleware({ apiKey, model: 'gpt-5.6-luna', fetchImpl, ...middlewareOptions })(
     request,
     response,
     () => {},
@@ -535,6 +535,7 @@ test('structured analysis failures receive stable safe reason codes', async (t) 
       expected: 'provider_rate_limited',
       run: () => generateWatchSuggestion({
         title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
+        maxAttempts: 1,
         fetchImpl: async () => ({ ok: false, status: 429, json: async () => ({ error: { message: 'sensitive provider detail' } }) }),
       }),
     },
@@ -543,6 +544,7 @@ test('structured analysis failures receive stable safe reason codes', async (t) 
       expected: 'provider_auth_error',
       run: () => generateWatchSuggestion({
         title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
+        maxAttempts: 1,
         fetchImpl: async () => ({ ok: false, status: 401 }),
       }),
     },
@@ -551,6 +553,7 @@ test('structured analysis failures receive stable safe reason codes', async (t) 
       expected: 'provider_network_error',
       run: () => generateWatchSuggestion({
         title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
+        maxAttempts: 1,
         fetchImpl: async () => { throw new TypeError('network failed'); },
       }),
     },
@@ -559,12 +562,13 @@ test('structured analysis failures receive stable safe reason codes', async (t) 
       expected: 'provider_timeout',
       run: () => generateWatchSuggestion({
         title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
+        maxAttempts: 1,
         fetchImpl: async () => { throw new DOMException('timed out', 'TimeoutError'); },
       }),
     },
     {
       name: 'malformed structured JSON',
-      expected: 'provider_response_invalid',
+      expected: 'provider_json_invalid',
       run: () => generateWatchSuggestion({
         title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
         fetchImpl: async () => ({
@@ -575,7 +579,7 @@ test('structured analysis failures receive stable safe reason codes', async (t) 
     },
     {
       name: 'schema validation failure',
-      expected: 'structured_validation_failed',
+      expected: 'application_validation_failed',
       run: () => generateWatchSuggestion({
         title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
         fetchImpl: async () => createOpenAiResponse({ ...perimenopauseStructuredSuggestion, watchTitle: '' }),
@@ -595,6 +599,168 @@ test('structured analysis failures receive stable safe reason codes', async (t) 
   }
 });
 
+test('distinguishes incomplete, truncated, refused, missing and malformed provider output', async (t) => {
+  const cases = [
+    {
+      name: 'truncated output',
+      expected: 'provider_output_truncated',
+      result: { status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, output: [] },
+    },
+    {
+      name: 'other incomplete output',
+      expected: 'provider_incomplete',
+      result: { status: 'incomplete', incomplete_details: { reason: 'content_filter' }, output: [] },
+    },
+    {
+      name: 'refusal',
+      expected: 'provider_refusal',
+      result: { status: 'completed', output: [{ content: [{ type: 'refusal', refusal: 'not returned' }] }] },
+    },
+    {
+      name: 'missing output',
+      expected: 'provider_output_missing',
+      result: { status: 'completed', output: [] },
+    },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      await assert.rejects(generateWatchSuggestion({
+        title: 'Article', apiKey: 'test-key', model: 'test-model', maxAttempts: 1,
+        fetchImpl: async () => ({ ok: true, status: 200, json: async () => scenario.result }),
+      }), (error) => error.code === scenario.expected);
+    });
+  }
+  await assert.rejects(generateWatchSuggestion({
+    title: 'Article', apiKey: 'test-key', model: 'test-model', maxAttempts: 1,
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('raw body'); } }),
+  }), (error) => error.code === 'provider_envelope_invalid');
+});
+
+test('reports safe field-level schema and application validation details', async () => {
+  await assert.rejects(generateWatchSuggestion({
+    title: 'Article', apiKey: 'test-key', model: 'test-model', maxAttempts: 1,
+    fetchImpl: async () => createOpenAiResponse({
+      watchingFor: 'Monitor this article.',
+      storyFingerprint: [],
+      storyProfile: { storySummary: 'This summary is long enough to pass semantic validation.' },
+      description: 'Tracks this article.',
+    }),
+  }), (error) => {
+    assert.equal(error.code, 'provider_schema_invalid');
+    assert.deepEqual(error.validation, {
+      stage: 'structured_schema', path: 'watchTitle', rule: 'required',
+      description: 'A required top-level field was missing.',
+    });
+    return true;
+  });
+  await assert.rejects(generateWatchSuggestion({
+    title: 'Article', apiKey: 'test-key', model: 'test-model', maxAttempts: 1,
+    fetchImpl: async () => createOpenAiResponse({ ...perimenopauseStructuredSuggestion, description: '' }),
+  }), (error) => {
+    assert.equal(error.code, 'application_validation_failed');
+    assert.equal(error.validation.path, 'description');
+    assert.equal(error.validation.rule, 'non_empty');
+    return true;
+  });
+});
+
+test('accepts empty optional categories and Unicode punctuation in a valid structured response', async () => {
+  const unicodeSuggestion = {
+    ...perimenopauseStructuredSuggestion,
+    watchTitle: 'L’expérience d’Anaïs',
+    storyFingerprint: [
+      { label: 'L’expérience d’Anaïs', type: 'event' },
+      { label: 'Brouillard cérébral', type: 'symptom' },
+    ],
+    storyProfile: {
+      storySummary: 'L’expérience d’Anaïs décrit un brouillard cérébral pendant la périménopause.',
+      primaryPeople: [], otherPeople: [], peopleRoles: [], locations: [], organizations: [],
+      eventTypes: [], distinctiveFacts: [], aliases: [], uncertaintyPhrases: [],
+      works: [], productsServices: [], events: [], relationships: [], phenomena: [],
+      conditions: [], symptoms: ['Brouillard cérébral'],
+    },
+  };
+  const suggestion = await generateWatchSuggestion({
+    title: unicodeSuggestion.watchTitle, apiKey: 'test-key', model: 'test-model',
+    fetchImpl: async (_url, options) => {
+      const request = JSON.parse(options.body);
+      assert.equal(request.max_output_tokens, 1200);
+      assert.ok(request.text.format.schema.properties.storyProfile.properties.works);
+      return createOpenAiResponse(unicodeSuggestion);
+    },
+  });
+  assert.deepEqual(suggestion.storyFingerprint, unicodeSuggestion.storyFingerprint);
+  assert.deepEqual(suggestion.storyProfile.works, []);
+});
+
+test('retries one transient failure, reports attempts and preserves successful AI provenance', async () => {
+  let calls = 0;
+  const delays = [];
+  const events = [];
+  const suggestion = await generateWatchSuggestion({
+    title: 'Article', apiKey: 'test-key', model: 'test-model',
+    retryDelayMs: 10, randomImpl: () => 0, sleepImpl: async (delay) => { delays.push(delay); },
+    onDiagnostic: (event) => events.push(event),
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) throw new DOMException('timed out', 'TimeoutError');
+      return createOpenAiResponse();
+    },
+  });
+  assert.equal(calls, 2);
+  assert.deepEqual(delays, [10]);
+  assert.equal(suggestion.analysisStatus, 'success');
+  assert.equal(suggestion.analysisProvider, 'openai');
+  assert.deepEqual(events.filter(({ stage }) => stage === 'provider_attempt').map(({ attempt, outcomeCode, retryScheduled }) => ({ attempt, outcomeCode, retryScheduled })), [
+    { attempt: 1, outcomeCode: 'provider_timeout', retryScheduled: true },
+    { attempt: 2, outcomeCode: 'success', retryScheduled: false },
+  ]);
+});
+
+test('bounds retries and never retries malformed structured output', async () => {
+  let transientCalls = 0;
+  await assert.rejects(generateWatchSuggestion({
+    title: 'Article', apiKey: 'test-key', model: 'test-model',
+    retryDelayMs: 0, randomImpl: () => 0, sleepImpl: async () => {},
+    fetchImpl: async () => { transientCalls += 1; throw new TypeError('network'); },
+  }), (error) => error.code === 'provider_network_error');
+  assert.equal(transientCalls, 2);
+
+  let invalidCalls = 0;
+  await assert.rejects(generateWatchSuggestion({
+    title: 'Article', apiKey: 'test-key', model: 'test-model',
+    fetchImpl: async () => { invalidCalls += 1; return { ok: true, status: 200, json: async () => ({ output: [{ content: [{ type: 'output_text', text: '{bad' }] }] }) }; },
+  }), (error) => error.code === 'provider_json_invalid');
+  assert.equal(invalidCalls, 1);
+});
+
+test('provider timeout aborts the active request and caller abort is not retried', async () => {
+  let timeoutSignal;
+  await assert.rejects(generateWatchSuggestion({
+    title: 'Article', apiKey: 'test-key', model: 'test-model', maxAttempts: 1,
+    providerTimeoutMs: 5,
+    fetchImpl: async (_url, { signal }) => new Promise((_resolve, reject) => {
+      timeoutSignal = signal;
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }),
+  }), (error) => error.code === 'provider_timeout');
+  assert.equal(timeoutSignal.aborted, true);
+
+  const controller = new AbortController();
+  let calls = 0;
+  const pending = generateWatchSuggestion({
+    title: 'Article', apiKey: 'test-key', model: 'test-model', signal: controller.signal,
+    retryDelayMs: 0, sleepImpl: async () => {},
+    fetchImpl: async (_url, { signal }) => new Promise((_resolve, reject) => {
+      calls += 1;
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }),
+  });
+  controller.abort(new DOMException('caller left', 'AbortError'));
+  await assert.rejects(pending, (error) => error.code === 'provider_request_aborted' && error.aborted);
+  assert.equal(calls, 1);
+});
+
 test('a server route error returns safe provenance without provider or secret detail', async () => {
   const originalWarn = console.warn;
   console.warn = () => {};
@@ -605,13 +771,14 @@ test('a server route error returns safe provenance without provider or secret de
         status: 500,
         json: async () => ({ error: { message: 'provider raw response' } }),
       }),
+      maxAttempts: 1,
     });
     assert.equal(result.status, 502);
     assert.equal(result.body.error, 'AI article analysis was unavailable.');
     assert.equal(result.body.analysisProvider, 'openai');
     assert.equal(result.body.analysisStatus, 'failed');
     assert.equal(result.body.analysisModel, null);
-    assert.equal(result.body.fallbackReasonCode, 'provider_response_invalid');
+    assert.equal(result.body.fallbackReasonCode, 'provider_http_error');
     assert.ok(result.body.analysisDiagnosticId);
     assert.doesNotMatch(JSON.stringify(result.body), /provider raw response|test-key/);
   } finally {

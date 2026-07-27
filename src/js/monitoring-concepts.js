@@ -159,6 +159,9 @@ export const normalizeStoryFingerprint = (values, limit = 8) => {
       type: typeof value === 'string'
         ? 'manual'
         : STORY_CONCEPT_PRIORITY.has(value?.type) ? value.type : null,
+      aliases: typeof value === 'string' || !Array.isArray(value?.aliases)
+        ? []
+        : value.aliases.map(normalizeWord).filter(Boolean),
       index,
     }))
     .filter((candidate) => candidate.type && isUsefulStoryConcept(candidate.label, candidate.type))
@@ -180,20 +183,22 @@ export const normalizeStoryFingerprint = (values, limit = 8) => {
       STORY_CONCEPT_PRIORITY.get(first.type) - STORY_CONCEPT_PRIORITY.get(second.type)
       || first.index - second.index
     ));
-  const uniqueCandidates = candidates.filter((candidate, index) => (
-    candidates.findIndex((item) => normalizeWord(item.label) === normalizeWord(candidate.label))
-      === index
-  ));
-  return uniqueCandidates
-    .filter((concept, index, concepts) => {
-      const tokens = getConceptTokens(concept.label).map(normalizeWord);
-      return !concepts.some((candidate, candidateIndex) => {
-        if (candidateIndex === index) return false;
-        const candidateTokens = getConceptTokens(candidate.label).map(normalizeWord);
-        return candidateTokens.length > tokens.length
-          && tokens.every((token) => candidateTokens.includes(token));
-      });
-    })
+  const uniqueCandidates = candidates.filter((candidate, index) => {
+    const label = normalizeWord(candidate.label);
+    return candidates.findIndex((item) => (
+      item.type === candidate.type && normalizeWord(item.label) === label
+    )) === index;
+  });
+  const aliasConsolidatedCandidates = uniqueCandidates.filter((candidate, index, concepts) => {
+    const label = normalizeWord(candidate.label);
+    return !concepts.some((other, otherIndex) => (
+      otherIndex !== index
+      && other.type === candidate.type
+      && other.aliases.includes(label)
+      && !candidate.aliases.includes(normalizeWord(other.label))
+    ));
+  });
+  return aliasConsolidatedCandidates
     .slice(0, limit)
     .map(({ label, type }) => ({ label, type }));
 };

@@ -17,17 +17,28 @@ const MIN_MULTI_ENTRY_TEXT_LENGTH = 240;
 const ARTICLE_BODY_SEPARATOR = '\n\n';
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 8000;
+export const PROVIDER_TIMEOUT_MS = 20_000;
+export const PROVIDER_MAX_ATTEMPTS = 2;
+const PROVIDER_RETRY_DELAY_MS = 250;
+const PROVIDER_RETRY_JITTER_MS = 100;
 
 export class ArticleAnalysisError extends Error {
-  constructor(code, statusCode = 502) {
+  constructor(code, statusCode = 502, {
+    retryable = false,
+    aborted = false,
+    validation = null,
+  } = {}) {
     super('AI article analysis was unavailable.');
     this.name = 'ArticleAnalysisError';
     this.code = code;
     this.statusCode = statusCode;
+    this.retryable = retryable;
+    this.aborted = aborted;
+    this.validation = validation;
   }
 }
 
-const isTimeoutError = (error) => ['AbortError', 'TimeoutError'].includes(error?.name);
+const isTimeoutError = (error) => error?.name === 'TimeoutError';
 
 const validatePageUrl = async (value) => {
   try {
@@ -88,11 +99,19 @@ const WATCH_SUGGESTION_SCHEMA = {
         distinctiveFacts: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 180 } },
         aliases: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 100 } },
         uncertaintyPhrases: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 240 } },
+        works: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
+        productsServices: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
+        events: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
+        relationships: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 140 } },
+        phenomena: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
+        conditions: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
+        symptoms: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
         storySummary: { type: 'string', minLength: 20, maxLength: 360 },
       },
       required: [
         'primaryPeople', 'otherPeople', 'peopleRoles', 'locations', 'organizations', 'eventTypes',
-        'distinctiveFacts', 'aliases', 'uncertaintyPhrases', 'storySummary',
+        'distinctiveFacts', 'aliases', 'uncertaintyPhrases', 'works', 'productsServices', 'events',
+        'relationships', 'phenomena', 'conditions', 'symptoms', 'storySummary',
       ],
     },
     description: { type: 'string', minLength: 1, maxLength: 300 },
@@ -418,6 +437,16 @@ const extractResponseText = (response) => response.output
   ?.flatMap((item) => item.content || [])
   .find((content) => content.type === 'output_text')?.text;
 
+const hasProviderRefusal = (response) => response.output
+  ?.flatMap((item) => item.content || [])
+  .some((content) => content.type === 'refusal');
+
+const createValidationError = (code, stage, path, rule, description) => (
+  new ArticleAnalysisError(code, 502, {
+    validation: { stage, path, rule, description },
+  })
+);
+
 const getComparableTokens = (value) => String(value || '')
   .normalize('NFKD')
   .replace(/[\u0300-\u036f]/g, '')
@@ -437,22 +466,64 @@ const hasSameNormalizedLabel = (first, second) => (
   getComparableTokens(first).join(' ') === getComparableTokens(second).join(' ')
 );
 
+const OPTIONAL_PROFILE_ARRAYS = [
+  'primaryPeople', 'otherPeople', 'peopleRoles', 'locations', 'organizations', 'eventTypes',
+  'distinctiveFacts', 'aliases', 'uncertaintyPhrases', 'works', 'productsServices', 'events',
+  'relationships', 'phenomena', 'conditions', 'symptoms',
+];
+
 const validateSuggestion = (suggestion) => {
   if (!suggestion || typeof suggestion !== 'object' || Array.isArray(suggestion)) {
-    throw new ArticleAnalysisError('structured_validation_failed');
+    throw createValidationError(
+      'provider_schema_invalid', 'structured_schema', '$', 'object_required',
+      'The structured result must be an object.',
+    );
   }
+  for (const field of ['watchTitle', 'watchingFor', 'storyFingerprint', 'storyProfile', 'description']) {
+    if (!(field in suggestion)) {
+      throw createValidationError(
+        'provider_schema_invalid', 'structured_schema', field, 'required',
+        'A required top-level field was missing.',
+      );
+    }
+  }
+  if (!suggestion.storyProfile || typeof suggestion.storyProfile !== 'object' || Array.isArray(suggestion.storyProfile)) {
+    throw createValidationError(
+      'provider_schema_invalid', 'structured_schema', 'storyProfile', 'object_required',
+      'The story profile must be an object.',
+    );
+  }
+  const normalizedProfile = {
+    ...suggestion.storyProfile,
+    ...Object.fromEntries(OPTIONAL_PROFILE_ARRAYS.map((field) => [
+      field,
+      Array.isArray(suggestion.storyProfile[field]) ? suggestion.storyProfile[field] : [],
+    ])),
+  };
   const suppliedFingerprint = suggestion.storyFingerprint;
+  if (!Array.isArray(suppliedFingerprint)) {
+    throw createValidationError(
+      'provider_schema_invalid', 'structured_schema', 'storyFingerprint', 'array_required',
+      'The Story Fingerprint must be an array.',
+    );
+  }
+  const invalidConceptIndex = suppliedFingerprint.findIndex((concept) => (
+    !concept
+    || typeof concept.label !== 'string'
+    || !concept.label.trim()
+    || ![...AUTOMATIC_STORY_CONCEPT_TYPES, 'fact', 'supporting'].includes(concept.type)
+  ));
+  if (invalidConceptIndex >= 0) {
+    throw createValidationError(
+      'provider_schema_invalid', 'structured_schema', `storyFingerprint[${invalidConceptIndex}]`,
+      'identifier_shape_invalid', 'A Story Identifier had an invalid label or type.',
+    );
+  }
   const contextualValues = [
-    ...(Array.isArray(suggestion.storyProfile?.distinctiveFacts)
-      ? suggestion.storyProfile.distinctiveFacts
-      : []),
-    ...(Array.isArray(suggestion.storyProfile?.uncertaintyPhrases)
-      ? suggestion.storyProfile.uncertaintyPhrases
-      : []),
+    ...normalizedProfile.distinctiveFacts,
+    ...normalizedProfile.uncertaintyPhrases,
   ];
-  const primaryPeople = Array.isArray(suggestion.storyProfile?.primaryPeople)
-    ? suggestion.storyProfile.primaryPeople
-    : [];
+  const primaryPeople = normalizedProfile.primaryPeople;
   const eligibleFingerprint = (Array.isArray(suppliedFingerprint) ? suppliedFingerprint : [])
     .filter((concept) => (
       (
@@ -480,25 +551,26 @@ const validateSuggestion = (suggestion) => {
   const watchingFor = typeof suggestion?.watchingFor === 'string'
     ? sanitizeMalformedCurrencyText(suggestion.watchingFor).trim()
     : '';
-  const storySummary = typeof suggestion?.storyProfile?.storySummary === 'string'
-    ? sanitizeMalformedCurrencyText(suggestion.storyProfile.storySummary).replace(/\s+/g, ' ').trim()
+  const storySummary = typeof normalizedProfile.storySummary === 'string'
+    ? sanitizeMalformedCurrencyText(normalizedProfile.storySummary).replace(/\s+/g, ' ').trim()
     : '';
-  if (
-    typeof suggestion?.watchTitle !== 'string'
-    || !suggestion.watchTitle.trim()
-    || !Array.isArray(suppliedFingerprint)
-    || keywords.length > 5
-    || !watchingFor
-    || storySummary.length < 20
-    || !description
-    || sentenceCount > 2
-  ) {
-    throw new ArticleAnalysisError('structured_validation_failed');
+  const semanticRules = [
+    [typeof suggestion.watchTitle === 'string' && suggestion.watchTitle.trim(), 'watchTitle', 'non_empty', 'The Watch title was empty.'],
+    [keywords.length <= 5, 'storyFingerprint', 'maximum_items', 'The Story Fingerprint exceeded five identifiers.'],
+    [watchingFor, 'watchingFor', 'non_empty', 'The monitoring instruction was empty.'],
+    [storySummary.length >= 20, 'storyProfile.storySummary', 'minimum_length', 'The Story Summary was too short.'],
+    [description, 'description', 'non_empty', 'The description was empty.'],
+    [sentenceCount <= 2, 'description', 'maximum_sentences', 'The description exceeded two sentences.'],
+  ];
+  const failedRule = semanticRules.find(([valid]) => !valid);
+  if (failedRule) {
+    throw createValidationError(
+      'application_validation_failed', 'application_validation',
+      failedRule[1], failedRule[2], failedRule[3],
+    );
   }
   const distinctiveFacts = [...new Set([
-    ...(Array.isArray(suggestion.storyProfile?.distinctiveFacts)
-      ? suggestion.storyProfile.distinctiveFacts
-      : []),
+    ...normalizedProfile.distinctiveFacts,
     ...legacyFacts,
   ])];
   return {
@@ -506,7 +578,7 @@ const validateSuggestion = (suggestion) => {
     watchingFor,
     storyFingerprint,
     keywords,
-    storyProfile: { ...suggestion.storyProfile, storySummary, distinctiveFacts },
+    storyProfile: { ...normalizedProfile, storySummary, distinctiveFacts },
     description,
   };
 };
@@ -522,13 +594,17 @@ export const generateWatchSuggestion = async ({
   fetchImpl = fetch,
   diagnosticId = randomUUID(),
   onDiagnostic,
+  signal,
+  providerTimeoutMs = PROVIDER_TIMEOUT_MS,
+  maxAttempts = PROVIDER_MAX_ATTEMPTS,
+  retryDelayMs = PROVIDER_RETRY_DELAY_MS,
+  sleepImpl = (delay) => new Promise((resolve) => setTimeout(resolve, delay)),
+  randomImpl = Math.random,
 }) => {
   if (!apiKey) {
     onDiagnostic?.({ stage: 'provider', attempted: false, succeeded: false, outcomeCode: 'configuration_missing' });
     throw new ArticleAnalysisError('configuration_missing', 503);
   }
-
-  onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'request_started' });
 
   const source = {
     title: String(title || '').trim(),
@@ -547,6 +623,7 @@ export const generateWatchSuggestion = async ({
     }
   }
 
+  const executeAttempt = async (attemptSignal) => {
   let response;
   try {
     response = await fetchImpl('https://api.openai.com/v1/responses', {
@@ -566,14 +643,14 @@ storyFingerprint is the separate, complete list of monitoring identifiers used t
 
 Do not put general advice, list items, lifestyle recommendations, supporting examples, background details, generic themes, consequences, explanatory prose, uncertainty prose, or generic synthesized phrases in storyFingerprint. Put those values only in distinctiveFacts or uncertaintyPhrases when they remain useful context, and never duplicate them into storyFingerprint. Do not include quoted experts or organizations merely cited as sources. primaryPeople means people the story is genuinely centered on; quoted experts belong only in otherPeople. primaryPeople and organizations may be empty when none is central. Do not include byline authors, photographers, image or agency credits, publishers, captions, interface text, or related-content modules. Do not return headline fragments, incomplete phrases, entire sentences, or redundant parent and child concepts. For a health advice article about brain fog during perimenopause, select "Brain fog" and "Perimenopause" while keeping coping recommendations such as breaks, reminders and lifestyle routines only in distinctiveFacts. Prefer either "Brain fog during perimenopause" or the complementary pair "Brain fog" and "Perimenopause", not all three. Preserve a decisive relationship as one coherent identifier when separating it would lose meaning, such as an agreement being conditional on another action.
 
-Populate storyProfile independently from the monitoring identifiers. primaryPeople, otherPeople, peopleRoles, locations, organizations and eventTypes describe supported article entities and context. distinctiveFacts contains useful supporting details, including recommendations when relevant to the human explanation. uncertaintyPhrases contains attribution and uncertainty prose. These supporting profile fields are not monitoring identifiers unless the same concise concept is deliberately selected in storyFingerprint because it is essential for future matching.
+Populate storyProfile independently from the monitoring identifiers. primaryPeople, otherPeople, peopleRoles, locations, organizations, eventTypes, works, productsServices, events, relationships, phenomena, conditions and symptoms describe supported article entities and context; use empty arrays when a category is absent. distinctiveFacts contains useful supporting details, including recommendations when relevant to the human explanation. uncertaintyPhrases contains attribution and uncertainty prose. These supporting profile fields are not monitoring identifiers unless the same concise concept is deliberately selected in storyFingerprint because it is essential for future matching.
 
 Preserve complete organization and location names. Use "City, Country" only when that relationship is explicit in the supplied text. Preserve qualifiers such as alleged, suspected, reported, accused, possible, or wanted in storySummary, distinctiveFacts and uncertaintyPhrases. Never convert an allegation, official assessment, suspected motive, reported link, or conditional political relationship into a confirmed fact. A publisher or media provider is not an organization in the story.
 
 Use source fields in this order: title, description, articleText, then slug only as a fallback. The author field is source attribution, not evidence that the author is a story subject. Base every field only on supplied source content. Never invent a person, organization, location, event, relationship or detail.`,
       input: JSON.stringify(source),
       reasoning: { effort: 'low' },
-      max_output_tokens: 600,
+      max_output_tokens: 1200,
       text: {
         verbosity: 'low',
         format: {
@@ -584,54 +661,59 @@ Use source fields in this order: title, description, articleText, then slug only
         },
       },
       }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      signal: attemptSignal,
     });
   } catch (error) {
-    const outcomeCode = isTimeoutError(error) ? 'provider_timeout' : 'provider_network_error';
-    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode });
-    throw new ArticleAnalysisError(outcomeCode);
+    if (signal?.aborted || (error?.name === 'AbortError' && attemptSignal?.aborted && !isTimeoutError(attemptSignal.reason))) {
+      throw new ArticleAnalysisError('provider_request_aborted', 499, { aborted: true });
+    }
+    const outcomeCode = isTimeoutError(error) || isTimeoutError(attemptSignal?.reason)
+      ? 'provider_timeout'
+      : 'provider_network_error';
+    throw new ArticleAnalysisError(outcomeCode, 502, { retryable: true });
   }
   if (!response.ok) {
     if ([401, 403].includes(response.status)) {
-      onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_auth_error' });
       throw new ArticleAnalysisError('provider_auth_error');
     }
     if (response.status === 429) {
-      onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_rate_limited' });
-      throw new ArticleAnalysisError('provider_rate_limited');
+      throw new ArticleAnalysisError('provider_rate_limited', 502, { retryable: true });
     }
-    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_response_invalid' });
-    throw new ArticleAnalysisError('provider_response_invalid');
+    throw new ArticleAnalysisError('provider_http_error', 502, {
+      retryable: response.status >= 500,
+    });
   }
   let result;
   try {
     result = await response.json();
   } catch {
-    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_response_invalid' });
-    throw new ArticleAnalysisError('provider_response_invalid');
+    throw new ArticleAnalysisError('provider_envelope_invalid');
+  }
+  if (result?.status === 'incomplete') {
+    const truncated = result.incomplete_details?.reason === 'max_output_tokens';
+    throw new ArticleAnalysisError(truncated ? 'provider_output_truncated' : 'provider_incomplete');
+  }
+  if (hasProviderRefusal(result)) {
+    throw new ArticleAnalysisError('provider_refusal');
   }
   const outputText = extractResponseText(result);
   if (!outputText) {
-    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_response_invalid' });
-    throw new ArticleAnalysisError('provider_response_invalid');
+    throw new ArticleAnalysisError('provider_output_missing');
   }
   let parsed;
   try {
     parsed = JSON.parse(outputText);
   } catch {
-    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_response_invalid' });
-    throw new ArticleAnalysisError('provider_response_invalid');
+    throw new ArticleAnalysisError('provider_json_invalid');
   }
   onDiagnostic?.({ stage: 'parsed', value: parsed });
   let validated;
   try {
     validated = validateSuggestion(parsed);
   } catch (error) {
-    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: error.code || 'structured_validation_failed' });
     throw error;
   }
   onDiagnostic?.({ stage: 'validated', value: validated });
-  onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: true, outcomeCode: 'success' });
   return {
     ...validated,
     analysisProvider: 'openai',
@@ -641,6 +723,39 @@ Use source fields in this order: title, description, articleText, then slug only
     analyzedAt: new Date().toISOString(),
     analysisDiagnosticId: diagnosticId,
   };
+  };
+
+  const boundedAttempts = Math.max(1, Math.min(Number(maxAttempts) || 1, PROVIDER_MAX_ATTEMPTS));
+  for (let attempt = 1; attempt <= boundedAttempts; attempt += 1) {
+    const startedAt = Date.now();
+    const timeoutSignal = AbortSignal.timeout(providerTimeoutMs);
+    const attemptSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+    try {
+      const suggestion = await executeAttempt(attemptSignal);
+      onDiagnostic?.({
+        stage: 'provider_attempt', attempt, attempted: true, succeeded: true,
+        durationMs: Date.now() - startedAt, outcomeCode: 'success',
+        retryOccurred: attempt > 1, retryScheduled: false, aborted: false,
+      });
+      return suggestion;
+    } catch (error) {
+      const analysisError = error instanceof ArticleAnalysisError
+        ? error
+        : new ArticleAnalysisError('internal_error');
+      const retryScheduled = analysisError.retryable && attempt < boundedAttempts && !signal?.aborted;
+      onDiagnostic?.({
+        stage: 'provider_attempt', attempt, attempted: true, succeeded: false,
+        durationMs: Date.now() - startedAt, outcomeCode: analysisError.code,
+        retryOccurred: attempt > 1, retryScheduled, aborted: analysisError.aborted,
+        validation: analysisError.validation,
+      });
+      if (!retryScheduled) throw analysisError;
+      const delay = retryDelayMs + Math.floor(randomImpl() * PROVIDER_RETRY_JITTER_MS);
+      onDiagnostic?.({ stage: 'provider_retry', attempt, delayMs: delay, outcomeCode: analysisError.code });
+      await sleepImpl(delay);
+    }
+  }
+  throw new ArticleAnalysisError('internal_error');
 };
 
 const readJsonBody = (request) => new Promise((resolve, reject) => {
@@ -674,6 +789,11 @@ export const createUrlWatchMiddleware = ({
   apiKey,
   model = 'gpt-5.6-luna',
   fetchImpl = fetch,
+  providerTimeoutMs = PROVIDER_TIMEOUT_MS,
+  maxAttempts = PROVIDER_MAX_ATTEMPTS,
+  retryDelayMs,
+  sleepImpl,
+  randomImpl,
 } = {}) => (
   async (request, response, next) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
@@ -708,6 +828,15 @@ export const createUrlWatchMiddleware = ({
       if (!title) throw new Error('A page title is required.');
       const diagnosticId = randomUUID();
       suggestionDiagnosticId = diagnosticId;
+      const requestController = new AbortController();
+      request.once?.('aborted', () => requestController.abort(
+        new DOMException('The caller disconnected.', 'AbortError'),
+      ));
+      response.once?.('close', () => {
+        if (!response.writableEnded) {
+          requestController.abort(new DOMException('The caller disconnected.', 'AbortError'));
+        }
+      });
       const suggestion = await generateWatchSuggestion({
         title,
         description: body.description,
@@ -718,6 +847,12 @@ export const createUrlWatchMiddleware = ({
         model,
         fetchImpl,
         diagnosticId,
+        signal: requestController.signal,
+        providerTimeoutMs,
+        maxAttempts,
+        retryDelayMs,
+        sleepImpl,
+        randomImpl,
       });
       console.info(JSON.stringify({
         event: 'article_analysis',
@@ -746,6 +881,7 @@ export const createUrlWatchMiddleware = ({
           analysisModel: null,
           fallbackReasonCode,
           analysisDiagnosticId: diagnosticId,
+          ...(error.validation ? { validation: error.validation } : {}),
         });
         return;
       }

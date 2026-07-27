@@ -71,7 +71,7 @@ test('orders a Story Fingerprint by identifying strength and preserves complete 
       { label: 'Taylor', type: 'person' },
       { label: 'Monaco', type: 'location' },
       { label: 'OpenAI', type: 'organization' },
-      { label: 'Taylor Swift', type: 'person' },
+      { label: 'Taylor Swift', type: 'person', aliases: ['Taylor'] },
     ]),
     [
       { label: 'Taylor Swift', type: 'person' },
@@ -81,6 +81,48 @@ test('orders a Story Fingerprint by identifying strength and preserves complete 
       { label: 'Court ruling', type: 'event' },
     ],
   );
+});
+
+test('preserves distinct typed concepts when labels overlap', () => {
+  assert.deepEqual(normalizeAutomaticStoryFingerprint([
+    { label: 'Seattle Center', type: 'location' },
+    { label: 'Seattle Center shooting', type: 'event' },
+    { label: 'Bite of Seattle', type: 'event' },
+    { label: 'Perimenopause', type: 'condition' },
+    { label: 'Brain fog', type: 'symptom' },
+  ]), [
+    { label: 'Seattle Center', type: 'location' },
+    { label: 'Seattle Center shooting', type: 'event' },
+    { label: 'Bite of Seattle', type: 'event' },
+    { label: 'Perimenopause', type: 'condition' },
+    { label: 'Brain fog', type: 'symptom' },
+  ]);
+});
+
+test('does not deduplicate by substring or across types but consolidates exact typed duplicates', () => {
+  assert.deepEqual(normalizeStoryFingerprint([
+    { label: 'Central Park', type: 'location' },
+    { label: 'Central Park concert', type: 'event' },
+    { label: 'Central Park', type: 'event' },
+    { label: 'Central Park', type: 'location' },
+  ]), [
+    { label: 'Central Park', type: 'location' },
+    { label: 'Central Park concert', type: 'event' },
+    { label: 'Central Park', type: 'event' },
+  ]);
+});
+
+test('consolidates only explicit same-type aliases and preserves manual identifiers', () => {
+  assert.deepEqual(normalizeStoryFingerprint([
+    { label: 'The International Business Machines Corporation', type: 'organization', aliases: ['IBM'] },
+    { label: 'IBM', type: 'organization' },
+    { label: 'IBM', type: 'product_service' },
+    { label: 'Keep IBM reporting', type: 'manual' },
+  ]), [
+    { label: 'The International Business Machines Corporation', type: 'organization' },
+    { label: 'IBM', type: 'product_service' },
+    { label: 'Keep IBM reporting', type: 'manual' },
+  ]);
 });
 
 test('does not remove name particles that resemble stop words from typed people', () => {
