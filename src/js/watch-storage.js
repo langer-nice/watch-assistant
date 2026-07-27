@@ -1,5 +1,6 @@
 import { mockWatches } from './data/mock-watches.js';
 import { normalizeWatchCreationDate } from './watch-dates.js';
+import { migrateWatchModel } from './watch-model.js';
 
 const STORAGE_KEY = 'watchAssistant.watches';
 const DELETED_WATCHES_STORAGE_KEY = 'watchAssistant.deletedWatchIds';
@@ -9,6 +10,17 @@ const DEMO_DATA_VERSION = 'home-report-v1';
 const HTML_ENTITY_MIGRATION_KEY = 'watchAssistant.htmlEntityDecodeVersion';
 const HTML_ENTITY_MIGRATION_VERSION = '1';
 const creationDateWarnings = new Set();
+
+const normalizeWatchModels = (watches, { persist = false } = {}) => {
+  let changed = false;
+  const normalized = watches.map((watch) => {
+    const result = migrateWatchModel(watch);
+    changed ||= result.migrated;
+    return result.watch;
+  });
+  if (changed && persist) saveWatches(normalized);
+  return normalized;
+};
 
 const normalizeWatchCreationDates = (watches, { persist = false } = {}) => {
   let changed = false;
@@ -109,7 +121,10 @@ export function getStoredWatches() {
     }
     const watches = JSON.parse(json);
     return Array.isArray(watches)
-      ? normalizeWatchCreationDates(migrateStoredWatchTitles(watches), { persist: true })
+      ? normalizeWatchModels(
+        normalizeWatchCreationDates(migrateStoredWatchTitles(watches), { persist: true }),
+        { persist: true },
+      )
       : [];
   } catch (error) {
     console.warn('Could not read stored watches', error);

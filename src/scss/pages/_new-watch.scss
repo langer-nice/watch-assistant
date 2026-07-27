@@ -145,6 +145,16 @@ body.is-edit-modal .language-control {
   font-size: 0.9375rem;
 }
 
+.watch-keyword__type {
+  align-self: center;
+  padding: 0 var(--space-xs);
+  color: var(--color-text-muted);
+  border-left: 1px solid var(--color-border);
+  font-size: 0.6875rem;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
 .watch-keyword__edit {
   min-width: 5ch;
   max-width: 18rem;

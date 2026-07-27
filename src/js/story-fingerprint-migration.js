@@ -61,8 +61,16 @@ export const createRegeneratedFingerprintChanges = (analysis, currentVersion) =>
     keywords,
     selectedKeywords: keywords,
     storyFingerprint: analysis?.storyFingerprint || null,
+    storyProfile: analysis?.storyProfile || null,
     monitoringConceptsVersion: currentVersion,
     monitoringConceptsManuallyEdited: false,
     conceptSourceFields: analysis?.conceptSourceFields || [],
+    sourcePublishedAt: analysis?.sourcePublishedAt || null,
+    ...(analysis?.monitoringSource ? {
+      monitoringSource: analysis.monitoringSource,
+      feedUrl: analysis.monitoringSource.url,
+      monitoringStatus: { state: 'configured', reason: null },
+      monitoringIssueReason: null,
+    } : {}),
   };
 };

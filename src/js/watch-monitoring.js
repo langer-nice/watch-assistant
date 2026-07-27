@@ -51,9 +51,70 @@ const getCheckedAt = (value, now) => {
   return Number.isNaN(parsed) ? now().toISOString() : new Date(parsed).toISOString();
 };
 
+const normalizeMatchText = (value) => String(value || '')
+  .normalize('NFKD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLocaleLowerCase()
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const containsPhrase = (text, phrase) => {
+  const normalizedPhrase = normalizeMatchText(phrase);
+  return normalizedPhrase && ` ${text} `.includes(` ${normalizedPhrase} `);
+};
+
+const profileValues = (profile, field) => (
+  Array.isArray(profile?.[field]) ? profile[field] : []
+);
+
+export const matchFeedItemToStory = (item, storyProfile) => {
+  const text = normalizeMatchText([
+    item?.title,
+    item?.excerpt,
+    item?.author,
+  ].filter(Boolean).join(' '));
+  if (!text) return { matched: false, evidence: [] };
+
+  const evidence = [];
+  const addEvidence = (field, strength) => {
+    profileValues(storyProfile, field).forEach((label) => {
+      const normalized = normalizeMatchText(label);
+      const wordCount = normalized.split(' ').filter(Boolean).length;
+      const isEligiblePhrase = wordCount >= 2
+        || (field === 'locations' && normalized.length >= 5);
+      if (isEligiblePhrase && containsPhrase(text, label)) {
+        evidence.push({ field, label, strength });
+      }
+    });
+  };
+  addEvidence('primaryPeople', 'strong');
+  addEvidence('otherPeople', 'strong');
+  addEvidence('organizations', 'strong');
+  addEvidence('aliases', 'strong');
+  addEvidence('userAddedConcepts', 'strong');
+  addEvidence('distinctiveFacts', 'distinctive');
+  addEvidence('locations', 'context');
+  addEvidence('eventTypes', 'context');
+
+  const hasStrong = evidence.some(({ strength }) => strength === 'strong');
+  const hasDistinctive = evidence.some(({ strength, label }) => (
+    strength === 'distinctive' && normalizeMatchText(label).split(' ').length >= 3
+  ));
+  const hasLocation = evidence.some(({ field }) => field === 'locations');
+  const hasEventContext = evidence.some(({ field }) => (
+    field === 'eventTypes' || field === 'distinctiveFacts'
+  ));
+  return {
+    matched: hasStrong || hasDistinctive || (hasLocation && hasEventContext),
+    evidence,
+  };
+};
+
 export const getMonitoringUpdates = (watch) => (
-  Array.isArray(watch?.monitoringUpdates)
-    ? watch.monitoringUpdates.filter((item) => item?.status === 'unreviewed')
+  Array.isArray(watch?.candidateUpdates || watch?.monitoringUpdates)
+    ? (watch.candidateUpdates || watch.monitoringUpdates)
+      .filter((item) => ['candidate', 'unreviewed'].includes(item?.status))
     : []
 );
 
@@ -79,16 +140,20 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
       ? watch.monitoringUpdates.map(({ id }) => id)
       : []),
   ].filter(Boolean));
-  const newItems = hasBaseline
+  const unseenItems = hasBaseline
     ? items.filter(({ id }) => !previouslySeen.has(id))
     : [];
-  const detectedUpdates = newItems.map((item) => ({
+  const matchedItems = unseenItems
+    .map((item) => ({ item, match: matchFeedItemToStory(item, watch.storyProfile) }))
+    .filter(({ match }) => match.matched);
+  const detectedUpdates = matchedItems.map(({ item, match }) => ({
     ...item,
-    status: 'unreviewed',
+    status: 'candidate',
     detectedAt: checkedAt,
+    matchEvidence: match.evidence,
   }));
-  const existingUpdates = Array.isArray(watch.monitoringUpdates)
-    ? watch.monitoringUpdates
+  const existingUpdates = Array.isArray(watch.candidateUpdates || watch.monitoringUpdates)
+    ? (watch.candidateUpdates || watch.monitoringUpdates)
     : [];
   const monitoringUpdates = uniqueById(
     [...detectedUpdates, ...existingUpdates],
@@ -100,11 +165,30 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
   ])].slice(0, MAX_SEEN_ITEM_IDS);
   const outcome = !hasBaseline
     ? 'baseline'
-    : newItems.length ? 'new-items' : 'no-new-items';
+    : !unseenItems.length
+      ? 'no-new-items'
+      : detectedUpdates.length ? 'matching-items' : 'no-matching-items';
+  const diagnostics = {
+    returnedItemCount: items.length,
+    unseenItemCount: unseenItems.length,
+    matchedCandidateCount: detectedUpdates.length,
+    storedUpdateCount: monitoringUpdates.length,
+  };
+  const latestUpdateAt = detectedUpdates.length
+    ? checkedAt
+    : watch.latestUpdateAt || null;
+  const hadMonitoringIssue = ['setup-required', 'unavailable', 'needs-attention']
+    .includes(watch.monitoringStatus?.state)
+    || Boolean(watch.monitoringIssueReason);
+  const actionRequired = watch.actionRequired === true || (
+    !hadMonitoringIssue && (watch.requiresAttention === true || watch.status === 'attention')
+  );
 
   return {
     outcome,
-    newItems,
+    newItems: unseenItems,
+    unseenItems,
+    matchedItems: detectedUpdates,
     changes: {
       monitoringSnapshot: {
         checkedAt,
@@ -118,15 +202,38 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
         items,
       },
       seenMonitoringItemIds,
+      candidateUpdates: monitoringUpdates,
       monitoringUpdates,
       lastChecked: checkedAt,
       lastCheckedKey: null,
       lastCheckOutcome: {
         type: outcome,
         checkedAt,
-        newItemIds: newItems.map(({ id }) => id),
+        newItemIds: unseenItems.map(({ id }) => id),
+        candidateItemIds: detectedUpdates.map(({ id }) => id),
+        diagnostics,
       },
-      monitoringReviewStatus: newItems.length ? 'unreviewed' : watch.monitoringReviewStatus || null,
+      lastCheckResult: {
+        type: outcome,
+        checkedAt,
+        newItemIds: unseenItems.map(({ id }) => id),
+        candidateItemIds: detectedUpdates.map(({ id }) => id),
+        diagnostics,
+      },
+      monitoringReviewStatus: detectedUpdates.length ? 'candidate' : watch.monitoringReviewStatus || null,
+      unreadUpdateCount: monitoringUpdates.filter((item) => (
+        ['candidate', 'unreviewed'].includes(item?.status)
+      )).length,
+      latestUpdateAt,
+      monitoringStatus: { state: 'active', reason: null },
+      monitoringIssueReason: null,
+      monitoringFailure: null,
+      actionRequired,
+      attentionReason: actionRequired ? watch.attentionReason || null : null,
+      requiresAttention: actionRequired,
+      status: actionRequired && watch.status !== 'paused'
+        ? 'attention'
+        : watch.status === 'attention' && hadMonitoringIssue ? 'watching' : watch.status || 'watching',
     },
   };
 };
@@ -174,10 +281,49 @@ export const createWatchCheckController = ({
         if (!watch) {
           throw new MonitoringCheckError('WATCH_NOT_FOUND', 'The Watch could not be found.');
         }
-        const response = await requestCheck(watch.feedUrl);
+        const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
+        if (!feedUrl) {
+          saveWatch(watchId, {
+            monitoringStatus: { state: 'setup-required', reason: 'no-compatible-source' },
+            monitoringIssueReason: 'no-compatible-source',
+          });
+          throw new MonitoringCheckError(
+            'MISSING_FEED_URL',
+            'No monitoring source is configured for this Watch.',
+          );
+        }
+        const response = await requestCheck(feedUrl);
         const result = applyFeedCheckResult(watch, response, { now });
         const updatedWatch = saveWatch(watchId, result.changes);
+        if (import.meta.env?.DEV) {
+          console.info('[Watch monitoring] Check completed', {
+            watchId,
+            outcome: result.outcome,
+            ...result.changes.lastCheckResult.diagnostics,
+          });
+        }
         return { ...result, watch: updatedWatch };
+      } catch (error) {
+        if (!(error instanceof MonitoringCheckError && error.code === 'MISSING_FEED_URL')) {
+          const currentWatch = getWatch(watchId) || {};
+          const failureCount = Math.min(
+            3,
+            (Number(currentWatch.monitoringFailure?.consecutiveCount) || 0) + 1,
+          );
+          const persistent = failureCount >= 3;
+          saveWatch(watchId, {
+            monitoringFailure: {
+              consecutiveCount: failureCount,
+              failedAt: now().toISOString(),
+              code: error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED',
+            },
+            ...(persistent ? {
+              monitoringStatus: { state: 'unavailable', reason: 'source-persistently-unavailable' },
+              monitoringIssueReason: 'source-persistently-unavailable',
+            } : {}),
+          });
+        }
+        throw error;
       } finally {
         onCheckingChange(false);
         inFlight.delete(watchId);

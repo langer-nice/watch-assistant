@@ -1,6 +1,7 @@
 import { t } from './i18n.js';
 import { mountOnboardingLanguageControl } from './language-control.js';
 import { getWatches } from './watch-storage.js';
+import { isUserActionRequired } from './watch-grouping.js';
 import {
   beginOnboardingFirstWatch,
   registerCurrentIntroFlow,
@@ -36,12 +37,8 @@ const hasMeaningfulUpdate = (watch) => {
 const renderSampleBriefing = () => {
   const activeWatches = getWatches().filter((watch) => watch.status !== 'completed');
   const briefingWatches = activeWatches.filter(hasMeaningfulUpdate);
-  const attentionWatches = activeWatches.filter((watch) => (
-    watch.requiresAttention || watch.status === 'attention'
-  ));
-  const updatedWatches = briefingWatches.filter((watch) => (
-    !watch.requiresAttention && watch.status !== 'attention'
-  ));
+  const attentionWatches = activeWatches.filter(isUserActionRequired);
+  const updatedWatches = briefingWatches.filter((watch) => !isUserActionRequired(watch));
   const demoQuietWatchCount = 39;
   const totalChecked = demoQuietWatchCount + activeWatches.length;
 
@@ -59,7 +56,7 @@ const renderSampleBriefing = () => {
   const list = document.querySelector('#flow2BriefingItems');
   if (!list) return;
   list.innerHTML = briefingWatches.map((watch) => {
-    const needsAttention = watch.requiresAttention || watch.status === 'attention';
+    const needsAttention = isUserActionRequired(watch);
     const statusModifier = needsAttention ? 'attention' : 'updated';
     const status = t(needsAttention ? 'statuses.attention' : 'statuses.updated');
     return `

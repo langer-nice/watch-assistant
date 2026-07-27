@@ -44,6 +44,26 @@ const normalizeWord = (value) => String(value)
   .toLocaleLowerCase()
   .replace(/^['’.-]+|['’.-]+$/g, '');
 
+export const isUsefulStoryConcept = (label, type = 'supporting') => {
+  const value = String(label || '').replace(/\s+/g, ' ').trim();
+  if (!value) return false;
+  if (/^(?:official|officials|source|sources|spokes(?:person|man|woman))\s+(?:says?|said|claims?|claimed)$/i.test(value)) {
+    return false;
+  }
+  if (/^[\p{Lu}][\p{L}'’-]+\s+(?:citizen|national|resident|official)$/u.test(value)) {
+    return false;
+  }
+  if (/\b(?:likely|possibly|probably|allegedly|reportedly|suspected|possible)$/i.test(value)) {
+    return false;
+  }
+  if (/\b(?:carried out|took place|has happened|occurred|officials? (?:say|said))$/i.test(value)) {
+    return false;
+  }
+  if (type === 'event' && value.split(/\s+/).length < 2) return false;
+  if (type === 'supporting' && value.split(/\s+/).length === 1 && value.length < 5) return false;
+  return true;
+};
+
 const formatConcept = (tokens) => {
   const label = tokens
     .join(' ')
@@ -125,10 +145,16 @@ export const normalizeStoryFingerprint = (values, limit = 8) => {
       type: STORY_CONCEPT_PRIORITY.has(value?.type) ? value.type : 'supporting',
       index,
     }))
+    .filter((candidate) => isUsefulStoryConcept(candidate.label, candidate.type))
     .flatMap((candidate) => {
-      const labels = ['person', 'organization', 'location'].includes(candidate.type)
-        ? [formatConcept(getConceptTokens(candidate.label))].filter(Boolean)
-        : normalizeMonitoringConcepts([candidate.label], limit);
+      const preservedLocation = candidate.type === 'location'
+        ? String(candidate.label || '').replace(/\s+/g, ' ').replace(/[.;:!?]+$/g, '').trim()
+        : '';
+      const labels = candidate.type === 'location'
+        ? [preservedLocation].filter(Boolean)
+        : ['person', 'organization'].includes(candidate.type)
+          ? [formatConcept(getConceptTokens(candidate.label))].filter(Boolean)
+          : normalizeMonitoringConcepts([candidate.label], limit);
       return labels.map((label) => ({ ...candidate, label }));
     })
     .sort((first, second) => (

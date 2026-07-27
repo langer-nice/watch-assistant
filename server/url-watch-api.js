@@ -7,7 +7,9 @@ import {
 
 const MAX_REQUEST_BYTES = 32 * 1024;
 const MAX_PAGE_BYTES = 1024 * 1024;
-const MAX_ARTICLE_TEXT_LENGTH = 12_000;
+export const MAX_ARTICLE_TEXT_LENGTH = 12_000;
+const MIN_MULTI_ENTRY_TEXT_LENGTH = 240;
+const ARTICLE_BODY_SEPARATOR = '\n\n';
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 8000;
 
@@ -45,9 +47,41 @@ const WATCH_SUGGESTION_SCHEMA = {
         required: ['label', 'type'],
       },
     },
+    storyProfile: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        primaryPeople: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 80 } },
+        otherPeople: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 80 } },
+        peopleRoles: {
+          type: 'array',
+          maxItems: 6,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              name: { type: 'string', minLength: 1, maxLength: 80 },
+              role: { type: 'string', minLength: 1, maxLength: 100 },
+            },
+            required: ['name', 'role'],
+          },
+        },
+        locations: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 100 } },
+        organizations: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 100 } },
+        eventTypes: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
+        distinctiveFacts: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 180 } },
+        aliases: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 100 } },
+        uncertaintyPhrases: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 240 } },
+        storySummary: { type: 'string', minLength: 20, maxLength: 360 },
+      },
+      required: [
+        'primaryPeople', 'otherPeople', 'peopleRoles', 'locations', 'organizations', 'eventTypes',
+        'distinctiveFacts', 'aliases', 'uncertaintyPhrases', 'storySummary',
+      ],
+    },
     description: { type: 'string', minLength: 1, maxLength: 300 },
   },
-  required: ['watchTitle', 'watchingFor', 'storyFingerprint', 'description'],
+  required: ['watchTitle', 'watchingFor', 'storyFingerprint', 'storyProfile', 'description'],
 };
 
 const cleanTitle = (value) => he
@@ -74,13 +108,181 @@ const getTagAttributes = (tag) => {
   return attributes;
 };
 
-const findJsonLdArticle = (value) => {
-  if (Array.isArray(value)) {
-    return value.map(findJsonLdArticle).find(Boolean) || null;
+const FEED_MIME_PRIORITY = new Map([
+  ['application/rss+xml', 0],
+  ['application/atom+xml', 1],
+]);
+
+export const extractFeedCandidates = (html, sourceUrl) => {
+  let baseUrl;
+  try {
+    baseUrl = new URL(sourceUrl);
+  } catch {
+    return [];
   }
-  if (!value || typeof value !== 'object') return null;
-  if (typeof value.articleBody === 'string') return value;
-  return Object.values(value).map(findJsonLdArticle).find(Boolean) || null;
+  return (String(html).match(/<link\b[^>]*>/gi) || [])
+    .map((tag, index) => ({ attributes: getTagAttributes(tag), index }))
+    .filter(({ attributes }) => (
+      (attributes.rel || '').toLowerCase().split(/\s+/).includes('alternate')
+      && FEED_MIME_PRIORITY.has((attributes.type || '').toLowerCase().split(';')[0].trim())
+      && attributes.href
+    ))
+    .map(({ attributes, index }) => {
+      try {
+        const type = attributes.type.toLowerCase().split(';')[0].trim();
+        return {
+          url: new URL(attributes.href, baseUrl).href,
+          type,
+          title: cleanPageText(attributes.title),
+          index,
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((first, second) => (
+      FEED_MIME_PRIORITY.get(first.type) - FEED_MIME_PRIORITY.get(second.type)
+      || first.index - second.index
+    ))
+    .slice(0, 10);
+};
+
+export const discoverMonitoringSource = async (
+  html,
+  sourceUrl,
+  { validateUrl = validatePublicUrl } = {},
+) => {
+  const candidates = extractFeedCandidates(html, sourceUrl);
+  for (const candidate of candidates) {
+    try {
+      const validated = await validateUrl(candidate.url);
+      return {
+        url: validated.href,
+        type: candidate.type === 'application/atom+xml' ? 'atom' : 'rss',
+        title: candidate.title || null,
+        discovery: 'html-alternate',
+      };
+    } catch {
+      // A forbidden candidate is ignored; the next deterministic candidate may still be usable.
+    }
+  }
+  return null;
+};
+
+const isArticleLikeEntity = (value) => {
+  const types = Array.isArray(value?.['@type']) ? value['@type'] : [value?.['@type']];
+  const declaredTypes = types.filter((type) => typeof type === 'string' && type.trim());
+  return declaredTypes.length === 0
+    || declaredTypes.some((type) => /(?:Article|Posting)$/i.test(type.trim()));
+};
+
+const collectJsonLdArticles = (value, articles = []) => {
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectJsonLdArticles(item, articles));
+    return articles;
+  }
+  if (!value || typeof value !== 'object') return articles;
+  if (typeof value.articleBody === 'string' && isArticleLikeEntity(value)) {
+    articles.push(value);
+  }
+  Object.values(value).forEach((item) => collectJsonLdArticles(item, articles));
+  return articles;
+};
+
+const getJsonLdArticles = (html) => (
+  [...String(html).matchAll(
+    /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script\s*>/gi,
+  )]
+    .flatMap((match) => {
+      try {
+        return collectJsonLdArticles(JSON.parse(match[1]));
+      } catch {
+        return [];
+      }
+    })
+);
+
+const normalizedBodyKey = (value) => value
+  .normalize('NFKC')
+  .toLocaleLowerCase()
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const getDistinctArticleBodies = (articles) => {
+  const seen = new Set();
+  return articles
+    .map((article) => cleanPageText(article?.articleBody))
+    .filter((body) => {
+      const key = normalizedBodyKey(body);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const getHtmlArticleBodies = (html) => getDistinctArticleBodies(
+  [...String(html).matchAll(/<article\b[^>]*>([\s\S]*?)<\/article\s*>/gi)]
+    .map((match) => ({ articleBody: match[1] })),
+);
+
+const selectEvenlySpacedBodies = (bodies, limit) => {
+  if (bodies.length <= limit) return bodies;
+  if (limit <= 1) return bodies.slice(0, 1);
+  const selectedIndexes = new Set(Array.from(
+    { length: limit },
+    (_, index) => Math.round((index * (bodies.length - 1)) / (limit - 1)),
+  ));
+  return bodies.filter((_, index) => selectedIndexes.has(index));
+};
+
+const truncateAtWordBoundary = (value, limit) => {
+  if (value.length <= limit) return value;
+  if (limit < 2) return value.slice(0, limit);
+  const candidate = value.slice(0, limit - 1).trimEnd();
+  const boundary = candidate.lastIndexOf(' ');
+  const truncated = boundary > 0 ? candidate.slice(0, boundary) : candidate;
+  return `${truncated}…`;
+};
+
+const createBoundedArticleText = (bodies) => {
+  if (!bodies.length) return { articleText: '', includedArticleBodyCount: 0 };
+  const maximumBodies = Math.max(1, Math.floor(
+    (MAX_ARTICLE_TEXT_LENGTH + ARTICLE_BODY_SEPARATOR.length)
+      / (MIN_MULTI_ENTRY_TEXT_LENGTH + ARTICLE_BODY_SEPARATOR.length),
+  ));
+  const selectedBodies = selectEvenlySpacedBodies(bodies, maximumBodies);
+  const separatorLength = ARTICLE_BODY_SEPARATOR.length * (selectedBodies.length - 1);
+  let remainingCharacters = MAX_ARTICLE_TEXT_LENGTH - separatorLength;
+  let pendingIndexes = selectedBodies.map((_, index) => index);
+  const allocations = Array(selectedBodies.length).fill(0);
+
+  while (pendingIndexes.length) {
+    const fairShare = Math.floor(remainingCharacters / pendingIndexes.length);
+    const completeIndexes = pendingIndexes.filter((index) => (
+      selectedBodies[index].length <= fairShare
+    ));
+    if (!completeIndexes.length) {
+      pendingIndexes.forEach((index, position) => {
+        allocations[index] = fairShare + (position < remainingCharacters % pendingIndexes.length ? 1 : 0);
+      });
+      break;
+    }
+    completeIndexes.forEach((index) => {
+      allocations[index] = selectedBodies[index].length;
+      remainingCharacters -= allocations[index];
+    });
+    const completed = new Set(completeIndexes);
+    pendingIndexes = pendingIndexes.filter((index) => !completed.has(index));
+  }
+
+  const includedBodies = selectedBodies
+    .map((body, index) => truncateAtWordBoundary(body, allocations[index]))
+    .filter(Boolean);
+  return {
+    articleText: includedBodies.join(ARTICLE_BODY_SEPARATOR),
+    includedArticleBodyCount: includedBodies.length,
+  };
 };
 
 export const extractPageMetadata = (html, sourceUrl = '') => {
@@ -99,20 +301,18 @@ export const extractPageMetadata = (html, sourceUrl = '') => {
     'twitter:description',
   ]));
   const metadataAuthor = cleanPageText(findMetaContent(['author', 'article:author']));
+  const siteName = cleanPageText(findMetaContent(['og:site_name', 'application-name']));
+  const publishedAt = cleanPageText(findMetaContent([
+    'article:published_time',
+    'datepublished',
+    'date',
+  ]));
   const htmlTitle = head.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i)?.[1];
-  const jsonLdArticle = (html.match(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script\s*>/gi) || [])
-    .map((script) => script.replace(/^.*?>|<\/script\s*>$/gis, ''))
-    .map((json) => {
-      try {
-        return findJsonLdArticle(JSON.parse(json));
-      } catch {
-        return null;
-      }
-    })
-    .find(Boolean);
-  const articleHtml = html.match(/<article\b[^>]*>([\s\S]*?)<\/article\s*>/i)?.[1] || '';
-  const articleText = cleanPageText(jsonLdArticle?.articleBody || articleHtml)
-    .slice(0, MAX_ARTICLE_TEXT_LENGTH);
+  const jsonLdArticles = getJsonLdArticles(html);
+  const jsonLdBodies = getDistinctArticleBodies(jsonLdArticles);
+  const articleBodies = jsonLdBodies.length ? jsonLdBodies : getHtmlArticleBodies(html);
+  const { articleText, includedArticleBodyCount } = createBoundedArticleText(articleBodies);
+  const jsonLdArticle = jsonLdArticles[0] || null;
   const title = cleanTitle(openGraphTitle || htmlTitle || jsonLdArticle?.headline);
   const structuredAuthor = cleanPageText(jsonLdArticle?.author?.name);
   const author = [metadataAuthor, structuredAuthor]
@@ -122,7 +322,11 @@ export const extractPageMetadata = (html, sourceUrl = '') => {
     title,
     description: description || cleanPageText(jsonLdArticle?.description),
     articleText,
+    articleBodyCount: articleBodies.length,
+    includedArticleBodyCount,
     author,
+    siteName: siteName || cleanPageText(jsonLdArticle?.publisher?.name),
+    publishedAt: publishedAt || cleanPageText(jsonLdArticle?.datePublished),
     sourceUrl,
   };
 };
@@ -175,9 +379,13 @@ export const fetchPageMetadata = async (input, fetchImpl = fetch) => {
       throw new Error('The URL did not return an HTML page.');
     }
 
-    const metadata = extractPageMetadata(await readPageHtml(response), url.href);
+    const html = await readPageHtml(response);
+    const metadata = extractPageMetadata(html, url.href);
     if (!metadata.title) throw new Error('No page title was found.');
-    return metadata;
+    return {
+      ...metadata,
+      monitoringSource: await discoverMonitoringSource(html, url.href),
+    };
   }
 
   throw new Error('The page title could not be fetched.');
@@ -205,12 +413,16 @@ const validateSuggestion = (suggestion) => {
   const watchingFor = typeof suggestion?.watchingFor === 'string'
     ? suggestion.watchingFor.trim()
     : '';
+  const storySummary = typeof suggestion?.storyProfile?.storySummary === 'string'
+    ? suggestion.storyProfile.storySummary.replace(/\s+/g, ' ').trim()
+    : '';
   if (
     typeof suggestion?.watchTitle !== 'string'
     || !suggestion.watchTitle.trim()
     || keywords.length < 1
     || keywords.length > 8
     || !watchingFor
+    || storySummary.length < 20
     || !description
     || sentenceCount > 2
   ) {
@@ -221,6 +433,7 @@ const validateSuggestion = (suggestion) => {
     watchingFor,
     storyFingerprint,
     keywords,
+    storyProfile: { ...suggestion.storyProfile, storySummary },
     description,
   };
 };
@@ -267,14 +480,16 @@ export const generateWatchSuggestion = async ({
     body: JSON.stringify({
       model,
       store: false,
-      instructions: `Build a Story Fingerprint from the supplied page title, alongside a concise Watch title, a natural one-sentence monitoring instruction named watchingFor, and a short explanation of no more than two sentences.
+      instructions: `Build a Story Fingerprint and structured story profile from the complete supplied article content, alongside a concise Watch title, a natural one-sentence monitoring instruction named watchingFor, and a short explanation of no more than two sentences.
 
 Return normally 3 to 8 typed Story Fingerprint concepts in this exact priority: people, organizations, precise locations, the main event, then genuinely identifying supporting concepts. A named person central to the story should almost always be included and their complete name must remain one concept. Do not treat byline authors, photographers, or publishers as story concepts unless they are themselves central to the event. Preserve complete organization and location names. Express events as semantic noun phrases that can match later reporting even when wording changes, for example "Search operation", "Court ruling", or "Product launch", but only when the supplied title supports that meaning.
+
+Populate storyProfile from the article body: distinguish central people from other people; put concise evidence-supported roles for retained people in peopleRoles; retain precise locations and organizations; describe event types as complete identifying noun phrases; retain only distinctive facts useful for matching later coverage; and add genuine alternative names in aliases. storySummary must be one concise, natural statement explaining who is involved, what happened, where it happened, and any important uncertainty or attribution. Preserve qualifiers such as alleged, suspected, reported, accused, possible, or wanted in storySummary, distinctiveFacts and uncertaintyPhrases. A publisher is not an organization in the story. Reject generic descriptors such as "German citizen", attribution fragments such as "Official says", clipped phrases ending in modifiers such as "likely", and detached descriptions such as "terror attack carried out". Never convert an allegation, official assessment, suspected motive, or reported link into a confirmed fact.
 
 Use source fields in this order: title, description, articleText, then slug only as a fallback. The author field is extracted page metadata and may support a person concept. Do not merely select frequent or long words. Exclude articles, conjunctions, prepositions, pronouns, filler, generic geography, and generic news terms. Never return isolated fragments when a stronger phrase exists. Deduplicate concepts and omit weaker concepts contained in stronger ones. Return fewer concepts rather than weak ones when fewer than 3 are reliable. Base every field only on the supplied source content, preserve its intent, and never invent a person, organization, location, event, or detail absent from or unsupported by it.`,
       input: JSON.stringify(source),
       reasoning: { effort: 'low' },
-      max_output_tokens: 300,
+      max_output_tokens: 600,
       text: {
         verbosity: 'low',
         format: {

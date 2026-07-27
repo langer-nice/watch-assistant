@@ -1,0 +1,168 @@
+import { isUsefulStoryConcept, normalizeStoryFingerprint } from './monitoring-concepts.js';
+
+export const STORY_PROFILE_VERSION = 3;
+const MAX_PROFILE_VALUES = 8;
+
+const uniqueStrings = (values, limit = MAX_PROFILE_VALUES) => {
+  const seen = new Set();
+  return (Array.isArray(values) ? values : [])
+    .map((value) => String(value || '').replace(/\s+/g, ' ').trim())
+    .filter((value) => {
+      const key = value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+      if (!value || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
+};
+
+const normalizePeopleRoles = (values, people) => {
+  const knownPeople = new Set(people.map((name) => name.toLocaleLowerCase()));
+  const seen = new Set();
+  return (Array.isArray(values) ? values : [])
+    .map((item) => ({
+      name: String(item?.name || '').replace(/\s+/g, ' ').trim(),
+      role: String(item?.role || '').replace(/\s+/g, ' ').trim(),
+    }))
+    .filter(({ name, role }) => {
+      const key = `${name.toLocaleLowerCase()}\u0000${role.toLocaleLowerCase()}`;
+      if (!name || !role || !knownPeople.has(name.toLocaleLowerCase()) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 6);
+};
+
+const preferPreciseLocations = (values) => uniqueStrings(values).filter((location, index, locations) => (
+  !locations.some((candidate, candidateIndex) => (
+    candidateIndex !== index
+    && candidate.toLocaleLowerCase().startsWith(`${location.toLocaleLowerCase()},`)
+  ))
+));
+
+const getUncertaintyPhrases = (articleText) => uniqueStrings(
+  String(articleText || '')
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => /\b(?:alleged|allegedly|reported|reportedly|suspected|wanted|accused|likely|possible)\b/i.test(sentence))
+    .map((sentence) => sentence.slice(0, 240)),
+  4,
+);
+
+const cleanSummary = (value) => String(value || '')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, 360);
+
+export const normalizeStorySummary = (value, sourceTitle = '') => {
+  const summary = cleanSummary(value);
+  const isComplete = summary.length >= 20
+    && !/\b(?:likely|possibly|probably|allegedly|reportedly|suspected|possible)$/i.test(summary);
+  if (isComplete) return /[.!?]$/.test(summary) ? summary : `${summary}.`;
+  const title = cleanSummary(sourceTitle).replace(/[.!?]+$/g, '');
+  return title ? `Reporting focuses on “${title}”.` : '';
+};
+
+export const createStoryProfile = ({
+  storyFingerprint,
+  profile = {},
+  articleText = '',
+  sourcePublication = '',
+  sourceTitle = '',
+  sourceUrl = '',
+  publishedAt = null,
+  extractedAt = new Date().toISOString(),
+} = {}) => {
+  const publicationKey = String(sourcePublication || '').trim().toLocaleLowerCase();
+  const profileValues = (values, type) => uniqueStrings(values).filter((label) => (
+    label.toLocaleLowerCase() !== publicationKey && isUsefulStoryConcept(label, type)
+  ));
+  const concepts = normalizeStoryFingerprint([
+    ...profileValues(profile.primaryPeople, 'person').map((label) => ({ label, type: 'person' })),
+    ...profileValues(profile.organizations, 'organization').map((label) => ({ label, type: 'organization' })),
+    ...profileValues(profile.locations, 'location').map((label) => ({ label, type: 'location' })),
+    ...profileValues(profile.eventTypes, 'event').map((label) => ({ label, type: 'event' })),
+    ...(storyFingerprint || []),
+  ], MAX_PROFILE_VALUES)
+    .filter(({ label }) => label.toLocaleLowerCase() !== publicationKey);
+  const typed = (type) => concepts.filter((concept) => concept.type === type).map(({ label }) => label);
+  const profilePeople = profileValues(profile.primaryPeople, 'person');
+  const fingerprintPeople = typed('person');
+  const primaryPeople = profilePeople.length
+    ? profilePeople.slice(0, 4)
+    : fingerprintPeople.slice(0, 1);
+  const otherPeople = uniqueStrings([
+    ...profileValues(profile.otherPeople, 'person'),
+    ...fingerprintPeople.filter((person) => !primaryPeople.includes(person)),
+  ], 6);
+  const people = [...primaryPeople, ...otherPeople];
+  const hasExplicitUncertainty = Array.isArray(profile.uncertaintyPhrases);
+
+  return {
+    version: STORY_PROFILE_VERSION,
+    storySummary: normalizeStorySummary(profile.storySummary, sourceTitle),
+    primaryPeople,
+    otherPeople,
+    peopleRoles: normalizePeopleRoles(profile.peopleRoles, people),
+    locations: preferPreciseLocations([
+      ...profileValues(profile.locations, 'location'),
+      ...typed('location'),
+    ]),
+    organizations: uniqueStrings([...profileValues(profile.organizations, 'organization'), ...typed('organization')]),
+    eventTypes: uniqueStrings([...profileValues(profile.eventTypes, 'event'), ...typed('event')]),
+    distinctiveFacts: uniqueStrings(profileValues(profile.distinctiveFacts, 'supporting')),
+    aliases: uniqueStrings(profile.aliases).filter((label) => label.toLocaleLowerCase() !== publicationKey),
+    uncertaintyPhrases: uniqueStrings(hasExplicitUncertainty
+      ? profile.uncertaintyPhrases
+      : getUncertaintyPhrases(articleText), 4),
+    concepts,
+    userAddedConcepts: uniqueStrings(profile.userAddedConcepts),
+    sourceArticle: {
+      publication: String(sourcePublication || '').trim() || null,
+      title: String(sourceTitle || '').trim() || null,
+      url: String(sourceUrl || '').trim() || null,
+      publishedAt: publishedAt && !Number.isNaN(Date.parse(publishedAt))
+        ? new Date(publishedAt).toISOString()
+        : null,
+    },
+    extractedAt: !Number.isNaN(Date.parse(extractedAt))
+      ? new Date(extractedAt).toISOString()
+      : new Date().toISOString(),
+  };
+};
+
+export const getStoryProfileConcepts = (profile) => uniqueStrings([
+  ...(profile?.primaryPeople || []),
+  ...(profile?.otherPeople || []),
+  ...(profile?.organizations || []),
+  ...(profile?.locations || []),
+  ...(profile?.eventTypes || []),
+  ...(profile?.distinctiveFacts || []),
+  ...(profile?.aliases || []),
+  ...(profile?.userAddedConcepts || []),
+]);
+
+export const synchronizeStoryProfile = (profile, storyFingerprint, userAddedConcepts = []) => {
+  const concepts = normalizeStoryFingerprint(storyFingerprint, MAX_PROFILE_VALUES);
+  const byType = (type) => concepts.filter((item) => item.type === type).map(({ label }) => label);
+  return createStoryProfile({
+    storyFingerprint: concepts,
+    profile: {
+      primaryPeople: byType('person').slice(0, 1),
+      otherPeople: byType('person').slice(1),
+      locations: byType('location'),
+      organizations: byType('organization'),
+      eventTypes: byType('event'),
+      distinctiveFacts: byType('supporting'),
+      aliases: profile?.aliases,
+      peopleRoles: profile?.peopleRoles,
+      uncertaintyPhrases: profile?.uncertaintyPhrases,
+      storySummary: profile?.storySummary,
+      userAddedConcepts,
+    },
+    sourcePublication: profile?.sourceArticle?.publication,
+    sourceTitle: profile?.sourceArticle?.title,
+    sourceUrl: profile?.sourceArticle?.url,
+    publishedAt: profile?.sourceArticle?.publishedAt,
+    extractedAt: profile?.extractedAt,
+  });
+};

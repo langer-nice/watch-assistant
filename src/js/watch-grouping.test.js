@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mockWatches } from './data/mock-watches.js';
-import { getBriefingWatchGroups, groupWatches } from './watch-grouping.js';
+import { getBriefingWatchGroups, groupHomeWatches, groupWatches } from './watch-grouping.js';
 
 const options = {
   getMeaningfulUpdate: (watch) => watch.latestChange || '',
@@ -172,4 +172,81 @@ test('uses the previous seven local calendar days before historical months', () 
   assert.deepEqual(groups[0].watches.map((watch) => watch.id), ['yesterday', 'seven-days']);
   assert.deepEqual(groups[1].watches.map((watch) => watch.id), ['eight-days']);
   assert.deepEqual(groups[2].watches.map((watch) => watch.id), ['unknown']);
+});
+
+test('Home orders attention before update-date groups and sorts each group newest first', () => {
+  const groups = groupHomeWatches([
+    { id: 'attention', title: 'Needs setup', status: 'attention', requiresAttention: true },
+    { id: 'today-old', title: 'Today old', latestUpdateAt: '2026-07-23T09:00:00+02:00', update: 'One' },
+    { id: 'today-new', title: 'Today new', latestUpdateAt: '2026-07-23T11:00:00+02:00', update: 'Two' },
+    { id: 'week', title: 'Week', latestUpdateAt: '2026-07-21T10:00:00+02:00', update: 'Three' },
+    { id: 'june', title: 'June', latestUpdateAt: '2026-06-20T10:00:00+02:00', update: 'Four' },
+    { id: 'quiet', title: 'Quiet', status: 'watching' },
+  ], {
+    getMeaningfulUpdate: (watch) => watch.update || '',
+    isDisplayableWatch: (watch) => Boolean(watch.title),
+    language: 'en',
+    now: new Date('2026-07-23T12:00:00+02:00'),
+  });
+  assert.deepEqual(groups.map(({ type }) => type), [
+    'attention', 'updatedToday', 'updatedThisWeek', 'updatedMonth',
+  ]);
+  assert.deepEqual(groups[1].watches.map(({ id }) => id), ['today-new', 'today-old']);
+  assert.equal(groups[3].label, 'June 2026');
+  assert.equal(groups.flatMap(({ watches }) => watches).filter(({ id }) => id === 'quiet').length, 0);
+});
+
+test('monitoring setup problems stay out of Home action and update groups', () => {
+  const setupWatch = {
+    id: 'setup',
+    title: 'News story without feed',
+    status: 'watching',
+    monitoringStatus: { state: 'setup-required', reason: 'no-compatible-source' },
+    monitoringIssueReason: 'no-compatible-source',
+    latestUpdateAt: null,
+  };
+  const actionWatch = {
+    id: 'action',
+    title: 'Book the flight',
+    status: 'attention',
+    actionRequired: true,
+    latestChange: 'The fare is now available.',
+  };
+  const groups = groupHomeWatches([setupWatch, actionWatch], {
+    getMeaningfulUpdate: (watch) => watch.latestChange || '',
+    isDisplayableWatch: () => true,
+    now: new Date('2026-07-23T12:00:00+02:00'),
+  });
+  assert.deepEqual(groups.map(({ type }) => type), ['attention']);
+  assert.deepEqual(groups[0].watches.map(({ id }) => id), ['action']);
+
+  const briefing = getBriefingWatchGroups([setupWatch, actionWatch], {
+    getMeaningfulUpdate: (watch) => watch.latestChange || '',
+    isDisplayableWatch: () => true,
+  });
+  assert.deepEqual(briefing.attentionWatches.map(({ id }) => id), ['action']);
+  assert.deepEqual(briefing.updatedWatches, []);
+  assert.deepEqual(briefing.quietWatches.map(({ id }) => id), ['setup']);
+});
+
+test('a genuine candidate update remains in the correct Home date group', () => {
+  const candidateWatch = {
+    id: 'candidate',
+    title: 'Berlin Pride attack',
+    status: 'watching',
+    latestUpdateAt: '2026-07-23T11:15:00+02:00',
+    candidateUpdates: [{
+      id: 'candidate-1',
+      title: 'Police issue a new update',
+      status: 'candidate',
+      detectedAt: '2026-07-23T11:15:00+02:00',
+    }],
+  };
+  const groups = groupHomeWatches([candidateWatch], {
+    getMeaningfulUpdate: (watch) => watch.candidateUpdates[0].title,
+    isDisplayableWatch: () => true,
+    now: new Date('2026-07-23T12:00:00+02:00'),
+  });
+  assert.deepEqual(groups.map(({ type }) => type), ['updatedToday']);
+  assert.deepEqual(groups[0].watches.map(({ id }) => id), ['candidate']);
 });

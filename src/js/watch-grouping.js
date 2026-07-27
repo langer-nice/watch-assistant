@@ -19,6 +19,84 @@ const newestFirst = (getWatchTimestamp) => (first, second) => (
   getWatchTimestamp(second) - getWatchTimestamp(first)
 );
 
+const TECHNICAL_MONITORING_STATES = new Set(['setup-required', 'unavailable', 'needs-attention']);
+const TECHNICAL_MONITORING_REASONS = new Set([
+  'monitoring-source-missing',
+  'no-compatible-source',
+  'source-persistently-unavailable',
+]);
+
+export const isUserActionRequired = (watch) => {
+  if (watch?.actionRequired === true) return true;
+  const isTechnical = TECHNICAL_MONITORING_STATES.has(watch?.monitoringStatus?.state)
+    || TECHNICAL_MONITORING_REASONS.has(watch?.monitoringIssueReason)
+    || TECHNICAL_MONITORING_REASONS.has(watch?.attentionReason);
+  return !isTechnical && (watch?.requiresAttention === true || watch?.status === 'attention');
+};
+
+export const getLatestWatchUpdateTimestamp = (watch) => getTimestamp(
+  watch?.latestUpdateAt,
+  watch?.candidateUpdates?.[0]?.detectedAt,
+  watch?.monitoringUpdates?.[0]?.detectedAt,
+  watch?.latestChangeAt,
+  watch?.updatedAt,
+);
+
+export const groupHomeWatches = (watches, {
+  getMeaningfulUpdate,
+  isDisplayableWatch = () => true,
+  language = 'en',
+  now = new Date(),
+} = {}) => {
+  const active = watches.filter((watch) => watch.status !== 'completed' && isDisplayableWatch(watch));
+  const attention = active
+    .filter(isUserActionRequired)
+    .sort(newestFirst(activityTimestamp));
+  const attentionIds = new Set(attention.map(({ id }) => id));
+  const updates = active
+    .filter((watch) => !attentionIds.has(watch.id) && Boolean(getMeaningfulUpdate?.(watch)?.trim()))
+    .filter((watch) => getLatestWatchUpdateTimestamp(watch) > 0)
+    .sort(newestFirst(getLatestWatchUpdateTimestamp));
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const weekStart = new Date(todayStart);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+  const today = [];
+  const thisWeek = [];
+  const months = new Map();
+  updates.forEach((watch) => {
+    const updatedAt = new Date(getLatestWatchUpdateTimestamp(watch));
+    if (updatedAt >= todayStart && updatedAt < tomorrowStart) {
+      today.push(watch);
+      return;
+    }
+    if (updatedAt >= weekStart && updatedAt < todayStart) {
+      thisWeek.push(watch);
+      return;
+    }
+    const key = `${updatedAt.getFullYear()}-${updatedAt.getMonth()}`;
+    if (!months.has(key)) {
+      months.set(key, {
+        type: 'updatedMonth',
+        timestamp: new Date(updatedAt.getFullYear(), updatedAt.getMonth(), 1).getTime(),
+        label: new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'en-GB', {
+          month: 'long',
+          year: 'numeric',
+        }).format(updatedAt),
+        watches: [],
+      });
+    }
+    months.get(key).watches.push(watch);
+  });
+  return [
+    { type: 'attention', watches: attention },
+    { type: 'updatedToday', watches: today },
+    { type: 'updatedThisWeek', watches: thisWeek },
+    ...[...months.values()].sort((first, second) => second.timestamp - first.timestamp),
+  ].filter((group) => group.watches.length);
+};
+
 export const groupWatches = (watches, {
   getMeaningfulUpdate,
   isDisplayableWatch = () => true,
@@ -112,8 +190,8 @@ export const getBriefingWatchGroups = (watches, {
     && Boolean(getMeaningfulUpdate?.(watch)?.trim())
   );
   const attentionWatches = activeWatches.filter((watch) => (
-    hasDisplayableUpdate(watch)
-    && (watch.requiresAttention === true || watch.status === 'attention')
+    isDisplayableWatch(watch)
+    && isUserActionRequired(watch)
   ));
   const attentionIds = new Set(attentionWatches.map((watch) => watch.id));
   const updatedWatches = activeWatches.filter((watch) => (
