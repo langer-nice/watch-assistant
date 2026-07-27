@@ -66,6 +66,12 @@ export const createRegeneratedFingerprintChanges = (analysis, currentVersion) =>
     monitoringConceptsManuallyEdited: false,
     conceptSourceFields: analysis?.conceptSourceFields || [],
     sourcePublishedAt: analysis?.sourcePublishedAt || null,
+    analysisProvider: analysis?.analysisProvider || null,
+    analysisStatus: analysis?.analysisStatus || null,
+    analysisModel: analysis?.analysisModel || null,
+    fallbackReasonCode: analysis?.fallbackReasonCode || null,
+    analyzedAt: analysis?.analyzedAt || null,
+    analysisDiagnosticId: analysis?.analysisDiagnosticId || null,
     ...(analysis?.monitoringSource ? {
       monitoringSource: analysis.monitoringSource,
       feedUrl: analysis.monitoringSource.url,

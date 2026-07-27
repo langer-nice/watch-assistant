@@ -118,6 +118,12 @@ body.is-watch-edit-open {
   margin: 0;
 }
 
+.detail-analysis-provenance {
+  margin-top: var(--space-xs);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
 .story-concepts__group {
   display: grid;
   grid-template-columns: minmax(5.5rem, auto) 1fr;

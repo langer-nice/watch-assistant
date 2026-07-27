@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSourceDerivedFallback } from './url-analysis.js';
+import { analyseUrl, createSourceDerivedFallback } from './url-analysis.js';
 
 const guardianUrl = 'https://www.theguardian.com/lifeandstyle/2026/jul/24/experience-i-hunt-missing-hikers-remote-mountains-taiwan';
 
@@ -225,5 +225,115 @@ test('an author is eligible only when the article evidence independently makes t
   } finally {
     if (originalDocument === undefined) delete globalThis.document;
     else globalThis.document = originalDocument;
+  }
+});
+
+test('successful perimenopause AI analysis survives client normalization without fallback fragments', async () => {
+  const originalFetch = globalThis.fetch;
+  const recommendations = [
+    'Regular physical activity',
+    'Consistent sleep routine',
+    'Balanced diet',
+    'Stress-management exercises',
+  ];
+  const summary = 'The article explains why brain fog can occur during perimenopause and presents four practical measures that may help improve memory and concentration.';
+  const articleText = 'Brain fog can affect memory and concentration during perimenopause. The article recommends regular physical activity, a consistent sleep routine, a balanced diet, and stress-management exercises.';
+  globalThis.fetch = async (path) => {
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'Brain fog and four easy ways to help fix it',
+          description: 'Why memory and concentration can change during perimenopause.',
+          articleText,
+          siteName: 'BBC News',
+          sourceUrl: 'https://www.bbc.com/news/articles/perimenopause-example',
+          conceptSourceFields: ['title', 'description', 'articleText'],
+        }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        watchTitle: 'Brain fog during perimenopause',
+        watchingFor: 'Monitor evidence and advice about brain fog during perimenopause.',
+        description: 'Tracks evidence and practical advice about brain fog during perimenopause.',
+        storyFingerprint: [
+          { label: 'Brain fog during perimenopause', type: 'event' },
+          { label: 'Perimenopause', type: 'supporting' },
+          { label: 'Brain fog', type: 'supporting' },
+          ...recommendations.map((label) => ({ label, type: 'supporting' })),
+        ],
+        keywords: ['Brain fog during perimenopause', 'Perimenopause', 'Brain fog', ...recommendations],
+        storyProfile: {
+          primaryPeople: [], otherPeople: [], peopleRoles: [], locations: [], organizations: [],
+          eventTypes: ['Brain fog during perimenopause'],
+          distinctiveFacts: recommendations,
+          aliases: [], uncertaintyPhrases: [], storySummary: summary,
+        },
+        analysisProvider: 'openai',
+        analysisStatus: 'success',
+        analysisModel: 'gpt-5.6-luna',
+        fallbackReasonCode: null,
+        analyzedAt: '2026-07-27T12:00:00.000Z',
+        analysisDiagnosticId: 'diagnostic-perimenopause',
+      }),
+    };
+  };
+  try {
+    const result = await analyseUrl('https://www.bbc.com/news/articles/perimenopause-example');
+    assert.equal(result.analysisProvider, 'openai');
+    assert.equal(result.analysisStatus, 'success');
+    assert.equal(result.analysisModel, 'gpt-5.6-luna');
+    assert.equal(result.summary, summary);
+    assert.deepEqual(result.storyProfile.primaryPeople, []);
+    assert.deepEqual(result.storyProfile.distinctiveFacts, recommendations);
+    assert.ok(result.storyProfile.concepts.some(({ label, type }) => (
+      label === 'Brain fog during perimenopause' && type === 'event'
+    )));
+    assert.doesNotMatch(
+      JSON.stringify({ summary: result.summary, concepts: result.storyProfile.concepts }),
+      /Brain fog and four easy|Help fix/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('client fallback records the safe server reason and diagnostic ID', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (path) => path === '/api/page-title'
+    ? {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        title: 'Open water swimming is booming – but what are the health risks?',
+        articleText: 'Open water swimming is growing in popularity while contaminated water creates health risks.',
+        sourceUrl: 'https://example.com/story',
+      }),
+    }
+    : {
+      ok: false,
+      status: 503,
+      json: async () => ({
+        error: 'AI article analysis was unavailable.',
+        fallbackReasonCode: 'missing_api_key',
+        analysisDiagnosticId: 'diagnostic-fallback',
+      }),
+    };
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const result = await analyseUrl('https://example.com/story');
+    assert.equal(result.analysisProvider, 'deterministic');
+    assert.equal(result.analysisStatus, 'fallback');
+    assert.equal(result.analysisModel, null);
+    assert.equal(result.fallbackReasonCode, 'missing_api_key');
+    assert.equal(result.analysisDiagnosticId, 'diagnostic-fallback');
+  } finally {
+    console.warn = originalWarn;
+    globalThis.fetch = originalFetch;
   }
 });

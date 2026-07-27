@@ -26,15 +26,46 @@ const getPublisher = (url) => {
 };
 
 const requestJson = async (path, body, signal) => {
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-  });
+  let response;
+  try {
+    response = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') throw error;
+    const requestError = new Error('The URL analysis endpoint was unavailable.');
+    requestError.code = 'server_endpoint_unavailable';
+    throw requestError;
+  }
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || 'The URL could not be analysed.');
+  if (!response.ok) {
+    const error = new Error(result.error || 'The URL could not be analysed.');
+    error.code = result.fallbackReasonCode
+      || ([404, 405].includes(response.status) ? 'server_endpoint_unavailable' : 'openai_request_failed');
+    error.analysisDiagnosticId = result.analysisDiagnosticId || null;
+    error.status = response.status;
+    throw error;
+  }
   return result;
+};
+
+const assertStructuredSuggestion = (suggestion) => {
+  if (
+    !suggestion
+    || typeof suggestion.watchTitle !== 'string'
+    || !suggestion.watchTitle.trim()
+    || (!Array.isArray(suggestion.storyFingerprint) && !Array.isArray(suggestion.keywords))
+    || !suggestion.storyProfile
+    || typeof suggestion.storyProfile !== 'object'
+  ) {
+    const error = new Error('The analysis endpoint returned an invalid structured result.');
+    error.code = 'invalid_structured_response';
+    throw error;
+  }
+  return suggestion;
 };
 
 const trimTerminalPunctuation = (value) => value.replace(/[.!?]+$/g, '').trim();
@@ -461,14 +492,17 @@ const createFallbackStorySummary = ({ person, primaryRole, event, location, unce
   return '';
 };
 
-export const createSourceDerivedFallback = (page, sourceUrl = '') => {
+export const createSourceDerivedFallback = (page, sourceUrl = '', {
+  fallbackReasonCode = 'openai_request_failed',
+  analysisDiagnosticId = null,
+} = {}) => {
   const analysisPage = {
     ...page,
     articleText: cleanArticleContentForAnalysis(page.articleText),
   };
   const title = String(analysisPage.title || '').trim();
   const subject = trimTerminalPunctuation(title);
-  const summary = document.documentElement.lang === 'fr'
+  const summary = globalThis.document?.documentElement?.lang === 'fr'
     ? `Nouveaux développements, réactions et informations complémentaires concernant « ${subject} ».`
     : `New developments, reactions and follow-up reporting related to “${subject}”.`;
   const slug = (() => {
@@ -567,6 +601,12 @@ export const createSourceDerivedFallback = (page, sourceUrl = '') => {
       sourceUrl,
       publishedAt: analysisPage.publishedAt,
     }),
+    analysisProvider: 'deterministic',
+    analysisStatus: 'fallback',
+    analysisModel: null,
+    fallbackReasonCode,
+    analyzedAt: new Date().toISOString(),
+    analysisDiagnosticId,
   };
 };
 
@@ -592,7 +632,7 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
   const conceptSourceFields = Array.isArray(page.conceptSourceFields)
     ? page.conceptSourceFields
     : ['title', 'description', 'articleText', 'author'].filter((field) => page[field]);
-  if (import.meta.env.DEV) {
+  if (import.meta.env?.DEV) {
     console.info(
       `[Story Fingerprint] Retrieved source fields: ${conceptSourceFields.join(', ') || 'slug only'}`,
     );
@@ -603,25 +643,28 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
   onProgress?.('generating-watch');
   let suggestion;
   try {
-    suggestion = await requestJson('/api/watch-suggestion', {
+    suggestion = assertStructuredSuggestion(await requestJson('/api/watch-suggestion', {
       title: analysisPage.title,
       description: analysisPage.description,
       articleText: analysisPage.articleText,
       author: analysisPage.author,
       slug: getUrlSlug(url),
-    }, signal);
+    }, signal));
   } catch (error) {
     if (error.name === 'AbortError') throw error;
     console.warn('AI Watch generation failed; using the real page title fallback.', error);
-    suggestion = createSourceDerivedFallback(analysisPage, url.href);
+    suggestion = createSourceDerivedFallback(analysisPage, url.href, {
+      fallbackReasonCode: error.code || 'openai_request_failed',
+      analysisDiagnosticId: error.analysisDiagnosticId || null,
+    });
   }
-  const keywords = normalizeMonitoringConcepts(suggestion.keywords, 8);
-  const storyFingerprint = normalizeStoryFingerprint(
+  let keywords = normalizeMonitoringConcepts(suggestion.keywords, 8);
+  let storyFingerprint = normalizeStoryFingerprint(
     suggestion.storyFingerprint
       || keywords.map((label) => ({ label, type: 'supporting' })),
     8,
   );
-  const storyProfile = createStoryProfile({
+  let storyProfile = createStoryProfile({
     storyFingerprint,
     profile: suggestion.storyProfile,
     articleText: analysisPage.articleText,
@@ -630,7 +673,26 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
     sourceUrl: analysisPage.sourceUrl || url.href,
     publishedAt: analysisPage.publishedAt,
   });
-  const profileKeywords = storyProfile.concepts.map(({ label }) => label);
+  let profileKeywords = storyProfile.concepts.map(({ label }) => label);
+
+  if (suggestion.analysisProvider !== 'deterministic' && profileKeywords.length === 0) {
+    suggestion = createSourceDerivedFallback(analysisPage, url.href, {
+      fallbackReasonCode: 'normalization_rejected',
+      analysisDiagnosticId: suggestion.analysisDiagnosticId || null,
+    });
+    keywords = normalizeMonitoringConcepts(suggestion.keywords, 8);
+    storyFingerprint = normalizeStoryFingerprint(suggestion.storyFingerprint, 8);
+    storyProfile = createStoryProfile({
+      storyFingerprint,
+      profile: suggestion.storyProfile,
+      articleText: analysisPage.articleText,
+      sourcePublication: analysisPage.siteName || source,
+      sourceTitle: analysisPage.title,
+      sourceUrl: analysisPage.sourceUrl || url.href,
+      publishedAt: analysisPage.publishedAt,
+    });
+    profileKeywords = storyProfile.concepts.map(({ label }) => label);
+  }
 
   return {
     status: 'success',
@@ -648,5 +710,11 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
     sourcePublishedAt: storyProfile.sourceArticle.publishedAt,
     monitoringSource: page.monitoringSource || null,
     conceptSourceFields,
+    analysisProvider: suggestion.analysisProvider || 'openai',
+    analysisStatus: suggestion.analysisStatus || 'success',
+    analysisModel: suggestion.analysisModel || null,
+    fallbackReasonCode: suggestion.fallbackReasonCode || null,
+    analyzedAt: suggestion.analyzedAt || new Date().toISOString(),
+    analysisDiagnosticId: suggestion.analysisDiagnosticId || null,
   };
 };

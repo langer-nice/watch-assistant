@@ -134,6 +134,8 @@
     "clarityWarningCopy": "Cette Watch a été créée telle quelle, car la demande n’a pas pu être interprétée avec suffisamment de confiance. Les résultats peuvent être incomplets ou non pertinents.",
     "whatIKnow": "Ce que je sais",
     "storySummary": "Résumé de l’actualité",
+    "analysisProvenanceAi": "Analyse IA",
+    "analysisProvenanceFallback": "Analyse de secours limitée — l’analyse IA était indisponible, cette Watch a donc utilisé une analyse locale limitée.",
     "storyConcepts": "Repères de l’actualité",
     "currentSituation": "Situation actuelle",
     "recommendation": "Recommandation",

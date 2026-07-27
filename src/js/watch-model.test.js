@@ -1,10 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  getAnalysisProvenanceMessageKey,
   getMonitoringHealthPresentation,
   migrateWatchModel,
   WATCH_MODEL_VERSION,
 } from './watch-model.js';
+
+test('preserves analysis provenance and selects only the Preview diagnostic copy', () => {
+  const provenance = {
+    analysisProvider: 'deterministic',
+    analysisStatus: 'fallback',
+    analysisModel: null,
+    fallbackReasonCode: 'missing_api_key',
+    analyzedAt: '2026-07-27T12:00:00.000Z',
+    analysisDiagnosticId: 'diagnostic-1',
+  };
+  const watch = migrateWatchModel({ id: 'provenance', inputType: 'url', ...provenance }).watch;
+  assert.deepEqual(
+    Object.fromEntries(Object.keys(provenance).map((key) => [key, watch[key]])),
+    provenance,
+  );
+  assert.equal(getAnalysisProvenanceMessageKey(watch), 'detail.analysisProvenanceFallback');
+  assert.equal(getAnalysisProvenanceMessageKey({
+    analysisProvider: 'openai', analysisStatus: 'success',
+  }), 'detail.analysisProvenanceAi');
+  assert.equal(getAnalysisProvenanceMessageKey({}), null);
+});
 
 test('migrates a legacy URL Watch without losing manually edited keywords', () => {
   const result = migrateWatchModel({

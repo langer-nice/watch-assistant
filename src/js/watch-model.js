@@ -1,7 +1,7 @@
 import { normalizeFeedUrl } from './watch-monitoring.js';
 import { createStoryProfile } from './story-profile.js';
 
-export const WATCH_MODEL_VERSION = 3;
+export const WATCH_MODEL_VERSION = 4;
 
 const TECHNICAL_ATTENTION_REASONS = new Set([
   'monitoring-source-missing',
@@ -15,6 +15,16 @@ export const getMonitoringHealthPresentation = (watch) => {
   }
   if (watch?.monitoringStatus?.state === 'unavailable') {
     return { statusKey: 'monitoringUnavailable', detailMessageKey: 'detail.monitoringUnavailable' };
+  }
+  return null;
+};
+
+export const getAnalysisProvenanceMessageKey = (watch) => {
+  if (watch?.analysisProvider === 'openai' && watch?.analysisStatus === 'success') {
+    return 'detail.analysisProvenanceAi';
+  }
+  if (watch?.analysisProvider === 'deterministic' && watch?.analysisStatus === 'fallback') {
+    return 'detail.analysisProvenanceFallback';
   }
   return null;
 };
@@ -77,6 +87,20 @@ export const migrateWatchModel = (watch) => {
   const migratedWatch = {
     ...watch,
     watchModelVersion: WATCH_MODEL_VERSION,
+    analysisProvider: ['openai', 'deterministic'].includes(watch.analysisProvider)
+      ? watch.analysisProvider
+      : null,
+    analysisStatus: ['success', 'fallback', 'failed'].includes(watch.analysisStatus)
+      ? watch.analysisStatus
+      : null,
+    analysisModel: typeof watch.analysisModel === 'string' ? watch.analysisModel : null,
+    fallbackReasonCode: typeof watch.fallbackReasonCode === 'string'
+      ? watch.fallbackReasonCode
+      : null,
+    analyzedAt: typeof watch.analyzedAt === 'string' ? watch.analyzedAt : null,
+    analysisDiagnosticId: typeof watch.analysisDiagnosticId === 'string'
+      ? watch.analysisDiagnosticId
+      : null,
     monitoringSource: feedUrl
       ? {
         url: feedUrl,

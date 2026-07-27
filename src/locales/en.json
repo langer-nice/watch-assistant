@@ -134,6 +134,8 @@
     "clarityWarningCopy": "This Watch was created as written because the request could not be interpreted confidently. Results may be incomplete or irrelevant.",
     "whatIKnow": "What I know",
     "storySummary": "Story summary",
+    "analysisProvenanceAi": "AI analysis",
+    "analysisProvenanceFallback": "Limited fallback analysis — AI analysis was unavailable, so this Watch used limited local analysis.",
     "storyConcepts": "Story identifiers",
     "currentSituation": "Current situation",
     "recommendation": "Recommendation",

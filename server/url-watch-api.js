@@ -1,4 +1,5 @@
 import he from 'he';
+import { randomUUID } from 'node:crypto';
 import { PublicUrlError, validatePublicUrl } from './public-url-security.js';
 import {
   normalizeStoryFingerprint,
@@ -13,6 +14,17 @@ const MIN_MULTI_ENTRY_TEXT_LENGTH = 240;
 const ARTICLE_BODY_SEPARATOR = '\n\n';
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 8000;
+
+export class ArticleAnalysisError extends Error {
+  constructor(code, statusCode = 502) {
+    super('AI article analysis was unavailable.');
+    this.name = 'ArticleAnalysisError';
+    this.code = code;
+    this.statusCode = statusCode;
+  }
+}
+
+const isTimeoutError = (error) => ['AbortError', 'TimeoutError'].includes(error?.name);
 
 const validatePageUrl = async (value) => {
   try {
@@ -401,9 +413,13 @@ const extractResponseText = (response) => response.output
   .find((content) => content.type === 'output_text')?.text;
 
 const validateSuggestion = (suggestion) => {
+  if (!suggestion || typeof suggestion !== 'object' || Array.isArray(suggestion)) {
+    throw new ArticleAnalysisError('schema_validation_failed');
+  }
+  const suppliedFingerprint = suggestion.storyFingerprint
+    || suggestion.keywords?.map((label) => ({ label, type: 'supporting' }));
   const storyFingerprint = normalizeStoryFingerprint(
-    suggestion?.storyFingerprint
-      || suggestion?.keywords?.map((label) => ({ label, type: 'supporting' })),
+    suppliedFingerprint,
     8,
   );
   const keywords = storyFingerprint.map(({ label }) => label);
@@ -427,7 +443,12 @@ const validateSuggestion = (suggestion) => {
     || !description
     || sentenceCount > 2
   ) {
-    throw new Error('The AI returned an invalid Watch suggestion.');
+    const hadSuppliedConcepts = Array.isArray(suppliedFingerprint) && suppliedFingerprint.length > 0;
+    throw new ArticleAnalysisError(
+      hadSuppliedConcepts && storyFingerprint.length === 0
+        ? 'normalization_rejected'
+        : 'schema_validation_failed',
+    );
   }
   return {
     watchTitle: suggestion.watchTitle.trim(),
@@ -448,11 +469,10 @@ export const generateWatchSuggestion = async ({
   apiKey,
   model,
   fetchImpl = fetch,
+  diagnosticId = randomUUID(),
 }) => {
   if (!apiKey) {
-    const error = new Error('OPENAI_API_KEY is not configured.');
-    error.statusCode = 503;
-    throw error;
+    throw new ArticleAnalysisError('missing_api_key', 503);
   }
 
   const source = {
@@ -472,13 +492,15 @@ export const generateWatchSuggestion = async ({
     }
   }
 
-  const response = await fetchImpl('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  let response;
+  try {
+    response = await fetchImpl('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
       model,
       store: false,
       instructions: `Build a Story Fingerprint and structured story profile from the complete supplied article content, alongside a concise Watch title, a natural one-sentence monitoring instruction named watchingFor, and a short explanation of no more than two sentences.
@@ -500,16 +522,38 @@ Use source fields in this order: title, description, articleText, then slug only
           schema: WATCH_SUGGESTION_SCHEMA,
         },
       },
-    }),
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  const result = await response.json();
+      }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new ArticleAnalysisError(isTimeoutError(error) ? 'openai_timeout' : 'openai_request_failed');
+  }
   if (!response.ok) {
-    throw new Error(result?.error?.message || 'The AI request failed.');
+    throw new ArticleAnalysisError('openai_http_error');
+  }
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new ArticleAnalysisError('invalid_structured_response');
   }
   const outputText = extractResponseText(result);
-  if (!outputText) throw new Error('The AI response did not contain a suggestion.');
-  return validateSuggestion(JSON.parse(outputText));
+  if (!outputText) throw new ArticleAnalysisError('invalid_structured_response');
+  let parsed;
+  try {
+    parsed = JSON.parse(outputText);
+  } catch {
+    throw new ArticleAnalysisError('invalid_structured_response');
+  }
+  return {
+    ...validateSuggestion(parsed),
+    analysisProvider: 'openai',
+    analysisStatus: 'success',
+    analysisModel: model,
+    fallbackReasonCode: null,
+    analyzedAt: new Date().toISOString(),
+    analysisDiagnosticId: diagnosticId,
+  };
 };
 
 const readJsonBody = (request) => new Promise((resolve, reject) => {
@@ -539,7 +583,11 @@ const sendJson = (response, status, value) => {
   response.end(JSON.stringify(value));
 };
 
-export const createUrlWatchMiddleware = ({ apiKey, model = 'gpt-5.6-luna' } = {}) => (
+export const createUrlWatchMiddleware = ({
+  apiKey,
+  model = 'gpt-5.6-luna',
+  fetchImpl = fetch,
+} = {}) => (
   async (request, response, next) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
     const isTitleRequest = pathname === '/api/page-title';
@@ -553,6 +601,7 @@ export const createUrlWatchMiddleware = ({ apiKey, model = 'gpt-5.6-luna' } = {}
       return;
     }
 
+    let suggestionDiagnosticId = null;
     try {
       const body = await readJsonBody(request);
       if (isTitleRequest) {
@@ -570,6 +619,8 @@ export const createUrlWatchMiddleware = ({ apiKey, model = 'gpt-5.6-luna' } = {}
 
       const title = String(body.title || '').trim();
       if (!title) throw new Error('A page title is required.');
+      const diagnosticId = randomUUID();
+      suggestionDiagnosticId = diagnosticId;
       const suggestion = await generateWatchSuggestion({
         title,
         description: body.description,
@@ -578,10 +629,45 @@ export const createUrlWatchMiddleware = ({ apiKey, model = 'gpt-5.6-luna' } = {}
         slug: body.slug,
         apiKey,
         model,
+        fetchImpl,
+        diagnosticId,
       });
+      console.info(JSON.stringify({
+        event: 'article_analysis',
+        analysisProvider: suggestion.analysisProvider,
+        analysisStatus: suggestion.analysisStatus,
+        analysisModel: suggestion.analysisModel,
+        diagnosticId,
+      }));
       sendJson(response, 200, suggestion);
     } catch (error) {
-      console.error('URL Watch prototype request failed:', error);
+      if (isSuggestionRequest) {
+        const fallbackReasonCode = error.code || 'openai_request_failed';
+        const diagnosticId = suggestionDiagnosticId || randomUUID();
+        console.warn(JSON.stringify({
+          event: 'article_analysis',
+          analysisProvider: 'openai',
+          analysisStatus: 'failed',
+          fallbackReasonCode,
+          diagnosticId,
+          httpStatus: error.statusCode || 502,
+        }));
+        sendJson(response, error.statusCode || 502, {
+          error: 'AI article analysis was unavailable.',
+          analysisProvider: 'openai',
+          analysisStatus: 'failed',
+          analysisModel: null,
+          fallbackReasonCode,
+          analysisDiagnosticId: diagnosticId,
+        });
+        return;
+      }
+      console.warn(JSON.stringify({
+        event: 'article_retrieval',
+        status: 'failed',
+        reasonCode: 'article_extraction_failed',
+        httpStatus: error.statusCode || 502,
+      }));
       sendJson(response, error.statusCode || 502, { error: error.message || 'The request failed.' });
     }
   }

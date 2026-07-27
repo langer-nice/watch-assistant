@@ -22,11 +22,19 @@ test('regenerates a legacy URL Watch once but not after persistence', () => {
       { label: 'Missing hikers', type: 'event' },
     ],
     conceptSourceFields: ['title', 'description', 'articleText', 'author'],
+    analysisProvider: 'openai',
+    analysisStatus: 'success',
+    analysisModel: 'gpt-5.6-luna',
+    fallbackReasonCode: null,
+    analyzedAt: '2026-07-27T12:00:00.000Z',
+    analysisDiagnosticId: 'diagnostic-1',
   }, currentVersion);
   const regeneratedWatch = { ...legacyUrlWatch, ...changes };
 
   assert.equal(shouldRegenerateStoryFingerprint(regeneratedWatch, currentVersion), false);
   assert.deepEqual(getVisibleConceptLabels(regeneratedWatch, currentVersion), changes.keywords);
+  assert.equal(regeneratedWatch.analysisProvider, 'openai');
+  assert.equal(regeneratedWatch.analysisModel, 'gpt-5.6-luna');
 });
 
 test('never overwrites concepts marked as manually edited', () => {

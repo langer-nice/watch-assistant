@@ -63,7 +63,10 @@ import {
   normalizeFeedUrl,
 } from './watch-monitoring.js';
 import { synchronizeStoryProfile } from './story-profile.js';
-import { getMonitoringHealthPresentation } from './watch-model.js';
+import {
+  getAnalysisProvenanceMessageKey,
+  getMonitoringHealthPresentation,
+} from './watch-model.js';
 
 let homeCreatedWatchId = null;
 let homeFirstWatchConfirmation = false;
@@ -79,6 +82,8 @@ let editSheetCloseTimer = null;
 let editSheetBackgroundScrollY = 0;
 
 const FIRST_MONITORING_DELAY = 3200;
+const SHOW_ANALYSIS_PROVENANCE = Boolean(import.meta.env?.DEV)
+  || import.meta.env?.VITE_VERCEL_ENV === 'preview';
 const watchCheckController = createWatchCheckController({
   getWatch: getWatchById,
   saveWatch: updateWatch,
@@ -651,6 +656,14 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     conceptSourceFields: Array.isArray(urlAnalysis?.conceptSourceFields)
       ? urlAnalysis.conceptSourceFields
       : null,
+    analysisProvider: urlAnalysis?.analysisProvider || options.analysisProvider || null,
+    analysisStatus: urlAnalysis?.analysisStatus || options.analysisStatus || null,
+    analysisModel: urlAnalysis?.analysisModel || options.analysisModel || null,
+    fallbackReasonCode: urlAnalysis?.fallbackReasonCode || options.fallbackReasonCode || null,
+    analyzedAt: urlAnalysis?.analyzedAt || options.analyzedAt || null,
+    analysisDiagnosticId: urlAnalysis?.analysisDiagnosticId
+      || options.analysisDiagnosticId
+      || null,
     structuredCriteria,
     ...structuredCriteria,
     monitoringSummary: urlAnalysis?.summary || options.monitoringSummary || null,
@@ -942,6 +955,7 @@ const renderWatchDetail = () => {
   const sourceLinkEl = document.querySelector('#watchSourceLink');
   const storySummaryEl = document.querySelector('#watchStorySummary');
   const storySummaryCopyEl = document.querySelector('#watchStorySummaryCopy');
+  const analysisProvenanceEl = document.querySelector('#watchAnalysisProvenance');
   const storyConceptsEl = document.querySelector('#watchStoryConcepts');
   const storyConceptsListEl = document.querySelector('#watchStoryConceptsList');
   const whyTodayEl = document.querySelector('#watchWhyToday');
@@ -1116,6 +1130,11 @@ const renderWatchDetail = () => {
   const storySummary = watch.storyProfile?.storySummary || '';
   if (storySummaryCopyEl) storySummaryCopyEl.textContent = storySummary;
   if (storySummaryEl) storySummaryEl.hidden = !storySummary;
+  if (analysisProvenanceEl) {
+    const messageKey = getAnalysisProvenanceMessageKey(watch);
+    analysisProvenanceEl.textContent = SHOW_ANALYSIS_PROVENANCE && messageKey ? t(messageKey) : '';
+    analysisProvenanceEl.hidden = !(SHOW_ANALYSIS_PROVENANCE && messageKey);
+  }
   const storyConceptGroups = [
     ['primaryPerson', watch.storyProfile?.primaryPeople || []],
     ['secondaryPerson', watch.storyProfile?.otherPeople || []],
@@ -2307,6 +2326,12 @@ export function initForm() {
         : urlAnalysis?.storyFingerprint,
       monitoringConceptsManuallyEdited: keywordsManuallyEdited
         || editingWatch.monitoringConceptsManuallyEdited === true,
+      analysisProvider: editingWatch.analysisProvider,
+      analysisStatus: editingWatch.analysisStatus,
+      analysisModel: editingWatch.analysisModel,
+      fallbackReasonCode: editingWatch.fallbackReasonCode,
+      analyzedAt: editingWatch.analyzedAt,
+      analysisDiagnosticId: editingWatch.analysisDiagnosticId,
       ...keywordValues,
     });
     const changes = {
@@ -2338,6 +2363,12 @@ export function initForm() {
       conceptSourceFields: derivedData.conceptSourceFields,
       monitoringConceptsManuallyEdited: derivedData.monitoringConceptsManuallyEdited,
       sourcePublishedAt: derivedData.sourcePublishedAt,
+      analysisProvider: derivedData.analysisProvider,
+      analysisStatus: derivedData.analysisStatus,
+      analysisModel: derivedData.analysisModel,
+      fallbackReasonCode: derivedData.fallbackReasonCode,
+      analyzedAt: derivedData.analyzedAt,
+      analysisDiagnosticId: derivedData.analysisDiagnosticId,
       monitoringSource: feedUrl
         ? {
           url: feedUrl,

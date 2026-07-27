@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { Readable } from 'node:stream';
 import {
+  ArticleAnalysisError,
+  createUrlWatchMiddleware,
   discoverMonitoringSource,
   extractFeedCandidates,
   extractPageMetadata,
@@ -8,6 +11,74 @@ import {
   generateWatchSuggestion,
   MAX_ARTICLE_TEXT_LENGTH,
 } from './url-watch-api.js';
+
+const perimenopauseArticleText = [
+  'Brain fog can affect memory and concentration during perimenopause.',
+  'The article recommends regular physical activity, a consistent sleep routine, a balanced diet, and stress-management exercises.',
+].join(' ');
+
+const perimenopauseStructuredSuggestion = {
+  watchTitle: 'Brain fog during perimenopause',
+  watchingFor: 'Monitor new evidence and advice about brain fog during perimenopause.',
+  storyFingerprint: [
+    { label: 'Brain fog during perimenopause', type: 'event' },
+    { label: 'Perimenopause', type: 'supporting' },
+    { label: 'Brain fog', type: 'supporting' },
+    { label: 'Regular physical activity', type: 'supporting' },
+    { label: 'Consistent sleep routine', type: 'supporting' },
+    { label: 'Balanced diet', type: 'supporting' },
+    { label: 'Stress-management exercises', type: 'supporting' },
+  ],
+  storyProfile: {
+    primaryPeople: [],
+    otherPeople: [],
+    peopleRoles: [],
+    locations: [],
+    organizations: [],
+    eventTypes: ['Brain fog during perimenopause'],
+    distinctiveFacts: [
+      'Regular physical activity',
+      'Consistent sleep routine',
+      'Balanced diet',
+      'Stress-management exercises',
+    ],
+    aliases: [],
+    uncertaintyPhrases: [],
+    storySummary: 'The article explains why brain fog can occur during perimenopause and presents four practical measures that may help improve memory and concentration.',
+  },
+  description: 'Tracks evidence and practical advice about brain fog during perimenopause.',
+};
+
+const createOpenAiResponse = (suggestion = perimenopauseStructuredSuggestion) => ({
+  ok: true,
+  status: 200,
+  json: async () => ({
+    output: [{ content: [{ type: 'output_text', text: JSON.stringify(suggestion) }] }],
+  }),
+});
+
+const invokeSuggestionRoute = async ({ apiKey = 'test-key', fetchImpl }) => {
+  const request = Readable.from([JSON.stringify({
+    title: 'Brain fog and four easy ways to help fix it',
+    description: 'Why memory and concentration can change during perimenopause.',
+    articleText: perimenopauseArticleText,
+    slug: 'brain-fog-four-easy-ways-help-fix-it',
+  })]);
+  request.method = 'POST';
+  request.url = '/api/watch-suggestion';
+  const headers = {};
+  let responseBody = '';
+  const response = {
+    setHeader: (name, value) => { headers[name] = value; },
+    end: (value) => { responseBody = value; },
+  };
+  await createUrlWatchMiddleware({ apiKey, model: 'gpt-5.6-luna', fetchImpl })(
+    request,
+    response,
+    () => {},
+  );
+  return { status: response.statusCode, headers, body: JSON.parse(responseBody) };
+};
 
 const guardianUrl = 'https://www.theguardian.com/lifeandstyle/2026/jul/24/experience-i-hunt-missing-hikers-remote-mountains-taiwan';
 
@@ -287,4 +358,129 @@ test('normalizes AI concepts into precise phrases without weak or contained term
     ],
   );
   assert.deepEqual(suggestion.storyProfile.primaryPeople, ['Petr Novotny']);
+});
+
+test('the server route returns a coherent perimenopause structured result with AI provenance', async () => {
+  const result = await invokeSuggestionRoute({ fetchImpl: async () => createOpenAiResponse() });
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.analysisProvider, 'openai');
+  assert.equal(result.body.analysisStatus, 'success');
+  assert.equal(result.body.analysisModel, 'gpt-5.6-luna');
+  assert.equal(result.body.fallbackReasonCode, null);
+  assert.match(result.body.analyzedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.ok(result.body.analysisDiagnosticId);
+  assert.equal(result.body.storyProfile.storySummary, perimenopauseStructuredSuggestion.storyProfile.storySummary);
+  assert.deepEqual(result.body.storyProfile.primaryPeople, []);
+  assert.deepEqual(result.body.storyProfile.distinctiveFacts, perimenopauseStructuredSuggestion.storyProfile.distinctiveFacts);
+  assert.doesNotMatch(JSON.stringify(result.body), /Brain fog and four easy|Help fix/);
+});
+
+test('structured analysis failures receive stable safe reason codes', async (t) => {
+  const cases = [
+    {
+      name: 'missing API key',
+      expected: 'missing_api_key',
+      run: () => generateWatchSuggestion({ title: 'Article', model: 'test-model' }),
+    },
+    {
+      name: 'OpenAI HTTP failure',
+      expected: 'openai_http_error',
+      run: () => generateWatchSuggestion({
+        title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
+        fetchImpl: async () => ({ ok: false, status: 429, json: async () => ({ error: { message: 'sensitive provider detail' } }) }),
+      }),
+    },
+    {
+      name: 'timeout',
+      expected: 'openai_timeout',
+      run: () => generateWatchSuggestion({
+        title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
+        fetchImpl: async () => { throw new DOMException('timed out', 'TimeoutError'); },
+      }),
+    },
+    {
+      name: 'malformed structured JSON',
+      expected: 'invalid_structured_response',
+      run: () => generateWatchSuggestion({
+        title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
+        fetchImpl: async () => ({
+          ok: true,
+          json: async () => ({ output: [{ content: [{ type: 'output_text', text: '{not-json' }] }] }),
+        }),
+      }),
+    },
+    {
+      name: 'schema validation failure',
+      expected: 'schema_validation_failed',
+      run: () => generateWatchSuggestion({
+        title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
+        fetchImpl: async () => createOpenAiResponse({ ...perimenopauseStructuredSuggestion, watchTitle: '' }),
+      }),
+    },
+    {
+      name: 'normalization rejection',
+      expected: 'normalization_rejected',
+      run: () => generateWatchSuggestion({
+        title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
+        fetchImpl: async () => createOpenAiResponse({
+          ...perimenopauseStructuredSuggestion,
+          storyFingerprint: [{ label: 'Help', type: 'supporting' }],
+        }),
+      }),
+    },
+  ];
+
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      await assert.rejects(scenario.run, (error) => {
+        assert.ok(error instanceof ArticleAnalysisError);
+        assert.equal(error.code, scenario.expected);
+        assert.doesNotMatch(error.message, /secret-test-key|sensitive provider detail/);
+        return true;
+      });
+    });
+  }
+});
+
+test('a server route error returns safe provenance without provider or secret detail', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const result = await invokeSuggestionRoute({
+      fetchImpl: async () => ({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: { message: 'provider raw response' } }),
+      }),
+    });
+    assert.equal(result.status, 502);
+    assert.equal(result.body.error, 'AI article analysis was unavailable.');
+    assert.equal(result.body.analysisProvider, 'openai');
+    assert.equal(result.body.analysisStatus, 'failed');
+    assert.equal(result.body.analysisModel, null);
+    assert.equal(result.body.fallbackReasonCode, 'openai_http_error');
+    assert.ok(result.body.analysisDiagnosticId);
+    assert.doesNotMatch(JSON.stringify(result.body), /provider raw response|test-key/);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('the server route reports missing Preview configuration without attempting OpenAI', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  let attempted = false;
+  try {
+    const result = await invokeSuggestionRoute({
+      apiKey: '',
+      fetchImpl: async () => { attempted = true; return createOpenAiResponse(); },
+    });
+    assert.equal(attempted, false);
+    assert.equal(result.status, 503);
+    assert.equal(result.body.analysisStatus, 'failed');
+    assert.equal(result.body.fallbackReasonCode, 'missing_api_key');
+  } finally {
+    console.warn = originalWarn;
+  }
 });
