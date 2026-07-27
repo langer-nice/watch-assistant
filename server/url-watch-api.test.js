@@ -21,13 +21,8 @@ const perimenopauseStructuredSuggestion = {
   watchTitle: 'Brain fog during perimenopause',
   watchingFor: 'Monitor new evidence and advice about brain fog during perimenopause.',
   storyFingerprint: [
-    { label: 'Brain fog during perimenopause', type: 'event' },
-    { label: 'Perimenopause', type: 'supporting' },
-    { label: 'Brain fog', type: 'supporting' },
-    { label: 'Regular physical activity', type: 'supporting' },
-    { label: 'Consistent sleep routine', type: 'supporting' },
-    { label: 'Balanced diet', type: 'supporting' },
-    { label: 'Stress-management exercises', type: 'supporting' },
+    { label: 'Perimenopause', type: 'condition' },
+    { label: 'Brain fog', type: 'symptom' },
   ],
   storyProfile: {
     primaryPeople: [],
@@ -286,7 +281,13 @@ test('preserves real ampersands and decodes the extracted title only once', () =
 test('normalizes AI concepts into precise phrases without weak or contained terms', async () => {
   const fetchImpl = async (_url, options) => {
     const request = JSON.parse(options.body);
-    assert.match(request.instructions, /Build a Story Fingerprint/);
+    assert.match(request.instructions, /smallest sufficient set, normally 2 to 5/);
+    assert.match(request.instructions, /general advice, list items, lifestyle recommendations/);
+    assert.equal(request.text.format.schema.properties.storyFingerprint.maxItems, 5);
+    assert.ok(
+      request.text.format.schema.properties.storyFingerprint.items.properties.type.enum
+        .includes('condition'),
+    );
     const source = JSON.parse(request.input);
     assert.deepEqual(source, {
       title: 'Experience: I hunt for missing hikers in remote mountains',
@@ -305,12 +306,11 @@ test('normalizes AI concepts into precise phrases without weak or contained term
               watchTitle: 'Missing hikers in Taiwan',
               watchingFor: 'Monitor updates about the missing hikers in Taiwan.',
               storyFingerprint: [
-                { label: 'Remote mountains', type: 'supporting' },
                 { label: 'Petr Novotny', type: 'person' },
-                { label: 'Hikers', type: 'event' },
+                { label: 'Taiwan', type: 'location' },
                 { label: 'Missing hikers', type: 'event' },
                 { label: 'Search operation', type: 'event' },
-                { label: 'Taiwan', type: 'location' },
+                { label: 'Remote mountains', type: 'supporting' },
               ],
               storyProfile: {
                 primaryPeople: ['Petr Novotny'],
@@ -373,6 +373,16 @@ test('the server route returns a coherent perimenopause structured result with A
   assert.equal(result.body.storyProfile.storySummary, perimenopauseStructuredSuggestion.storyProfile.storySummary);
   assert.deepEqual(result.body.storyProfile.primaryPeople, []);
   assert.deepEqual(result.body.storyProfile.distinctiveFacts, perimenopauseStructuredSuggestion.storyProfile.distinctiveFacts);
+  assert.deepEqual(result.body.storyFingerprint, [
+    { label: 'Perimenopause', type: 'condition' },
+    { label: 'Brain fog', type: 'symptom' },
+  ]);
+  assert.equal(
+    result.body.storyFingerprint.some(({ label }) => (
+      perimenopauseStructuredSuggestion.storyProfile.distinctiveFacts.includes(label)
+    )),
+    false,
+  );
   assert.doesNotMatch(JSON.stringify(result.body), /Brain fog and four easy|Help fix/);
 });
 

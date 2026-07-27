@@ -261,12 +261,10 @@ test('successful perimenopause AI analysis survives client normalization without
         watchingFor: 'Monitor evidence and advice about brain fog during perimenopause.',
         description: 'Tracks evidence and practical advice about brain fog during perimenopause.',
         storyFingerprint: [
-          { label: 'Brain fog during perimenopause', type: 'event' },
-          { label: 'Perimenopause', type: 'supporting' },
-          { label: 'Brain fog', type: 'supporting' },
-          ...recommendations.map((label) => ({ label, type: 'supporting' })),
+          { label: 'Perimenopause', type: 'condition' },
+          { label: 'Brain fog', type: 'symptom' },
         ],
-        keywords: ['Brain fog during perimenopause', 'Perimenopause', 'Brain fog', ...recommendations],
+        keywords: ['Perimenopause', 'Brain fog'],
         storyProfile: {
           primaryPeople: [], otherPeople: [], peopleRoles: [], locations: [], organizations: [],
           eventTypes: ['Brain fog during perimenopause'],
@@ -290,9 +288,10 @@ test('successful perimenopause AI analysis survives client normalization without
     assert.equal(result.summary, summary);
     assert.deepEqual(result.storyProfile.primaryPeople, []);
     assert.deepEqual(result.storyProfile.distinctiveFacts, recommendations);
-    assert.ok(result.storyProfile.concepts.some(({ label, type }) => (
-      label === 'Brain fog during perimenopause' && type === 'event'
-    )));
+    assert.deepEqual(result.storyProfile.concepts, [
+      { label: 'Perimenopause', type: 'condition' },
+      { label: 'Brain fog', type: 'symptom' },
+    ]);
     assert.doesNotMatch(
       JSON.stringify({ summary: result.summary, concepts: result.storyProfile.concepts }),
       /Brain fog and four easy|Help fix/,

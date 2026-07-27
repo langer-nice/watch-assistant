@@ -6,7 +6,7 @@ import {
   shouldRegenerateStoryFingerprint,
 } from './story-fingerprint-migration.js';
 
-const currentVersion = 4;
+const currentVersion = 5;
 const legacyUrlWatch = {
   inputType: 'url',
   monitoringConceptsVersion: 2,

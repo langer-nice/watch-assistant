@@ -62,7 +62,7 @@ import {
   MonitoringCheckError,
   normalizeFeedUrl,
 } from './watch-monitoring.js';
-import { synchronizeStoryProfile } from './story-profile.js';
+import { getStoryProfileIdentifiers, synchronizeStoryProfile } from './story-profile.js';
 import {
   getAnalysisProvenanceMessageKey,
   getMonitoringHealthPresentation,
@@ -958,6 +958,8 @@ const renderWatchDetail = () => {
   const analysisProvenanceEl = document.querySelector('#watchAnalysisProvenance');
   const storyConceptsEl = document.querySelector('#watchStoryConcepts');
   const storyConceptsListEl = document.querySelector('#watchStoryConceptsList');
+  const storyConceptsEmptyEl = document.querySelector('#watchStoryConceptsEmpty');
+  const storyConceptsEditEl = document.querySelector('#watchStoryConceptsEdit');
   const whyTodayEl = document.querySelector('#watchWhyToday');
   const whyTodayCopyEl = document.querySelector('#watchWhyTodayCopy');
   const latestChangeEl = document.querySelector('#watchLatestChange');
@@ -1135,25 +1137,22 @@ const renderWatchDetail = () => {
     analysisProvenanceEl.textContent = SHOW_ANALYSIS_PROVENANCE && messageKey ? t(messageKey) : '';
     analysisProvenanceEl.hidden = !(SHOW_ANALYSIS_PROVENANCE && messageKey);
   }
-  const storyConceptGroups = [
-    ['primaryPerson', watch.storyProfile?.primaryPeople || []],
-    ['secondaryPerson', watch.storyProfile?.otherPeople || []],
-    ['event', watch.storyProfile?.eventTypes || []],
-    ['location', watch.storyProfile?.locations || []],
-    ['organization', watch.storyProfile?.organizations || []],
-    ['supporting', watch.storyProfile?.distinctiveFacts || []],
-    ['alias', watch.storyProfile?.aliases || []],
-    ['uncertainty', watch.storyProfile?.uncertaintyPhrases || []],
-  ].filter(([, values]) => values.length);
+  const storyIdentifiers = getStoryProfileIdentifiers(watch.storyProfile);
   if (storyConceptsListEl) {
-    storyConceptsListEl.innerHTML = storyConceptGroups.map(([type, values]) => `
-      <div class="story-concepts__group">
-        <dt>${escapeHtml(t(`newWatch.conceptTypes.${type}`))}</dt>
-        <dd>${values.map((value) => `<span>${escapeHtml(value)}</span>`).join('')}</dd>
+    storyConceptsListEl.innerHTML = storyIdentifiers.map(({ label, type }) => `
+      <div class="story-concepts__item">
+        <dt><span>${escapeHtml(t(`newWatch.conceptTypes.${type}`))}</span></dt>
+        <dd>${escapeHtml(label)}</dd>
       </div>
     `).join('');
   }
-  if (storyConceptsEl) storyConceptsEl.hidden = storyConceptGroups.length === 0;
+  if (storyConceptsListEl) storyConceptsListEl.hidden = storyIdentifiers.length === 0;
+  if (storyConceptsEmptyEl) storyConceptsEmptyEl.hidden = storyIdentifiers.length > 0;
+  if (storyConceptsEditEl) {
+    storyConceptsEditEl.href = editWatchHref;
+    storyConceptsEditEl.onclick = openExistingWatchEditor;
+  }
+  if (storyConceptsEl) storyConceptsEl.hidden = watch.inputType !== 'url';
 
   const storedSourceName = localizeField(watch, 'sourceName');
   const storedSourceTitle = localizeField(watch, 'sourceTitle');

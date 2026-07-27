@@ -1,7 +1,7 @@
 import {
   extractMonitoringConcepts,
+  normalizeAutomaticStoryFingerprint,
   normalizeMonitoringConcepts,
-  normalizeStoryFingerprint,
 } from './monitoring-concepts.js';
 import { cleanArticleContentForAnalysis } from './article-content.js';
 import { createStoryProfile } from './story-profile.js';
@@ -560,7 +560,7 @@ export const createSourceDerivedFallback = (page, sourceUrl = '', {
     uncertainty?.fact,
     organizationConnection?.fact,
   ].filter(Boolean);
-  const storyFingerprint = normalizeStoryFingerprint([
+  const storyFingerprint = normalizeAutomaticStoryFingerprint([
     supportedPerson && { label: supportedPerson, type: 'person' },
     supportedLocation && { label: supportedLocation, type: 'location' },
     organizationConnection?.name && { label: organizationConnection.name, type: 'organization' },
@@ -574,7 +574,7 @@ export const createSourceDerivedFallback = (page, sourceUrl = '', {
     ...(primaryEvent
       ? []
       : titleConcepts.map((label) => ({ label, type: 'supporting' }))),
-  ].filter(Boolean), 8);
+  ].filter(Boolean), 5);
   return {
     watchTitle: title,
     watchingFor: storySummary || summary,
@@ -659,10 +659,10 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
     });
   }
   let keywords = normalizeMonitoringConcepts(suggestion.keywords, 8);
-  let storyFingerprint = normalizeStoryFingerprint(
+  let storyFingerprint = normalizeAutomaticStoryFingerprint(
     suggestion.storyFingerprint
       || keywords.map((label) => ({ label, type: 'supporting' })),
-    8,
+    5,
   );
   let storyProfile = createStoryProfile({
     storyFingerprint,
@@ -681,7 +681,7 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
       analysisDiagnosticId: suggestion.analysisDiagnosticId || null,
     });
     keywords = normalizeMonitoringConcepts(suggestion.keywords, 8);
-    storyFingerprint = normalizeStoryFingerprint(suggestion.storyFingerprint, 8);
+    storyFingerprint = normalizeAutomaticStoryFingerprint(suggestion.storyFingerprint, 5);
     storyProfile = createStoryProfile({
       storyFingerprint,
       profile: suggestion.storyProfile,

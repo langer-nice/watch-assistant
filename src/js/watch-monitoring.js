@@ -1,3 +1,5 @@
+import { getStoryProfileIdentifiers } from './story-profile.js';
+
 export const MAX_SNAPSHOT_ITEMS = 20;
 export const MAX_SEEN_ITEM_IDS = 200;
 export const MAX_MONITORING_UPDATES = 20;
@@ -64,10 +66,6 @@ const containsPhrase = (text, phrase) => {
   return normalizedPhrase && ` ${text} `.includes(` ${normalizedPhrase} `);
 };
 
-const profileValues = (profile, field) => (
-  Array.isArray(profile?.[field]) ? profile[field] : []
-);
-
 export const matchFeedItemToStory = (item, storyProfile) => {
   const text = normalizeMatchText([
     item?.title,
@@ -77,25 +75,33 @@ export const matchFeedItemToStory = (item, storyProfile) => {
   if (!text) return { matched: false, evidence: [] };
 
   const evidence = [];
-  const addEvidence = (field, strength) => {
-    profileValues(storyProfile, field).forEach((label) => {
-      const normalized = normalizeMatchText(label);
-      const wordCount = normalized.split(' ').filter(Boolean).length;
-      const isEligiblePhrase = wordCount >= 2
-        || (field === 'locations' && normalized.length >= 5);
-      if (isEligiblePhrase && containsPhrase(text, label)) {
-        evidence.push({ field, label, strength });
-      }
-    });
+  const manuallyAdded = new Set((storyProfile?.userAddedConcepts || []).map(normalizeMatchText));
+  const evidenceType = {
+    person: { field: 'people', strength: 'strong' },
+    organization: { field: 'organizations', strength: 'strong' },
+    location: { field: 'locations', strength: 'context' },
+    event: { field: 'eventTypes', strength: 'context' },
+    condition: { field: 'conditions', strength: 'strong' },
+    symptom: { field: 'symptoms', strength: 'strong' },
+    phenomenon: { field: 'phenomena', strength: 'strong' },
+    relationship: { field: 'relationships', strength: 'strong' },
+    supporting: { field: 'decisiveFacts', strength: 'distinctive' },
   };
-  addEvidence('primaryPeople', 'strong');
-  addEvidence('otherPeople', 'strong');
-  addEvidence('organizations', 'strong');
-  addEvidence('aliases', 'strong');
-  addEvidence('userAddedConcepts', 'strong');
-  addEvidence('distinctiveFacts', 'distinctive');
-  addEvidence('locations', 'context');
-  addEvidence('eventTypes', 'context');
+  getStoryProfileIdentifiers(storyProfile).forEach(({ label, type }) => {
+    const normalized = normalizeMatchText(label);
+    const wordCount = normalized.split(' ').filter(Boolean).length;
+    const selectedType = manuallyAdded.has(normalized)
+      ? { field: 'userAddedConcepts', strength: 'strong' }
+      : evidenceType[type];
+    const permitsSpecificSingleWord = [
+      'location', 'condition', 'symptom', 'phenomenon', 'relationship',
+    ].includes(type);
+    const isEligiblePhrase = wordCount >= 2
+      || (permitsSpecificSingleWord && normalized.length >= 5);
+    if (selectedType && isEligiblePhrase && containsPhrase(text, label)) {
+      evidence.push({ ...selectedType, label });
+    }
+  });
 
   const hasStrong = evidence.some(({ strength }) => strength === 'strong');
   const hasDistinctive = evidence.some(({ strength, label }) => (
@@ -103,7 +109,7 @@ export const matchFeedItemToStory = (item, storyProfile) => {
   ));
   const hasLocation = evidence.some(({ field }) => field === 'locations');
   const hasEventContext = evidence.some(({ field }) => (
-    field === 'eventTypes' || field === 'distinctiveFacts'
+    field === 'eventTypes' || field === 'decisiveFacts'
   ));
   return {
     matched: hasStrong || hasDistinctive || (hasLocation && hasEventContext),

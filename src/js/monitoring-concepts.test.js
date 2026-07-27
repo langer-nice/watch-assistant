@@ -2,9 +2,29 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   extractMonitoringConcepts,
+  normalizeAutomaticStoryFingerprint,
   normalizeMonitoringConcepts,
   normalizeStoryFingerprint,
 } from './monitoring-concepts.js';
+
+test('automatic identifiers stay concise, non-redundant, and bounded to five', () => {
+  assert.deepEqual(normalizeAutomaticStoryFingerprint([
+    { label: 'Brain fog', type: 'symptom' },
+    { label: 'Perimenopause', type: 'condition' },
+    { label: 'Brain fog', type: 'symptom' },
+    { label: 'Officials said this possible explanation remains uncertain. It requires more research.', type: 'supporting' },
+    { label: 'US–Saudi civil nuclear agreement', type: 'event' },
+    { label: 'Saudi recognition of Israel', type: 'relationship' },
+    { label: 'Seattle Center, Seattle, United States', type: 'location' },
+    { label: 'Three people killed', type: 'supporting' },
+  ]), [
+    { label: 'Seattle Center, Seattle, United States', type: 'location' },
+    { label: 'US–Saudi civil nuclear agreement', type: 'event' },
+    { label: 'Perimenopause', type: 'condition' },
+    { label: 'Brain fog', type: 'symptom' },
+    { label: 'Saudi recognition of Israel', type: 'relationship' },
+  ]);
+});
 
 test('extracts story phrases without padding URL titles with weak words', () => {
   assert.deepEqual(

@@ -1,6 +1,125 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createStoryProfile, synchronizeStoryProfile } from './story-profile.js';
+import {
+  createStoryProfile,
+  getStoryProfileIdentifiers,
+  synchronizeStoryProfile,
+} from './story-profile.js';
+
+test('keeps monitoring identifiers separate from supporting details and uncertainty', () => {
+  const profile = createStoryProfile({
+    storyFingerprint: [
+      { label: 'Perimenopause', type: 'condition' },
+      { label: 'Brain fog', type: 'symptom' },
+    ],
+    profile: {
+      primaryPeople: [],
+      otherPeople: ['Dr. Tharaka'],
+      organizations: ['NHS'],
+      eventTypes: ['Brain fog during perimenopause'],
+      distinctiveFacts: ['Short breaks', 'Calendars and reminders'],
+      uncertaintyPhrases: ['The evidence is still developing and may vary between people.'],
+      storySummary: 'The article explains brain fog during perimenopause and practical ways to manage it.',
+    },
+  });
+
+  assert.deepEqual(getStoryProfileIdentifiers(profile), [
+    { label: 'Perimenopause', type: 'condition' },
+    { label: 'Brain fog', type: 'symptom' },
+  ]);
+  assert.deepEqual(profile.distinctiveFacts, ['Short breaks', 'Calendars and reminders']);
+  assert.equal(profile.uncertaintyPhrases.length, 1);
+  assert.equal(profile.concepts.some(({ label }) => label === 'Dr. Tharaka'), false);
+  assert.equal(profile.concepts.some(({ label }) => label === 'NHS'), false);
+});
+
+test('reference article profiles retain only their selected monitoring identifiers', () => {
+  const cases = [
+    {
+      name: 'Berlin Pride vehicle attack',
+      fingerprint: [
+        { label: 'Abdul Ballout', type: 'person' },
+        { label: 'Berlin, Germany', type: 'location' },
+        { label: 'Berlin Pride vehicle attack', type: 'event' },
+      ],
+    },
+    {
+      name: 'Open-water swimming health risks',
+      fingerprint: [
+        { label: 'Sewage contamination', type: 'condition' },
+        { label: 'Leptospirosis', type: 'condition' },
+        { label: 'Toxic algae', type: 'condition' },
+        { label: 'Open water swimming', type: 'phenomenon' },
+      ],
+    },
+    {
+      name: 'Bite of Seattle festival shooting',
+      fingerprint: [
+        { label: 'Seattle Police Department', type: 'organization' },
+        { label: 'Seattle Center, Seattle, United States', type: 'location' },
+        { label: 'Bite of Seattle festival shooting', type: 'event' },
+        { label: 'Three people killed', type: 'supporting' },
+      ],
+    },
+    {
+      name: 'Brain fog during perimenopause',
+      fingerprint: [
+        { label: 'Perimenopause', type: 'condition' },
+        { label: 'Brain fog', type: 'symptom' },
+      ],
+    },
+    {
+      name: 'Medical tourism in South Korea',
+      fingerprint: [
+        { label: 'South Korea', type: 'location' },
+        { label: 'Medical tourism', type: 'phenomenon' },
+      ],
+    },
+    {
+      name: 'Birdwatching among young people',
+      fingerprint: [
+        { label: 'San Francisco', type: 'location' },
+        { label: 'Birdwatching among young people', type: 'phenomenon' },
+      ],
+    },
+    {
+      name: 'US–Saudi civil nuclear agreement',
+      fingerprint: [
+        { label: 'United States', type: 'location' },
+        { label: 'Saudi Arabia', type: 'location' },
+        { label: 'US–Saudi civil nuclear agreement', type: 'event' },
+        { label: 'Saudi recognition of Israel', type: 'relationship' },
+      ],
+    },
+  ];
+
+  cases.forEach(({ name, fingerprint }) => {
+    const profile = createStoryProfile({
+      storyFingerprint: fingerprint,
+      profile: {
+        primaryPeople: [],
+        distinctiveFacts: ['Background explanation that is not selected'],
+        uncertaintyPhrases: ['Officials said the outcome remains uncertain.'],
+      },
+    });
+    assert.deepEqual(getStoryProfileIdentifiers(profile), fingerprint, name);
+    assert.ok(profile.concepts.length >= 2 && profile.concepts.length <= 5, name);
+  });
+});
+
+test('profile context cannot restore an identifier deliberately removed by the user', () => {
+  const profile = createStoryProfile({
+    storyFingerprint: [{ label: 'Brain fog', type: 'symptom' }],
+    profile: {
+      eventTypes: ['Brain fog during perimenopause'],
+      organizations: ['NHS'],
+      distinctiveFacts: ['Short breaks'],
+    },
+  });
+  assert.deepEqual(getStoryProfileIdentifiers(profile), [
+    { label: 'Brain fog', type: 'symptom' },
+  ]);
+});
 
 test('builds a bounded structured profile, prioritises the central person, and rejects weak concepts', () => {
   const profile = createStoryProfile({
@@ -92,7 +211,7 @@ test('upgrades version 2 profiles, prefers precise locations, and removes normal
     sourceTitle: 'Investigation update',
   });
 
-  assert.equal(profile.version, 4);
+  assert.equal(profile.version, 5);
   assert.deepEqual(profile.locations, ['Berlin, Germany']);
   assert.deepEqual(profile.distinctiveFacts, ['Official assessment: suspected motive']);
   assert.deepEqual(profile.uncertaintyPhrases, ['Police reported a possible link']);
@@ -113,7 +232,7 @@ test('an explicit empty primary-person list is not repopulated from a typed conc
     },
   });
 
-  assert.equal(profile.version, 4);
+  assert.equal(profile.version, 5);
   assert.deepEqual(profile.primaryPeople, []);
   assert.deepEqual(profile.otherPeople, []);
 });

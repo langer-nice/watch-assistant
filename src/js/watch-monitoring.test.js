@@ -39,7 +39,11 @@ test('first successful check creates a baseline without false new updates', () =
 
 test('later checks detect only unseen IDs and repeated checks do not duplicate updates', () => {
   const baseline = applyFeedCheckResult({ id: 'watch-1' }, response(['a', 'b'])).changes;
-  const watch = { id: 'watch-1', storyProfile: { aliases: ['Item c'] }, ...baseline };
+  const watch = {
+    id: 'watch-1',
+    storyProfile: { concepts: [{ label: 'Item c', type: 'organization' }] },
+    ...baseline,
+  };
   const second = applyFeedCheckResult(watch, response(['c', 'a', 'b']));
   assert.equal(second.outcome, 'matching-items');
   assert.deepEqual(second.newItems.map(({ id }) => id), ['c']);
@@ -62,7 +66,7 @@ test('snapshot and update storage remain bounded', () => {
   }));
   const result = applyFeedCheckResult({
     id: 'watch-1',
-    storyProfile: { aliases: ['Item new'] },
+    storyProfile: { concepts: [{ label: 'Item new', type: 'organization' }] },
     monitoringSnapshot: { itemIds: ['previous'] },
     seenMonitoringItemIds: oldIds,
     monitoringUpdates: oldUpdates,
@@ -170,7 +174,7 @@ test('new updates survive serialization and are available to the Home grouping',
       id: 'watch-1',
       title: 'A feed Watch',
       status: 'watching',
-      storyProfile: { aliases: ['Item b'] },
+      storyProfile: { concepts: [{ label: 'Item b', type: 'organization' }] },
       ...baseline,
     },
     response(['b', 'a']),
@@ -246,12 +250,17 @@ test('a strong story identifier creates one candidate with explainable evidence'
     primaryPeople: ['Abdul Ballout'],
     locations: ['Beirut'],
     eventTypes: ['Deportation proceedings'],
+    concepts: [
+      { label: 'Abdul Ballout', type: 'person' },
+      { label: 'Beirut', type: 'location' },
+      { label: 'Deportation proceedings', type: 'event' },
+    ],
   };
   const matchingItem = item('match', 'Abdul Ballout faces new deportation hearing');
   const match = matchFeedItemToStory(matchingItem, profile);
   assert.equal(match.matched, true);
   assert.deepEqual(match.evidence[0], {
-    field: 'primaryPeople',
+    field: 'people',
     label: 'Abdul Ballout',
     strength: 'strong',
   });
@@ -270,6 +279,10 @@ test('a precise place only matches when combined with identifying event context'
   const profile = {
     locations: ['Berlin'],
     eventTypes: ['Pride ramming attack'],
+    concepts: [
+      { label: 'Berlin', type: 'location' },
+      { label: 'Pride ramming attack', type: 'event' },
+    ],
   };
   assert.equal(matchFeedItemToStory(
     item('place-only', 'Traffic changes announced in Berlin'),
@@ -279,4 +292,29 @@ test('a precise place only matches when combined with identifying event context'
     item('combined', 'Berlin Pride ramming attack: police issue update'),
     profile,
   ).matched, true);
+});
+
+test('monitoring matches only selected identifiers, never supporting profile prose', () => {
+  const profile = {
+    concepts: [
+      { label: 'Perimenopause', type: 'condition' },
+      { label: 'Brain fog', type: 'symptom' },
+    ],
+    distinctiveFacts: ['Short breaks', 'Calendars and reminders'],
+    uncertaintyPhrases: ['The evidence remains uncertain and may vary between people.'],
+  };
+  assert.equal(matchFeedItemToStory(
+    item('recommendation', 'Short breaks and calendars can improve concentration'),
+    profile,
+  ).matched, false);
+  const match = matchFeedItemToStory(
+    item('subject', 'New research examines perimenopause symptoms'),
+    profile,
+  );
+  assert.equal(match.matched, true);
+  assert.deepEqual(match.evidence, [{
+    field: 'conditions',
+    label: 'Perimenopause',
+    strength: 'strong',
+  }]);
 });

@@ -2,7 +2,7 @@ import he from 'he';
 import { randomUUID } from 'node:crypto';
 import { PublicUrlError, validatePublicUrl } from './public-url-security.js';
 import {
-  normalizeStoryFingerprint,
+  normalizeAutomaticStoryFingerprint,
   STORY_CONCEPT_TYPES,
 } from '../src/js/monitoring-concepts.js';
 import { cleanArticleContentForAnalysis } from '../src/js/article-content.js';
@@ -49,12 +49,12 @@ const WATCH_SUGGESTION_SCHEMA = {
     storyFingerprint: {
       type: 'array',
       minItems: 1,
-      maxItems: 8,
+      maxItems: 5,
       items: {
         type: 'object',
         additionalProperties: false,
         properties: {
-          label: { type: 'string', minLength: 1, maxLength: 40 },
+          label: { type: 'string', minLength: 1, maxLength: 100 },
           type: { type: 'string', enum: STORY_CONCEPT_TYPES },
         },
         required: ['label', 'type'],
@@ -418,9 +418,9 @@ const validateSuggestion = (suggestion) => {
   }
   const suppliedFingerprint = suggestion.storyFingerprint
     || suggestion.keywords?.map((label) => ({ label, type: 'supporting' }));
-  const storyFingerprint = normalizeStoryFingerprint(
+  const storyFingerprint = normalizeAutomaticStoryFingerprint(
     suppliedFingerprint,
-    8,
+    5,
   );
   const keywords = storyFingerprint.map(({ label }) => label);
   const description = typeof suggestion?.description === 'string'
@@ -437,7 +437,7 @@ const validateSuggestion = (suggestion) => {
     typeof suggestion?.watchTitle !== 'string'
     || !suggestion.watchTitle.trim()
     || keywords.length < 1
-    || keywords.length > 8
+    || keywords.length > 5
     || !watchingFor
     || storySummary.length < 20
     || !description
@@ -501,15 +501,21 @@ export const generateWatchSuggestion = async ({
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-      model,
-      store: false,
-      instructions: `Build a Story Fingerprint and structured story profile from the complete supplied article content, alongside a concise Watch title, a natural one-sentence monitoring instruction named watchingFor, and a short explanation of no more than two sentences.
+        model,
+        store: false,
+        instructions: `Read and understand the complete cleaned article content. Build one structured story profile, a concise Watch title, a natural one-sentence monitoring instruction named watchingFor, and a short explanation of no more than two sentences.
 
-Return normally 3 to 8 typed Story Fingerprint concepts in this exact priority: people, organizations, precise locations, the main event, then genuinely identifying supporting concepts. Include a named person only when the article is substantially about that individual; primaryPeople must be empty when no person is central. Do not treat byline authors, photographers, image or agency credits, publishers, quoted experts, captions, interface text, or related-content modules as primary people or story concepts unless the article is genuinely about them. Preserve complete organization and location names. Express events and topics as semantic multi-word noun phrases that can match later reporting, for example "Search operation", "Open water swimming", "Court ruling", or "Product launch", but only when the supplied content supports that meaning.
+storyProfile.storySummary explains the article naturally to a human. It must identify the central subject or phenomenon, explain what the article reports, include decisive supported context, and preserve important uncertainty or attribution. It must not merely copy, segment, or lightly reword the headline.
 
-Populate storyProfile from the article body: distinguish central people from other people; put concise evidence-supported roles for retained people in peopleRoles; retain precise locations and organizations; describe event types as complete identifying noun phrases; retain only distinctive facts useful for matching later coverage; and add genuine alternative names in aliases. Do not join a city and country merely because both occur in the article: use "City, Country" only when that relationship is explicit in the supplied text. storySummary must be one concise, natural explanation of the article rather than a copied or trivially reworded headline. It should explain the central person or topic, what the article reports, the most distinctive supported facts, and any important uncertainty or attribution. Preserve qualifiers such as alleged, suspected, reported, accused, possible, or wanted in storySummary, distinctiveFacts and uncertaintyPhrases. A publisher or media provider is not an organization in the story. Reject generic descriptors such as "German citizen", broad or isolated words such as "Health", detached adjectives, attribution fragments such as "Official says", clipped phrases ending in modifiers such as "likely", and detached descriptions such as "terror attack carried out". Prefer contextual concepts such as "Sewage contamination" to an isolated material name. Never convert an allegation, official assessment, suspected motive, or reported link into a confirmed fact.
+storyFingerprint is the separate, complete list of monitoring identifiers used to recognize future reporting about the same story. Select the smallest sufficient set, normally 2 to 5 and fewer when only fewer are reliable. Rank specificity and future matching value above general relevance. Each identifier must be central, concise, independently understandable, and likely to appear or have a close semantic equivalent in later relevant coverage. Use the most accurate available type, including condition, symptom, phenomenon or relationship rather than supporting when applicable. Prefer the central subject, event, condition or phenomenon; then a genuinely central person, organization or location; then at most one or two decisive facts or relationships needed to disambiguate the story.
 
-Use source fields in this order: title, description, articleText, then slug only as a fallback. The author field is source attribution, not evidence that the author is a story subject. Do not merely select frequent or long words. Exclude articles, conjunctions, prepositions, pronouns, filler, generic geography, generic news terms, isolated adjectives, and broad contextless categories. Never return isolated fragments when a stronger phrase exists. Deduplicate concepts and omit weaker concepts contained in stronger ones. Return fewer concepts rather than weak ones when fewer than 3 are reliable. Base every field only on the supplied source content, preserve its intent, and never invent a person, organization, location, event, geographic relationship, or detail absent from or unsupported by it.`,
+Do not put general advice, list items, lifestyle recommendations, supporting examples, background details, generic themes, consequences, explanatory prose, uncertainty prose, or generic synthesized phrases in storyFingerprint. Do not include quoted experts or organizations merely cited as sources. primaryPeople and organizations may be empty when none is central. Do not include byline authors, photographers, image or agency credits, publishers, captions, interface text, or related-content modules. Do not return headline fragments, incomplete phrases, entire sentences, or redundant parent and child concepts. For example, prefer either "Brain fog during perimenopause" or the complementary pair "Brain fog" and "Perimenopause", not all three. Preserve a decisive relationship as one coherent identifier when separating it would lose meaning, such as an agreement being conditional on another action.
+
+Populate storyProfile independently from the monitoring identifiers. primaryPeople, otherPeople, peopleRoles, locations, organizations and eventTypes describe supported article entities and context. distinctiveFacts contains useful supporting details, including recommendations when relevant to the human explanation. uncertaintyPhrases contains attribution and uncertainty prose. These supporting profile fields are not monitoring identifiers unless the same concise concept is deliberately selected in storyFingerprint because it is essential for future matching.
+
+Preserve complete organization and location names. Use "City, Country" only when that relationship is explicit in the supplied text. Preserve qualifiers such as alleged, suspected, reported, accused, possible, or wanted in storySummary, distinctiveFacts and uncertaintyPhrases. Never convert an allegation, official assessment, suspected motive, reported link, or conditional political relationship into a confirmed fact. A publisher or media provider is not an organization in the story.
+
+Use source fields in this order: title, description, articleText, then slug only as a fallback. The author field is source attribution, not evidence that the author is a story subject. Base every field only on supplied source content. Never invent a person, organization, location, event, relationship or detail.`,
       input: JSON.stringify(source),
       reasoning: { effort: 'low' },
       max_output_tokens: 600,

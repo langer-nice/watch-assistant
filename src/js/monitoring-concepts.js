@@ -24,13 +24,19 @@ const STOP_WORDS = new Set([
 
 const PHRASE_CONNECTORS = new Set(['and', 'de', 'et', 'of']);
 
-export const MONITORING_CONCEPTS_VERSION = 4;
+export const MONITORING_CONCEPTS_VERSION = 5;
+
+export const DEFAULT_AUTOMATIC_IDENTIFIER_LIMIT = 5;
 
 export const STORY_CONCEPT_TYPES = Object.freeze([
   'person',
   'organization',
   'location',
   'event',
+  'condition',
+  'symptom',
+  'phenomenon',
+  'relationship',
   'supporting',
 ]);
 
@@ -154,12 +160,15 @@ export const normalizeStoryFingerprint = (values, limit = 8) => {
     }))
     .filter((candidate) => isUsefulStoryConcept(candidate.label, candidate.type))
     .flatMap((candidate) => {
-      const preservedLocation = candidate.type === 'location'
+      const preservesSemanticPhrase = [
+        'location', 'event', 'condition', 'symptom', 'phenomenon', 'relationship',
+      ].includes(candidate.type);
+      const preservedPhrase = preservesSemanticPhrase
         ? String(candidate.label || '').replace(/\s+/g, ' ').replace(/[.;:!?]+$/g, '').trim()
         : '';
-      const labels = candidate.type === 'location'
-        ? [preservedLocation].filter(Boolean)
-        : ['person', 'organization', 'event'].includes(candidate.type)
+      const labels = preservesSemanticPhrase
+        ? [preservedPhrase].filter(Boolean)
+        : ['person', 'organization'].includes(candidate.type)
           ? [formatConcept(getConceptTokens(candidate.label))].filter(Boolean)
           : normalizeMonitoringConcepts([candidate.label], limit);
       return labels.map((label) => ({ ...candidate, label }));
@@ -185,6 +194,30 @@ export const normalizeStoryFingerprint = (values, limit = 8) => {
     .slice(0, limit)
     .map(({ label, type }) => ({ label, type }));
 };
+
+const isConciseMonitoringIdentifier = (value) => {
+  const label = String(typeof value === 'string' ? value : value?.label || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!label || label.length > 100) return false;
+  const wordCount = getConceptTokens(label).length;
+  const type = typeof value === 'string' ? 'supporting' : value?.type;
+  const maximumWords = type === 'relationship' ? 12 : ['event', 'phenomenon'].includes(type) ? 10 : 8;
+  if (wordCount === 0 || wordCount > maximumWords) return false;
+  if (type === 'supporting' && wordCount > 6) return false;
+  const sentenceBoundaries = label.match(/[.!?](?:\s|$)/g)?.length || 0;
+  if (sentenceBoundaries > 1) return false;
+  return !(wordCount > 4 && /[.!?]$/.test(label));
+};
+
+export const normalizeAutomaticStoryFingerprint = (
+  values,
+  limit = DEFAULT_AUTOMATIC_IDENTIFIER_LIMIT,
+) => normalizeStoryFingerprint(
+  (Array.isArray(values) ? values : [])
+    .filter(isConciseMonitoringIdentifier),
+  Number.MAX_SAFE_INTEGER,
+).slice(0, limit);
 
 export const extractMonitoringConcepts = (value, limit = 4) => {
   const source = String(value || '')

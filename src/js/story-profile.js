@@ -1,6 +1,6 @@
 import { isUsefulStoryConcept, normalizeStoryFingerprint } from './monitoring-concepts.js';
 
-export const STORY_PROFILE_VERSION = 4;
+export const STORY_PROFILE_VERSION = 5;
 const MAX_PROFILE_VALUES = 8;
 
 const uniqueStrings = (values, limit = MAX_PROFILE_VALUES) => {
@@ -98,14 +98,7 @@ export const createStoryProfile = ({
   const profileValues = (values, type) => uniqueStrings(values).filter((label) => (
     label.toLocaleLowerCase() !== publicationKey && isUsefulStoryConcept(label, type)
   ));
-  const normalizedFingerprint = normalizeStoryFingerprint([
-    ...profileValues(profile.primaryPeople, 'person').map((label) => ({ label, type: 'person' })),
-    ...profileValues(profile.organizations, 'organization').map((label) => ({ label, type: 'organization' })),
-    ...normalizeSupportedLocations(profileValues(profile.locations, 'location'), articleText)
-      .map((label) => ({ label, type: 'location' })),
-    ...profileValues(profile.eventTypes, 'event').map((label) => ({ label, type: 'event' })),
-    ...(storyFingerprint || []),
-  ], MAX_PROFILE_VALUES);
+  const normalizedFingerprint = normalizeStoryFingerprint(storyFingerprint, MAX_PROFILE_VALUES);
   const concepts = normalizeStoryFingerprint(normalizedFingerprint.flatMap((concept) => (
     concept.type === 'location'
       ? normalizeSupportedLocations([concept.label], articleText).map((label) => ({ label, type: 'location' }))
@@ -161,16 +154,15 @@ export const createStoryProfile = ({
   };
 };
 
-export const getStoryProfileConcepts = (profile) => uniqueStrings([
-  ...(profile?.primaryPeople || []),
-  ...(profile?.otherPeople || []),
-  ...(profile?.organizations || []),
-  ...(profile?.locations || []),
-  ...(profile?.eventTypes || []),
-  ...(profile?.distinctiveFacts || []),
-  ...(profile?.aliases || []),
-  ...(profile?.userAddedConcepts || []),
-]);
+export const getStoryProfileIdentifiers = (profile) => (
+  Array.isArray(profile?.concepts)
+    ? profile.concepts.map(({ label, type }) => ({ label, type }))
+    : []
+);
+
+export const getStoryProfileConcepts = (profile) => (
+  getStoryProfileIdentifiers(profile).map(({ label }) => label)
+);
 
 export const synchronizeStoryProfile = (profile, storyFingerprint, userAddedConcepts = []) => {
   const concepts = normalizeStoryFingerprint(storyFingerprint, MAX_PROFILE_VALUES);
