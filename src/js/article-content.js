@@ -3,9 +3,13 @@ const BYLINE_ONLY_PATTERN = /^by\s+[\p{Lu}][\p{L}\p{M}'’-]+(?:\s+[\p{Lu}][\p{L
 const MEDIA_PROVIDER_ONLY_PATTERN = /^(?:[\p{Lu}][\p{L}\p{M}'’&-]+\s+){0,3}(?:images|media|news agency|photo agency|press|pictures|visuals)$/iu;
 const KNOWN_PROVIDER_ONLY_PATTERN = /^(?:AFP|AP|Associated Press|Getty Images|Reuters)$/iu;
 const INTERFACE_ONLY_PATTERN = /^(?:related (?:stories|content|topics)|read more|more on this story|share(?: this article)?|sign up(?: for .+)?|subscribe(?: to .+)?|follow us|newsletter|advertisement|skip to content|most read)(?:\s*[:,–—-]\s*.+)?$/iu;
+const MALFORMED_CURRENCY_PATTERN = /[$€£]\s*(?:[?\uFFFD]\s*)+\d+(?:[.,]\d+)*(?:\s*(?:thousand|million|billion|[kmb]))?/giu;
+
+export const sanitizeMalformedCurrencyText = (value) => String(value || '')
+  .replace(MALFORMED_CURRENCY_PATTERN, 'an unspecified amount');
 
 const cleanEntry = (entry) => {
-  let value = String(entry || '').replace(/\s+/g, ' ').trim();
+  let value = sanitizeMalformedCurrencyText(entry).replace(/\s+/g, ' ').trim();
   if (!value) return '';
 
   value = value

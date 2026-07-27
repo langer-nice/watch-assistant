@@ -194,6 +194,20 @@ test('replaces a clipped generated summary with a complete natural fallback', ()
   assert.equal(profile.storySummary, 'Reporting focuses on “Berlin Pride van attack”.');
 });
 
+test('does not preserve a corrupted financial amount in a stored story summary', () => {
+  const profile = createStoryProfile({
+    storyFingerprint: [{ label: 'The Odyssey', type: 'work' }],
+    profile: {
+      storySummary: 'Clips from The Odyssey circulated after the film had already earned $?6.',
+    },
+  });
+
+  assert.equal(
+    profile.storySummary,
+    'Clips from The Odyssey circulated after the film had already earned an unspecified amount.',
+  );
+});
+
 test('upgrades version 2 profiles, prefers precise locations, and removes normalized duplicates', () => {
   const profile = createStoryProfile({
     storyFingerprint: [

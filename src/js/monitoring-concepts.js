@@ -31,6 +31,7 @@ export const DEFAULT_AUTOMATIC_IDENTIFIER_LIMIT = 5;
 export const STORY_CONCEPT_TYPES = Object.freeze([
   'person',
   'organization',
+  'work',
   'location',
   'event',
   'condition',
@@ -168,7 +169,7 @@ export const normalizeStoryFingerprint = (values, limit = 8) => {
         : '';
       const labels = preservesSemanticPhrase
         ? [preservedPhrase].filter(Boolean)
-        : ['person', 'organization'].includes(candidate.type)
+        : ['person', 'organization', 'work'].includes(candidate.type)
           ? [formatConcept(getConceptTokens(candidate.label))].filter(Boolean)
           : normalizeMonitoringConcepts([candidate.label], limit);
       return labels.map((label) => ({ ...candidate, label }));

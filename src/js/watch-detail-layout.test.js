@@ -31,6 +31,10 @@ test('Story Identifiers uses the selected concepts in a compact responsive grid'
   assert.match(html, /class="story-concepts__grid" id="watchStoryConceptsList"/);
   assert.match(html, /id="watchStoryConceptsEmpty"[^>]*hidden/);
   assert.match(html, /id="watchStoryConceptsEdit"/);
+  assert.match(
+    html,
+    /class="[^"]*detail-card__take[^"]*story-concepts[^"]*" id="watchStoryConcepts"/,
+  );
   assert.match(navigation, /getStoryProfileIdentifiers\(watch\.storyProfile\)/);
   const renderBlock = navigation.match(
     /const storyIdentifiers = getStoryProfileIdentifiers[\s\S]*?if \(storyConceptsEl\)/,
@@ -41,4 +45,18 @@ test('Story Identifiers uses the selected concepts in a compact responsive grid'
   assert.match(styles, /\.story-concepts__item dd\s*\{[\s\S]*?overflow-wrap:\s*anywhere/);
   assert.match(styles, /\.story-concepts__edit\s*\{[\s\S]*?min-height:\s*2\.75rem/);
   assert.equal(JSON.parse(english).newWatch.conceptTypes.supporting, 'Key fact');
+  assert.equal(JSON.parse(english).newWatch.conceptTypes.work, 'Named work');
+});
+
+test('Watch Detail hides successful AI provenance but presents fallback as a styled warning', async () => {
+  const [html, styles, navigation] = await Promise.all([
+    readFile(new URL('../../watch-detail.html', import.meta.url), 'utf8'),
+    readFile(new URL('../scss/pages/_watch-detail.scss', import.meta.url), 'utf8'),
+    readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(html, /id="watchAnalysisProvenance" role="status" hidden/);
+  assert.match(navigation, /messageKey === 'detail\.analysisProvenanceFallback'/);
+  assert.doesNotMatch(navigation, /SHOW_ANALYSIS_PROVENANCE/);
+  assert.match(styles, /\.detail-card__take \.detail-analysis-provenance\s*\{[\s\S]*?background:\s*var\(--color-attention-tint\)/);
 });

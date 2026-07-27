@@ -294,6 +294,20 @@ test('a precise place only matches when combined with identifying event context'
   ).matched, true);
 });
 
+test('a selected named work is strong monitoring evidence', () => {
+  const match = matchFeedItemToStory(
+    item('odyssey', 'The Odyssey clips reappear after another platform removal request'),
+    { concepts: [{ label: 'The Odyssey', type: 'work' }] },
+  );
+
+  assert.equal(match.matched, true);
+  assert.deepEqual(match.evidence, [{
+    field: 'works',
+    label: 'The Odyssey',
+    strength: 'strong',
+  }]);
+});
+
 test('monitoring matches only selected identifiers, never supporting profile prose', () => {
   const profile = {
     concepts: [

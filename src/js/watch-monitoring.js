@@ -79,6 +79,7 @@ export const matchFeedItemToStory = (item, storyProfile) => {
   const evidenceType = {
     person: { field: 'people', strength: 'strong' },
     organization: { field: 'organizations', strength: 'strong' },
+    work: { field: 'works', strength: 'strong' },
     location: { field: 'locations', strength: 'context' },
     event: { field: 'eventTypes', strength: 'context' },
     condition: { field: 'conditions', strength: 'strong' },
@@ -94,7 +95,7 @@ export const matchFeedItemToStory = (item, storyProfile) => {
       ? { field: 'userAddedConcepts', strength: 'strong' }
       : evidenceType[type];
     const permitsSpecificSingleWord = [
-      'location', 'condition', 'symptom', 'phenomenon', 'relationship',
+      'location', 'work', 'condition', 'symptom', 'phenomenon', 'relationship',
     ].includes(type);
     const isEligiblePhrase = wordCount >= 2
       || (permitsSpecificSingleWord && normalized.length >= 5);

@@ -1,4 +1,5 @@
 import { isUsefulStoryConcept, normalizeStoryFingerprint } from './monitoring-concepts.js';
+import { sanitizeMalformedCurrencyText } from './article-content.js';
 
 export const STORY_PROFILE_VERSION = 5;
 const MAX_PROFILE_VALUES = 8;
@@ -70,7 +71,7 @@ const getUncertaintyPhrases = (articleText) => uniqueStrings(
   4,
 );
 
-const cleanSummary = (value) => String(value || '')
+const cleanSummary = (value) => sanitizeMalformedCurrencyText(value)
   .replace(/\s+/g, ' ')
   .trim()
   .slice(0, 360);

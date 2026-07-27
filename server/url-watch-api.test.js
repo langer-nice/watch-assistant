@@ -360,6 +360,54 @@ test('normalizes AI concepts into precise phrases without weak or contained term
   assert.deepEqual(suggestion.storyProfile.primaryPeople, ['Petr Novotny']);
 });
 
+test('the Odyssey contract favors a named work plus one concise non-overlapping event', async () => {
+  const odysseySuggestion = {
+    watchTitle: 'Leaked copies of The Odyssey circulate on X',
+    watchingFor: 'Monitor unauthorized distribution of The Odyssey on X.',
+    storyFingerprint: [
+      { label: 'The Odyssey', type: 'work' },
+      { label: 'Unauthorized release on X', type: 'event' },
+    ],
+    storyProfile: {
+      primaryPeople: [],
+      otherPeople: [],
+      peopleRoles: [],
+      locations: [],
+      organizations: ['Universal Studios'],
+      eventTypes: ['Unauthorized release'],
+      distinctiveFacts: ['Universal Studios sought removal of leaked posts'],
+      aliases: [],
+      uncertaintyPhrases: [],
+      storySummary: 'Copies and clips from The Odyssey circulated on X after the film had already earned $?6.',
+    },
+    description: 'Tracks unauthorized copies and clips from The Odyssey appearing on X.',
+  };
+  const suggestion = await generateWatchSuggestion({
+    title: 'Leaked copies of Christopher Nolan film appear on X',
+    description: 'Universal Studios is seeking removal of posts carrying copies and clips.',
+    articleText: 'Unauthorized copies and clips from The Odyssey appeared on X.',
+    apiKey: 'test-key',
+    model: 'test-model',
+    fetchImpl: async (_url, options) => {
+      const request = JSON.parse(options.body);
+      assert.match(request.instructions, /canonical named entities and short reusable event/);
+      assert.match(request.instructions, /do not repeat the named entity/);
+      assert.ok(request.text.format.schema.properties.storyFingerprint.items.properties.type.enum.includes('work'));
+      return createOpenAiResponse(odysseySuggestion);
+    },
+  });
+
+  assert.deepEqual(suggestion.storyFingerprint, [
+    { label: 'The Odyssey', type: 'work' },
+    { label: 'Unauthorized release on X', type: 'event' },
+  ]);
+  assert.doesNotMatch(JSON.stringify(suggestion.storyFingerprint), /Universal Studios takedown|Unauthorized copy of The Odyssey/);
+  assert.equal(
+    suggestion.storyProfile.storySummary,
+    'Copies and clips from The Odyssey circulated on X after the film had already earned an unspecified amount.',
+  );
+});
+
 test('the server route returns a coherent perimenopause structured result with AI provenance', async () => {
   const result = await invokeSuggestionRoute({ fetchImpl: async () => createOpenAiResponse() });
 

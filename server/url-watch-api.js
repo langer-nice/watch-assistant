@@ -5,7 +5,10 @@ import {
   normalizeAutomaticStoryFingerprint,
   STORY_CONCEPT_TYPES,
 } from '../src/js/monitoring-concepts.js';
-import { cleanArticleContentForAnalysis } from '../src/js/article-content.js';
+import {
+  cleanArticleContentForAnalysis,
+  sanitizeMalformedCurrencyText,
+} from '../src/js/article-content.js';
 
 const MAX_REQUEST_BYTES = 32 * 1024;
 const MAX_PAGE_BYTES = 1024 * 1024;
@@ -424,14 +427,14 @@ const validateSuggestion = (suggestion) => {
   );
   const keywords = storyFingerprint.map(({ label }) => label);
   const description = typeof suggestion?.description === 'string'
-    ? suggestion.description.trim()
+    ? sanitizeMalformedCurrencyText(suggestion.description).trim()
     : '';
   const sentenceCount = description.match(/[.!?](?:\s|$)/g)?.length || (description ? 1 : 0);
   const watchingFor = typeof suggestion?.watchingFor === 'string'
-    ? suggestion.watchingFor.trim()
+    ? sanitizeMalformedCurrencyText(suggestion.watchingFor).trim()
     : '';
   const storySummary = typeof suggestion?.storyProfile?.storySummary === 'string'
-    ? suggestion.storyProfile.storySummary.replace(/\s+/g, ' ').trim()
+    ? sanitizeMalformedCurrencyText(suggestion.storyProfile.storySummary).replace(/\s+/g, ' ').trim()
     : '';
   if (
     typeof suggestion?.watchTitle !== 'string'
@@ -507,7 +510,7 @@ export const generateWatchSuggestion = async ({
 
 storyProfile.storySummary explains the article naturally to a human. It must identify the central subject or phenomenon, explain what the article reports, include decisive supported context, and preserve important uncertainty or attribution. It must not merely copy, segment, or lightly reword the headline.
 
-storyFingerprint is the separate, complete list of monitoring identifiers used to recognize future reporting about the same story. Select the smallest sufficient set, normally 2 to 5 and fewer when only fewer are reliable. Rank specificity and future matching value above general relevance. Each identifier must be central, concise, independently understandable, and likely to appear or have a close semantic equivalent in later relevant coverage. Use the most accurate available type, including condition, symptom, phenomenon or relationship rather than supporting when applicable. Prefer the central subject, event, condition or phenomenon; then a genuinely central person, organization or location; then at most one or two decisive facts or relationships needed to disambiguate the story.
+storyFingerprint is the separate, complete list of monitoring identifiers used to recognize future reporting about the same story. Select the smallest sufficient set, normally 2 to 5 and fewer when only fewer are reliable. Rank specificity and future matching value above general relevance. Each identifier must be central, concise, independently understandable, and likely to appear or have a close semantic equivalent in later relevant coverage. Favor canonical named entities and short reusable event or relationship labels over descriptive phrases that read like miniature summaries. When two identifiers work as a pair, do not repeat the named entity inside a second long identifier. For example, for an unauthorized copy of a named work circulating on a platform, prefer the complementary pair "The Odyssey" (work) and "Unauthorized release on X" (event) over "Universal Studios takedown of leaked film posts" and "Unauthorized copy of The Odyssey on X". Use the most accurate available type, including work, condition, symptom, phenomenon or relationship rather than supporting when applicable. Prefer the central subject, event, condition or phenomenon; then a genuinely central person, organization or location; then at most one or two decisive facts or relationships needed to disambiguate the story.
 
 Do not put general advice, list items, lifestyle recommendations, supporting examples, background details, generic themes, consequences, explanatory prose, uncertainty prose, or generic synthesized phrases in storyFingerprint. Do not include quoted experts or organizations merely cited as sources. primaryPeople and organizations may be empty when none is central. Do not include byline authors, photographers, image or agency credits, publishers, captions, interface text, or related-content modules. Do not return headline fragments, incomplete phrases, entire sentences, or redundant parent and child concepts. For example, prefer either "Brain fog during perimenopause" or the complementary pair "Brain fog" and "Perimenopause", not all three. Preserve a decisive relationship as one coherent identifier when separating it would lose meaning, such as an agreement being conditional on another action.
 

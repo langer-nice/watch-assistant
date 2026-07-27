@@ -124,10 +124,14 @@ body.is-watch-edit-open {
   margin-left: 0;
 }
 
-.detail-analysis-provenance {
-  margin-top: var(--space-xs);
-  color: var(--color-text-muted);
+.detail-card__take .detail-analysis-provenance {
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  color: var(--color-text-secondary);
+  background: var(--color-attention-tint);
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
+  line-height: 1.45;
 }
 
 .story-concepts__helper,

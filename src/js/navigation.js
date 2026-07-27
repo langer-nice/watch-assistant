@@ -82,8 +82,6 @@ let editSheetCloseTimer = null;
 let editSheetBackgroundScrollY = 0;
 
 const FIRST_MONITORING_DELAY = 3200;
-const SHOW_ANALYSIS_PROVENANCE = Boolean(import.meta.env?.DEV)
-  || import.meta.env?.VITE_VERCEL_ENV === 'preview';
 const watchCheckController = createWatchCheckController({
   getWatch: getWatchById,
   saveWatch: updateWatch,
@@ -1134,8 +1132,9 @@ const renderWatchDetail = () => {
   if (storySummaryEl) storySummaryEl.hidden = !storySummary;
   if (analysisProvenanceEl) {
     const messageKey = getAnalysisProvenanceMessageKey(watch);
-    analysisProvenanceEl.textContent = SHOW_ANALYSIS_PROVENANCE && messageKey ? t(messageKey) : '';
-    analysisProvenanceEl.hidden = !(SHOW_ANALYSIS_PROVENANCE && messageKey);
+    const showsFallbackWarning = messageKey === 'detail.analysisProvenanceFallback';
+    analysisProvenanceEl.textContent = showsFallbackWarning ? t(messageKey) : '';
+    analysisProvenanceEl.hidden = !showsFallbackWarning;
   }
   const storyIdentifiers = getStoryProfileIdentifiers(watch.storyProfile);
   if (storyConceptsListEl) {
