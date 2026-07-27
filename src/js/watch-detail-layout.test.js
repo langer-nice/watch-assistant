@@ -42,11 +42,24 @@ test('Story Identifiers uses the selected concepts in a compact responsive grid'
   assert.doesNotMatch(renderBlock, /distinctiveFacts|uncertaintyPhrases|otherPeople/);
   assert.match(styles, /\.story-concepts__grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(styles, /@media \(min-width: 36rem\)[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.story-concepts__item--wide\s*\{[\s\S]*?grid-column:\s*1 \/ -1/);
   assert.match(styles, /\.story-concepts__item dd\s*\{[\s\S]*?overflow-wrap:\s*anywhere/);
   assert.match(styles, /\.story-concepts__edit\s*\{[\s\S]*?min-height:\s*2\.75rem/);
   assert.equal(JSON.parse(english).newWatch.conceptTypes.product_service, 'Product / service');
   assert.equal(JSON.parse(english).newWatch.conceptTypes.supporting, undefined);
   assert.equal(JSON.parse(english).newWatch.conceptTypes.work, 'Named work');
+});
+
+test('Watch Detail renders only selected concepts, never detail or uncertainty profile fields', async () => {
+  const source = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
+  const rendering = source.match(
+    /const storyIdentifiers = getStoryProfileIdentifiers[\s\S]*?if \(storyConceptsEl\)/,
+  )?.[0] || '';
+
+  assert.match(rendering, /getStoryProfileIdentifiers\(watch\.storyProfile\)/);
+  assert.doesNotMatch(rendering, /distinctiveFacts|uncertaintyPhrases|DETAIL|UNCERTAINTY/);
+  assert.match(rendering, /storyIdentifiers\.map/);
+  assert.match(rendering, /type === 'relationship' \|\| label\.length > 56/);
 });
 
 test('Watch Detail hides successful AI provenance but presents fallback as a styled warning', async () => {

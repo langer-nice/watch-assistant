@@ -211,6 +211,10 @@ body.is-watch-edit-open {
   .story-concepts__item {
     grid-template-columns: minmax(6.5rem, auto) minmax(0, 1fr);
   }
+
+  .story-concepts__item--wide {
+    grid-column: 1 / -1;
+  }
 }
 
 .detail-clarity-warning[hidden] {

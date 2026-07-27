@@ -116,3 +116,17 @@ test('drops legacy automatic facts while preserving explicit manual identifiers'
     { label: 'Keep my phrase', type: 'manual' },
   ]), []);
 });
+
+test('rejects generic recommendation labels in English and French without weakening conditions', () => {
+  assert.deepEqual(normalizeAutomaticStoryFingerprint([
+    { label: 'Lifestyle strategies for improving concentration', type: 'phenomenon' },
+    { label: 'Daily routines for reducing brain fog', type: 'event' },
+    { label: 'Stratégies pour améliorer la concentration', type: 'phenomenon' },
+    { label: 'Conseils pour réduire le brouillard mental', type: 'event' },
+    { label: 'Perimenopause', type: 'condition' },
+    { label: 'Brain fog', type: 'symptom' },
+  ]), [
+    { label: 'Perimenopause', type: 'condition' },
+    { label: 'Brain fog', type: 'symptom' },
+  ]);
+});

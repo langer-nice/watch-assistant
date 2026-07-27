@@ -206,6 +206,10 @@ const isConciseMonitoringIdentifier = (value) => {
   const wordCount = getConceptTokens(label).length;
   const type = typeof value === 'string' ? null : value?.type;
   if (!AUTOMATIC_STORY_CONCEPT_TYPES.includes(type)) return false;
+  if (
+    !['condition', 'symptom', 'relationship'].includes(type)
+    && /^(?:advice|conseils?|recommendations?|tips?|astuces?|ways? to|moyens? de|how to|comment |remember to|pensez à|try |essayez |take |prenez |use |utilisez )|\b(?:strateg(?:y|ies) for|stratégies? pour|routines? for|routines? pour|ways? to (?:improve|reduce)|moyens? d['’](?:améliorer|réduire)|improving concentration|reducing brain fog|améliorer la concentration|réduire le brouillard mental)\b/i.test(label)
+  ) return false;
   const maximumWords = type === 'relationship' ? 12 : ['event', 'phenomenon'].includes(type) ? 10 : 8;
   if (wordCount === 0 || wordCount > maximumWords) return false;
   const sentenceBoundaries = label.match(/[.!?](?:\s|$)/g)?.length || 0;

@@ -464,6 +464,46 @@ test('a valid AI profile with zero identifiers remains a successful analysis', a
   assert.deepEqual(suggestion.keywords, []);
 });
 
+test('AI recommendations, quoted experts and uncertainty remain outside monitoring identifiers', async () => {
+  const suggestion = await generateWatchSuggestion({
+    title: 'Brain fog and four easy ways to help fix it',
+    description: 'Why memory and concentration can change during perimenopause.',
+    articleText: perimenopauseArticleText,
+    apiKey: 'test-key',
+    model: 'test-model',
+    fetchImpl: async () => createOpenAiResponse({
+      ...perimenopauseStructuredSuggestion,
+      storyFingerprint: [
+        { label: 'Perimenopause', type: 'condition' },
+        { label: 'Brain fog', type: 'symptom' },
+        { label: 'Dr. Tharaka', type: 'person' },
+        { label: 'Short breaks', type: 'phenomenon' },
+        { label: 'Calendars and reminders', type: 'phenomenon' },
+        { label: 'Evidence remains uncertain', type: 'event' },
+      ],
+      storyProfile: {
+        ...perimenopauseStructuredSuggestion.storyProfile,
+        primaryPeople: [],
+        otherPeople: ['Dr. Tharaka'],
+        distinctiveFacts: [
+          'Taking short breaks can provide a cognitive reset.',
+          'Calendars and reminders may reduce mental load.',
+        ],
+        uncertaintyPhrases: ['The evidence remains uncertain and may vary between people.'],
+      },
+    }),
+  });
+
+  assert.deepEqual(suggestion.storyFingerprint, [
+    { label: 'Perimenopause', type: 'condition' },
+    { label: 'Brain fog', type: 'symptom' },
+  ]);
+  assert.deepEqual(suggestion.keywords, ['Perimenopause', 'Brain fog']);
+  assert.deepEqual(suggestion.storyProfile.otherPeople, ['Dr. Tharaka']);
+  assert.equal(suggestion.storyProfile.distinctiveFacts.length, 2);
+  assert.equal(suggestion.storyProfile.uncertaintyPhrases.length, 1);
+});
+
 test('legacy fact output is contextualized instead of becoming an automatic identifier', async () => {
   const suggestion = await generateWatchSuggestion({
     title: 'Company announces plans',

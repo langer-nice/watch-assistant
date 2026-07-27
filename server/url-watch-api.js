@@ -340,6 +340,9 @@ export const extractPageMetadata = (html, sourceUrl = '') => {
     articleText,
     articleBodyCount: articleBodies.length,
     includedArticleBodyCount,
+    extractionMethod: jsonLdBodies.length
+      ? 'json_ld_article_body'
+      : articleBodies.length ? 'html_article_element' : 'metadata_only',
     author,
     siteName: siteName || cleanPageText(jsonLdArticle?.publisher?.name),
     publishedAt: publishedAt || cleanPageText(jsonLdArticle?.datePublished),
@@ -415,17 +418,58 @@ const extractResponseText = (response) => response.output
   ?.flatMap((item) => item.content || [])
   .find((content) => content.type === 'output_text')?.text;
 
+const getComparableTokens = (value) => String(value || '')
+  .normalize('NFKD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLocaleLowerCase()
+  .match(/[\p{L}\p{N}]+/gu) || [];
+
+const materiallyOverlaps = (label, contextualValue) => {
+  const first = new Set(getComparableTokens(label));
+  const second = new Set(getComparableTokens(contextualValue));
+  if (!first.size || !second.size) return false;
+  const shared = [...first].filter((token) => second.has(token)).length;
+  return shared === Math.min(first.size, second.size)
+    || shared / Math.max(first.size, second.size) >= 0.8;
+};
+
+const hasSameNormalizedLabel = (first, second) => (
+  getComparableTokens(first).join(' ') === getComparableTokens(second).join(' ')
+);
+
 const validateSuggestion = (suggestion) => {
   if (!suggestion || typeof suggestion !== 'object' || Array.isArray(suggestion)) {
     throw new ArticleAnalysisError('structured_validation_failed');
   }
   const suppliedFingerprint = suggestion.storyFingerprint;
+  const contextualValues = [
+    ...(Array.isArray(suggestion.storyProfile?.distinctiveFacts)
+      ? suggestion.storyProfile.distinctiveFacts
+      : []),
+    ...(Array.isArray(suggestion.storyProfile?.uncertaintyPhrases)
+      ? suggestion.storyProfile.uncertaintyPhrases
+      : []),
+  ];
+  const primaryPeople = Array.isArray(suggestion.storyProfile?.primaryPeople)
+    ? suggestion.storyProfile.primaryPeople
+    : [];
+  const eligibleFingerprint = (Array.isArray(suppliedFingerprint) ? suppliedFingerprint : [])
+    .filter((concept) => (
+      (
+        concept?.type !== 'person'
+        || primaryPeople.some((person) => hasSameNormalizedLabel(concept?.label, person))
+      )
+      && (
+        ['condition', 'symptom', 'relationship'].includes(concept?.type)
+        || !contextualValues.some((value) => materiallyOverlaps(concept?.label, value))
+      )
+    ));
   const legacyFacts = (Array.isArray(suppliedFingerprint) ? suppliedFingerprint : [])
     .filter((concept) => ['fact', 'supporting'].includes(concept?.type))
     .map((concept) => String(concept?.label || '').trim())
     .filter(Boolean);
   const storyFingerprint = normalizeAutomaticStoryFingerprint(
-    suppliedFingerprint,
+    eligibleFingerprint,
     5,
   );
   const keywords = storyFingerprint.map(({ label }) => label);
@@ -477,10 +521,14 @@ export const generateWatchSuggestion = async ({
   model,
   fetchImpl = fetch,
   diagnosticId = randomUUID(),
+  onDiagnostic,
 }) => {
   if (!apiKey) {
+    onDiagnostic?.({ stage: 'provider', attempted: false, succeeded: false, outcomeCode: 'configuration_missing' });
     throw new ArticleAnalysisError('configuration_missing', 503);
   }
+
+  onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'request_started' });
 
   const source = {
     title: String(title || '').trim(),
@@ -514,9 +562,9 @@ export const generateWatchSuggestion = async ({
 
 storyProfile.storySummary explains the article naturally to a human. It must identify the central subject or phenomenon, explain what the article reports, include decisive supported context, and preserve important uncertainty or attribution. It must not merely copy, segment, or lightly reword the headline.
 
-storyFingerprint is the separate, complete list of monitoring identifiers used to recognize future reporting about the same story. Select the smallest sufficient set: zero to five identifiers, normally 2 to 5 for a strong result, and fewer whenever fewer are reliable. Rank specificity and future matching value above general relevance. Each identifier must be central, concise, independently understandable, and likely to appear or have a close semantic equivalent in later relevant coverage. Favor canonical named entities and short reusable event or relationship labels over descriptive phrases that read like miniature summaries. When two identifiers work as a pair, do not repeat the named entity inside a second long identifier. For example, for an unauthorized copy of a named work circulating on a platform, prefer the complementary pair "The Odyssey" (work) and "Unauthorized release on X" (event) over "Universal Studios takedown of leaked film posts" and "Unauthorized copy of The Odyssey on X". Use the most accurate available type, including work, product_service, condition, symptom, phenomenon or relationship. Use product_service for a named product, platform or service such as Amazon Luna or Google Stadia only when the supplied context supports that classification and the entity is central. A company remains an organization. Generic fact, supporting and manual are not permitted automatic identifier types.
+storyFingerprint is the separate, complete list of monitoring identifiers used to recognize future reporting about the same story. Select the smallest sufficient set: zero to five identifiers, normally 2 to 5 for a strong result, and fewer whenever fewer are reliable. Return them strongest first. Rank specificity and future matching value above general relevance. Before retaining an identifier, ask whether a future article containing it would be credible evidence that the article concerns the same monitored subject. Each identifier must be central, concise, independently understandable, and likely to appear or have a close semantic equivalent in later relevant coverage. Favor canonical named entities and short reusable event or relationship labels over descriptive phrases that read like miniature summaries. When two identifiers work as a pair, do not repeat the named entity inside a second long identifier. For example, for an unauthorized copy of a named work circulating on a platform, prefer the complementary pair "The Odyssey" (work) and "Unauthorized release on X" (event) over "Universal Studios takedown of leaked film posts" and "Unauthorized copy of The Odyssey on X". Use the most accurate available type, including work, product_service, condition, symptom, phenomenon or relationship. Use product_service for a named product, platform or service such as Amazon Luna or Google Stadia only when the supplied context supports that classification and the entity is central. A company remains an organization. Generic fact, supporting and manual are not permitted automatic identifier types.
 
-Do not put general advice, list items, lifestyle recommendations, supporting examples, background details, generic themes, consequences, explanatory prose, uncertainty prose, or generic synthesized phrases in storyFingerprint. Do not include quoted experts or organizations merely cited as sources. primaryPeople and organizations may be empty when none is central. Do not include byline authors, photographers, image or agency credits, publishers, captions, interface text, or related-content modules. Do not return headline fragments, incomplete phrases, entire sentences, or redundant parent and child concepts. For example, prefer either "Brain fog during perimenopause" or the complementary pair "Brain fog" and "Perimenopause", not all three. Preserve a decisive relationship as one coherent identifier when separating it would lose meaning, such as an agreement being conditional on another action.
+Do not put general advice, list items, lifestyle recommendations, supporting examples, background details, generic themes, consequences, explanatory prose, uncertainty prose, or generic synthesized phrases in storyFingerprint. Put those values only in distinctiveFacts or uncertaintyPhrases when they remain useful context, and never duplicate them into storyFingerprint. Do not include quoted experts or organizations merely cited as sources. primaryPeople means people the story is genuinely centered on; quoted experts belong only in otherPeople. primaryPeople and organizations may be empty when none is central. Do not include byline authors, photographers, image or agency credits, publishers, captions, interface text, or related-content modules. Do not return headline fragments, incomplete phrases, entire sentences, or redundant parent and child concepts. For a health advice article about brain fog during perimenopause, select "Brain fog" and "Perimenopause" while keeping coping recommendations such as breaks, reminders and lifestyle routines only in distinctiveFacts. Prefer either "Brain fog during perimenopause" or the complementary pair "Brain fog" and "Perimenopause", not all three. Preserve a decisive relationship as one coherent identifier when separating it would lose meaning, such as an agreement being conditional on another action.
 
 Populate storyProfile independently from the monitoring identifiers. primaryPeople, otherPeople, peopleRoles, locations, organizations and eventTypes describe supported article entities and context. distinctiveFacts contains useful supporting details, including recommendations when relevant to the human explanation. uncertaintyPhrases contains attribution and uncertainty prose. These supporting profile fields are not monitoring identifiers unless the same concise concept is deliberately selected in storyFingerprint because it is essential for future matching.
 
@@ -539,29 +587,53 @@ Use source fields in this order: title, description, articleText, then slug only
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
   } catch (error) {
-    throw new ArticleAnalysisError(isTimeoutError(error) ? 'provider_timeout' : 'provider_network_error');
+    const outcomeCode = isTimeoutError(error) ? 'provider_timeout' : 'provider_network_error';
+    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode });
+    throw new ArticleAnalysisError(outcomeCode);
   }
   if (!response.ok) {
-    if ([401, 403].includes(response.status)) throw new ArticleAnalysisError('provider_auth_error');
-    if (response.status === 429) throw new ArticleAnalysisError('provider_rate_limited');
+    if ([401, 403].includes(response.status)) {
+      onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_auth_error' });
+      throw new ArticleAnalysisError('provider_auth_error');
+    }
+    if (response.status === 429) {
+      onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_rate_limited' });
+      throw new ArticleAnalysisError('provider_rate_limited');
+    }
+    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_response_invalid' });
     throw new ArticleAnalysisError('provider_response_invalid');
   }
   let result;
   try {
     result = await response.json();
   } catch {
+    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_response_invalid' });
     throw new ArticleAnalysisError('provider_response_invalid');
   }
   const outputText = extractResponseText(result);
-  if (!outputText) throw new ArticleAnalysisError('provider_response_invalid');
+  if (!outputText) {
+    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_response_invalid' });
+    throw new ArticleAnalysisError('provider_response_invalid');
+  }
   let parsed;
   try {
     parsed = JSON.parse(outputText);
   } catch {
+    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: 'provider_response_invalid' });
     throw new ArticleAnalysisError('provider_response_invalid');
   }
+  onDiagnostic?.({ stage: 'parsed', value: parsed });
+  let validated;
+  try {
+    validated = validateSuggestion(parsed);
+  } catch (error) {
+    onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: false, outcomeCode: error.code || 'structured_validation_failed' });
+    throw error;
+  }
+  onDiagnostic?.({ stage: 'validated', value: validated });
+  onDiagnostic?.({ stage: 'provider', attempted: true, succeeded: true, outcomeCode: 'success' });
   return {
-    ...validateSuggestion(parsed),
+    ...validated,
     analysisProvider: 'openai',
     analysisStatus: 'success',
     analysisModel: model,

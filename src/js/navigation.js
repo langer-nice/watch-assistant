@@ -1139,12 +1139,15 @@ const renderWatchDetail = () => {
   }
   const storyIdentifiers = getStoryProfileIdentifiers(watch.storyProfile);
   if (storyConceptsListEl) {
-    storyConceptsListEl.innerHTML = storyIdentifiers.map(({ label, type }) => `
-      <div class="story-concepts__item">
-        <dt><span>${escapeHtml(t(`newWatch.conceptTypes.${type}`))}</span></dt>
-        <dd>${escapeHtml(label)}</dd>
-      </div>
-    `).join('');
+    storyConceptsListEl.innerHTML = storyIdentifiers.map(({ label, type }) => {
+      const usesWideLayout = type === 'relationship' || label.length > 56;
+      return `
+        <div class="story-concepts__item${usesWideLayout ? ' story-concepts__item--wide' : ''}">
+          <dt><span>${escapeHtml(t(`newWatch.conceptTypes.${type}`))}</span></dt>
+          <dd>${escapeHtml(label)}</dd>
+        </div>
+      `;
+    }).join('');
   }
   if (storyConceptsListEl) storyConceptsListEl.hidden = storyIdentifiers.length === 0;
   if (storyConceptsEmptyEl) storyConceptsEmptyEl.hidden = storyIdentifiers.length > 0;

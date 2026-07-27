@@ -521,6 +521,7 @@ const createFallbackStorySummary = ({ person, primaryRole, event, location, unce
 export const createSourceDerivedFallback = (page, sourceUrl = '', {
   fallbackReasonCode = 'internal_error',
   analysisDiagnosticId = null,
+  diagnosticCollector,
 } = {}) => {
   const analysisPage = {
     ...page,
@@ -587,18 +588,30 @@ export const createSourceDerivedFallback = (page, sourceUrl = '', {
     uncertainty?.fact,
     organizationConnection?.fact,
   ].filter(Boolean);
-  const storyFingerprint = normalizeAutomaticStoryFingerprint([
-    supportedPerson && { label: supportedPerson, type: 'person' },
-    ...supportedProducts.map((label) => ({ label, type: 'product_service' })),
-    supportedLocation && { label: supportedLocation, type: 'location' },
-    organizationConnection?.name && { label: organizationConnection.name, type: 'organization' },
-    coherentVehicleAttackEvent && { label: coherentVehicleAttackEvent, type: 'event' },
-    centralTopic && { label: centralTopic, type: 'event' },
-    missingHikers && { label: missingHikers, type: 'event' },
-    supportsSearchOperation && { label: 'Search operation', type: 'event' },
-    cloudGamingPhenomenon && { label: cloudGamingPhenomenon, type: 'phenomenon' },
-    ...distinctiveRisks.map((label) => ({ label, type: 'condition' })),
-  ].filter(Boolean), 5);
+  const fallbackCandidates = [
+    supportedPerson && { label: supportedPerson, type: 'person', rule: 'supported_story_person' },
+    ...supportedProducts.map((label) => ({ label, type: 'product_service', rule: 'supported_product_or_service' })),
+    supportedLocation && { label: supportedLocation, type: 'location', rule: 'supported_location_pattern' },
+    organizationConnection?.name && { label: organizationConnection.name, type: 'organization', rule: 'person_organization_connection' },
+    coherentVehicleAttackEvent && { label: coherentVehicleAttackEvent, type: 'event', rule: 'coherent_vehicle_attack_event' },
+    centralTopic && { label: centralTopic, type: 'event', rule: 'central_topic_pattern' },
+    missingHikers && { label: missingHikers, type: 'event', rule: 'title_missing_hikers_pattern' },
+    supportsSearchOperation && { label: 'Search operation', type: 'event', rule: 'missing_hiker_search_context' },
+    cloudGamingPhenomenon && { label: cloudGamingPhenomenon, type: 'phenomenon', rule: 'cloud_gaming_context' },
+    ...distinctiveRisks.map((label) => ({ label, type: 'condition', rule: 'distinctive_risk_list' })),
+  ].filter(Boolean);
+  const storyFingerprint = normalizeAutomaticStoryFingerprint(fallbackCandidates, 5);
+  diagnosticCollector?.({
+    candidates: fallbackCandidates.map(({ label, type, rule }) => ({ label, type, rule })),
+    normalizedFingerprint: storyFingerprint,
+    sourceText: source,
+    sourceBlocks: [
+      title,
+      analysisPage.description,
+      ...String(analysisPage.articleText || '').split(/\n{2,}/),
+      slug,
+    ].filter(Boolean),
+  });
   return {
     watchTitle: title,
     watchingFor: storySummary || summary,
