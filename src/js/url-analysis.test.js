@@ -24,7 +24,6 @@ test('builds a source-supported fallback fingerprint for the Guardian acceptance
       { label: 'Taiwan', type: 'location' },
       { label: 'Missing hikers', type: 'event' },
       { label: 'Search operation', type: 'event' },
-      { label: 'Remote mountains', type: 'supporting' },
     ]);
     assert.deepEqual(result.keywords, result.storyFingerprint.map(({ label }) => label));
   } finally {
@@ -127,7 +126,6 @@ test('live-page fallback ranks the subject over witnesses and reacting officials
       { label: 'Crescent State', type: 'organization' },
       { label: 'Linden, France', type: 'location' },
       { label: 'Linden Pride vehicle attack', type: 'event' },
-      { label: 'Suspected Islamist attack', type: 'supporting' },
     ]);
   } finally {
     if (originalDocument === undefined) delete globalThis.document;
@@ -191,9 +189,9 @@ test('topic-led article fallback excludes credits, permits no primary person, an
     assert.deepEqual(result.storyProfile.concepts, [
       { label: 'Sheffield', type: 'location' },
       { label: 'Open water swimming', type: 'event' },
-      { label: 'Sewage contamination', type: 'supporting' },
-      { label: 'Leptospirosis', type: 'supporting' },
-      { label: 'Toxic algae', type: 'supporting' },
+      { label: 'Sewage contamination', type: 'condition' },
+      { label: 'Leptospirosis', type: 'condition' },
+      { label: 'Toxic algae', type: 'condition' },
     ]);
     assert.doesNotMatch(
       JSON.stringify(result.storyProfile),
@@ -226,6 +224,41 @@ test('an author is eligible only when the article evidence independently makes t
     if (originalDocument === undefined) delete globalThis.document;
     else globalThis.document = originalDocument;
   }
+});
+
+test('cloud-gaming fallback rejects headline fragments and classifies central services precisely', () => {
+  const result = createSourceDerivedFallback({
+    title: 'Amazon gaming boss predicts future where players no longer need consoles',
+    description: 'Jeff Gattis says cloud gaming will let players enjoy games without consoles.',
+    articleText: [
+      'Jeff Gattis leads Amazon gaming.',
+      'Jeff Gattis said Amazon Luna is a cloud-gaming service built for players who no longer need consoles.',
+      'Amazon Luna is expanding while Google Stadia was a game-streaming platform that closed.',
+      'Google Stadia showed the risks facing cloud gaming.',
+    ].join(' '),
+  }, 'https://example.com/gaming/story');
+
+  assert.deepEqual(result.storyFingerprint, [
+    { label: 'Jeff Gattis', type: 'person' },
+    { label: 'Amazon Luna', type: 'product_service' },
+    { label: 'Google Stadia', type: 'product_service' },
+    { label: 'Cloud gaming without consoles', type: 'phenomenon' },
+  ]);
+  assert.deepEqual(result.storyProfile.locations, []);
+  assert.doesNotMatch(
+    JSON.stringify(result.storyFingerprint),
+    /Amazon gaming boss predicts future|Where players no longer|supporting|Key fact/,
+  );
+});
+
+test('fallback accepts zero identifiers instead of filling from an unsupported headline', () => {
+  const result = createSourceDerivedFallback({
+    title: 'Experts discuss concerns where players no longer agree',
+  }, 'https://example.com/opinion/story');
+
+  assert.deepEqual(result.storyFingerprint, []);
+  assert.deepEqual(result.keywords, []);
+  assert.equal(result.storyProfile.concepts.length, 0);
 });
 
 test('successful perimenopause AI analysis survives client normalization without fallback fragments', async () => {

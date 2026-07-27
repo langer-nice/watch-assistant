@@ -1,7 +1,7 @@
 import { isUsefulStoryConcept, normalizeStoryFingerprint } from './monitoring-concepts.js';
 import { sanitizeMalformedCurrencyText } from './article-content.js';
 
-export const STORY_PROFILE_VERSION = 5;
+export const STORY_PROFILE_VERSION = 6;
 const MAX_PROFILE_VALUES = 8;
 
 const uniqueStrings = (values, limit = MAX_PROFILE_VALUES) => {
@@ -134,7 +134,7 @@ export const createStoryProfile = ({
     ], articleText)),
     organizations: uniqueStrings([...profileValues(profile.organizations, 'organization'), ...typed('organization')]),
     eventTypes: uniqueStrings([...profileValues(profile.eventTypes, 'event'), ...typed('event')]),
-    distinctiveFacts: uniqueStrings(profileValues(profile.distinctiveFacts, 'supporting')),
+    distinctiveFacts: uniqueStrings(profileValues(profile.distinctiveFacts, 'contextual')),
     aliases: uniqueStrings(profile.aliases).filter((label) => label.toLocaleLowerCase() !== publicationKey),
     uncertaintyPhrases: uniqueStrings(hasExplicitUncertainty
       ? profile.uncertaintyPhrases
@@ -176,7 +176,7 @@ export const synchronizeStoryProfile = (profile, storyFingerprint, userAddedConc
       locations: byType('location'),
       organizations: byType('organization'),
       eventTypes: byType('event'),
-      distinctiveFacts: byType('supporting'),
+      distinctiveFacts: profile?.distinctiveFacts,
       aliases: profile?.aliases,
       peopleRoles: profile?.peopleRoles,
       uncertaintyPhrases: profile?.uncertaintyPhrases,

@@ -66,7 +66,7 @@ test('does not retain capitalized stop words from headline title case', () => {
 test('orders a Story Fingerprint by identifying strength and preserves complete names', () => {
   assert.deepEqual(
     normalizeStoryFingerprint([
-      { label: 'Artificial intelligence', type: 'supporting' },
+      { label: 'Amazon Luna', type: 'product_service' },
       { label: 'Court ruling', type: 'event' },
       { label: 'Taylor', type: 'person' },
       { label: 'Monaco', type: 'location' },
@@ -76,9 +76,9 @@ test('orders a Story Fingerprint by identifying strength and preserves complete 
     [
       { label: 'Taylor Swift', type: 'person' },
       { label: 'OpenAI', type: 'organization' },
+      { label: 'Amazon Luna', type: 'product_service' },
       { label: 'Monaco', type: 'location' },
       { label: 'Court ruling', type: 'event' },
-      { label: 'Artificial intelligence', type: 'supporting' },
     ],
   );
 });
@@ -96,13 +96,23 @@ test('rejects weak isolated concepts while retaining coherent topics and named h
     { label: 'Health', type: 'supporting' },
     { label: 'Sewage', type: 'supporting' },
     { label: 'Open water swimming', type: 'event' },
-    { label: 'Sewage contamination', type: 'supporting' },
-    { label: 'Leptospirosis', type: 'supporting' },
-    { label: 'Toxic algae', type: 'supporting' },
+    { label: 'Sewage contamination', type: 'condition' },
+    { label: 'Leptospirosis', type: 'condition' },
+    { label: 'Toxic algae', type: 'condition' },
   ]), [
     { label: 'Open water swimming', type: 'event' },
-    { label: 'Sewage contamination', type: 'supporting' },
-    { label: 'Leptospirosis', type: 'supporting' },
-    { label: 'Toxic algae', type: 'supporting' },
+    { label: 'Sewage contamination', type: 'condition' },
+    { label: 'Leptospirosis', type: 'condition' },
+    { label: 'Toxic algae', type: 'condition' },
   ]);
+});
+
+test('drops legacy automatic facts while preserving explicit manual identifiers', () => {
+  assert.deepEqual(normalizeStoryFingerprint([
+    { label: 'Company announces plans', type: 'supporting' },
+    { label: 'Keep my phrase', type: 'manual' },
+  ]), [{ label: 'Keep my phrase', type: 'manual' }]);
+  assert.deepEqual(normalizeAutomaticStoryFingerprint([
+    { label: 'Keep my phrase', type: 'manual' },
+  ]), []);
 });

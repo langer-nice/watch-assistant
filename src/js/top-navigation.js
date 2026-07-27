@@ -53,9 +53,8 @@ const getNavigationConfig = () => {
   }
   if (document.querySelector('.page--detail')) {
     return {
-      pattern: 'single',
+      pattern: 'none',
       activeSection: 'watches',
-      destination: { href: 'watches.html', labelKey: 'detail.backToAllWatches' },
       showMobileNewWatchAction: true,
     };
   }

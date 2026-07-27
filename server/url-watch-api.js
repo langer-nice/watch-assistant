@@ -2,8 +2,8 @@ import he from 'he';
 import { randomUUID } from 'node:crypto';
 import { PublicUrlError, validatePublicUrl } from './public-url-security.js';
 import {
+  AUTOMATIC_STORY_CONCEPT_TYPES,
   normalizeAutomaticStoryFingerprint,
-  STORY_CONCEPT_TYPES,
 } from '../src/js/monitoring-concepts.js';
 import {
   cleanArticleContentForAnalysis,
@@ -51,14 +51,14 @@ const WATCH_SUGGESTION_SCHEMA = {
     watchingFor: { type: 'string', minLength: 1, maxLength: 300 },
     storyFingerprint: {
       type: 'array',
-      minItems: 1,
+      minItems: 0,
       maxItems: 5,
       items: {
         type: 'object',
         additionalProperties: false,
         properties: {
           label: { type: 'string', minLength: 1, maxLength: 100 },
-          type: { type: 'string', enum: STORY_CONCEPT_TYPES },
+          type: { type: 'string', enum: AUTOMATIC_STORY_CONCEPT_TYPES },
         },
         required: ['label', 'type'],
       },
@@ -417,10 +417,13 @@ const extractResponseText = (response) => response.output
 
 const validateSuggestion = (suggestion) => {
   if (!suggestion || typeof suggestion !== 'object' || Array.isArray(suggestion)) {
-    throw new ArticleAnalysisError('schema_validation_failed');
+    throw new ArticleAnalysisError('structured_validation_failed');
   }
-  const suppliedFingerprint = suggestion.storyFingerprint
-    || suggestion.keywords?.map((label) => ({ label, type: 'supporting' }));
+  const suppliedFingerprint = suggestion.storyFingerprint;
+  const legacyFacts = (Array.isArray(suppliedFingerprint) ? suppliedFingerprint : [])
+    .filter((concept) => ['fact', 'supporting'].includes(concept?.type))
+    .map((concept) => String(concept?.label || '').trim())
+    .filter(Boolean);
   const storyFingerprint = normalizeAutomaticStoryFingerprint(
     suppliedFingerprint,
     5,
@@ -439,26 +442,27 @@ const validateSuggestion = (suggestion) => {
   if (
     typeof suggestion?.watchTitle !== 'string'
     || !suggestion.watchTitle.trim()
-    || keywords.length < 1
+    || !Array.isArray(suppliedFingerprint)
     || keywords.length > 5
     || !watchingFor
     || storySummary.length < 20
     || !description
     || sentenceCount > 2
   ) {
-    const hadSuppliedConcepts = Array.isArray(suppliedFingerprint) && suppliedFingerprint.length > 0;
-    throw new ArticleAnalysisError(
-      hadSuppliedConcepts && storyFingerprint.length === 0
-        ? 'normalization_rejected'
-        : 'schema_validation_failed',
-    );
+    throw new ArticleAnalysisError('structured_validation_failed');
   }
+  const distinctiveFacts = [...new Set([
+    ...(Array.isArray(suggestion.storyProfile?.distinctiveFacts)
+      ? suggestion.storyProfile.distinctiveFacts
+      : []),
+    ...legacyFacts,
+  ])];
   return {
     watchTitle: suggestion.watchTitle.trim(),
     watchingFor,
     storyFingerprint,
     keywords,
-    storyProfile: { ...suggestion.storyProfile, storySummary },
+    storyProfile: { ...suggestion.storyProfile, storySummary, distinctiveFacts },
     description,
   };
 };
@@ -475,7 +479,7 @@ export const generateWatchSuggestion = async ({
   diagnosticId = randomUUID(),
 }) => {
   if (!apiKey) {
-    throw new ArticleAnalysisError('missing_api_key', 503);
+    throw new ArticleAnalysisError('configuration_missing', 503);
   }
 
   const source = {
@@ -510,7 +514,7 @@ export const generateWatchSuggestion = async ({
 
 storyProfile.storySummary explains the article naturally to a human. It must identify the central subject or phenomenon, explain what the article reports, include decisive supported context, and preserve important uncertainty or attribution. It must not merely copy, segment, or lightly reword the headline.
 
-storyFingerprint is the separate, complete list of monitoring identifiers used to recognize future reporting about the same story. Select the smallest sufficient set, normally 2 to 5 and fewer when only fewer are reliable. Rank specificity and future matching value above general relevance. Each identifier must be central, concise, independently understandable, and likely to appear or have a close semantic equivalent in later relevant coverage. Favor canonical named entities and short reusable event or relationship labels over descriptive phrases that read like miniature summaries. When two identifiers work as a pair, do not repeat the named entity inside a second long identifier. For example, for an unauthorized copy of a named work circulating on a platform, prefer the complementary pair "The Odyssey" (work) and "Unauthorized release on X" (event) over "Universal Studios takedown of leaked film posts" and "Unauthorized copy of The Odyssey on X". Use the most accurate available type, including work, condition, symptom, phenomenon or relationship rather than supporting when applicable. Prefer the central subject, event, condition or phenomenon; then a genuinely central person, organization or location; then at most one or two decisive facts or relationships needed to disambiguate the story.
+storyFingerprint is the separate, complete list of monitoring identifiers used to recognize future reporting about the same story. Select the smallest sufficient set: zero to five identifiers, normally 2 to 5 for a strong result, and fewer whenever fewer are reliable. Rank specificity and future matching value above general relevance. Each identifier must be central, concise, independently understandable, and likely to appear or have a close semantic equivalent in later relevant coverage. Favor canonical named entities and short reusable event or relationship labels over descriptive phrases that read like miniature summaries. When two identifiers work as a pair, do not repeat the named entity inside a second long identifier. For example, for an unauthorized copy of a named work circulating on a platform, prefer the complementary pair "The Odyssey" (work) and "Unauthorized release on X" (event) over "Universal Studios takedown of leaked film posts" and "Unauthorized copy of The Odyssey on X". Use the most accurate available type, including work, product_service, condition, symptom, phenomenon or relationship. Use product_service for a named product, platform or service such as Amazon Luna or Google Stadia only when the supplied context supports that classification and the entity is central. A company remains an organization. Generic fact, supporting and manual are not permitted automatic identifier types.
 
 Do not put general advice, list items, lifestyle recommendations, supporting examples, background details, generic themes, consequences, explanatory prose, uncertainty prose, or generic synthesized phrases in storyFingerprint. Do not include quoted experts or organizations merely cited as sources. primaryPeople and organizations may be empty when none is central. Do not include byline authors, photographers, image or agency credits, publishers, captions, interface text, or related-content modules. Do not return headline fragments, incomplete phrases, entire sentences, or redundant parent and child concepts. For example, prefer either "Brain fog during perimenopause" or the complementary pair "Brain fog" and "Perimenopause", not all three. Preserve a decisive relationship as one coherent identifier when separating it would lose meaning, such as an agreement being conditional on another action.
 
@@ -535,24 +539,26 @@ Use source fields in this order: title, description, articleText, then slug only
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
   } catch (error) {
-    throw new ArticleAnalysisError(isTimeoutError(error) ? 'openai_timeout' : 'openai_request_failed');
+    throw new ArticleAnalysisError(isTimeoutError(error) ? 'provider_timeout' : 'provider_network_error');
   }
   if (!response.ok) {
-    throw new ArticleAnalysisError('openai_http_error');
+    if ([401, 403].includes(response.status)) throw new ArticleAnalysisError('provider_auth_error');
+    if (response.status === 429) throw new ArticleAnalysisError('provider_rate_limited');
+    throw new ArticleAnalysisError('provider_response_invalid');
   }
   let result;
   try {
     result = await response.json();
   } catch {
-    throw new ArticleAnalysisError('invalid_structured_response');
+    throw new ArticleAnalysisError('provider_response_invalid');
   }
   const outputText = extractResponseText(result);
-  if (!outputText) throw new ArticleAnalysisError('invalid_structured_response');
+  if (!outputText) throw new ArticleAnalysisError('provider_response_invalid');
   let parsed;
   try {
     parsed = JSON.parse(outputText);
   } catch {
-    throw new ArticleAnalysisError('invalid_structured_response');
+    throw new ArticleAnalysisError('provider_response_invalid');
   }
   return {
     ...validateSuggestion(parsed),
@@ -651,7 +657,7 @@ export const createUrlWatchMiddleware = ({
       sendJson(response, 200, suggestion);
     } catch (error) {
       if (isSuggestionRequest) {
-        const fallbackReasonCode = error.code || 'openai_request_failed';
+        const fallbackReasonCode = error.code || 'internal_error';
         const diagnosticId = suggestionDiagnosticId || randomUUID();
         console.warn(JSON.stringify({
           event: 'article_analysis',

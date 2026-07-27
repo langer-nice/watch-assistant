@@ -37,14 +37,14 @@ const requestJson = async (path, body, signal) => {
   } catch (error) {
     if (error.name === 'AbortError') throw error;
     const requestError = new Error('The URL analysis endpoint was unavailable.');
-    requestError.code = 'server_endpoint_unavailable';
+    requestError.code = 'provider_network_error';
     throw requestError;
   }
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(result.error || 'The URL could not be analysed.');
     error.code = result.fallbackReasonCode
-      || ([404, 405].includes(response.status) ? 'server_endpoint_unavailable' : 'openai_request_failed');
+      || ([404, 405].includes(response.status) ? 'configuration_missing' : 'internal_error');
     error.analysisDiagnosticId = result.analysisDiagnosticId || null;
     error.status = response.status;
     throw error;
@@ -62,7 +62,7 @@ const assertStructuredSuggestion = (suggestion) => {
     || typeof suggestion.storyProfile !== 'object'
   ) {
     const error = new Error('The analysis endpoint returned an invalid structured result.');
-    error.code = 'invalid_structured_response';
+    error.code = 'provider_response_invalid';
     throw error;
   }
   return suggestion;
@@ -277,7 +277,23 @@ const getCountryNames = () => {
   return [...new Set(cachedCountryNames)].sort((first, second) => second.length - first.length);
 };
 
-const getSupportedLocation = (page, slug) => {
+const getSupportedProducts = (page) => {
+  const metadata = [page.title, page.description].filter(Boolean).join(' ');
+  const source = [metadata, page.articleText].filter(Boolean).join(' ');
+  const cue = '(?:cloud[- ]gaming|game[- ]streaming|gaming)?\\s*(?:platform|service|product|console|app|application|plateforme|service|produit|console|application)';
+  const patterns = [
+    new RegExp(`\\b(\\p{Lu}[\\p{L}\\p{N}'’-]+(?:\\s+\\p{Lu}[\\p{L}\\p{N}'’-]+){1,2})\\s+(?:is|was|remains|became|est|était|reste|devient)\\s+(?:an? |the |une? |la |le )?${cue}\\b`, 'gu'),
+    new RegExp(`\\b${cue}\\s+(?:called|named|known as|appelée?|nommée?)\\s+(\\p{Lu}[\\p{L}\\p{N}'’-]+(?:\\s+\\p{Lu}[\\p{L}\\p{N}'’-]+){1,2})\\b`, 'gu'),
+    new RegExp(`\\b(\\p{Lu}[\\p{L}\\p{N}'’-]+(?:\\s+\\p{Lu}[\\p{L}\\p{N}'’-]+){1,2})['’]s\\s+${cue}\\b`, 'gu'),
+  ];
+  const candidates = patterns.flatMap((pattern) => [...source.matchAll(pattern)].map((match) => match[1]));
+  return [...new Set(candidates)].filter((name) => {
+    const occurrenceCount = [...source.matchAll(new RegExp(`\\b${escapeRegExp(name)}\\b`, 'gi'))].length;
+    return new RegExp(`\\b${escapeRegExp(name)}\\b`, 'i').test(metadata) || occurrenceCount >= 2;
+  }).slice(0, 3);
+};
+
+const getSupportedLocation = (page, slug, excludedNames = []) => {
   const source = [page.title, page.description, page.articleText, slug].filter(Boolean).join(' ');
   const precisePair = source.match(
     /\b(?:in|near|from|across)\s+([\p{Lu}][\p{L}'’-]+),\s*([\p{Lu}][\p{L}'’-]+)\b/u,
@@ -293,10 +309,20 @@ const getSupportedLocation = (page, slug) => {
     return `${explicitInPair[1]}, ${explicitInPair[2]}`;
   }
   const locations = [...source.matchAll(
-    /\b(?:in|near|from|across|of)\s+(\p{Lu}[\p{L}'’-]*(?:\s+\p{Lu}[\p{L}'’-]*){0,2})/gu,
+    /\b(?:in|near|across)\s+(\p{Lu}[\p{L}'’-]*(?:\s+\p{Lu}[\p{L}'’-]*){0,2})/gu,
   )].map((match) => match[1].replace(/\s+(?:The|A|An)$/i, '').trim());
-  const location = countValues(locations.filter(Boolean))[0]?.[0] || '';
+  const excluded = new Set(excludedNames.map((name) => name.toLocaleLowerCase()));
+  const location = countValues(locations.filter((name) => (
+    name && !excluded.has(name.toLocaleLowerCase())
+  )))[0]?.[0] || '';
   return location;
+};
+
+const getCloudGamingPhenomenon = (page) => {
+  const source = [page.title, page.description, page.articleText].filter(Boolean).join(' ');
+  const hasCloudGaming = /\b(?:cloud[- ]gaming|game[- ]streaming)\b/i.test(source);
+  const noConsoleFuture = /\b(?:no longer|without|won't|will not|do not|don't)\b[^.!?]{0,60}\bconsoles?\b|\bconsoles?\b[^.!?]{0,60}\b(?:no longer|unnecessary|obsolete)\b/i.test(source);
+  return hasCloudGaming && noConsoleFuture ? 'Cloud gaming without consoles' : '';
 };
 
 const toConceptLabel = (value) => {
@@ -493,7 +519,7 @@ const createFallbackStorySummary = ({ person, primaryRole, event, location, unce
 };
 
 export const createSourceDerivedFallback = (page, sourceUrl = '', {
-  fallbackReasonCode = 'openai_request_failed',
+  fallbackReasonCode = 'internal_error',
   analysisDiagnosticId = null,
 } = {}) => {
   const analysisPage = {
@@ -522,10 +548,11 @@ export const createSourceDerivedFallback = (page, sourceUrl = '', {
   const source = [title, analysisPage.description, analysisPage.articleText, slug].filter(Boolean).join(' ');
   const titleConcepts = getTitleDerivedKeywords(title);
   const missingHikers = titleConcepts.find((concept) => /missing hikers/i.test(concept));
-  const remoteMountains = titleConcepts.find((concept) => /remote mountains/i.test(concept));
   const people = getStoryPeople(analysisPage);
   const supportedPerson = people.primary;
-  const supportedLocation = getSupportedLocation(analysisPage, slug);
+  const supportedProducts = getSupportedProducts(analysisPage);
+  const supportedLocation = getSupportedLocation(analysisPage, slug, supportedProducts);
+  const cloudGamingPhenomenon = getCloudGamingPhenomenon(analysisPage);
   const supportsSearchOperation = /(?:search(?: and rescue)?|hunt)\b[\s\S]{0,80}\bmissing hikers?/i.test(source)
     || /missing hikers?[\s\S]{0,80}\bsearch(?: and rescue)?/i.test(source);
   const coherentVehicleAttackEvent = getCoherentVehicleAttackEvent(analysisPage);
@@ -562,18 +589,15 @@ export const createSourceDerivedFallback = (page, sourceUrl = '', {
   ].filter(Boolean);
   const storyFingerprint = normalizeAutomaticStoryFingerprint([
     supportedPerson && { label: supportedPerson, type: 'person' },
+    ...supportedProducts.map((label) => ({ label, type: 'product_service' })),
     supportedLocation && { label: supportedLocation, type: 'location' },
     organizationConnection?.name && { label: organizationConnection.name, type: 'organization' },
     coherentVehicleAttackEvent && { label: coherentVehicleAttackEvent, type: 'event' },
     centralTopic && { label: centralTopic, type: 'event' },
     missingHikers && { label: missingHikers, type: 'event' },
     supportsSearchOperation && { label: 'Search operation', type: 'event' },
-    uncertainty?.concept && { label: uncertainty.concept, type: 'supporting' },
-    remoteMountains && { label: remoteMountains, type: 'supporting' },
-    ...distinctiveRisks.map((label) => ({ label, type: 'supporting' })),
-    ...(primaryEvent
-      ? []
-      : titleConcepts.map((label) => ({ label, type: 'supporting' }))),
+    cloudGamingPhenomenon && { label: cloudGamingPhenomenon, type: 'phenomenon' },
+    ...distinctiveRisks.map((label) => ({ label, type: 'condition' })),
   ].filter(Boolean), 5);
   return {
     watchTitle: title,
@@ -654,14 +678,12 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
     if (error.name === 'AbortError') throw error;
     console.warn('AI Watch generation failed; using the real page title fallback.', error);
     suggestion = createSourceDerivedFallback(analysisPage, url.href, {
-      fallbackReasonCode: error.code || 'openai_request_failed',
+      fallbackReasonCode: error.code || 'internal_error',
       analysisDiagnosticId: error.analysisDiagnosticId || null,
     });
   }
-  let keywords = normalizeMonitoringConcepts(suggestion.keywords, 8);
-  let storyFingerprint = normalizeAutomaticStoryFingerprint(
-    suggestion.storyFingerprint
-      || keywords.map((label) => ({ label, type: 'supporting' })),
+  const storyFingerprint = normalizeAutomaticStoryFingerprint(
+    suggestion.storyFingerprint || [],
     5,
   );
   let storyProfile = createStoryProfile({
@@ -673,35 +695,14 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
     sourceUrl: analysisPage.sourceUrl || url.href,
     publishedAt: analysisPage.publishedAt,
   });
-  let profileKeywords = storyProfile.concepts.map(({ label }) => label);
-
-  if (suggestion.analysisProvider !== 'deterministic' && profileKeywords.length === 0) {
-    suggestion = createSourceDerivedFallback(analysisPage, url.href, {
-      fallbackReasonCode: 'normalization_rejected',
-      analysisDiagnosticId: suggestion.analysisDiagnosticId || null,
-    });
-    keywords = normalizeMonitoringConcepts(suggestion.keywords, 8);
-    storyFingerprint = normalizeAutomaticStoryFingerprint(suggestion.storyFingerprint, 5);
-    storyProfile = createStoryProfile({
-      storyFingerprint,
-      profile: suggestion.storyProfile,
-      articleText: analysisPage.articleText,
-      sourcePublication: analysisPage.siteName || source,
-      sourceTitle: analysisPage.title,
-      sourceUrl: analysisPage.sourceUrl || url.href,
-      publishedAt: analysisPage.publishedAt,
-    });
-    profileKeywords = storyProfile.concepts.map(({ label }) => label);
-  }
+  const profileKeywords = storyProfile.concepts.map(({ label }) => label);
 
   return {
     status: 'success',
     title: suggestion.watchTitle,
     summary: storyProfile.storySummary || suggestion.watchingFor || suggestion.description,
     description: suggestion.description,
-    keywords: profileKeywords.length
-      ? profileKeywords
-      : keywords.length ? keywords : getTitleDerivedKeywords(page.title),
+    keywords: profileKeywords,
     storyFingerprint: storyProfile.concepts,
     storyProfile,
     source,

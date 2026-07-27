@@ -46,7 +46,7 @@ export const getVisibleConceptLabels = (watch, currentVersion) => {
   if (
     watch?.monitoringConceptsVersion === currentVersion
     && !hasManuallyEditedConcepts(watch)
-    && fingerprintLabels.length
+    && Array.isArray(watch?.storyFingerprint)
   ) {
     return fingerprintLabels;
   }

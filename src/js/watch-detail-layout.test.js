@@ -44,7 +44,8 @@ test('Story Identifiers uses the selected concepts in a compact responsive grid'
   assert.match(styles, /@media \(min-width: 36rem\)[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.story-concepts__item dd\s*\{[\s\S]*?overflow-wrap:\s*anywhere/);
   assert.match(styles, /\.story-concepts__edit\s*\{[\s\S]*?min-height:\s*2\.75rem/);
-  assert.equal(JSON.parse(english).newWatch.conceptTypes.supporting, 'Key fact');
+  assert.equal(JSON.parse(english).newWatch.conceptTypes.product_service, 'Product / service');
+  assert.equal(JSON.parse(english).newWatch.conceptTypes.supporting, undefined);
   assert.equal(JSON.parse(english).newWatch.conceptTypes.work, 'Named work');
 });
 

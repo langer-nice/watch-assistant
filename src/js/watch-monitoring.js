@@ -80,13 +80,14 @@ export const matchFeedItemToStory = (item, storyProfile) => {
     person: { field: 'people', strength: 'strong' },
     organization: { field: 'organizations', strength: 'strong' },
     work: { field: 'works', strength: 'strong' },
+    product_service: { field: 'products', strength: 'strong' },
     location: { field: 'locations', strength: 'context' },
     event: { field: 'eventTypes', strength: 'context' },
     condition: { field: 'conditions', strength: 'strong' },
     symptom: { field: 'symptoms', strength: 'strong' },
     phenomenon: { field: 'phenomena', strength: 'strong' },
     relationship: { field: 'relationships', strength: 'strong' },
-    supporting: { field: 'decisiveFacts', strength: 'distinctive' },
+    manual: { field: 'userAddedConcepts', strength: 'strong' },
   };
   getStoryProfileIdentifiers(storyProfile).forEach(({ label, type }) => {
     const normalized = normalizeMatchText(label);
@@ -95,7 +96,7 @@ export const matchFeedItemToStory = (item, storyProfile) => {
       ? { field: 'userAddedConcepts', strength: 'strong' }
       : evidenceType[type];
     const permitsSpecificSingleWord = [
-      'location', 'work', 'condition', 'symptom', 'phenomenon', 'relationship',
+      'location', 'work', 'product_service', 'condition', 'symptom', 'phenomenon', 'relationship',
     ].includes(type);
     const isEligiblePhrase = wordCount >= 2
       || (permitsSpecificSingleWord && normalized.length >= 5);
@@ -105,15 +106,10 @@ export const matchFeedItemToStory = (item, storyProfile) => {
   });
 
   const hasStrong = evidence.some(({ strength }) => strength === 'strong');
-  const hasDistinctive = evidence.some(({ strength, label }) => (
-    strength === 'distinctive' && normalizeMatchText(label).split(' ').length >= 3
-  ));
   const hasLocation = evidence.some(({ field }) => field === 'locations');
-  const hasEventContext = evidence.some(({ field }) => (
-    field === 'eventTypes' || field === 'decisiveFacts'
-  ));
+  const hasEventContext = evidence.some(({ field }) => field === 'eventTypes');
   return {
-    matched: hasStrong || hasDistinctive || (hasLocation && hasEventContext),
+    matched: hasStrong || (hasLocation && hasEventContext),
     evidence,
   };
 };

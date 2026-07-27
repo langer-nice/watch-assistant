@@ -6,7 +6,7 @@ import {
   shouldRegenerateStoryFingerprint,
 } from './story-fingerprint-migration.js';
 
-const currentVersion = 5;
+const currentVersion = 6;
 const legacyUrlWatch = {
   inputType: 'url',
   monitoringConceptsVersion: 2,
@@ -73,4 +73,14 @@ test('allows an explicit force for a current generated URL Watch', () => {
     shouldRegenerateStoryFingerprint(watch, currentVersion, { force: true }),
     true,
   );
+});
+
+test('a current generated Watch may visibly retain an explicit empty fingerprint', () => {
+  const watch = {
+    inputType: 'url',
+    monitoringConceptsVersion: currentVersion,
+    storyFingerprint: [],
+    keywords: ['Legacy filler'],
+  };
+  assert.deepEqual(getVisibleConceptLabels(watch, currentVersion), []);
 });

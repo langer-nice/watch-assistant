@@ -58,7 +58,6 @@ test('reference article profiles retain only their selected monitoring identifie
         { label: 'Seattle Police Department', type: 'organization' },
         { label: 'Seattle Center, Seattle, United States', type: 'location' },
         { label: 'Bite of Seattle festival shooting', type: 'event' },
-        { label: 'Three people killed', type: 'supporting' },
       ],
     },
     {
@@ -225,7 +224,7 @@ test('upgrades version 2 profiles, prefers precise locations, and removes normal
     sourceTitle: 'Investigation update',
   });
 
-  assert.equal(profile.version, 5);
+  assert.equal(profile.version, 6);
   assert.deepEqual(profile.locations, ['Berlin, Germany']);
   assert.deepEqual(profile.distinctiveFacts, ['Official assessment: suspected motive']);
   assert.deepEqual(profile.uncertaintyPhrases, ['Police reported a possible link']);
@@ -246,7 +245,7 @@ test('an explicit empty primary-person list is not repopulated from a typed conc
     },
   });
 
-  assert.equal(profile.version, 5);
+  assert.equal(profile.version, 6);
   assert.deepEqual(profile.primaryPeople, []);
   assert.deepEqual(profile.otherPeople, []);
 });

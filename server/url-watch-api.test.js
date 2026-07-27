@@ -281,12 +281,22 @@ test('preserves real ampersands and decodes the extracted title only once', () =
 test('normalizes AI concepts into precise phrases without weak or contained terms', async () => {
   const fetchImpl = async (_url, options) => {
     const request = JSON.parse(options.body);
-    assert.match(request.instructions, /smallest sufficient set, normally 2 to 5/);
+    assert.match(request.instructions, /zero to five identifiers/);
     assert.match(request.instructions, /general advice, list items, lifestyle recommendations/);
     assert.equal(request.text.format.schema.properties.storyFingerprint.maxItems, 5);
+    assert.equal(request.text.format.schema.properties.storyFingerprint.minItems, 0);
     assert.ok(
       request.text.format.schema.properties.storyFingerprint.items.properties.type.enum
         .includes('condition'),
+    );
+    assert.ok(
+      request.text.format.schema.properties.storyFingerprint.items.properties.type.enum
+        .includes('product_service'),
+    );
+    assert.equal(
+      request.text.format.schema.properties.storyFingerprint.items.properties.type.enum
+        .includes('supporting'),
+      false,
     );
     const source = JSON.parse(request.input);
     assert.deepEqual(source, {
@@ -310,7 +320,6 @@ test('normalizes AI concepts into precise phrases without weak or contained term
                 { label: 'Taiwan', type: 'location' },
                 { label: 'Missing hikers', type: 'event' },
                 { label: 'Search operation', type: 'event' },
-                { label: 'Remote mountains', type: 'supporting' },
               ],
               storyProfile: {
                 primaryPeople: ['Petr Novotny'],
@@ -345,7 +354,7 @@ test('normalizes AI concepts into precise phrases without weak or contained term
 
   assert.deepEqual(
     suggestion.keywords,
-    ['Petr Novotny', 'Taiwan', 'Missing hikers', 'Search operation', 'Remote mountains'],
+    ['Petr Novotny', 'Taiwan', 'Missing hikers', 'Search operation'],
   );
   assert.deepEqual(
     suggestion.storyFingerprint,
@@ -354,7 +363,6 @@ test('normalizes AI concepts into precise phrases without weak or contained term
       { label: 'Taiwan', type: 'location' },
       { label: 'Missing hikers', type: 'event' },
       { label: 'Search operation', type: 'event' },
-      { label: 'Remote mountains', type: 'supporting' },
     ],
   );
   assert.deepEqual(suggestion.storyProfile.primaryPeople, ['Petr Novotny']);
@@ -434,24 +442,81 @@ test('the server route returns a coherent perimenopause structured result with A
   assert.doesNotMatch(JSON.stringify(result.body), /Brain fog and four easy|Help fix/);
 });
 
+test('a valid AI profile with zero identifiers remains a successful analysis', async () => {
+  const suggestion = await generateWatchSuggestion({
+    title: 'Experts discuss concerns',
+    articleText: 'The article contains context but no reliable reusable monitoring identifier.',
+    apiKey: 'test-key',
+    model: 'test-model',
+    fetchImpl: async () => createOpenAiResponse({
+      ...perimenopauseStructuredSuggestion,
+      watchTitle: 'Experts discuss concerns',
+      storyFingerprint: [],
+      storyProfile: {
+        ...perimenopauseStructuredSuggestion.storyProfile,
+        storySummary: 'The article discusses concerns without establishing a reliable reusable identifier.',
+      },
+    }),
+  });
+
+  assert.equal(suggestion.analysisStatus, 'success');
+  assert.deepEqual(suggestion.storyFingerprint, []);
+  assert.deepEqual(suggestion.keywords, []);
+});
+
+test('legacy fact output is contextualized instead of becoming an automatic identifier', async () => {
+  const suggestion = await generateWatchSuggestion({
+    title: 'Company announces plans',
+    apiKey: 'test-key',
+    model: 'test-model',
+    fetchImpl: async () => createOpenAiResponse({
+      ...perimenopauseStructuredSuggestion,
+      storyFingerprint: [{ label: 'Company announces plans', type: 'supporting' }],
+      storyProfile: {
+        ...perimenopauseStructuredSuggestion.storyProfile,
+        distinctiveFacts: [],
+      },
+    }),
+  });
+
+  assert.deepEqual(suggestion.storyFingerprint, []);
+  assert.deepEqual(suggestion.storyProfile.distinctiveFacts, ['Company announces plans']);
+});
+
 test('structured analysis failures receive stable safe reason codes', async (t) => {
   const cases = [
     {
       name: 'missing API key',
-      expected: 'missing_api_key',
+      expected: 'configuration_missing',
       run: () => generateWatchSuggestion({ title: 'Article', model: 'test-model' }),
     },
     {
       name: 'OpenAI HTTP failure',
-      expected: 'openai_http_error',
+      expected: 'provider_rate_limited',
       run: () => generateWatchSuggestion({
         title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
         fetchImpl: async () => ({ ok: false, status: 429, json: async () => ({ error: { message: 'sensitive provider detail' } }) }),
       }),
     },
     {
+      name: 'provider authentication failure',
+      expected: 'provider_auth_error',
+      run: () => generateWatchSuggestion({
+        title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
+        fetchImpl: async () => ({ ok: false, status: 401 }),
+      }),
+    },
+    {
+      name: 'provider network failure',
+      expected: 'provider_network_error',
+      run: () => generateWatchSuggestion({
+        title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
+        fetchImpl: async () => { throw new TypeError('network failed'); },
+      }),
+    },
+    {
       name: 'timeout',
-      expected: 'openai_timeout',
+      expected: 'provider_timeout',
       run: () => generateWatchSuggestion({
         title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
         fetchImpl: async () => { throw new DOMException('timed out', 'TimeoutError'); },
@@ -459,7 +524,7 @@ test('structured analysis failures receive stable safe reason codes', async (t) 
     },
     {
       name: 'malformed structured JSON',
-      expected: 'invalid_structured_response',
+      expected: 'provider_response_invalid',
       run: () => generateWatchSuggestion({
         title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
         fetchImpl: async () => ({
@@ -470,21 +535,10 @@ test('structured analysis failures receive stable safe reason codes', async (t) 
     },
     {
       name: 'schema validation failure',
-      expected: 'schema_validation_failed',
+      expected: 'structured_validation_failed',
       run: () => generateWatchSuggestion({
         title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
         fetchImpl: async () => createOpenAiResponse({ ...perimenopauseStructuredSuggestion, watchTitle: '' }),
-      }),
-    },
-    {
-      name: 'normalization rejection',
-      expected: 'normalization_rejected',
-      run: () => generateWatchSuggestion({
-        title: 'Article', apiKey: 'secret-test-key', model: 'test-model',
-        fetchImpl: async () => createOpenAiResponse({
-          ...perimenopauseStructuredSuggestion,
-          storyFingerprint: [{ label: 'Help', type: 'supporting' }],
-        }),
       }),
     },
   ];
@@ -517,7 +571,7 @@ test('a server route error returns safe provenance without provider or secret de
     assert.equal(result.body.analysisProvider, 'openai');
     assert.equal(result.body.analysisStatus, 'failed');
     assert.equal(result.body.analysisModel, null);
-    assert.equal(result.body.fallbackReasonCode, 'openai_http_error');
+    assert.equal(result.body.fallbackReasonCode, 'provider_response_invalid');
     assert.ok(result.body.analysisDiagnosticId);
     assert.doesNotMatch(JSON.stringify(result.body), /provider raw response|test-key/);
   } finally {
@@ -537,7 +591,7 @@ test('the server route reports missing Preview configuration without attempting 
     assert.equal(attempted, false);
     assert.equal(result.status, 503);
     assert.equal(result.body.analysisStatus, 'failed');
-    assert.equal(result.body.fallbackReasonCode, 'missing_api_key');
+    assert.equal(result.body.fallbackReasonCode, 'configuration_missing');
   } finally {
     console.warn = originalWarn;
   }

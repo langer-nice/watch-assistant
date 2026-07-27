@@ -1,7 +1,8 @@
 import { normalizeFeedUrl } from './watch-monitoring.js';
 import { createStoryProfile } from './story-profile.js';
+import { normalizeStoryFingerprint } from './monitoring-concepts.js';
 
-export const WATCH_MODEL_VERSION = 4;
+export const WATCH_MODEL_VERSION = 5;
 
 const TECHNICAL_ATTENTION_REASONS = new Set([
   'monitoring-source-missing',
@@ -40,18 +41,62 @@ export const migrateWatchModel = (watch) => {
   const candidateUpdates = Array.isArray(watch.candidateUpdates)
     ? watch.candidateUpdates
     : Array.isArray(watch.monitoringUpdates) ? watch.monitoringUpdates : [];
-  const fingerprintLabels = new Set((watch.storyFingerprint || [])
+  const originalFingerprint = Array.isArray(watch.storyFingerprint)
+    ? watch.storyFingerprint
+    : Array.isArray(watch.storyProfile?.concepts) ? watch.storyProfile.concepts : [];
+  const fingerprintLabels = new Set(originalFingerprint
     .map((concept) => concept?.label?.toLocaleLowerCase()).filter(Boolean));
   const userAddedConcepts = (watch.storyProfile?.userAddedConcepts || watch.keywords || [])
     .filter((label) => typeof label === 'string' && (
       watch.monitoringConceptsManuallyEdited === true
       || !fingerprintLabels.has(label.toLocaleLowerCase())
     ));
+  const explicitlyManualLabels = new Set((watch.storyProfile?.userAddedConcepts || [])
+    .map((label) => String(label).trim().toLocaleLowerCase()).filter(Boolean));
+  const legacyFacts = originalFingerprint.filter((concept) => (
+    ['fact', 'supporting'].includes(concept?.type) && typeof concept?.label === 'string'
+  ));
+  const migratedFingerprintInput = originalFingerprint.flatMap((concept) => {
+    if (!['fact', 'supporting'].includes(concept?.type)) return concept;
+    const label = String(concept.label || '').trim();
+    const isProtectedManual = watch.monitoringConceptsManuallyEdited === true
+      || explicitlyManualLabels.has(label.toLocaleLowerCase());
+    return isProtectedManual && label ? [{ label, type: 'manual' }] : [];
+  });
+  if (Array.isArray(watch.keywords)) {
+    const retainedLabels = new Set(migratedFingerprintInput
+      .map((concept) => String(concept?.label || '').trim().toLocaleLowerCase())
+      .filter(Boolean));
+    watch.keywords.forEach((label) => {
+      const key = String(label || '').trim().toLocaleLowerCase();
+      if (
+        key
+        && !retainedLabels.has(key)
+        && (originalFingerprint.length === 0 || watch.monitoringConceptsManuallyEdited === true)
+      ) {
+        migratedFingerprintInput.push({ label, type: 'manual' });
+        retainedLabels.add(key);
+      }
+    });
+  }
+  const migratedFingerprint = normalizeStoryFingerprint(migratedFingerprintInput, 8);
+  const contextualLegacyFacts = legacyFacts
+    .map(({ label }) => String(label || '').trim())
+    .filter((label) => label && !(
+      watch.monitoringConceptsManuallyEdited === true
+      || explicitlyManualLabels.has(label.toLocaleLowerCase())
+    ));
   const storyProfile = watch.inputType === 'url'
     ? createStoryProfile({
-      storyFingerprint: watch.storyFingerprint
-        || (watch.keywords || []).map((label) => ({ label, type: 'supporting' })),
-      profile: { ...(watch.storyProfile || {}), userAddedConcepts },
+      storyFingerprint: migratedFingerprint,
+      profile: {
+        ...(watch.storyProfile || {}),
+        distinctiveFacts: [
+          ...(watch.storyProfile?.distinctiveFacts || []),
+          ...contextualLegacyFacts,
+        ],
+        userAddedConcepts,
+      },
       sourcePublication: watch.storyProfile?.sourceArticle?.publication || watch.sourceName,
       sourceTitle: watch.storyProfile?.sourceArticle?.title || watch.sourceTitle || watch.title,
       sourceUrl: watch.storyProfile?.sourceArticle?.url || watch.sourceUrl,
@@ -59,6 +104,7 @@ export const migrateWatchModel = (watch) => {
       extractedAt: watch.storyProfile?.extractedAt || watch.createdAt,
     })
     : watch.storyProfile || null;
+  const migratedLabels = storyProfile?.concepts?.map(({ label }) => label) || [];
   const missingSource = watch.inputType === 'url' && !feedUrl;
   const legacyTechnicalReason = [
     watch.monitoringIssueReason,
@@ -111,6 +157,11 @@ export const migrateWatchModel = (watch) => {
       : null,
     feedUrl,
     storyProfile,
+    ...(watch.inputType === 'url' ? {
+      storyFingerprint: storyProfile?.concepts || [],
+      keywords: migratedLabels,
+      selectedKeywords: migratedLabels,
+    } : {}),
     candidateUpdates,
     monitoringUpdates: candidateUpdates,
     unreadUpdateCount: candidateUpdates.filter((item) => item?.status === 'candidate' || item?.status === 'unreviewed').length,

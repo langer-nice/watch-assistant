@@ -24,7 +24,7 @@ const STOP_WORDS = new Set([
 
 const PHRASE_CONNECTORS = new Set(['and', 'de', 'et', 'of']);
 
-export const MONITORING_CONCEPTS_VERSION = 5;
+export const MONITORING_CONCEPTS_VERSION = 6;
 
 export const DEFAULT_AUTOMATIC_IDENTIFIER_LIMIT = 5;
 
@@ -32,14 +32,19 @@ export const STORY_CONCEPT_TYPES = Object.freeze([
   'person',
   'organization',
   'work',
+  'product_service',
   'location',
   'event',
   'condition',
   'symptom',
   'phenomenon',
   'relationship',
-  'supporting',
+  'manual',
 ]);
+
+export const AUTOMATIC_STORY_CONCEPT_TYPES = Object.freeze(
+  STORY_CONCEPT_TYPES.filter((type) => type !== 'manual'),
+);
 
 const STORY_CONCEPT_PRIORITY = new Map(
   STORY_CONCEPT_TYPES.map((type, index) => [type, index]),
@@ -51,7 +56,7 @@ const normalizeWord = (value) => String(value)
   .toLocaleLowerCase()
   .replace(/^['’.-]+|['’.-]+$/g, '');
 
-export const isUsefulStoryConcept = (label, type = 'supporting') => {
+export const isUsefulStoryConcept = (label, type = 'contextual') => {
   const value = String(label || '').replace(/\s+/g, ' ').trim();
   if (!value) return false;
   if (/^(?:official|officials|source|sources|spokes(?:person|man|woman))\s+(?:says?|said|claims?|claimed)$/i.test(value)) {
@@ -70,11 +75,6 @@ export const isUsefulStoryConcept = (label, type = 'supporting') => {
     return false;
   }
   if (type === 'event' && value.split(/\s+/).length < 2) return false;
-  if (
-    type === 'supporting'
-    && value.split(/\s+/).length === 1
-    && (value.length < 10 || /(?:ed|ing)$/i.test(value))
-  ) return false;
   return true;
 };
 
@@ -156,20 +156,22 @@ export const normalizeStoryFingerprint = (values, limit = 8) => {
   const candidates = (Array.isArray(values) ? values : [])
     .map((value, index) => ({
       label: typeof value === 'string' ? value : value?.label,
-      type: STORY_CONCEPT_PRIORITY.has(value?.type) ? value.type : 'supporting',
+      type: typeof value === 'string'
+        ? 'manual'
+        : STORY_CONCEPT_PRIORITY.has(value?.type) ? value.type : null,
       index,
     }))
-    .filter((candidate) => isUsefulStoryConcept(candidate.label, candidate.type))
+    .filter((candidate) => candidate.type && isUsefulStoryConcept(candidate.label, candidate.type))
     .flatMap((candidate) => {
       const preservesSemanticPhrase = [
-        'location', 'event', 'condition', 'symptom', 'phenomenon', 'relationship',
+        'location', 'event', 'condition', 'symptom', 'phenomenon', 'relationship', 'manual',
       ].includes(candidate.type);
       const preservedPhrase = preservesSemanticPhrase
         ? String(candidate.label || '').replace(/\s+/g, ' ').replace(/[.;:!?]+$/g, '').trim()
         : '';
       const labels = preservesSemanticPhrase
         ? [preservedPhrase].filter(Boolean)
-        : ['person', 'organization', 'work'].includes(candidate.type)
+        : ['person', 'organization', 'work', 'product_service'].includes(candidate.type)
           ? [formatConcept(getConceptTokens(candidate.label))].filter(Boolean)
           : normalizeMonitoringConcepts([candidate.label], limit);
       return labels.map((label) => ({ ...candidate, label }));
@@ -202,10 +204,10 @@ const isConciseMonitoringIdentifier = (value) => {
     .trim();
   if (!label || label.length > 100) return false;
   const wordCount = getConceptTokens(label).length;
-  const type = typeof value === 'string' ? 'supporting' : value?.type;
+  const type = typeof value === 'string' ? null : value?.type;
+  if (!AUTOMATIC_STORY_CONCEPT_TYPES.includes(type)) return false;
   const maximumWords = type === 'relationship' ? 12 : ['event', 'phenomenon'].includes(type) ? 10 : 8;
   if (wordCount === 0 || wordCount > maximumWords) return false;
-  if (type === 'supporting' && wordCount > 6) return false;
   const sentenceBoundaries = label.match(/[.!?](?:\s|$)/g)?.length || 0;
   if (sentenceBoundaries > 1) return false;
   return !(wordCount > 4 && /[.!?]$/.test(label));

@@ -67,6 +67,7 @@ import {
   getAnalysisProvenanceMessageKey,
   getMonitoringHealthPresentation,
 } from './watch-model.js';
+import { getWatchDetailHref } from './watch-routes.js';
 
 let homeCreatedWatchId = null;
 let homeFirstWatchConfirmation = false;
@@ -773,7 +774,7 @@ const renderHomeWatchCards = (watches) => watches
 
     return `
       <article class="briefing-item">
-        <a class="briefing-item__link" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
+        <a class="briefing-item__link" href="${getWatchDetailHref(watch.id)}">
           <div class="briefing-item__labels">
             <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
             <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
@@ -863,7 +864,7 @@ const renderWatchList = () => {
         ? t('watches.monitoringPaused')
         : getMonitoringSummary(watch, title);
       return `
-      <a class="watch-row${isPaused ? ' watch-row--paused' : ''}" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
+      <a class="watch-row${isPaused ? ' watch-row--paused' : ''}" href="${getWatchDetailHref(watch.id)}">
         <div class="watch-row__metadata">
           <p class="watch-row__category">${escapeHtml(t(`categories.${watch.category}`))}</p>
           ${statusLabel}
@@ -2011,7 +2012,7 @@ export function initForm() {
     selectedKeywords: keywordItems.map((item) => item.label),
     storyFingerprint: keywordItems.map((item) => ({
       label: item.label,
-      type: item.type || 'supporting',
+      type: item.type || 'manual',
     })),
   });
 
@@ -2037,7 +2038,7 @@ export function initForm() {
         return `
         <span class="watch-keyword is-selected">
           ${labelControl}
-          <span class="watch-keyword__type">${escapeHtml(t(`newWatch.conceptTypes.${item.type || 'supporting'}`))}</span>
+          <span class="watch-keyword__type">${escapeHtml(t(`newWatch.conceptTypes.${item.type || 'manual'}`))}</span>
           <button
             class="watch-keyword__remove"
             type="button"
@@ -2085,7 +2086,7 @@ export function initForm() {
     keywordItems = extractMonitoringConcepts(request).map((label) => ({
       label,
       selected: true,
-      type: 'supporting',
+      type: 'manual',
     }));
     keywordSourceRequest = request;
     renderKeywords();
@@ -2101,7 +2102,7 @@ export function initForm() {
     if (existing) {
       existing.selected = true;
     } else {
-      keywordItems.push({ label, selected: true, type: 'supporting', origin: 'user' });
+      keywordItems.push({ label, selected: true, type: 'manual', origin: 'user' });
     }
     keywordInputEl.value = '';
     renderKeywords();
@@ -2675,10 +2676,10 @@ export function initForm() {
     if (!failed && Array.isArray(analysis?.keywords)) {
       keywordItems = (analysis.storyFingerprint || analysis.keywords.map((label) => ({
         label,
-        type: 'supporting',
+        type: 'manual',
       }))).map((concept) => ({
         label: concept.label,
-        type: concept.type || 'supporting',
+        type: concept.type || 'manual',
         selected: true,
       }));
       keywordSourceRequest = pendingRequest;
@@ -2916,7 +2917,7 @@ export function initForm() {
           .find((concept) => normalizeComparableText(concept.label) === normalizeComparableText(label));
         return {
           label,
-          type: typedConcept?.type || 'supporting',
+          type: typedConcept?.type || 'manual',
           selected: true,
         };
       });
@@ -2956,7 +2957,7 @@ export function initForm() {
       }
       keywordSourceRequest = input?.value || '';
       keywordItems = extractMonitoringConcepts(keywordSourceRequest)
-        .map((label) => ({ label, selected: true, type: 'supporting' }));
+        .map((label) => ({ label, selected: true, type: 'manual' }));
       if (categoryInputEl) {
         categoryInputEl.value = inferCategory(keywordSourceRequest);
       }

@@ -45,8 +45,47 @@ test('migrates a legacy URL Watch without losing manually edited keywords', () =
   assert.equal(result.watchModelVersion, WATCH_MODEL_VERSION);
   assert.equal(result.monitoringSource.url, 'https://feeds.bbci.co.uk/news/world/rss.xml');
   assert.deepEqual(result.storyProfile.userAddedConcepts, ['Abdul Ballout', 'Beirut']);
+  assert.deepEqual(result.storyFingerprint, [
+    { label: 'Beirut', type: 'location' },
+    { label: 'Abdul Ballout', type: 'manual' },
+  ]);
   assert.equal(result.candidateUpdates[0].id, 'candidate-1');
   assert.equal(result.unreadUpdateCount, 1);
+});
+
+test('migrates automatic legacy facts to context without touching monitoring state', () => {
+  const snapshot = { itemIds: ['old'], checkedAt: '2026-07-26T10:00:00Z' };
+  const watch = migrateWatchModel({
+    id: 'legacy-fact',
+    inputType: 'url',
+    storyFingerprint: [
+      { label: 'Amazon Luna', type: 'product_service' },
+      { label: 'Company announces plans', type: 'supporting' },
+    ],
+    keywords: ['Amazon Luna', 'Company announces plans'],
+    storyProfile: { distinctiveFacts: ['Existing context'] },
+    monitoringSnapshot: snapshot,
+    candidateUpdates: [{ id: 'candidate-1' }],
+  }).watch;
+
+  assert.deepEqual(watch.storyFingerprint, [{ label: 'Amazon Luna', type: 'product_service' }]);
+  assert.deepEqual(watch.keywords, ['Amazon Luna']);
+  assert.deepEqual(watch.storyProfile.distinctiveFacts, ['Existing context', 'Company announces plans']);
+  assert.deepEqual(watch.monitoringSnapshot, snapshot);
+  assert.deepEqual(watch.candidateUpdates, [{ id: 'candidate-1' }]);
+});
+
+test('preserves a manually edited legacy fact as a manual identifier', () => {
+  const watch = migrateWatchModel({
+    id: 'manual-fact',
+    inputType: 'url',
+    monitoringConceptsManuallyEdited: true,
+    storyFingerprint: [{ label: 'My saved phrase', type: 'fact' }],
+    keywords: ['My saved phrase'],
+  }).watch;
+
+  assert.deepEqual(watch.storyFingerprint, [{ label: 'My saved phrase', type: 'manual' }]);
+  assert.deepEqual(watch.storyProfile.distinctiveFacts, []);
 });
 
 test('marks an older article Watch without a source as setup-required, not action-required', () => {
