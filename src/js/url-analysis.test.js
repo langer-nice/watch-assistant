@@ -152,3 +152,78 @@ test('person cleanup preserves legitimate particles and does not enrich unsuppor
     else globalThis.document = originalDocument;
   }
 });
+
+test('topic-led article fallback excludes credits, permits no primary person, and keeps specific risks', () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { documentElement: { lang: 'en' } };
+  try {
+    const result = createSourceDerivedFallback({
+      title: 'Open water swimming is booming – but what are the health risks?',
+      description: 'More swimmers are taking to lakes and rivers, while doctors warn about illness from contaminated water.',
+      author: 'Maya Reporter',
+      siteName: 'Example News',
+      articleText: [
+        'Image source, Getty Images',
+        'Image caption, Swimmers enter a river near Sheffield for an organised event.',
+        'Photograph: Clara Morgan',
+        'Open water swimming has grown rapidly in popularity as more people use lakes and rivers.',
+        'Dr Elise Martin said beginners should understand local conditions before entering the water.',
+        'Contaminated water can expose swimmers to sewage contamination, leptospirosis and toxic algae.',
+        'A separate championship was held in Switzerland last year.',
+        'By Maya Reporter, Health correspondent',
+        'Related stories',
+      ].join('\n\n'),
+    }, 'https://example.com/features/swimming-risks');
+
+    assert.deepEqual(result.storyProfile.primaryPeople, []);
+    assert.deepEqual(result.storyProfile.otherPeople, []);
+    assert.deepEqual(result.storyProfile.locations, ['Sheffield']);
+    assert.deepEqual(result.storyProfile.eventTypes, ['Open water swimming']);
+    assert.deepEqual(result.storyProfile.distinctiveFacts, [
+      'Sewage contamination',
+      'Leptospirosis',
+      'Toxic algae',
+    ]);
+    assert.equal(
+      result.storyProfile.storySummary,
+      'Open water swimming is growing in popularity, while the article reports health risks from contaminated water, including sewage contamination, leptospirosis, and toxic algae.',
+    );
+    assert.deepEqual(result.storyProfile.concepts, [
+      { label: 'Sheffield', type: 'location' },
+      { label: 'Open water swimming', type: 'event' },
+      { label: 'Sewage contamination', type: 'supporting' },
+      { label: 'Leptospirosis', type: 'supporting' },
+      { label: 'Toxic algae', type: 'supporting' },
+    ]);
+    assert.doesNotMatch(
+      JSON.stringify(result.storyProfile),
+      /Getty Images|Clara Morgan|Maya Reporter|Elise Martin|Booming|"Health"|"Sewage"|Sheffield, Switzerland/,
+    );
+    assert.notEqual(result.storyProfile.storySummary, `${result.watchTitle}.`);
+  } finally {
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+  }
+});
+
+test('an author is eligible only when the article evidence independently makes them central', () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { documentElement: { lang: 'en' } };
+  try {
+    const result = createSourceDerivedFallback({
+      title: 'Mara Okafor is leading the coastal rescue operation',
+      description: 'Mara Okafor is coordinating teams after severe flooding.',
+      author: 'Mara Okafor',
+      articleText: [
+        'By Mara Okafor',
+        'Mara Okafor leads the rescue operation and briefs emergency teams.',
+        'Mara Okafor has coordinated work across two coastal districts.',
+      ].join('\n\n'),
+    }, 'https://example.com/coast/rescue');
+
+    assert.deepEqual(result.storyProfile.primaryPeople, ['Mara Okafor']);
+  } finally {
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+  }
+});

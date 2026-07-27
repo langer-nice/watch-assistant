@@ -24,7 +24,7 @@ const STOP_WORDS = new Set([
 
 const PHRASE_CONNECTORS = new Set(['and', 'de', 'et', 'of']);
 
-export const MONITORING_CONCEPTS_VERSION = 3;
+export const MONITORING_CONCEPTS_VERSION = 4;
 
 export const STORY_CONCEPT_TYPES = Object.freeze([
   'person',
@@ -59,8 +59,15 @@ export const isUsefulStoryConcept = (label, type = 'supporting') => {
   if (/\b(?:carried out|took place|has happened|occurred|officials? (?:say|said))$/i.test(value)) {
     return false;
   }
+  if (type === 'person' && /\b(?:agency|department|images|media|network|news|office|press|studios?)$/i.test(value)) {
+    return false;
+  }
   if (type === 'event' && value.split(/\s+/).length < 2) return false;
-  if (type === 'supporting' && value.split(/\s+/).length === 1 && value.length < 5) return false;
+  if (
+    type === 'supporting'
+    && value.split(/\s+/).length === 1
+    && (value.length < 10 || /(?:ed|ing)$/i.test(value))
+  ) return false;
   return true;
 };
 
@@ -152,7 +159,7 @@ export const normalizeStoryFingerprint = (values, limit = 8) => {
         : '';
       const labels = candidate.type === 'location'
         ? [preservedLocation].filter(Boolean)
-        : ['person', 'organization'].includes(candidate.type)
+        : ['person', 'organization', 'event'].includes(candidate.type)
           ? [formatConcept(getConceptTokens(candidate.label))].filter(Boolean)
           : normalizeMonitoringConcepts([candidate.label], limit);
       return labels.map((label) => ({ ...candidate, label }));

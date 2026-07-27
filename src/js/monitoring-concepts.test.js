@@ -69,3 +69,20 @@ test('does not remove name particles that resemble stop words from typed people'
     [{ label: 'An Rong Xu', type: 'person' }],
   );
 });
+
+test('rejects weak isolated concepts while retaining coherent topics and named hazards', () => {
+  assert.deepEqual(normalizeStoryFingerprint([
+    { label: 'Booming', type: 'supporting' },
+    { label: 'Health', type: 'supporting' },
+    { label: 'Sewage', type: 'supporting' },
+    { label: 'Open water swimming', type: 'event' },
+    { label: 'Sewage contamination', type: 'supporting' },
+    { label: 'Leptospirosis', type: 'supporting' },
+    { label: 'Toxic algae', type: 'supporting' },
+  ]), [
+    { label: 'Open water swimming', type: 'event' },
+    { label: 'Sewage contamination', type: 'supporting' },
+    { label: 'Leptospirosis', type: 'supporting' },
+    { label: 'Toxic algae', type: 'supporting' },
+  ]);
+});

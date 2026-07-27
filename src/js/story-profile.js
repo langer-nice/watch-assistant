@@ -1,6 +1,6 @@
 import { isUsefulStoryConcept, normalizeStoryFingerprint } from './monitoring-concepts.js';
 
-export const STORY_PROFILE_VERSION = 3;
+export const STORY_PROFILE_VERSION = 4;
 const MAX_PROFILE_VALUES = 8;
 
 const uniqueStrings = (values, limit = MAX_PROFILE_VALUES) => {
@@ -40,6 +40,28 @@ const preferPreciseLocations = (values) => uniqueStrings(values).filter((locatio
   ))
 ));
 
+const normalizeSupportedLocations = (values, articleText) => {
+  const source = String(articleText || '');
+  if (!source) return values;
+  return (Array.isArray(values) ? values : []).flatMap((value) => {
+    const label = String(value || '').replace(/\s+/g, ' ').trim();
+    const parts = label.split(',').map((part) => part.trim()).filter(Boolean);
+    if (parts.length !== 2) return label;
+    const [place, country] = parts;
+    const placePattern = place.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const countryPattern = country.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const explicitRelationship = new RegExp(
+      `\\b${placePattern}\\s*,\\s*${countryPattern}\\b|\\b${placePattern}\\b[^.!?]{0,60}\\bin\\s+${countryPattern}\\b`,
+      'i',
+    ).test(source);
+    if (explicitRelationship) return label;
+    return parts.filter((part) => new RegExp(
+      `\\b${part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
+      'i',
+    ).test(source));
+  });
+};
+
 const getUncertaintyPhrases = (articleText) => uniqueStrings(
   String(articleText || '')
     .split(/(?<=[.!?])\s+/)
@@ -76,23 +98,32 @@ export const createStoryProfile = ({
   const profileValues = (values, type) => uniqueStrings(values).filter((label) => (
     label.toLocaleLowerCase() !== publicationKey && isUsefulStoryConcept(label, type)
   ));
-  const concepts = normalizeStoryFingerprint([
+  const normalizedFingerprint = normalizeStoryFingerprint([
     ...profileValues(profile.primaryPeople, 'person').map((label) => ({ label, type: 'person' })),
     ...profileValues(profile.organizations, 'organization').map((label) => ({ label, type: 'organization' })),
-    ...profileValues(profile.locations, 'location').map((label) => ({ label, type: 'location' })),
+    ...normalizeSupportedLocations(profileValues(profile.locations, 'location'), articleText)
+      .map((label) => ({ label, type: 'location' })),
     ...profileValues(profile.eventTypes, 'event').map((label) => ({ label, type: 'event' })),
     ...(storyFingerprint || []),
-  ], MAX_PROFILE_VALUES)
+  ], MAX_PROFILE_VALUES);
+  const concepts = normalizeStoryFingerprint(normalizedFingerprint.flatMap((concept) => (
+    concept.type === 'location'
+      ? normalizeSupportedLocations([concept.label], articleText).map((label) => ({ label, type: 'location' }))
+      : concept
+  )), MAX_PROFILE_VALUES)
     .filter(({ label }) => label.toLocaleLowerCase() !== publicationKey);
   const typed = (type) => concepts.filter((concept) => concept.type === type).map(({ label }) => label);
   const profilePeople = profileValues(profile.primaryPeople, 'person');
   const fingerprintPeople = typed('person');
-  const primaryPeople = profilePeople.length
+  const hasExplicitPrimaryPeople = Array.isArray(profile.primaryPeople);
+  const primaryPeople = hasExplicitPrimaryPeople
     ? profilePeople.slice(0, 4)
     : fingerprintPeople.slice(0, 1);
   const otherPeople = uniqueStrings([
     ...profileValues(profile.otherPeople, 'person'),
-    ...fingerprintPeople.filter((person) => !primaryPeople.includes(person)),
+    ...(hasExplicitPrimaryPeople
+      ? []
+      : fingerprintPeople.filter((person) => !primaryPeople.includes(person))),
   ], 6);
   const people = [...primaryPeople, ...otherPeople];
   const hasExplicitUncertainty = Array.isArray(profile.uncertaintyPhrases);
@@ -103,10 +134,10 @@ export const createStoryProfile = ({
     primaryPeople,
     otherPeople,
     peopleRoles: normalizePeopleRoles(profile.peopleRoles, people),
-    locations: preferPreciseLocations([
+    locations: preferPreciseLocations(normalizeSupportedLocations([
       ...profileValues(profile.locations, 'location'),
       ...typed('location'),
-    ]),
+    ], articleText)),
     organizations: uniqueStrings([...profileValues(profile.organizations, 'organization'), ...typed('organization')]),
     eventTypes: uniqueStrings([...profileValues(profile.eventTypes, 'event'), ...typed('event')]),
     distinctiveFacts: uniqueStrings(profileValues(profile.distinctiveFacts, 'supporting')),

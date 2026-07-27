@@ -3,6 +3,7 @@ import {
   normalizeMonitoringConcepts,
   normalizeStoryFingerprint,
 } from './monitoring-concepts.js';
+import { cleanArticleContentForAnalysis } from './article-content.js';
 import { createStoryProfile } from './story-profile.js';
 
 const PUBLISHERS = [
@@ -63,12 +64,13 @@ const TRAILING_PERSON_WORDS = new Set([
   'and', 'are', 'has', 'have', 'is', 'said', 'says', 'was', 'were', 'who', 'will',
 ]);
 const LEADING_PERSON_ROLES = new Set([
-  'chancellor', 'correspondent', 'dr', 'journalist', 'justice', 'mayor', 'minister',
+  'by', 'chancellor', 'correspondent', 'dr', 'journalist', 'justice', 'mayor', 'minister',
   'mr', 'mrs', 'ms', 'president', 'professor', 'reporter', 'spokesman', 'spokesperson',
 ]);
 const NON_PERSON_NAME_ENDINGS = new Set([
-  'airport', 'court', 'department', 'gate', 'guardian', 'news', 'office', 'parade', 'party',
-  'platz', 'police', 'pride', 'state', 'times', 'website',
+  'agency', 'airport', 'court', 'department', 'gate', 'guardian', 'images', 'media', 'network',
+  'news', 'office', 'parade', 'party', 'platz', 'police', 'press', 'pride', 'state', 'studios',
+  'times', 'website',
 ]);
 
 const cleanPersonName = (value) => {
@@ -119,7 +121,7 @@ const rolePriority = (role) => {
 const getStoryPeople = (page) => {
   const entries = splitArticleEntries(page.articleText);
   const candidates = new Map();
-  const metadataNames = new Set([page.author, page.siteName]
+  const metadataNames = new Set([page.siteName]
     .map((name) => String(name || '').trim().toLocaleLowerCase())
     .filter(Boolean));
   const personPattern = /\b\p{Lu}[\p{L}\p{M}'’-]+(?:\s+(?:(?:al|da|de|del|di|dos|du|la|le|van|von)\s+)?\p{Lu}[\p{L}\p{M}'’-]+){1,3}\b/gu;
@@ -155,6 +157,7 @@ const getStoryPeople = (page) => {
         entryIndexes: new Set(),
         subjectHits: 0,
         eventHits: 0,
+        actionHits: 0,
         roles: new Map(),
         firstSeen: candidates.size,
       };
@@ -164,6 +167,9 @@ const getStoryPeople = (page) => {
       if (entryIndex !== null) candidate.entryIndexes.add(entryIndex);
       if (subjectHit) candidate.subjectHits += 1;
       if (eventHit) candidate.eventHits += 1;
+      if (new RegExp(`${escapeRegExp(name)}[^.!?]{0,40}\\b(?:are|became|becomes|founded|has|have|is|leads?|searches?|was|were)\\b`, 'i').test(context)) {
+        candidate.actionHits += 1;
+      }
       if (role) candidate.roles.set(role, (candidate.roles.get(role) || 0) + 1);
       candidates.set(key, candidate);
     });
@@ -187,7 +193,25 @@ const getStoryPeople = (page) => {
         - reactingPenalty,
     };
   }).sort((first, second) => second.score - first.score || first.firstSeen - second.firstSeen);
-  const primary = ranked[0] || null;
+  const primary = ranked.find((candidate) => (
+    (!candidate.role || candidate.role === 'suspect')
+    && (
+      candidate.subjectHits > 0
+      || (
+        candidate.titleHits + candidate.descriptionHits >= 2
+        && candidate.occurrences >= 2
+        && candidate.actionHits > 0
+      )
+      || (
+        candidate.actionHits > 0
+        && (
+          candidate.entryIndexes.size >= 2
+          || candidate.occurrences >= 3
+          || candidate.actionHits >= 2
+        )
+      )
+    )
+  )) || null;
   const secondary = ranked
     .filter((candidate) => candidate !== primary && candidate.role && candidate.role !== 'suspect')
     .sort((first, second) => (
@@ -227,21 +251,77 @@ const getSupportedLocation = (page, slug) => {
   const precisePair = source.match(
     /\b(?:in|near|from|across)\s+([\p{Lu}][\p{L}'’-]+),\s*([\p{Lu}][\p{L}'’-]+)\b/u,
   );
-  if (precisePair) return `${precisePair[1]}, ${precisePair[2]}`;
+  const countryNames = new Set(getCountryNames().map((name) => name.toLocaleLowerCase()));
+  if (precisePair && countryNames.has(precisePair[2].toLocaleLowerCase())) {
+    return `${precisePair[1]}, ${precisePair[2]}`;
+  }
+  const explicitInPair = source.match(
+    /\b(?:in|near|from)\s+([\p{Lu}][\p{L}'’-]+)\s+in\s+([\p{Lu}][\p{L}'’-]+)\b/u,
+  );
+  if (explicitInPair && countryNames.has(explicitInPair[2].toLocaleLowerCase())) {
+    return `${explicitInPair[1]}, ${explicitInPair[2]}`;
+  }
   const locations = [...source.matchAll(
     /\b(?:in|near|from|across|of)\s+(\p{Lu}[\p{L}'’-]*(?:\s+\p{Lu}[\p{L}'’-]*){0,2})/gu,
   )].map((match) => match[1].replace(/\s+(?:The|A|An)$/i, '').trim());
   const location = countValues(locations.filter(Boolean))[0]?.[0] || '';
-  if (!location) return '';
-  const entries = [page.description, ...splitArticleEntries(page.articleText)].filter(Boolean);
-  const country = getCountryNames().find((countryName) => (
-    countryName.toLocaleLowerCase() !== location.toLocaleLowerCase()
-    && entries.some((entry) => (
-      new RegExp(`\\b${escapeRegExp(location)}\\b`, 'i').test(entry)
-      && new RegExp(`\\b${escapeRegExp(countryName)}(?:'s)?\\b`, 'i').test(entry)
-    ))
-  ));
-  return country ? `${location}, ${country}` : location;
+  return location;
+};
+
+const toConceptLabel = (value) => {
+  const label = String(value || '')
+    .replace(/[–—-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^(?:a|an|the)\s+/i, '')
+    .replace(/[.,;:!?]+$/g, '')
+    .trim()
+    .toLocaleLowerCase();
+  return label ? `${label.charAt(0).toLocaleUpperCase()}${label.slice(1)}` : '';
+};
+
+const getCentralTopic = (page) => {
+  const title = trimTerminalPunctuation(String(page.title || ''));
+  const articleText = String(page.articleText || '');
+  const titleGrowth = title.match(
+    /^(?:why|how)?\s*(?:the\s+)?([\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*){1,4})\s+(?:is|are|has been|have been)\s+(?:booming|growing|increasing|surging)\b/iu,
+  )?.[1];
+  const popularityTopic = `${title}. ${articleText}`.match(
+    /\b(?:popularity|growth|rise|boom)\s+(?:in|of)\s+([\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*){1,4})(?=\s+(?:is|has|have|brings|raises|comes|amid|but|and)\b|[,:;.!?–—]|$)/iu,
+  )?.[1];
+  return toConceptLabel(titleGrowth || popularityTopic);
+};
+
+const getDistinctiveRisks = (articleText) => {
+  const candidates = [];
+  String(articleText || '').split(/(?<=[.!?])\s+/).forEach((sentence) => {
+    if (!/\b(?:contaminat\w*|danger|disease|hazard|illness|risk)\b/i.test(sentence)) return;
+    const list = sentence.match(
+      /\b(?:include(?:s|d)?|including|such as|expose(?:s|d)?[^.!?;]{0,60}\bto)\s+([^.!?;]+)/i,
+    )?.[1];
+    if (!list) return;
+    list
+      .replace(/\b(?:when|while|which|that)\b[\s\S]*$/i, '')
+      .split(/,|\s+(?:and|or)\s+/i)
+      .map(toConceptLabel)
+      .filter((label) => label && label.split(/\s+/).length <= 4)
+      .forEach((label) => candidates.push(label));
+  });
+  return normalizeMonitoringConcepts(candidates, 4);
+};
+
+const formatNaturalList = (values) => {
+  const lowerValues = values.map((value) => value.charAt(0).toLocaleLowerCase() + value.slice(1));
+  if (lowerValues.length < 2) return lowerValues[0] || '';
+  if (lowerValues.length === 2) return `${lowerValues[0]} and ${lowerValues[1]}`;
+  return `${lowerValues.slice(0, -1).join(', ')}, and ${lowerValues.at(-1)}`;
+};
+
+const createTopicalSummary = ({ topic, risks, articleText }) => {
+  if (!topic || !risks.length) return '';
+  const growth = /\b(?:booming|growing|growth|increasing|popularity|rise|surging)\b/i.test(articleText);
+  const health = /\b(?:health|disease|illness|infection|medical)\b/i.test(articleText);
+  const contaminatedWater = /\b(?:contaminated|polluted)\s+water\b/i.test(articleText);
+  return `${topic}${growth ? ' is growing in popularity' : ' is the article’s central topic'}, while the article reports${health ? ' health' : ''} risks${contaminatedWater ? ' from contaminated water' : ''}, including ${formatNaturalList(risks)}.`;
 };
 
 const getCoherentVehicleAttackEvent = (page) => {
@@ -382,7 +462,11 @@ const createFallbackStorySummary = ({ person, primaryRole, event, location, unce
 };
 
 export const createSourceDerivedFallback = (page, sourceUrl = '') => {
-  const title = String(page.title || '').trim();
+  const analysisPage = {
+    ...page,
+    articleText: cleanArticleContentForAnalysis(page.articleText),
+  };
+  const title = String(analysisPage.title || '').trim();
   const subject = trimTerminalPunctuation(title);
   const summary = document.documentElement.lang === 'fr'
     ? `Nouveaux développements, réactions et informations complémentaires concernant « ${subject} ».`
@@ -394,30 +478,37 @@ export const createSourceDerivedFallback = (page, sourceUrl = '') => {
       return '';
     }
   })();
-  const sourcePublication = String(page.siteName || '').trim() || (() => {
+  const sourcePublication = String(analysisPage.siteName || '').trim() || (() => {
     try {
       return getPublisher(new URL(sourceUrl));
     } catch {
       return '';
     }
   })();
-  const source = [title, page.description, page.articleText, slug].filter(Boolean).join(' ');
+  const source = [title, analysisPage.description, analysisPage.articleText, slug].filter(Boolean).join(' ');
   const titleConcepts = getTitleDerivedKeywords(title);
   const missingHikers = titleConcepts.find((concept) => /missing hikers/i.test(concept));
   const remoteMountains = titleConcepts.find((concept) => /remote mountains/i.test(concept));
-  const people = getStoryPeople(page);
+  const people = getStoryPeople(analysisPage);
   const supportedPerson = people.primary;
-  const supportedLocation = getSupportedLocation(page, slug);
+  const supportedLocation = getSupportedLocation(analysisPage, slug);
   const supportsSearchOperation = /(?:search(?: and rescue)?|hunt)\b[\s\S]{0,80}\bmissing hikers?/i.test(source)
     || /missing hikers?[\s\S]{0,80}\bsearch(?: and rescue)?/i.test(source);
-  const coherentVehicleAttackEvent = getCoherentVehicleAttackEvent(page);
-  const uncertainty = getAttributedUncertainty(page);
-  const organizationConnection = getRelevantOrganization(page, supportedPerson);
+  const coherentVehicleAttackEvent = getCoherentVehicleAttackEvent(analysisPage);
+  const uncertainty = getAttributedUncertainty(analysisPage);
+  const organizationConnection = getRelevantOrganization(analysisPage, supportedPerson);
+  const centralTopic = getCentralTopic(analysisPage);
+  const distinctiveRisks = getDistinctiveRisks(analysisPage.articleText);
   const primaryEvent = coherentVehicleAttackEvent
     || missingHikers
-    || (supportsSearchOperation ? 'Search operation' : '');
-  const currentState = getCurrentState(page, supportedPerson);
-  const storySummary = createFallbackStorySummary({
+    || (supportsSearchOperation ? 'Search operation' : '')
+    || centralTopic;
+  const currentState = supportedPerson ? getCurrentState(analysisPage, supportedPerson) : null;
+  const storySummary = createTopicalSummary({
+    topic: centralTopic,
+    risks: distinctiveRisks,
+    articleText: source,
+  }) || createFallbackStorySummary({
     person: supportedPerson,
     primaryRole: people.primaryRole,
     event: primaryEvent,
@@ -429,6 +520,7 @@ export const createSourceDerivedFallback = (page, sourceUrl = '') => {
     currentState?.fact,
     uncertainty?.fact,
     organizationConnection?.fact,
+    ...distinctiveRisks,
   ].filter(Boolean);
   const uncertaintyPhrases = [
     uncertainty?.fact,
@@ -439,18 +531,20 @@ export const createSourceDerivedFallback = (page, sourceUrl = '') => {
     supportedLocation && { label: supportedLocation, type: 'location' },
     organizationConnection?.name && { label: organizationConnection.name, type: 'organization' },
     coherentVehicleAttackEvent && { label: coherentVehicleAttackEvent, type: 'event' },
+    centralTopic && { label: centralTopic, type: 'event' },
     missingHikers && { label: missingHikers, type: 'event' },
     supportsSearchOperation && { label: 'Search operation', type: 'event' },
     uncertainty?.concept && { label: uncertainty.concept, type: 'supporting' },
     remoteMountains && { label: remoteMountains, type: 'supporting' },
-    ...(coherentVehicleAttackEvent
+    ...distinctiveRisks.map((label) => ({ label, type: 'supporting' })),
+    ...(primaryEvent
       ? []
       : titleConcepts.map((label) => ({ label, type: 'supporting' }))),
   ].filter(Boolean), 8);
   return {
     watchTitle: title,
-    watchingFor: summary,
-    description: summary,
+    watchingFor: storySummary || summary,
+    description: storySummary || summary,
     storyFingerprint,
     keywords: storyFingerprint.map(({ label }) => label),
     storyProfile: createStoryProfile({
@@ -467,11 +561,11 @@ export const createSourceDerivedFallback = (page, sourceUrl = '') => {
         aliases: organizationConnection?.aliases || [],
         uncertaintyPhrases,
       },
-      articleText: page.articleText,
+      articleText: analysisPage.articleText,
       sourcePublication,
-      sourceTitle: page.title,
+      sourceTitle: analysisPage.title,
       sourceUrl,
-      publishedAt: page.publishedAt,
+      publishedAt: analysisPage.publishedAt,
     }),
   };
 };
@@ -491,6 +585,10 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
   const source = getPublisher(url);
   onProgress?.('fetching-title');
   const page = await requestJson('/api/page-title', { url: url.href }, signal);
+  const analysisPage = {
+    ...page,
+    articleText: cleanArticleContentForAnalysis(page.articleText),
+  };
   const conceptSourceFields = Array.isArray(page.conceptSourceFields)
     ? page.conceptSourceFields
     : ['title', 'description', 'articleText', 'author'].filter((field) => page[field]);
@@ -506,16 +604,16 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
   let suggestion;
   try {
     suggestion = await requestJson('/api/watch-suggestion', {
-      title: page.title,
-      description: page.description,
-      articleText: page.articleText,
-      author: page.author,
+      title: analysisPage.title,
+      description: analysisPage.description,
+      articleText: analysisPage.articleText,
+      author: analysisPage.author,
       slug: getUrlSlug(url),
     }, signal);
   } catch (error) {
     if (error.name === 'AbortError') throw error;
     console.warn('AI Watch generation failed; using the real page title fallback.', error);
-    suggestion = createSourceDerivedFallback(page, url.href);
+    suggestion = createSourceDerivedFallback(analysisPage, url.href);
   }
   const keywords = normalizeMonitoringConcepts(suggestion.keywords, 8);
   const storyFingerprint = normalizeStoryFingerprint(
@@ -526,11 +624,11 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
   const storyProfile = createStoryProfile({
     storyFingerprint,
     profile: suggestion.storyProfile,
-    articleText: page.articleText,
-    sourcePublication: page.siteName || source,
-    sourceTitle: page.title,
-    sourceUrl: page.sourceUrl || url.href,
-    publishedAt: page.publishedAt,
+    articleText: analysisPage.articleText,
+    sourcePublication: analysisPage.siteName || source,
+    sourceTitle: analysisPage.title,
+    sourceUrl: analysisPage.sourceUrl || url.href,
+    publishedAt: analysisPage.publishedAt,
   });
   const profileKeywords = storyProfile.concepts.map(({ label }) => label);
 

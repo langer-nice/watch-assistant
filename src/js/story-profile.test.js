@@ -92,9 +92,42 @@ test('upgrades version 2 profiles, prefers precise locations, and removes normal
     sourceTitle: 'Investigation update',
   });
 
-  assert.equal(profile.version, 3);
+  assert.equal(profile.version, 4);
   assert.deepEqual(profile.locations, ['Berlin, Germany']);
   assert.deepEqual(profile.distinctiveFacts, ['Official assessment: suspected motive']);
   assert.deepEqual(profile.uncertaintyPhrases, ['Police reported a possible link']);
   assert.deepEqual(profile.userAddedConcepts, ['Manual identifier']);
+});
+
+test('an explicit empty primary-person list is not repopulated from a typed concept', () => {
+  const profile = createStoryProfile({
+    storyFingerprint: [
+      { label: 'Quoted Expert', type: 'person' },
+      { label: 'Water safety review', type: 'event' },
+    ],
+    profile: {
+      version: 3,
+      primaryPeople: [],
+      otherPeople: [],
+      storySummary: 'The article reviews health evidence associated with recreational water use.',
+    },
+  });
+
+  assert.equal(profile.version, 4);
+  assert.deepEqual(profile.primaryPeople, []);
+  assert.deepEqual(profile.otherPeople, []);
+});
+
+test('does not preserve an unsupported city-country association when source text separates the places', () => {
+  const profile = createStoryProfile({
+    storyFingerprint: [{ label: 'Sheffield, Switzerland', type: 'location' }],
+    profile: {
+      primaryPeople: [],
+      locations: ['Sheffield, Switzerland'],
+    },
+    articleText: 'Swimmers gathered near Sheffield. A separate championship was held in Switzerland.',
+  });
+
+  assert.deepEqual(profile.locations, ['Sheffield', 'Switzerland']);
+  assert.equal(profile.concepts.some(({ label }) => label === 'Sheffield, Switzerland'), false);
 });
