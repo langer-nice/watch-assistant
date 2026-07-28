@@ -4,8 +4,13 @@ import {
   normalizeAutomaticStoryFingerprint,
   normalizeStoryFingerprint,
 } from './monitoring-concepts.js';
+import {
+  getCategoryPendingSituationKey,
+  inferWatchCategory,
+  normalizeWatchCategory,
+} from './watch-category.js';
 
-export const WATCH_MODEL_VERSION = 6;
+export const WATCH_MODEL_VERSION = 7;
 
 const TECHNICAL_ATTENTION_REASONS = new Set([
   'monitoring-source-missing',
@@ -163,9 +168,36 @@ export const migrateWatchModel = (watch) => {
   const status = watch.status === 'paused' || watch.status === 'completed'
     ? watch.status
     : actionRequired ? 'attention' : watch.status === 'attention' ? 'watching' : watch.status || 'watching';
+  // Older models did not record provenance, so preserve their stored category conservatively.
+  const categorySource = watch.categorySource === 'manual' || (
+    watch.categorySource !== 'inferred' && watch.category
+  ) ? 'manual' : 'inferred';
+  const inferredCategory = inferWatchCategory([
+    watch.request,
+    watch.sourceTitle,
+    watch.title,
+    watch.storyProfile?.storySummary,
+    watch.monitoredEvent,
+  ].filter(Boolean).join(' '));
+  const category = categorySource === 'manual'
+    ? normalizeWatchCategory(watch.category, inferredCategory)
+    : inferredCategory;
+  const generatedPendingSituationKeys = new Set([
+    'watchData.pendingSituations.price',
+    'watchData.pendingSituations.travel',
+    'watchData.pendingSituations.news',
+    'watchData.pendingSituations.event',
+    'watchData.pendingSituations.general',
+  ]);
+  const currentSituationKey = generatedPendingSituationKeys.has(watch.currentSituationKey)
+    ? getCategoryPendingSituationKey(category)
+    : watch.currentSituationKey;
   const migratedWatch = {
     ...watch,
     watchModelVersion: WATCH_MODEL_VERSION,
+    category,
+    categorySource,
+    currentSituationKey,
     monitoringConceptsManuallyEdited: selectionWasManuallyEdited,
     analysisProvider: ['openai', 'deterministic'].includes(watch.analysisProvider)
       ? watch.analysisProvider

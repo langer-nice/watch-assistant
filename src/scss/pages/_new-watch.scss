@@ -227,6 +227,54 @@ body.is-edit-modal .language-control {
   border-radius: var(--radius-lg);
 }
 
+.watch-advanced {
+  min-width: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.watch-advanced[hidden],
+.watch-advanced__panel[hidden] {
+  display: none;
+}
+
+.watch-advanced__toggle {
+  display: flex;
+  width: 100%;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-xxs);
+  color: var(--color-text-muted);
+  background: transparent;
+  border-radius: var(--radius-input);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+}
+
+.watch-advanced__toggle:hover,
+.watch-advanced__toggle:focus-visible {
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+}
+
+.watch-advanced__chevron {
+  flex: 0 0 auto;
+  font-size: 1.1rem;
+  transition: transform var(--transition-default);
+}
+
+.watch-advanced__toggle[aria-expanded="true"] .watch-advanced__chevron {
+  transform: rotate(180deg);
+}
+
+.watch-advanced__panel {
+  min-width: 0;
+  padding-top: var(--space-xs);
+}
+
 .watch-monitoring-source[hidden] {
   display: none;
 }

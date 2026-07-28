@@ -71,17 +71,63 @@ const getUncertaintyPhrases = (articleText) => uniqueStrings(
   4,
 );
 
-const cleanSummary = (value) => sanitizeMalformedCurrencyText(value)
-  .replace(/\s+/g, ' ')
-  .trim()
-  .slice(0, 360);
+const SUMMARY_LIMIT = 360;
+const NON_TERMINAL_ABBREVIATIONS = new Set([
+  'dr', 'mr', 'mrs', 'ms', 'prof', 'pr', 'mme', 'mlle', 'm', 'st', 'ste', 'vs', 'v',
+]);
+
+const isSentenceBoundary = (text, index) => {
+  const punctuation = text[index];
+  if (punctuation === '!' || punctuation === '?') return true;
+  if (punctuation !== '.') return false;
+  const remainder = text.slice(index + 1);
+  const next = remainder.match(/^\s*[“”"'«»(]*([^\s])/u)?.[1] || '';
+  if (!next) return true;
+  const preceding = text.slice(0, index + 1);
+  const token = preceding.match(/([\p{L}]+)\.$/u)?.[1]?.toLocaleLowerCase() || '';
+  if (NON_TERMINAL_ABBREVIATIONS.has(token)) return false;
+  if (/(?:\b\p{Lu}\.){2,}$/u.test(preceding)) return false;
+  return !/\p{Ll}/u.test(next);
+};
+
+const limitToCompleteSentence = (text, limit = SUMMARY_LIMIT) => {
+  if (text.length <= limit) return text;
+  let lastBoundary = -1;
+  for (let index = 0; index < Math.min(text.length, limit); index += 1) {
+    if (isSentenceBoundary(text, index)) lastBoundary = index;
+  }
+  return lastBoundary >= 19 ? text.slice(0, lastBoundary + 1).trim() : '';
+};
+
+const removeClearlyIncompleteEnding = (text) => {
+  let cleaned = text;
+  cleaned = cleaned.replace(/,\s*\p{L}\.$/u, '');
+  cleaned = cleaned.replace(/(?:[,;:]\s*)?(?:and|or|but|because|while|et|ou|mais|car|lorsque|parce que|ainsi que)\s*[,.]?$/iu, '');
+  cleaned = cleaned.replace(/,\s*(?:with|avec)\s*[,.]?$/iu, '');
+  cleaned = cleaned.replace(/[,;:–—-]\s*$/u, '');
+  return cleaned.trim();
+};
+
+export const cleanStorySummaryText = (value, limit = SUMMARY_LIMIT) => {
+  const normalized = sanitizeMalformedCurrencyText(value)
+    .replace(/\s+/g, ' ')
+    .trim();
+  const limited = limitToCompleteSentence(normalized, limit);
+  const cleaned = removeClearlyIncompleteEnding(limited);
+  if (cleaned.length < 20) return '';
+  if (/\b(?:likely|possibly|probably|allegedly|reportedly|suspected|possible|probablement|possiblement|pretendument|presume(?:e|es|s)?)$/i.test(cleaned)) {
+    return '';
+  }
+  return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
+};
 
 export const normalizeStorySummary = (value, sourceTitle = '') => {
-  const summary = cleanSummary(value);
-  const isComplete = summary.length >= 20
-    && !/\b(?:likely|possibly|probably|allegedly|reportedly|suspected|possible)$/i.test(summary);
-  if (isComplete) return /[.!?]$/.test(summary) ? summary : `${summary}.`;
-  const title = cleanSummary(sourceTitle).replace(/[.!?]+$/g, '');
+  const summary = cleanStorySummaryText(value);
+  if (summary) return summary;
+  const title = sanitizeMalformedCurrencyText(sourceTitle)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[.!?]+$/g, '');
   return title ? `Reporting focuses on “${title}”.` : '';
 };
 

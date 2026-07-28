@@ -77,19 +77,33 @@
             </label>
           </section>
 
-          <label class="watch-monitoring-source" id="watchFeedUrlField" for="watchFeedUrlInput" hidden>
-            <span data-i18n="newWatch.feedUrl"></span>
-            <input
-              id="watchFeedUrlInput"
-              name="feedUrl"
-              type="url"
-              inputmode="url"
-              autocomplete="url"
-              pattern="https?://.*"
-              data-i18n-placeholder="newWatch.feedUrlPlaceholder"
-            />
-            <small data-i18n="newWatch.feedUrlHelper"></small>
-          </label>
+          <section class="watch-advanced" id="watchAdvancedSettings" hidden>
+            <button
+              class="watch-advanced__toggle"
+              id="watchAdvancedToggle"
+              type="button"
+              aria-expanded="false"
+              aria-controls="watchAdvancedPanel"
+            >
+              <span data-i18n="newWatch.advancedSettings"></span>
+              <span class="watch-advanced__chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div class="watch-advanced__panel" id="watchAdvancedPanel" hidden>
+              <label class="watch-monitoring-source" id="watchFeedUrlField" for="watchFeedUrlInput">
+                <span data-i18n="newWatch.feedUrl"></span>
+                <input
+                  id="watchFeedUrlInput"
+                  name="feedUrl"
+                  type="url"
+                  inputmode="url"
+                  autocomplete="url"
+                  pattern="https?://.*"
+                  data-i18n-placeholder="newWatch.feedUrlPlaceholder"
+                />
+                <small data-i18n="newWatch.feedUrlHelper"></small>
+              </label>
+            </div>
+          </section>
 
           <button
             class="watch-reason-toggle"

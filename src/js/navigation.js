@@ -68,6 +68,11 @@ import {
   getMonitoringHealthPresentation,
 } from './watch-model.js';
 import { getWatchDetailHref } from './watch-routes.js';
+import {
+  getCategoryPendingSituationKey,
+  inferWatchCategory,
+  normalizeWatchCategory,
+} from './watch-category.js';
 
 let homeCreatedWatchId = null;
 let homeFirstWatchConfirmation = false;
@@ -435,36 +440,6 @@ const formatMonitoringTimestamp = (value) => {
   }).format(new Date(value));
 };
 
-const inferCategory = (request) => {
-  const text = request.toLowerCase();
-
-  if (/(apartment|appartement|property|immobilier|listing|annonce immobilière)/.test(text)) {
-    return 'property';
-  }
-
-  if (/(price|prix|deal|discount|remise|sale|promo|cheapest|moins cher|amazon|€|\$)/.test(text)) {
-    return 'price';
-  }
-
-  if (/(netflix|series|série|season|saison|film|trailer|bande-annonce)/.test(text)) {
-    return 'entertainment';
-  }
-
-  if (/(flight|vol|easyjet|travel|voyage|hotel|hôtel|holiday|vacances|ticket|billet|booking|réservation)/.test(text)) {
-    return 'travel';
-  }
-
-  if (/(news|actualité|story|sujet|article|investigation|enquête|bbc|cnn|report|rapport)/.test(text)) {
-    return 'news';
-  }
-
-  if (/(event|événement|registration|inscription|deadline|échéance|ticket sales|billetterie|concert)/.test(text)) {
-    return 'events';
-  }
-
-  return 'general';
-};
-
 const hasReleaseIntent = (request) => (
   /(release date|released|comes out|coming out|publication date|date de sortie|date de parution|sortie|parution|publi[ée])/
     .test(request.toLowerCase())
@@ -477,14 +452,7 @@ const inferCurrentSituationKey = (request, category) => {
     return 'watchData.pendingSituations.release';
   }
 
-  const keysByCategory = {
-    price: 'watchData.pendingSituations.price',
-    travel: 'watchData.pendingSituations.travel',
-    news: 'watchData.pendingSituations.news',
-    events: 'watchData.pendingSituations.event',
-  };
-
-  return keysByCategory[category] || 'watchData.pendingSituations.general';
+  return getCategoryPendingSituationKey(category);
 };
 
 const createTitle = (request) => {
@@ -606,12 +574,13 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
   const sourceUrl = typeof urlAnalysis?.sourceUrl === 'string'
     ? urlAnalysis.sourceUrl.trim()
     : isUrlRequest ? request.trim() : '';
-  const inferredCategory = inferCategory([
+  const inferredCategory = inferWatchCategory([
     request,
     urlAnalysis?.title,
     urlAnalysis?.source,
+    urlAnalysis?.storyProfile?.storySummary,
   ].filter(Boolean).join(' '));
-  const category = options.category || inferredCategory;
+  const category = normalizeWatchCategory(options.category, inferredCategory);
   const keywords = Array.isArray(options.keywords)
     ? options.keywords
     : extractMonitoringConcepts([request, urlAnalysis?.title].filter(Boolean).join(' '));
@@ -1939,7 +1908,9 @@ export function initForm() {
   const keywordInputEl = document.querySelector('#watchKeywordInput');
   const keywordAddEl = document.querySelector('#watchKeywordAdd');
   const categoryInputEl = document.querySelector('#watchCategoryInput');
-  const feedUrlFieldEl = document.querySelector('#watchFeedUrlField');
+  const advancedSettingsEl = document.querySelector('#watchAdvancedSettings');
+  const advancedToggleEl = document.querySelector('#watchAdvancedToggle');
+  const advancedPanelEl = document.querySelector('#watchAdvancedPanel');
   const feedUrlInputEl = document.querySelector('#watchFeedUrlInput');
   const discardDialog = document.querySelector('#editDiscardDialog');
   const keepEditingButton = document.querySelector('#editKeepEditing');
@@ -2028,12 +1999,21 @@ export function initForm() {
 
   const hasMeaningfulRequest = () => hasMeaningfulText(input?.value || '');
 
+  const setAdvancedSettingsExpanded = (expanded) => {
+    if (!advancedToggleEl || !advancedPanelEl) return;
+    advancedToggleEl.setAttribute('aria-expanded', String(expanded));
+    advancedPanelEl.hidden = !expanded;
+  };
+
   const validateFeedUrl = ({ focus = false } = {}) => {
     if (!feedUrlInputEl) return true;
     const value = feedUrlInputEl.value.trim();
     const valid = !value || Boolean(normalizeFeedUrl(value));
     feedUrlInputEl.setCustomValidity(valid ? '' : t('newWatch.feedUrlError'));
-    if (!valid && focus) feedUrlInputEl.reportValidity();
+    if (!valid && focus) {
+      setAdvancedSettingsExpanded(true);
+      feedUrlInputEl.reportValidity();
+    }
     return valid;
   };
 
@@ -2146,7 +2126,7 @@ export function initForm() {
       const requestChanged = normalizeComparableText(keywordSourceRequest)
         !== normalizeComparableText(request);
       if (requestChanged && categorySource === 'inferred' && categoryInputEl) {
-        categoryInputEl.value = inferCategory(request);
+        categoryInputEl.value = inferWatchCategory(request);
       }
       if (hasMeaningfulText(request) && requestChanged && !keywordsManuallyEdited) {
         replaceSuggestedKeywords(request);
@@ -2160,7 +2140,7 @@ export function initForm() {
     const requestChanged = normalizeComparableText(keywordSourceRequest)
       !== normalizeComparableText(request);
     if (requestChanged && categorySource === 'inferred' && categoryInputEl) {
-      categoryInputEl.value = inferCategory(request);
+      categoryInputEl.value = inferWatchCategory(request);
     }
     if (requestChanged && !keywordsManuallyEdited) {
       replaceSuggestedKeywords(request);
@@ -2245,6 +2225,9 @@ export function initForm() {
     }
     if (categoryInputEl) {
       categoryInputEl.disabled = disabled;
+    }
+    if (advancedToggleEl) {
+      advancedToggleEl.disabled = disabled;
     }
     if (feedUrlInputEl) {
       feedUrlInputEl.disabled = disabled;
@@ -2716,7 +2699,7 @@ export function initForm() {
       keywordsManuallyEdited = false;
       renderKeywords();
       if (categorySource === 'inferred' && categoryInputEl) {
-        categoryInputEl.value = inferCategory([
+        categoryInputEl.value = inferWatchCategory([
           analysis.title,
           analysis.sourceTitle,
           ...analysis.keywords,
@@ -2953,10 +2936,13 @@ export function initForm() {
       });
       keywordSourceRequest = inputValue;
       if (categoryInputEl) {
-        categoryInputEl.value = editingWatch.category || inferCategory(inputValue);
+        categoryInputEl.value = editingWatch.category || inferWatchCategory(inputValue);
       }
-      if (feedUrlFieldEl) feedUrlFieldEl.hidden = false;
       if (feedUrlInputEl) feedUrlInputEl.value = editingWatch.feedUrl || '';
+      if (advancedSettingsEl) advancedSettingsEl.hidden = false;
+      const hasStoredCustomFeed = Boolean(normalizeFeedUrl(editingWatch.feedUrl || ''))
+        && editingWatch.monitoringSource?.discovery === 'manual';
+      setAdvancedSettingsExpanded(hasStoredCustomFeed);
       pendingAnalysis = editingWatch.inputType === 'url'
         ? {
           status: 'success',
@@ -2989,7 +2975,7 @@ export function initForm() {
       keywordItems = extractMonitoringConcepts(keywordSourceRequest)
         .map((label) => ({ label, selected: true, type: 'manual' }));
       if (categoryInputEl) {
-        categoryInputEl.value = inferCategory(keywordSourceRequest);
+        categoryInputEl.value = inferWatchCategory(keywordSourceRequest);
       }
     }
 
@@ -3196,6 +3182,9 @@ export function initForm() {
 
   categoryInputEl?.addEventListener('change', () => {
     categorySource = 'manual';
+  });
+  advancedToggleEl?.addEventListener('click', () => {
+    setAdvancedSettingsExpanded(advancedToggleEl.getAttribute('aria-expanded') !== 'true');
   });
   feedUrlInputEl?.addEventListener('input', () => {
     validateFeedUrl();

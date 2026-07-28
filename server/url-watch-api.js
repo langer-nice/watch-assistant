@@ -9,6 +9,7 @@ import {
   cleanArticleContentForAnalysis,
   sanitizeMalformedCurrencyText,
 } from '../src/js/article-content.js';
+import { cleanStorySummaryText } from '../src/js/story-profile.js';
 
 const MAX_REQUEST_BYTES = 32 * 1024;
 const MAX_PAGE_BYTES = 1024 * 1024;
@@ -580,7 +581,7 @@ const validateSuggestion = (suggestion) => {
     ? sanitizeMalformedCurrencyText(suggestion.watchingFor).trim()
     : '';
   const storySummary = typeof normalizedProfile.storySummary === 'string'
-    ? sanitizeMalformedCurrencyText(normalizedProfile.storySummary).replace(/\s+/g, ' ').trim()
+    ? cleanStorySummaryText(normalizedProfile.storySummary)
     : '';
   const semanticRules = [
     [typeof suggestion.watchTitle === 'string' && suggestion.watchTitle.trim(), 'watchTitle', 'non_empty', 'The Watch title was empty.'],
@@ -666,6 +667,7 @@ export const generateWatchSuggestion = async ({
         instructions: `Read and understand the complete cleaned article content. Build one structured story profile, a concise Watch title, a natural one-sentence monitoring instruction named watchingFor, and a short explanation of no more than two sentences.
 
 storyProfile.storySummary explains the article naturally to a human. It must identify the central subject or phenomenon, explain what the article reports, include decisive supported context, and preserve important uncertainty or attribution. It must not merely copy, segment, or lightly reword the headline.
+Every storyProfile.storySummary must end with complete prose and terminal punctuation. Never end it with a clipped clause, dangling conjunction, or partial token.
 
 storyFingerprint is the separate, complete list of monitoring identifiers used to recognize future reporting about the same story. Select the smallest sufficient set: zero to five identifiers, normally 2 to 5 for a strong result, and fewer whenever fewer are reliable. Return them strongest first. Rank specificity and future matching value above general relevance. Before retaining an identifier, ask whether a future article containing it would be credible evidence that the article concerns the same monitored subject. Each identifier must be central, concise, independently understandable, and likely to appear or have a close semantic equivalent in later relevant coverage. Favor canonical named entities and short reusable event or relationship labels over descriptive phrases that read like miniature summaries. When two identifiers work as a pair, do not repeat the named entity inside a second long identifier. For example, for an unauthorized copy of a named work circulating on a platform, prefer the complementary pair "The Odyssey" (work) and "Unauthorized release on X" (event) over "Universal Studios takedown of leaked film posts" and "Unauthorized copy of The Odyssey on X". Use the most accurate available type, including work, product_service, condition, symptom, phenomenon or relationship. Use product_service for a named product, platform or service such as Amazon Luna or Google Stadia only when the supplied context supports that classification and the entity is central. A company remains an organization. Generic fact, supporting and manual are not permitted automatic identifier types.
 

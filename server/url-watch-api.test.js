@@ -442,6 +442,23 @@ test('the server route returns a coherent perimenopause structured result with A
   assert.doesNotMatch(JSON.stringify(result.body), /Brain fog and four easy|Help fix/);
 });
 
+test('repairs an obvious terminal fragment without losing supported attribution', async () => {
+  const suggestion = structuredClone(perimenopauseStructuredSuggestion);
+  suggestion.storyProfile.storySummary = 'Johnson & Johnson faces a legal claim. J&J denies the allegations, v.';
+  const result = await generateWatchSuggestion({
+    title: 'Johnson & Johnson legal case',
+    articleText: 'Johnson & Johnson faces a legal claim and denies the allegations.',
+    apiKey: 'test-key',
+    model: 'test-model',
+    maxAttempts: 1,
+    fetchImpl: async () => createOpenAiResponse(suggestion),
+  });
+  assert.equal(
+    result.storyProfile.storySummary,
+    'Johnson & Johnson faces a legal claim. J&J denies the allegations.',
+  );
+});
+
 test('a valid AI profile with zero identifiers remains a successful analysis', async () => {
   const suggestion = await generateWatchSuggestion({
     title: 'Experts discuss concerns',

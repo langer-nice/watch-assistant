@@ -219,9 +219,10 @@
       "uncertainty": "Uncertainty"
     },
     "category": "Category",
-    "feedUrl": "Advanced: monitoring feed URL",
+    "advancedSettings": "Advanced settings",
+    "feedUrl": "Custom feed URL",
     "feedUrlPlaceholder": "https://example.com/feed.xml",
-    "feedUrlHelper": "Optional technical fallback. Watch Assistant normally discovers this automatically; the original article URL remains unchanged.",
+    "feedUrlHelper": "Optional. Use this only to monitor a specific RSS or Atom feed.",
     "feedUrlError": "Enter a valid HTTP or HTTPS feed URL without credentials.",
     "addNote": "+ Add note",
     "noteHeading": "Add note",

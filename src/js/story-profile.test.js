@@ -1,10 +1,42 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  cleanStorySummaryText,
   createStoryProfile,
   getStoryProfileIdentifiers,
   synchronizeStoryProfile,
 } from './story-profile.js';
+
+test('preserves complete summaries and valid abbreviations', () => {
+  const summary = 'Dr. Léa Martin discussed the U.S. proceedings with Mr. Jones. J&J denies the allegations.';
+  assert.equal(cleanStorySummaryText(summary), summary);
+  const french = 'Le Dr Martin a parlé avec M. Dupont aux États-Unis. J&J conteste les allégations.';
+  assert.equal(cleanStorySummaryText(french), french);
+  const terminalPreposition = 'Officials identified the witness the investigators spoke with.';
+  assert.equal(cleanStorySummaryText(terminalPreposition), terminalPreposition);
+});
+
+test('handles clearly incomplete French endings conservatively', () => {
+  assert.equal(
+    cleanStorySummaryText('Le tribunal examine la plainte. J&J conteste les allégations, et'),
+    'Le tribunal examine la plainte. J&J conteste les allégations.',
+  );
+  assert.equal(cleanStorySummaryText('Le motif de la décision reste probablement'), '');
+});
+
+test('removes only an obviously malformed terminal fragment', () => {
+  assert.equal(
+    cleanStorySummaryText('Johnson & Johnson faces a legal claim. J&J denies the allegations, v.'),
+    'Johnson & Johnson faces a legal claim. J&J denies the allegations.',
+  );
+});
+
+test('limits long summaries at the last complete sentence', () => {
+  const first = `${'A supported legal detail '.repeat(8).trim()}.`;
+  const second = `${'Another supported sentence '.repeat(9).trim()}.`;
+  const clipped = cleanStorySummaryText(`${first} ${second}`, first.length + 15);
+  assert.equal(clipped, first);
+});
 
 test('keeps monitoring identifiers separate from supporting details and uncertainty', () => {
   const profile = createStoryProfile({

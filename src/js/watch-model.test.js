@@ -214,3 +214,63 @@ test('preserves a genuine user action independently from monitoring health', () 
   assert.equal(watch.userActionReason, 'booking-window-open');
   assert.equal(watch.status, 'attention');
 });
+
+test('migrates an inferred legal Watch with monetary damages away from Price', () => {
+  const watch = migrateWatchModel({
+    id: 'legal-watch',
+    inputType: 'url',
+    request: 'https://example.com/legal-story',
+    sourceTitle: 'Johnson & Johnson lawsuit alleges billions in damages',
+    category: 'price',
+    categorySource: 'inferred',
+    currentSituationKey: 'watchData.pendingSituations.price',
+    storyProfile: {
+      storySummary: 'A court is considering allegations against Johnson & Johnson, which denies the claims.',
+    },
+  }).watch;
+  assert.equal(watch.category, 'news');
+  assert.equal(watch.categorySource, 'inferred');
+  assert.equal(watch.currentSituationKey, 'watchData.pendingSituations.news');
+});
+
+test('preserves a manually selected category while normalizing its label', () => {
+  const watch = migrateWatchModel({
+    id: 'manual-category',
+    request: 'Notify me if this lawsuit receives a new ruling involving $2bn.',
+    category: 'Prix',
+    categorySource: 'manual',
+  }).watch;
+  assert.equal(watch.category, 'price');
+  assert.equal(watch.categorySource, 'manual');
+});
+
+test('conservatively preserves a legacy category whose provenance was not recorded', () => {
+  const watch = migrateWatchModel({
+    id: 'legacy-category',
+    request: 'A lawsuit involving monetary damages',
+    category: 'travel',
+  }).watch;
+  assert.equal(watch.category, 'travel');
+  assert.equal(watch.categorySource, 'manual');
+});
+
+test('category and Story Profile migration is idempotent', () => {
+  const initial = {
+    id: 'idempotent-legal-watch',
+    inputType: 'url',
+    createdAt: '2026-07-28T10:00:00.000Z',
+    request: 'https://example.com/legal-story',
+    sourceTitle: 'Court awards damages in a lawsuit',
+    category: 'price',
+    categorySource: 'inferred',
+    currentSituationKey: 'watchData.pendingSituations.price',
+    storyFingerprint: [{ label: 'Legal proceedings', type: 'event' }],
+    storyProfile: {
+      storySummary: 'A court awarded damages in a lawsuit. The defendant denies the allegations, v.',
+    },
+  };
+  const first = migrateWatchModel(initial).watch;
+  const second = migrateWatchModel(first);
+  assert.deepEqual(second.watch, first);
+  assert.equal(second.migrated, false);
+});
