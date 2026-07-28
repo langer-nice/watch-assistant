@@ -245,35 +245,56 @@ test('middleware rejects non-POST methods and invalid JSON bodies', async () => 
 
   const invalidJsonResponse = await callMiddleware({ body: '{not json' });
   assert.equal(invalidJsonResponse.statusCode, 400);
-  assert.deepEqual(invalidJsonResponse.body, { error: 'The request body must be valid JSON.' });
+  assert.deepEqual(invalidJsonResponse.body, {
+    code: 'INVALID_JSON',
+    error: 'The request body must be valid JSON.',
+  });
 
   const arrayResponse = await callMiddleware({ body: '[]' });
   assert.equal(arrayResponse.statusCode, 400);
-  assert.deepEqual(arrayResponse.body, { error: 'The request body must be a JSON object.' });
+  assert.deepEqual(arrayResponse.body, {
+    code: 'INVALID_BODY',
+    error: 'The request body must be a JSON object.',
+  });
 });
 
 test('middleware validates sourceUrl and returns generic URL errors', async () => {
   const missingResponse = await callMiddleware({ body: '{}' });
   assert.equal(missingResponse.statusCode, 400);
-  assert.deepEqual(missingResponse.body, { error: 'sourceUrl is required.' });
+  assert.deepEqual(missingResponse.body, {
+    code: 'MISSING_SOURCE_URL',
+    error: 'sourceUrl is required.',
+  });
 
   const wrongTypeResponse = await callMiddleware({ body: '{"sourceUrl":42}' });
   assert.equal(wrongTypeResponse.statusCode, 400);
-  assert.deepEqual(wrongTypeResponse.body, { error: 'sourceUrl must be a string.' });
+  assert.deepEqual(wrongTypeResponse.body, {
+    code: 'INVALID_SOURCE_URL',
+    error: 'sourceUrl must be a string.',
+  });
 
   const emptyResponse = await callMiddleware({ body: '{"sourceUrl":"   "}' });
   assert.equal(emptyResponse.statusCode, 400);
-  assert.deepEqual(emptyResponse.body, { error: 'sourceUrl is invalid.' });
+  assert.deepEqual(emptyResponse.body, {
+    code: 'INVALID_SOURCE_URL',
+    error: 'sourceUrl is invalid.',
+  });
 
   const forbiddenProtocolResponse = await callMiddleware({
     body: '{"sourceUrl":"file:///etc/passwd"}',
   });
   assert.equal(forbiddenProtocolResponse.statusCode, 400);
-  assert.deepEqual(forbiddenProtocolResponse.body, { error: 'sourceUrl is not allowed.' });
+  assert.deepEqual(forbiddenProtocolResponse.body, {
+    code: 'INVALID_PROTOCOL',
+    error: 'sourceUrl is not allowed.',
+  });
 
   const localResponse = await callMiddleware({ body: '{"sourceUrl":"http://localhost/feed"}' });
   assert.equal(localResponse.statusCode, 400);
-  assert.deepEqual(localResponse.body, { error: 'sourceUrl is not allowed.' });
+  assert.deepEqual(localResponse.body, {
+    code: 'LOCAL_HOST',
+    error: 'sourceUrl is not allowed.',
+  });
   assert.equal(JSON.stringify(localResponse.body).includes('127.0.0.1'), false);
 });
 
@@ -285,7 +306,10 @@ test('middleware limits request bodies and maps DNS failures safely', async () =
     body: `{"sourceUrl":"https://example.com/${'a'.repeat(2100)}"}`,
   });
   assert.equal(longUrlResponse.statusCode, 400);
-  assert.deepEqual(longUrlResponse.body, { error: 'sourceUrl is invalid.' });
+  assert.deepEqual(longUrlResponse.body, {
+    code: 'INVALID_SOURCE_URL',
+    error: 'sourceUrl is invalid.',
+  });
 
   const dnsResponse = await callMiddleware({
     body: '{"sourceUrl":"https://missing.example/feed"}',
@@ -296,6 +320,28 @@ test('middleware limits request bodies and maps DNS failures safely', async () =
     },
   });
   assert.equal(dnsResponse.statusCode, 502);
-  assert.deepEqual(dnsResponse.body, { error: 'The feed could not be fetched.' });
+  assert.deepEqual(dnsResponse.body, {
+    code: 'DNS_FAILURE',
+    error: 'The feed could not be fetched.',
+  });
   assert.equal(JSON.stringify(dnsResponse.body).includes('internal-detail'), false);
+});
+
+test('middleware exposes safe structured source failure codes without upstream detail', async () => {
+  for (const [status, code, error] of [
+    [401, 'ACCESS_DENIED', 'The monitoring source denied access.'],
+    [403, 'ACCESS_DENIED', 'The monitoring source denied access.'],
+    [404, 'SOURCE_NOT_FOUND', 'The monitoring source could not be found.'],
+    [410, 'SOURCE_NOT_FOUND', 'The monitoring source could not be found.'],
+  ]) {
+    const upstreamResponse = await callMiddleware({
+      body: '{"sourceUrl":"https://example.com/source"}',
+      options: {
+        fetchImpl: async () => new Response('private upstream detail', { status }),
+      },
+    });
+    assert.equal(upstreamResponse.statusCode, 502);
+    assert.deepEqual(upstreamResponse.body, { code, error });
+    assert.equal(JSON.stringify(upstreamResponse.body).includes('private upstream detail'), false);
+  }
 });

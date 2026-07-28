@@ -1,3 +1,33 @@
-export const getWatchDetailHref = (watchId) => (
-  `watch-detail.html?id=${encodeURIComponent(String(watchId || ''))}`
-);
+export const normalizeWatchId = (watchId) => {
+  const value = typeof watchId === 'number' && Number.isFinite(watchId)
+    ? String(watchId)
+    : watchId;
+  return typeof value === 'string' && value.trim() && value.length <= 512 ? value : null;
+};
+
+export const getWatchDetailHref = (watchId) => {
+  const normalizedId = normalizeWatchId(watchId);
+  return normalizedId
+    ? `watch-detail.html?id=${encodeURIComponent(normalizedId)}`
+    : null;
+};
+
+export const getCreatedWatchDetailHref = (watchId) => {
+  const normalizedId = normalizeWatchId(watchId);
+  const detailHref = getWatchDetailHref(normalizedId);
+  return detailHref
+    ? `${detailHref}&watchCreated=${encodeURIComponent(normalizedId)}`
+    : null;
+};
+
+export const getWatchIdFromLocation = (location) => {
+  try {
+    const url = new URL(
+      typeof location === 'string' ? location : location?.href,
+      'https://watch-assistant.local/',
+    );
+    return normalizeWatchId(url.searchParams.get('id'));
+  } catch {
+    return null;
+  }
+};

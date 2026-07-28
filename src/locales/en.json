@@ -172,6 +172,15 @@
       "other": "Found {count} candidate story updates. These have not been reviewed for significance."
     },
     "checkFailed": "We couldn’t check for updates. Please try again.",
+    "checkFailure": {
+      "missingSource": "No monitoring source is available for this Watch. Add a supported source in Advanced settings, then try again.",
+      "notFound": "The monitoring source could not be found. Check or replace it in Advanced settings, then try again.",
+      "accessDenied": "The monitoring source blocked access. Choose another accessible source in Advanced settings.",
+      "timeout": "The monitoring source took too long to respond. Try again in a moment.",
+      "unreadable": "The monitoring source returned a format Watch Assistant can’t read. Choose another source in Advanced settings.",
+      "unreachable": "The monitoring source could not be reached. Check the source or try again later.",
+      "temporary": "A temporary service or network problem interrupted the check. Try again."
+    },
     "monitoringUnavailable": "The monitoring source is temporarily unavailable. You can retry this check.",
     "newItems": "Candidate story updates",
     "untitledItem": "Untitled item",

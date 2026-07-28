@@ -305,6 +305,12 @@ const fetchFeedWithinDeadline = async (sourceUrl, {
     }
     if (!response.ok) {
       await response.body?.cancel();
+      if ([401, 403].includes(response.status)) {
+        throw new CheckWatchError('ACCESS_DENIED', 502, 'The monitoring source denied access.');
+      }
+      if ([404, 410].includes(response.status)) {
+        throw new CheckWatchError('SOURCE_NOT_FOUND', 502, 'The monitoring source could not be found.');
+      }
       throw new CheckWatchError('UPSTREAM_ERROR', 502, 'The feed could not be fetched.');
     }
     if (!isAcceptedContentType(response.headers.get('content-type'))) {
@@ -467,7 +473,10 @@ export const createCheckWatchMiddleware = (options = {}) => (
     } catch (cause) {
       const error = toCheckWatchError(cause);
       console.error(`[Check Watch] ${error.code}: ${error.message}`);
-      sendJson(response, error.statusCode, { error: error.clientMessage });
+      sendJson(response, error.statusCode, {
+        code: error.code,
+        error: error.clientMessage,
+      });
     }
   }
 );

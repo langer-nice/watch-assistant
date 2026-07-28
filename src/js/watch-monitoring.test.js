@@ -9,6 +9,7 @@ import {
   MAX_SEEN_ITEM_IDS,
   normalizeFeedUrl,
   matchFeedItemToStory,
+  MonitoringCheckError,
   requestFeedCheck,
 } from './watch-monitoring.js';
 
@@ -247,6 +248,75 @@ test('controller persists setup-required health without creating action when sou
   });
 });
 
+test('a synchronous missing-source failure releases the guard for every retry', async () => {
+  let watch = { id: 'watch-retry-missing', status: 'watching' };
+  const checkingStates = [];
+  let saveCount = 0;
+  const controller = createWatchCheckController({
+    getWatch: () => watch,
+    saveWatch: (_id, changes) => {
+      saveCount += 1;
+      watch = { ...watch, ...changes };
+      return watch;
+    },
+    now: () => new Date(checkedAt),
+  });
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await assert.rejects(controller.check(watch.id, {
+      onCheckingChange: (state) => checkingStates.push(state),
+    }), (error) => error.code === 'MISSING_FEED_URL');
+    assert.equal(controller.isChecking(watch.id), false);
+  }
+  assert.deepEqual(checkingStates, [true, false, true, false]);
+  assert.equal(saveCount, 2);
+});
+
+test('failure then failure starts two distinct attempts and preserves each structured code', async () => {
+  let watch = { id: 'watch-retry-failure', feedUrl: 'https://example.com/feed.xml' };
+  let requestCount = 0;
+  const controller = createWatchCheckController({
+    getWatch: () => watch,
+    saveWatch: (_id, changes) => {
+      watch = { ...watch, ...changes };
+      return watch;
+    },
+    requestCheck: async () => {
+      requestCount += 1;
+      throw new MonitoringCheckError(
+        requestCount === 1 ? 'TIMEOUT' : 'ACCESS_DENIED',
+        'raw private provider response',
+      );
+    },
+    now: () => new Date(checkedAt),
+  });
+
+  await assert.rejects(controller.check(watch.id), (error) => error.code === 'TIMEOUT');
+  assert.equal(controller.isChecking(watch.id), false);
+  assert.equal(watch.lastCheckAttempt.code, 'TIMEOUT');
+  await assert.rejects(controller.check(watch.id), (error) => error.code === 'ACCESS_DENIED');
+  assert.equal(requestCount, 2);
+  assert.equal(controller.isChecking(watch.id), false);
+  assert.equal(watch.lastCheckAttempt.code, 'ACCESS_DENIED');
+  assert.equal(JSON.stringify(watch).includes('raw private provider response'), false);
+});
+
+test('requestFeedCheck retains allowlisted codes and hides unknown server errors', async () => {
+  await assert.rejects(requestFeedCheck('https://example.com/feed.xml', {
+    fetchImpl: async () => ({
+      ok: false,
+      json: async () => ({ code: 'SOURCE_NOT_FOUND', error: 'private detail' }),
+    }),
+  }), (error) => error.code === 'SOURCE_NOT_FOUND' && !error.message.includes('private detail'));
+
+  await assert.rejects(requestFeedCheck('https://example.com/feed.xml', {
+    fetchImpl: async () => ({
+      ok: false,
+      json: async () => ({ code: 'PRIVATE_STACK', error: 'secret raw stack' }),
+    }),
+  }), (error) => error.code === 'CHECK_FAILED' && !error.message.includes('secret raw stack'));
+});
+
 test('a failed retry preserves the previous success and can then succeed', async () => {
   const successfulAt = '2026-07-26T10:00:00.000Z';
   let requestCount = 0;
@@ -293,6 +363,106 @@ test('a failed retry preserves the previous success and can then succeed', async
   });
   assert.equal(watch.monitoringFailure, null);
   assert.equal(watch.candidateUpdates[0].id, 'candidate');
+});
+
+test('controlled source lifecycle creates one coherent persisted update and no duplicate', async () => {
+  const versionA = {
+    ...response([]),
+    checkedAt: '2026-07-26T10:00:00.000Z',
+    items: [{ ...item('article-v1', 'Abdul Ballout case opens'), publishedAt: '2026-07-26T09:00:00.000Z' }],
+  };
+  const versionB = {
+    ...response([]),
+    checkedAt: '2026-07-26T12:00:00.000Z',
+    items: [{
+      ...item('article-v2', 'Abdul Ballout case receives a new court decision'),
+      excerpt: 'The court issued a meaningful new decision in the Abdul Ballout case.',
+      publishedAt: '2026-07-26T11:30:00.000Z',
+    }],
+  };
+  const results = [versionA, versionA, versionB, versionB];
+  let watch = {
+    id: 'watch-controlled-lifecycle',
+    title: 'Abdul Ballout case',
+    status: 'watching',
+    feedUrl: 'https://example.com/feed.xml',
+    storyProfile: {
+      primaryPeople: ['Abdul Ballout'],
+      concepts: [{ label: 'Abdul Ballout', type: 'person' }],
+    },
+  };
+  const controller = createWatchCheckController({
+    getWatch: () => watch,
+    saveWatch: (_id, changes) => {
+      watch = { ...watch, ...changes };
+      return watch;
+    },
+    requestCheck: async () => results.shift(),
+  });
+
+  assert.equal((await controller.check(watch.id)).outcome, 'baseline');
+  assert.deepEqual(watch.updates || [], []);
+  assert.equal((await controller.check(watch.id)).outcome, 'no-new-items');
+  assert.deepEqual(watch.updates || [], []);
+
+  const changed = await controller.check(watch.id);
+  assert.equal(changed.outcome, 'matching-items');
+  assert.equal(watch.currentStatus, 'updated');
+  assert.equal(watch.updates.length, 1);
+  assert.deepEqual({
+    id: watch.updates[0].id,
+    timestamp: watch.updates[0].timestamp,
+    sourceUrl: watch.updates[0].sourceUrl,
+    sourceTitle: watch.updates[0].sourceTitle,
+    summary: watch.updates[0].summary,
+    status: watch.updates[0].status,
+    rawId: watch.updates[0].rawMonitoringResult.id,
+  }, {
+    id: 'article-v2',
+    timestamp: '2026-07-26T12:00:00.000Z',
+    sourceUrl: 'https://example.com/article-v2',
+    sourceTitle: 'Abdul Ballout case receives a new court decision',
+    summary: 'The court issued a meaningful new decision in the Abdul Ballout case.',
+    status: 'new',
+    rawId: 'article-v2',
+  });
+  assert.deepEqual(getMonitoringUpdates(watch).map(({ id }) => id), ['article-v2']);
+
+  assert.equal((await controller.check(watch.id)).outcome, 'no-new-items');
+  assert.equal(watch.updates.length, 1);
+  const reloaded = JSON.parse(JSON.stringify(watch));
+  assert.equal(reloaded.updates.length, 1);
+  assert.equal(reloaded.updates[0].rawMonitoringResult.id, 'article-v2');
+  const groups = getBriefingWatchGroups([reloaded], {
+    getMeaningfulUpdate: (candidateWatch) => (
+      getMonitoringUpdates(candidateWatch)[0]?.title
+      || getMonitoringUpdates(candidateWatch)[0]?.summary
+      || ''
+    ),
+  });
+  assert.deepEqual(groups.updatedWatches.map(({ id }) => id), [watch.id]);
+});
+
+test('same feed item ID with changed article text is not detected as a new update', () => {
+  const baseline = applyFeedCheckResult({
+    id: 'watch-article-content-limitation',
+    storyProfile: { concepts: [{ label: 'Abdul Ballout', type: 'person' }] },
+  }, {
+    ...response([]),
+    items: [{ ...item('stable-article-id', 'Abdul Ballout version A'), excerpt: 'Original text.' }],
+  }).changes;
+  const changedText = applyFeedCheckResult({
+    id: 'watch-article-content-limitation',
+    storyProfile: { concepts: [{ label: 'Abdul Ballout', type: 'person' }] },
+    ...baseline,
+  }, {
+    ...response([], '2026-07-26T13:00:00.000Z'),
+    items: [{ ...item('stable-article-id', 'Abdul Ballout version B'), excerpt: 'Meaningfully changed article text.' }],
+  });
+
+  assert.equal(changedText.outcome, 'no-new-items');
+  assert.deepEqual(changedText.newItems, []);
+  assert.deepEqual(changedText.changes.updates || [], []);
 });
 
 test('unseen unrelated publications are counted but never stored as Watch updates', () => {

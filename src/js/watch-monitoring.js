@@ -1,5 +1,6 @@
 import { getStoryProfileIdentifiers } from './story-profile.js';
 import { addUpdateToWatch } from './watch-updates.js';
+import { MONITORING_FAILURE_CODES } from './watch-monitoring-errors.js';
 
 export const MAX_SNAPSHOT_ITEMS = 20;
 export const MAX_SEEN_ITEM_IDS = 200;
@@ -281,10 +282,15 @@ export const requestFeedCheck = async (feedUrl, { fetchImpl = fetch } = {}) => {
   } catch {
     throw new MonitoringCheckError('CHECK_FAILED', 'The Watch could not be checked.');
   }
+  const result = typeof response?.json === 'function'
+    ? await response.json().catch(() => null)
+    : null;
   if (!response.ok) {
-    throw new MonitoringCheckError('CHECK_FAILED', 'The Watch could not be checked.');
+    const code = MONITORING_FAILURE_CODES.includes(result?.code)
+      ? result.code
+      : 'CHECK_FAILED';
+    throw new MonitoringCheckError(code, 'The Watch could not be checked.');
   }
-  const result = await response.json().catch(() => null);
   if (!result || !Array.isArray(result.items)) {
     throw new MonitoringCheckError('INVALID_RESPONSE', 'The monitoring response is invalid.');
   }
@@ -302,7 +308,15 @@ export const createWatchCheckController = ({
   const check = (watchId, { onCheckingChange = () => {} } = {}) => {
     if (inFlight.has(watchId)) return inFlight.get(watchId);
 
-    const operation = (async () => {
+    let resolveOperation;
+    let rejectOperation;
+    const operation = new Promise((resolve, reject) => {
+      resolveOperation = resolve;
+      rejectOperation = reject;
+    });
+    inFlight.set(watchId, operation);
+
+    const run = async () => {
       onCheckingChange(true);
       try {
         const watch = getWatch(watchId);
@@ -361,9 +375,9 @@ export const createWatchCheckController = ({
         onCheckingChange(false);
         inFlight.delete(watchId);
       }
-    })();
+    };
 
-    inFlight.set(watchId, operation);
+    run().then(resolveOperation, rejectOperation);
     return operation;
   };
 

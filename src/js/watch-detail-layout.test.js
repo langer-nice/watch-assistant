@@ -187,5 +187,6 @@ test('Watch Detail distinguishes never checked, checking, successful outcomes an
   assert.match(stateRendering, /outcome === 'baseline'[\s\S]*?detail\.baselineCreated/);
   assert.match(stateRendering, /outcome === 'no-new-items'[\s\S]*?detail\.noNewUpdates/);
   assert.match(stateRendering, /\['matching-items', 'new-items'\]\.includes\(outcome\)[\s\S]*?detail\.newItemsFound/);
-  assert.match(stateRendering, /if \(lastAttemptFailed\) \{[\s\S]*?detail\.checkFailed[\s\S]*?dataset\.state = 'error'/);
+  assert.match(stateRendering, /if \(lastAttemptFailed\) \{[\s\S]*?getMonitoringFailureMessageKey\(watch\.lastCheckAttempt\?\.code\)[\s\S]*?dataset\.state = 'error'/);
+  assert.match(stateRendering, /checkFailedStatus[\s\S]*?reasonMessage/);
 });

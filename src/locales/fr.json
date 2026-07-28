@@ -172,6 +172,15 @@
       "other": "{count} mises à jour candidates trouvées. Leur importance n’a pas encore été évaluée."
     },
     "checkFailed": "Nous n’avons pas pu vérifier les mises à jour. Réessayez.",
+    "checkFailure": {
+      "missingSource": "Aucune source de surveillance n’est disponible pour cette Watch. Ajoutez une source compatible dans les réglages avancés, puis réessayez.",
+      "notFound": "La source de surveillance est introuvable. Vérifiez-la ou remplacez-la dans les réglages avancés, puis réessayez.",
+      "accessDenied": "La source de surveillance a bloqué l’accès. Choisissez une autre source accessible dans les réglages avancés.",
+      "timeout": "La source de surveillance a mis trop de temps à répondre. Réessayez dans un instant.",
+      "unreadable": "La source de surveillance a renvoyé un format que Watch Assistant ne peut pas lire. Choisissez une autre source dans les réglages avancés.",
+      "unreachable": "La source de surveillance est inaccessible. Vérifiez la source ou réessayez plus tard.",
+      "temporary": "Un problème temporaire de service ou de réseau a interrompu la vérification. Réessayez."
+    },
     "monitoringUnavailable": "La source de surveillance est temporairement indisponible. Vous pouvez relancer la vérification.",
     "newItems": "Mises à jour candidates",
     "untitledItem": "Élément sans titre",

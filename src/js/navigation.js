@@ -65,12 +65,18 @@ import {
   normalizeFeedUrl,
 } from './watch-monitoring.js';
 import { waitForVisiblePaint } from './browser-paint.js';
+import { getMonitoringFailureMessageKey } from './watch-monitoring-errors.js';
 import { getStoryProfileIdentifiers, synchronizeStoryProfile } from './story-profile.js';
 import {
   getAnalysisProvenanceMessageKey,
   getMonitoringHealthPresentation,
 } from './watch-model.js';
-import { getWatchDetailHref } from './watch-routes.js';
+import { renderWatchCardLink } from './watch-card-link.js';
+import {
+  getCreatedWatchDetailHref,
+  getWatchDetailHref,
+  getWatchIdFromLocation,
+} from './watch-routes.js';
 import {
   getCategoryPendingSituationKey,
   inferWatchCategory,
@@ -761,9 +767,10 @@ const renderHomeWatchCards = (watches) => watches
       : localizeField(watch, 'latestChangeAt');
     const latestMonitoringUpdate = monitoringUpdates[0];
 
-    return `
-      <article class="briefing-item">
-        <a class="briefing-item__link" href="${getWatchDetailHref(watch.id)}">
+    const link = renderWatchCardLink({
+      watchId: watch.id,
+      className: 'briefing-item__link',
+      content: `
           <div class="briefing-item__labels">
             <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
             <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
@@ -778,9 +785,9 @@ const renderHomeWatchCards = (watches) => watches
           ${hasMeaningfulText(latestChangeAt)
     ? `<p class="briefing-item__time">${escapeHtml(latestChangeAt)}</p>`
     : ''}
-        </a>
-      </article>
-    `;
+      `,
+    });
+    return link ? `<article class="briefing-item">${link}</article>` : '';
   })
   .join('');
 
@@ -866,8 +873,10 @@ const renderWatchList = () => {
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : getMonitoringSummary(watch, title);
-      const card = `
-      <a class="watch-row${isPaused ? ' watch-row--paused' : ''}" href="${getWatchDetailHref(watch.id)}">
+      const card = renderWatchCardLink({
+        watchId: watch.id,
+        className: `watch-row${isPaused ? ' watch-row--paused' : ''}`,
+        content: `
         <div class="watch-row__metadata">
           <p class="watch-row__category">${escapeHtml(t(`categories.${watch.category}`))}</p>
           ${statusLabel}
@@ -877,8 +886,9 @@ const renderWatchList = () => {
           ${subtitle ? `<p class="watch-row__summary">${escapeHtml(subtitle)}</p>` : ''}
           ${creationMetadata ? `<p class="watch-row__created">${escapeHtml(creationMetadata)}</p>` : ''}
         </div>
-      </a>
-    `;
+      `,
+      });
+      if (!card) return '';
       return watch.id === separatorAfterWatchId
         ? `${card}<div class="watch-list__update-separator" aria-hidden="true"></div>`
         : card;
@@ -926,7 +936,7 @@ const renderWatchDetail = () => {
   }
 
   const params = new URLSearchParams(window.location.search);
-  const watchId = params.get('id');
+  const watchId = getWatchIdFromLocation(window.location);
   const createdWatchIdFromRoute = params.get('watchCreated');
   if (createdWatchIdFromRoute === watchId) detailCreatedWatchId = createdWatchIdFromRoute;
   let watch = getWatchById(watchId);
@@ -1457,9 +1467,8 @@ const renderWatchDetail = () => {
           : ['matching-items', 'new-items'].includes(outcome) ? 'detail.newItemsFound' : null;
     const hasFeedUrl = Boolean(normalizeFeedUrl(watch.feedUrl));
     if (lastAttemptFailed) {
-      checkFeedbackEl.textContent = watch.lastChecked
-        ? `${t('detail.checkFailedStatus')} — ${t('detail.checkFailed')}`
-        : t('detail.checkFailed');
+      const reasonMessage = t(getMonitoringFailureMessageKey(watch.lastCheckAttempt?.code));
+      checkFeedbackEl.textContent = `${t('detail.checkFailedStatus')} — ${reasonMessage}`;
       checkFeedbackEl.dataset.state = 'error';
       checkFeedbackEl.hidden = false;
     } else if (outcomeKey) {
@@ -2291,11 +2300,10 @@ export function initForm() {
     sessionStorage.removeItem('watchAssistant.newWatchId');
     if (isOnboardingFirstWatch()) {
       completeOnboardingFirstWatch(watch.id);
-      window.location.href = 'index.html';
-      return;
+    } else {
+      markOnboardingCompleted();
     }
-    markOnboardingCompleted();
-    window.location.href = `watch-detail.html?id=${encodeURIComponent(watch.id)}&watchCreated=${encodeURIComponent(watch.id)}`;
+    window.location.href = getCreatedWatchDetailHref(watch.id);
   };
 
   const finishModalTransition = (messageType) => {

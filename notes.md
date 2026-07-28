@@ -27,3 +27,9 @@ git push origin master
 
 # Supprimer la branche - Quand tout est fusionné :
 git branch -d feature/micro
+
+# Push changes
+git status
+git add .
+git commit -m "Message...."
+git push origin feature/monitoring-engine
