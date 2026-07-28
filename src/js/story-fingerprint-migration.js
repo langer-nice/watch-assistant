@@ -12,10 +12,20 @@ const getSavedKeywords = (watch) => (
     : []
 );
 
+const getSelectedKeywords = (watch) => (
+  Array.isArray(watch?.selectedKeywords)
+    ? watch.selectedKeywords.filter((label) => typeof label === 'string' && label.trim())
+    : null
+);
+
 export const hasManuallyEditedConcepts = (watch, { legacyGeneratedKeywords } = {}) => {
   if (watch?.monitoringConceptsManuallyEdited === true) return true;
   const fingerprintLabels = getFingerprintLabels(watch);
   const savedKeywords = getSavedKeywords(watch);
+  const selectedKeywords = getSelectedKeywords(watch);
+  if (selectedKeywords && JSON.stringify(selectedKeywords) !== JSON.stringify(savedKeywords)) {
+    return true;
+  }
   if (
     fingerprintLabels.length === 0
     && savedKeywords.length > 0
@@ -43,6 +53,8 @@ export const shouldRegenerateStoryFingerprint = (watch, currentVersion, {
 
 export const getVisibleConceptLabels = (watch, currentVersion) => {
   const fingerprintLabels = getFingerprintLabels(watch);
+  const selectedKeywords = getSelectedKeywords(watch);
+  if (hasManuallyEditedConcepts(watch) && selectedKeywords) return selectedKeywords;
   if (
     watch?.monitoringConceptsVersion === currentVersion
     && !hasManuallyEditedConcepts(watch)

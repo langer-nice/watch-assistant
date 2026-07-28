@@ -622,6 +622,20 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
   const storyFingerprint = Object.hasOwn(options, 'storyFingerprint')
     ? options.storyFingerprint
     : urlAnalysis?.storyFingerprint;
+  const sourceStoryProfile = urlAnalysis?.storyProfile || options.storyProfile || null;
+  const storyProfile = isUrlRequest
+    && options.monitoringConceptsManuallyEdited === true
+    && Array.isArray(storyFingerprint)
+    ? synchronizeStoryProfile(
+      sourceStoryProfile,
+      storyFingerprint,
+      storyFingerprint
+        .filter((concept) => !(urlAnalysis?.storyFingerprint || []).some((original) => (
+          normalizeComparableText(original?.label) === normalizeComparableText(concept?.label)
+        )))
+        .map(({ label }) => label),
+    )
+    : sourceStoryProfile;
   const monitoringUrl = normalizeFeedUrl(
     options.feedUrl || urlAnalysis?.monitoringSource?.url || '',
   );
@@ -650,7 +664,7 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     storyFingerprint: Array.isArray(storyFingerprint)
       ? storyFingerprint
       : null,
-    storyProfile: urlAnalysis?.storyProfile || options.storyProfile || null,
+    storyProfile,
     sourcePublishedAt: urlAnalysis?.sourcePublishedAt || null,
     conceptSourceFields: Array.isArray(urlAnalysis?.conceptSourceFields)
       ? urlAnalysis.conceptSourceFields
@@ -1144,10 +1158,23 @@ const renderWatchDetail = () => {
       return `
         <div class="story-concepts__item${usesWideLayout ? ' story-concepts__item--wide' : ''}">
           <dt><span>${escapeHtml(t(`newWatch.conceptTypes.${type}`))}</span></dt>
-          <dd>${escapeHtml(label)}</dd>
+          <dd>
+            <span class="story-concepts__label">${escapeHtml(label)}</span>
+            <button
+              class="story-concepts__action"
+              type="button"
+              data-story-concept-edit
+              aria-label="${escapeHtml(t('detail.editStoryConcept', { concept: label }))}"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 11.8-.4 1.6 1.6-.4 7.9-7.9-1.2-1.2L3 11.8Z"/><path d="m9.8 5 1.2 1.2"/></svg>
+            </button>
+          </dd>
         </div>
       `;
     }).join('');
+    storyConceptsListEl.querySelectorAll('[data-story-concept-edit]').forEach((control) => {
+      control.addEventListener('click', openExistingWatchEditor);
+    });
   }
   if (storyConceptsListEl) storyConceptsListEl.hidden = storyIdentifiers.length === 0;
   if (storyConceptsEmptyEl) storyConceptsEmptyEl.hidden = storyIdentifiers.length > 0;
@@ -1246,7 +1273,7 @@ const renderWatchDetail = () => {
       || hasRecommendation
       || hasOriginalSource
       || storySummary
-      || storyConceptGroups.length
+      || storyIdentifiers.length
     );
   }
 

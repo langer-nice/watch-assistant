@@ -18,11 +18,27 @@ test('automatic identifiers stay concise, non-redundant, and bounded to five', (
     { label: 'Seattle Center, Seattle, United States', type: 'location' },
     { label: 'Three people killed', type: 'supporting' },
   ]), [
-    { label: 'Seattle Center, Seattle, United States', type: 'location' },
-    { label: 'US–Saudi civil nuclear agreement', type: 'event' },
-    { label: 'Perimenopause', type: 'condition' },
     { label: 'Brain fog', type: 'symptom' },
+    { label: 'Perimenopause', type: 'condition' },
+    { label: 'US–Saudi civil nuclear agreement', type: 'event' },
     { label: 'Saudi recognition of Israel', type: 'relationship' },
+    { label: 'Seattle Center, Seattle, United States', type: 'location' },
+  ]);
+});
+
+test('preserves model ranking and valid long geopolitical relationships', () => {
+  assert.deepEqual(normalizeAutomaticStoryFingerprint([
+    {
+      label: 'United States civil nuclear cooperation with Saudi Arabia conditional on Saudi recognition of Israel',
+      type: 'relationship',
+    },
+    { label: 'Saudi Arabia', type: 'location' },
+  ]), [
+    {
+      label: 'United States civil nuclear cooperation with Saudi Arabia conditional on Saudi recognition of Israel',
+      type: 'relationship',
+    },
+    { label: 'Saudi Arabia', type: 'location' },
   ]);
 });
 

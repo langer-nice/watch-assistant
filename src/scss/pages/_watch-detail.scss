@@ -176,11 +176,54 @@ body.is-watch-edit-open {
 }
 
 .story-concepts__item dd {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-xs);
   min-width: 0;
-  padding: 0.15rem 0;
   font-size: var(--font-size-sm);
   line-height: 1.45;
+}
+
+.story-concepts__label {
+  min-width: 0;
+  padding: 0.45rem 0;
   overflow-wrap: anywhere;
+}
+
+.story-concepts__action {
+  display: inline-grid;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  place-items: center;
+  padding: 0;
+  color: var(--color-action);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-input);
+  cursor: pointer;
+}
+
+.story-concepts__action:hover,
+.story-concepts__action:focus-visible {
+  color: var(--color-action-on-tint);
+  background: var(--color-action-tint);
+}
+
+.story-concepts__action:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+.story-concepts__action svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
 }
 
 .story-concepts__empty {

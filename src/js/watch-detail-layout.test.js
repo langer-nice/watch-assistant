@@ -43,7 +43,9 @@ test('Story Identifiers uses the selected concepts in a compact responsive grid'
   assert.match(styles, /\.story-concepts__grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(styles, /@media \(min-width: 36rem\)[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.story-concepts__item--wide\s*\{[\s\S]*?grid-column:\s*1 \/ -1/);
-  assert.match(styles, /\.story-concepts__item dd\s*\{[\s\S]*?overflow-wrap:\s*anywhere/);
+  assert.match(styles, /\.story-concepts__label\s*\{[\s\S]*?overflow-wrap:\s*anywhere/);
+  assert.match(styles, /\.story-concepts__action\s*\{[\s\S]*?min-height:\s*2\.75rem/);
+  assert.match(styles, /\.story-concepts__action:focus-visible\s*\{[\s\S]*?outline:/);
   assert.match(styles, /\.story-concepts__edit\s*\{[\s\S]*?min-height:\s*2\.75rem/);
   assert.equal(JSON.parse(english).newWatch.conceptTypes.product_service, 'Product / service');
   assert.equal(JSON.parse(english).newWatch.conceptTypes.supporting, undefined);
@@ -60,6 +62,18 @@ test('Watch Detail renders only selected concepts, never detail or uncertainty p
   assert.doesNotMatch(rendering, /distinctiveFacts|uncertaintyPhrases|DETAIL|UNCERTAINTY/);
   assert.match(rendering, /storyIdentifiers\.map/);
   assert.match(rendering, /type === 'relationship' \|\| label\.length > 56/);
+  assert.match(rendering, /data-story-concept-edit/);
+  assert.match(rendering, /detail\.editStoryConcept/);
+  assert.match(rendering, /addEventListener\('click', openExistingWatchEditor\)/);
+  assert.doesNotMatch(rendering, /storyConceptGroups/);
+});
+
+test('URL creation synchronises a manually edited identifier set into the stored Story Profile', async () => {
+  const navigation = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
+  const derivation = navigation.match(/const deriveWatchData[\s\S]*?const createWatchObject/)?.[0] || '';
+  assert.match(derivation, /options\.monitoringConceptsManuallyEdited === true/);
+  assert.match(derivation, /synchronizeStoryProfile\(/);
+  assert.match(derivation, /storyProfile,/);
 });
 
 test('Watch Detail hides successful AI provenance but presents fallback as a styled warning', async () => {

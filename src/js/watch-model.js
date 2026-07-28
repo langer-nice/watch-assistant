@@ -1,8 +1,11 @@
 import { normalizeFeedUrl } from './watch-monitoring.js';
 import { createStoryProfile } from './story-profile.js';
-import { normalizeStoryFingerprint } from './monitoring-concepts.js';
+import {
+  normalizeAutomaticStoryFingerprint,
+  normalizeStoryFingerprint,
+} from './monitoring-concepts.js';
 
-export const WATCH_MODEL_VERSION = 5;
+export const WATCH_MODEL_VERSION = 6;
 
 const TECHNICAL_ATTENTION_REASONS = new Set([
   'monitoring-source-missing',
@@ -41,25 +44,44 @@ export const migrateWatchModel = (watch) => {
   const candidateUpdates = Array.isArray(watch.candidateUpdates)
     ? watch.candidateUpdates
     : Array.isArray(watch.monitoringUpdates) ? watch.monitoringUpdates : [];
-  const originalFingerprint = Array.isArray(watch.storyFingerprint)
+  const hasDifferingSelectedKeywords = Array.isArray(watch.selectedKeywords)
+    && Array.isArray(watch.keywords)
+    && JSON.stringify(watch.selectedKeywords) !== JSON.stringify(watch.keywords);
+  const selectionWasManuallyEdited = watch.monitoringConceptsManuallyEdited === true
+    || hasDifferingSelectedKeywords;
+  const storedFingerprint = Array.isArray(watch.storyFingerprint)
     ? watch.storyFingerprint
     : Array.isArray(watch.storyProfile?.concepts) ? watch.storyProfile.concepts : [];
+  const hasExplicitManualSelection = selectionWasManuallyEdited
+    && Array.isArray(watch.selectedKeywords);
+  const explicitlySelectedLabels = new Set((hasExplicitManualSelection
+    ? watch.selectedKeywords
+    : []).map((label) => String(label || '').trim().toLocaleLowerCase()).filter(Boolean));
+  const originalFingerprint = hasExplicitManualSelection
+    ? storedFingerprint.filter((concept) => explicitlySelectedLabels.has(
+      String(concept?.label || '').trim().toLocaleLowerCase(),
+    ))
+    : storedFingerprint;
   const fingerprintLabels = new Set(originalFingerprint
     .map((concept) => concept?.label?.toLocaleLowerCase()).filter(Boolean));
-  const userAddedConcepts = (watch.storyProfile?.userAddedConcepts || watch.keywords || [])
+  const userAddedConcepts = (hasExplicitManualSelection
+    ? watch.selectedKeywords
+    : watch.storyProfile?.userAddedConcepts || watch.keywords || [])
     .filter((label) => typeof label === 'string' && (
-      watch.monitoringConceptsManuallyEdited === true
+      selectionWasManuallyEdited
       || !fingerprintLabels.has(label.toLocaleLowerCase())
     ));
   const explicitlyManualLabels = new Set((watch.storyProfile?.userAddedConcepts || [])
     .map((label) => String(label).trim().toLocaleLowerCase()).filter(Boolean));
+  const protectsManualSelection = selectionWasManuallyEdited
+    || explicitlyManualLabels.size > 0;
   const legacyFacts = originalFingerprint.filter((concept) => (
     ['fact', 'supporting'].includes(concept?.type) && typeof concept?.label === 'string'
   ));
   const migratedFingerprintInput = originalFingerprint.flatMap((concept) => {
     if (!['fact', 'supporting'].includes(concept?.type)) return concept;
     const label = String(concept.label || '').trim();
-    const isProtectedManual = watch.monitoringConceptsManuallyEdited === true
+    const isProtectedManual = selectionWasManuallyEdited
       || explicitlyManualLabels.has(label.toLocaleLowerCase());
     return isProtectedManual && label ? [{ label, type: 'manual' }] : [];
   });
@@ -67,25 +89,36 @@ export const migrateWatchModel = (watch) => {
     const retainedLabels = new Set(migratedFingerprintInput
       .map((concept) => String(concept?.label || '').trim().toLocaleLowerCase())
       .filter(Boolean));
-    watch.keywords.forEach((label) => {
+    (hasExplicitManualSelection ? watch.selectedKeywords : watch.keywords).forEach((label) => {
       const key = String(label || '').trim().toLocaleLowerCase();
       if (
         key
         && !retainedLabels.has(key)
-        && (originalFingerprint.length === 0 || watch.monitoringConceptsManuallyEdited === true)
+        && (originalFingerprint.length === 0 || selectionWasManuallyEdited)
       ) {
         migratedFingerprintInput.push({ label, type: 'manual' });
         retainedLabels.add(key);
       }
     });
   }
-  const migratedFingerprint = normalizeStoryFingerprint(migratedFingerprintInput, 8);
-  const contextualLegacyFacts = legacyFacts
+  const migratedFingerprint = protectsManualSelection
+    ? normalizeStoryFingerprint(migratedFingerprintInput, 8)
+    : normalizeAutomaticStoryFingerprint(migratedFingerprintInput, 5);
+  const migratedFingerprintKeys = new Set(migratedFingerprint.map((concept) => (
+    `${concept.type}\u0000${String(concept.label).trim().toLocaleLowerCase()}`
+  )));
+  const rejectedAutomaticLabels = protectsManualSelection ? [] : migratedFingerprintInput
+    .filter((concept) => !migratedFingerprintKeys.has(
+      `${concept?.type}\u0000${String(concept?.label || '').trim().toLocaleLowerCase()}`,
+    ))
+    .map(({ label }) => String(label || '').trim())
+    .filter(Boolean);
+  const contextualLegacyFacts = [...legacyFacts
     .map(({ label }) => String(label || '').trim())
     .filter((label) => label && !(
-      watch.monitoringConceptsManuallyEdited === true
+      selectionWasManuallyEdited
       || explicitlyManualLabels.has(label.toLocaleLowerCase())
-    ));
+    )), ...rejectedAutomaticLabels];
   const storyProfile = watch.inputType === 'url'
     ? createStoryProfile({
       storyFingerprint: migratedFingerprint,
@@ -133,6 +166,7 @@ export const migrateWatchModel = (watch) => {
   const migratedWatch = {
     ...watch,
     watchModelVersion: WATCH_MODEL_VERSION,
+    monitoringConceptsManuallyEdited: selectionWasManuallyEdited,
     analysisProvider: ['openai', 'deterministic'].includes(watch.analysisProvider)
       ? watch.analysisProvider
       : null,

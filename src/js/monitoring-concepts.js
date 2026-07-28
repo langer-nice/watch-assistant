@@ -24,7 +24,7 @@ const STOP_WORDS = new Set([
 
 const PHRASE_CONNECTORS = new Set(['and', 'de', 'et', 'of']);
 
-export const MONITORING_CONCEPTS_VERSION = 6;
+export const MONITORING_CONCEPTS_VERSION = 7;
 
 export const DEFAULT_AUTOMATIC_IDENTIFIER_LIMIT = 5;
 
@@ -207,29 +207,51 @@ const isConciseMonitoringIdentifier = (value) => {
   const label = String(typeof value === 'string' ? value : value?.label || '')
     .replace(/\s+/g, ' ')
     .trim();
-  if (!label || label.length > 100) return false;
-  const wordCount = getConceptTokens(label).length;
+  if (!label) return false;
   const type = typeof value === 'string' ? null : value?.type;
   if (!AUTOMATIC_STORY_CONCEPT_TYPES.includes(type)) return false;
   if (
-    !['condition', 'symptom', 'relationship'].includes(type)
-    && /^(?:advice|conseils?|recommendations?|tips?|astuces?|ways? to|moyens? de|how to|comment |remember to|pensez à|try |essayez |take |prenez |use |utilisez )|\b(?:strateg(?:y|ies) for|stratégies? pour|routines? for|routines? pour|ways? to (?:improve|reduce)|moyens? d['’](?:améliorer|réduire)|improving concentration|reducing brain fog|améliorer la concentration|réduire le brouillard mental)\b/i.test(label)
+    /^(?:advice|conseils?|recommendations?|recommandations?|tips?|astuces?|how to|comment (?:faire|améliorer|réduire)|ways? to|moyens? de|remember to|pensez à|try |essayez |take |prenez |use |utilisez )\b/i.test(label)
+    || /\b(?:strateg(?:y|ies)|stratégies?|routines?|habitudes?)\s+(?:for|to|pour|afin de)\b/i.test(label)
   ) return false;
-  const maximumWords = type === 'relationship' ? 12 : ['event', 'phenomenon'].includes(type) ? 10 : 8;
-  if (wordCount === 0 || wordCount > maximumWords) return false;
+  if (/^(?:becoming one|devenir (?:un|une))$/i.test(label)) return false;
+  if (/^(?:it|this|that|they|one|il|elle|cela|ceci|ça)\b/i.test(label)) return false;
+  if (/\b(?:remains? uncertain|is unclear|may vary|reste incertain|demeure incertain|n['’]est pas clair|peut varier)\b/i.test(label)) {
+    return false;
+  }
   const sentenceBoundaries = label.match(/[.!?](?:\s|$)/g)?.length || 0;
   if (sentenceBoundaries > 1) return false;
-  return !(wordCount > 4 && /[.!?]$/.test(label));
+  return !(/[.!?]$/.test(label) && /\b(?:because|which|who|while|although|because|car|qui|dont|alors que|bien que)\b/i.test(label));
 };
+
+const getTypedConceptSignature = ({ label, type }) => `${type}\u0000${getConceptTokens(label)
+  .map(normalizeWord)
+  .filter(Boolean)
+  .sort()
+  .join('\u0000')}`;
 
 export const normalizeAutomaticStoryFingerprint = (
   values,
   limit = DEFAULT_AUTOMATIC_IDENTIFIER_LIMIT,
-) => normalizeStoryFingerprint(
-  (Array.isArray(values) ? values : [])
-    .filter(isConciseMonitoringIdentifier),
-  Number.MAX_SAFE_INTEGER,
-).slice(0, limit);
+) => {
+  const eligibleValues = (Array.isArray(values) ? values : [])
+    .filter(isConciseMonitoringIdentifier);
+  const normalized = normalizeStoryFingerprint(eligibleValues, Number.MAX_SAFE_INTEGER);
+  const sourceRank = (concept) => eligibleValues.findIndex((candidate) => (
+    candidate?.type === concept.type
+    && normalizeWord(candidate?.label) === normalizeWord(concept.label)
+  ));
+  const seenSignatures = new Set();
+  return normalized
+    .sort((first, second) => sourceRank(first) - sourceRank(second))
+    .filter((concept) => {
+      const signature = getTypedConceptSignature(concept);
+      if (seenSignatures.has(signature)) return false;
+      seenSignatures.add(signature);
+      return true;
+    })
+    .slice(0, limit);
+};
 
 export const extractMonitoringConcepts = (value, limit = 4) => {
   const source = String(value || '')

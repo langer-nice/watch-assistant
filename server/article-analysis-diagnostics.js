@@ -31,12 +31,14 @@ const allowedUrls = new Set(DIAGNOSTIC_ARTICLES.map(({ url }) => url));
 const cleanString = (value, limit = MAX_SAFE_STRING) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, limit);
 const safeCode = (value) => SAFE_REASON_CODES.has(value) ? value : 'internal_error';
 const sameConcept = (a, b) => cleanString(a?.label).toLocaleLowerCase() === cleanString(b?.label).toLocaleLowerCase() && a?.type === b?.type;
-const safeFingerprint = (values) => (Array.isArray(values) ? values : []).slice(0, 12).map((item) => ({ label: cleanString(item?.label, 100), type: cleanString(item?.type, 40) })).filter(({ label }) => label);
+const safeFingerprint = (values) => (Array.isArray(values) ? values : []).slice(0, 12).map((item) => ({ label: cleanString(item?.label, 160), type: cleanString(item?.type, 40) })).filter(({ label }) => label);
 const safeStrings = (values, limit = 8, length = 240) => (Array.isArray(values) ? values : []).slice(0, limit).map((value) => cleanString(value, length)).filter(Boolean);
 const safeProfile = (profile = {}) => ({
   storySummary: cleanString(profile.storySummary, 360), primaryPeople: safeStrings(profile.primaryPeople), otherPeople: safeStrings(profile.otherPeople),
   peopleRoles: (Array.isArray(profile.peopleRoles) ? profile.peopleRoles : []).slice(0, 6).map(({ name, role }) => ({ name: cleanString(name, 80), role: cleanString(role, 100) })),
   locations: safeStrings(profile.locations), organizations: safeStrings(profile.organizations), eventTypes: safeStrings(profile.eventTypes),
+  works: safeStrings(profile.works), productsServices: safeStrings(profile.productsServices), events: safeStrings(profile.events),
+  relationships: safeStrings(profile.relationships), phenomena: safeStrings(profile.phenomena), conditions: safeStrings(profile.conditions), symptoms: safeStrings(profile.symptoms),
   distinctiveFacts: safeStrings(profile.distinctiveFacts, 8, 180), aliases: safeStrings(profile.aliases), uncertaintyPhrases: safeStrings(profile.uncertaintyPhrases, 4, 240),
 });
 const safeParsedSuggestion = (value = {}) => {
@@ -53,13 +55,13 @@ const safeParsedSuggestion = (value = {}) => {
     otherPeople: profile.otherPeople,
     organizations: profile.organizations,
     locations: profile.locations,
-    works: byType('work'),
-    productsServices: byType('product_service'),
-    events: [...new Set([...profile.eventTypes, ...byType('event')])],
-    relationships: byType('relationship'),
-    phenomena: byType('phenomenon'),
-    conditions: byType('condition'),
-    symptoms: byType('symptom'),
+    works: [...new Set([...profile.works, ...byType('work')])],
+    productsServices: [...new Set([...profile.productsServices, ...byType('product_service')])],
+    events: [...new Set([...profile.events, ...profile.eventTypes, ...byType('event')])],
+    relationships: [...new Set([...profile.relationships, ...byType('relationship')])],
+    phenomena: [...new Set([...profile.phenomena, ...byType('phenomenon')])],
+    conditions: [...new Set([...profile.conditions, ...byType('condition')])],
+    symptoms: [...new Set([...profile.symptoms, ...byType('symptom')])],
     distinctiveFacts: profile.distinctiveFacts,
     uncertaintyPhrases: profile.uncertaintyPhrases,
   };

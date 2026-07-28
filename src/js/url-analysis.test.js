@@ -123,8 +123,8 @@ test('live-page fallback ranks the subject over witnesses and reacting officials
     assert.doesNotMatch(result.storyProfile.storySummary, /manhunt|live updates/i);
     assert.deepEqual(result.storyProfile.concepts, [
       { label: 'Omar al Haddad', type: 'person' },
-      { label: 'Crescent State', type: 'organization' },
       { label: 'Linden, France', type: 'location' },
+      { label: 'Crescent State', type: 'organization' },
       { label: 'Linden Pride vehicle attack', type: 'event' },
     ]);
   } finally {

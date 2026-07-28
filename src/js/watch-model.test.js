@@ -75,6 +75,43 @@ test('migrates automatic legacy facts to context without touching monitoring sta
   assert.deepEqual(watch.candidateUpdates, [{ id: 'candidate-1' }]);
 });
 
+test('read-time migration restricts automatic identifiers without changing monitoring history', () => {
+  const snapshot = { itemIds: ['existing'], checkedAt: '2026-07-26T10:00:00Z' };
+  const candidateUpdates = [{ id: 'candidate-1', status: 'candidate' }];
+  const watch = migrateWatchModel({
+    id: 'polluted-automatic-watch',
+    inputType: 'url',
+    storyFingerprint: [
+      { label: 'Brain fog', type: 'symptom' },
+      { label: 'Perimenopause', type: 'condition' },
+      { label: 'Lifestyle strategies for improving concentration', type: 'phenomenon' },
+      { label: 'Becoming one', type: 'phenomenon' },
+    ],
+    keywords: [
+      'Brain fog',
+      'Perimenopause',
+      'Lifestyle strategies for improving concentration',
+      'Becoming one',
+    ],
+    storyProfile: { storySummary: 'The article explains brain fog during perimenopause.' },
+    monitoringSnapshot: snapshot,
+    candidateUpdates,
+    seenMonitoringItemIds: ['existing'],
+    checkHistory: [{ outcome: 'baseline' }],
+  }).watch;
+
+  assert.deepEqual(watch.storyFingerprint, [
+    { label: 'Brain fog', type: 'symptom' },
+    { label: 'Perimenopause', type: 'condition' },
+  ]);
+  assert.deepEqual(watch.keywords, ['Brain fog', 'Perimenopause']);
+  assert.deepEqual(watch.storyProfile.concepts, watch.storyFingerprint);
+  assert.deepEqual(watch.monitoringSnapshot, snapshot);
+  assert.deepEqual(watch.candidateUpdates, candidateUpdates);
+  assert.deepEqual(watch.seenMonitoringItemIds, ['existing']);
+  assert.deepEqual(watch.checkHistory, [{ outcome: 'baseline' }]);
+});
+
 test('preserves a manually edited legacy fact as a manual identifier', () => {
   const watch = migrateWatchModel({
     id: 'manual-fact',
@@ -86,6 +123,41 @@ test('preserves a manually edited legacy fact as a manual identifier', () => {
 
   assert.deepEqual(watch.storyFingerprint, [{ label: 'My saved phrase', type: 'manual' }]);
   assert.deepEqual(watch.storyProfile.distinctiveFacts, []);
+});
+
+test('manual additions, renames and removals survive read-time migration exactly', () => {
+  const watch = migrateWatchModel({
+    id: 'manual-selection',
+    inputType: 'url',
+    monitoringConceptsManuallyEdited: true,
+    storyFingerprint: [
+      { label: 'Renamed brain-fog topic', type: 'manual' },
+      { label: 'My added identifier', type: 'manual' },
+      { label: 'Deliberately deselected', type: 'manual' },
+    ],
+    keywords: ['Renamed brain-fog topic', 'My added identifier', 'Deliberately deselected'],
+    selectedKeywords: ['Renamed brain-fog topic', 'My added identifier'],
+    storyProfile: {
+      concepts: [
+        { label: 'Renamed brain-fog topic', type: 'manual' },
+        { label: 'My added identifier', type: 'manual' },
+      ],
+      conditions: ['Perimenopause'],
+      distinctiveFacts: ['Short breaks'],
+      storySummary: 'The article explains brain fog during perimenopause.',
+      userAddedConcepts: ['My added identifier'],
+    },
+  }).watch;
+
+  assert.deepEqual(watch.storyFingerprint, [
+    { label: 'Renamed brain-fog topic', type: 'manual' },
+    { label: 'My added identifier', type: 'manual' },
+  ]);
+  assert.deepEqual(watch.keywords, ['Renamed brain-fog topic', 'My added identifier']);
+  assert.deepEqual(watch.selectedKeywords, watch.keywords);
+  assert.equal(watch.storyFingerprint.some(({ label }) => label === 'Deliberately deselected'), false);
+  assert.equal(watch.storyProfile.concepts.some(({ label }) => label === 'Perimenopause'), false);
+  assert.deepEqual(watch.storyProfile.distinctiveFacts, ['Short breaks']);
 });
 
 test('marks an older article Watch without a source as setup-required, not action-required', () => {

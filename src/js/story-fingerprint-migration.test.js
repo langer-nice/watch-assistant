@@ -6,7 +6,7 @@ import {
   shouldRegenerateStoryFingerprint,
 } from './story-fingerprint-migration.js';
 
-const currentVersion = 6;
+const currentVersion = 7;
 const legacyUrlWatch = {
   inputType: 'url',
   monitoringConceptsVersion: 2,
@@ -59,6 +59,20 @@ test('treats a mismatch between typed and flat concepts as a manual legacy edit'
     storyFingerprint: [{ label: 'Missing hikers', type: 'event' }],
     keywords: ['My custom concept'],
   }, currentVersion), false);
+});
+
+test('preserves an explicit legacy deselection even without the manual flag', () => {
+  const watch = {
+    ...legacyUrlWatch,
+    storyFingerprint: [
+      { label: 'Missing hikers', type: 'event' },
+      { label: 'Remote mountains', type: 'location' },
+    ],
+    keywords: ['Missing hikers', 'Remote mountains'],
+    selectedKeywords: ['Missing hikers'],
+  };
+  assert.equal(shouldRegenerateStoryFingerprint(watch, currentVersion), false);
+  assert.deepEqual(getVisibleConceptLabels(watch, currentVersion), ['Missing hikers']);
 });
 
 test('allows an explicit force for a current generated URL Watch', () => {

@@ -1,7 +1,7 @@
 import { isUsefulStoryConcept, normalizeStoryFingerprint } from './monitoring-concepts.js';
 import { sanitizeMalformedCurrencyText } from './article-content.js';
 
-export const STORY_PROFILE_VERSION = 6;
+export const STORY_PROFILE_VERSION = 7;
 const MAX_PROFILE_VALUES = 8;
 
 const uniqueStrings = (values, limit = MAX_PROFILE_VALUES) => {
@@ -85,6 +85,23 @@ export const normalizeStorySummary = (value, sourceTitle = '') => {
   return title ? `Reporting focuses on “${title}”.` : '';
 };
 
+const preserveFingerprintOrder = (sourceValues, normalizedValues) => {
+  const source = Array.isArray(sourceValues) ? sourceValues : [];
+  const key = (concept) => `${concept?.type}\u0000${String(concept?.label || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()}`;
+  const sourceKeys = source.map(key);
+  return [...normalizedValues].sort((first, second) => {
+    const firstIndex = sourceKeys.indexOf(key(first));
+    const secondIndex = sourceKeys.indexOf(key(second));
+    return (firstIndex < 0 ? source.length : firstIndex)
+      - (secondIndex < 0 ? source.length : secondIndex);
+  });
+};
+
 export const createStoryProfile = ({
   storyFingerprint,
   profile = {},
@@ -99,12 +116,19 @@ export const createStoryProfile = ({
   const profileValues = (values, type) => uniqueStrings(values).filter((label) => (
     label.toLocaleLowerCase() !== publicationKey && isUsefulStoryConcept(label, type)
   ));
-  const normalizedFingerprint = normalizeStoryFingerprint(storyFingerprint, MAX_PROFILE_VALUES);
-  const concepts = normalizeStoryFingerprint(normalizedFingerprint.flatMap((concept) => (
+  const normalizedFingerprint = preserveFingerprintOrder(
+    storyFingerprint,
+    normalizeStoryFingerprint(storyFingerprint, MAX_PROFILE_VALUES),
+  );
+  const locationNormalizedFingerprint = normalizedFingerprint.flatMap((concept) => (
     concept.type === 'location'
       ? normalizeSupportedLocations([concept.label], articleText).map((label) => ({ label, type: 'location' }))
       : concept
-  )), MAX_PROFILE_VALUES)
+  ));
+  const concepts = preserveFingerprintOrder(
+    locationNormalizedFingerprint,
+    normalizeStoryFingerprint(locationNormalizedFingerprint, MAX_PROFILE_VALUES),
+  )
     .filter(({ label }) => label.toLocaleLowerCase() !== publicationKey);
   const typed = (type) => concepts.filter((concept) => concept.type === type).map(({ label }) => label);
   const profilePeople = profileValues(profile.primaryPeople, 'person');
@@ -134,6 +158,13 @@ export const createStoryProfile = ({
     ], articleText)),
     organizations: uniqueStrings([...profileValues(profile.organizations, 'organization'), ...typed('organization')]),
     eventTypes: uniqueStrings([...profileValues(profile.eventTypes, 'event'), ...typed('event')]),
+    works: uniqueStrings(profileValues(profile.works, 'work')),
+    productsServices: uniqueStrings(profileValues(profile.productsServices, 'product_service')),
+    events: uniqueStrings(profileValues(profile.events, 'event')),
+    relationships: uniqueStrings(profileValues(profile.relationships, 'relationship')),
+    phenomena: uniqueStrings(profileValues(profile.phenomena, 'phenomenon')),
+    conditions: uniqueStrings(profileValues(profile.conditions, 'condition')),
+    symptoms: uniqueStrings(profileValues(profile.symptoms, 'symptom')),
     distinctiveFacts: uniqueStrings(profileValues(profile.distinctiveFacts, 'contextual')),
     aliases: uniqueStrings(profile.aliases).filter((label) => label.toLocaleLowerCase() !== publicationKey),
     uncertaintyPhrases: uniqueStrings(hasExplicitUncertainty
@@ -169,13 +200,20 @@ export const synchronizeStoryProfile = (profile, storyFingerprint, userAddedConc
   const concepts = normalizeStoryFingerprint(storyFingerprint, MAX_PROFILE_VALUES);
   const byType = (type) => concepts.filter((item) => item.type === type).map(({ label }) => label);
   return createStoryProfile({
-    storyFingerprint: concepts,
+    storyFingerprint,
     profile: {
       primaryPeople: byType('person').slice(0, 1),
       otherPeople: byType('person').slice(1),
       locations: byType('location'),
       organizations: byType('organization'),
       eventTypes: byType('event'),
+      works: profile?.works,
+      productsServices: profile?.productsServices,
+      events: profile?.events,
+      relationships: profile?.relationships,
+      phenomena: profile?.phenomena,
+      conditions: profile?.conditions,
+      symptoms: profile?.symptoms,
       distinctiveFacts: profile?.distinctiveFacts,
       aliases: profile?.aliases,
       peopleRoles: profile?.peopleRoles,

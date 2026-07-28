@@ -140,6 +140,7 @@
     "storyConceptsHelper": "Concepts essentiels utilisés pour reconnaître les prochains articles sur cette actualité.",
     "storyConceptsEmpty": "Aucun repère fiable n’a été sélectionné.",
     "editStoryConcepts": "Modifier les repères",
+    "editStoryConcept": "Modifier ou supprimer {concept}",
     "currentSituation": "Situation actuelle",
     "recommendation": "Recommandation",
     "source": "Source",

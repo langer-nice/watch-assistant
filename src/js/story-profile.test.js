@@ -17,6 +17,9 @@ test('keeps monitoring identifiers separate from supporting details and uncertai
       otherPeople: ['Dr. Tharaka'],
       organizations: ['NHS'],
       eventTypes: ['Brain fog during perimenopause'],
+      conditions: ['Perimenopause'],
+      symptoms: ['Brain fog'],
+      phenomena: ['Cognitive changes during perimenopause'],
       distinctiveFacts: ['Short breaks', 'Calendars and reminders'],
       uncertaintyPhrases: ['The evidence is still developing and may vary between people.'],
       storySummary: 'The article explains brain fog during perimenopause and practical ways to manage it.',
@@ -28,6 +31,9 @@ test('keeps monitoring identifiers separate from supporting details and uncertai
     { label: 'Brain fog', type: 'symptom' },
   ]);
   assert.deepEqual(profile.distinctiveFacts, ['Short breaks', 'Calendars and reminders']);
+  assert.deepEqual(profile.conditions, ['Perimenopause']);
+  assert.deepEqual(profile.symptoms, ['Brain fog']);
+  assert.deepEqual(profile.phenomena, ['Cognitive changes during perimenopause']);
   assert.equal(profile.uncertaintyPhrases.length, 1);
   assert.equal(profile.concepts.some(({ label }) => label === 'Dr. Tharaka'), false);
   assert.equal(profile.concepts.some(({ label }) => label === 'NHS'), false);
@@ -168,6 +174,8 @@ test('preserves user-added concepts while synchronising edited typed concepts', 
   const profile = synchronizeStoryProfile({
     storySummary: 'Abdul Ballout is the central person in reporting about a detention in Beirut.',
     peopleRoles: [{ name: 'Abdul Ballout', role: 'subject' }],
+    relationships: ['Suspected link remains under investigation'],
+    uncertaintyPhrases: ['The alleged motive has not been established.'],
     sourceArticle: { publication: 'Example News', title: 'Story', url: 'https://example.com/story' },
   }, [
     { label: 'Abdul Ballout', type: 'person' },
@@ -176,6 +184,8 @@ test('preserves user-added concepts while synchronising edited typed concepts', 
   assert.deepEqual(profile.primaryPeople, ['Abdul Ballout']);
   assert.deepEqual(profile.eventTypes, ['Beirut detention']);
   assert.deepEqual(profile.userAddedConcepts, ['Abdul Ballout']);
+  assert.deepEqual(profile.relationships, ['Suspected link remains under investigation']);
+  assert.deepEqual(profile.uncertaintyPhrases, ['The alleged motive has not been established.']);
   assert.deepEqual(profile.peopleRoles, [{ name: 'Abdul Ballout', role: 'subject' }]);
   assert.equal(
     profile.storySummary,
@@ -224,7 +234,7 @@ test('upgrades version 2 profiles, prefers precise locations, and removes normal
     sourceTitle: 'Investigation update',
   });
 
-  assert.equal(profile.version, 6);
+  assert.equal(profile.version, 7);
   assert.deepEqual(profile.locations, ['Berlin, Germany']);
   assert.deepEqual(profile.distinctiveFacts, ['Official assessment: suspected motive']);
   assert.deepEqual(profile.uncertaintyPhrases, ['Police reported a possible link']);
@@ -245,7 +255,7 @@ test('an explicit empty primary-person list is not repopulated from a typed conc
     },
   });
 
-  assert.equal(profile.version, 6);
+  assert.equal(profile.version, 7);
   assert.deepEqual(profile.primaryPeople, []);
   assert.deepEqual(profile.otherPeople, []);
 });

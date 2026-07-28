@@ -140,6 +140,7 @@
     "storyConceptsHelper": "Core concepts used to recognize future reporting about this story.",
     "storyConceptsEmpty": "No reliable story identifiers were selected.",
     "editStoryConcepts": "Edit identifiers",
+    "editStoryConcept": "Edit or remove {concept}",
     "currentSituation": "Current situation",
     "recommendation": "Recommendation",
     "source": "Source",

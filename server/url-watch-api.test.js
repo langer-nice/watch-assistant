@@ -504,6 +504,155 @@ test('AI recommendations, quoted experts and uncertainty remain outside monitori
   assert.equal(suggestion.storyProfile.uncertaintyPhrases.length, 1);
 });
 
+test('seven reference analyses retain only the smallest supported identifier set', async (t) => {
+  const cases = [
+    {
+      name: 'Abdul Ballout and the Berlin Pride vehicle attack',
+      summary: 'Reporting identifies Abdul Ballout as the suspect in the Berlin Pride vehicle attack while the alleged motive remains under investigation.',
+      fingerprint: [
+        { label: 'Abdul Ballout', type: 'person' },
+        { label: 'Berlin, Germany', type: 'location' },
+        { label: 'Berlin Pride vehicle attack', type: 'event' },
+        { label: 'Kai Wegner', type: 'person' },
+        { label: 'Berlin Pride van ramming likely', type: 'event' },
+        { label: 'Suspected Islamist motive', type: 'event' },
+      ],
+      profile: {
+        primaryPeople: ['Abdul Ballout'], otherPeople: ['Kai Wegner'],
+        locations: ['Berlin, Germany'], events: ['Berlin Pride vehicle attack'],
+        uncertaintyPhrases: ['Suspected Islamist motive'],
+      },
+      expected: [
+        { label: 'Abdul Ballout', type: 'person' },
+        { label: 'Berlin, Germany', type: 'location' },
+        { label: 'Berlin Pride vehicle attack', type: 'event' },
+      ],
+    },
+    {
+      name: 'open-water swimming health risks',
+      summary: 'The article examines health risks from open-water swimming, including sewage contamination, leptospirosis and toxic algae.',
+      fingerprint: [
+        { label: 'Open-water swimming', type: 'phenomenon' },
+        { label: 'Sewage contamination', type: 'condition' },
+        { label: 'Leptospirosis', type: 'condition' },
+        { label: 'Toxic algae', type: 'condition' },
+        { label: 'Wear a wetsuit', type: 'event' },
+      ],
+      profile: { phenomena: ['Open-water swimming'], conditions: ['Sewage contamination', 'Leptospirosis', 'Toxic algae'], distinctiveFacts: ['Wear a wetsuit when conditions require it'] },
+      expected: [
+        { label: 'Open-water swimming', type: 'phenomenon' },
+        { label: 'Sewage contamination', type: 'condition' },
+        { label: 'Leptospirosis', type: 'condition' },
+        { label: 'Toxic algae', type: 'condition' },
+      ],
+    },
+    {
+      name: 'Bite of Seattle festival shooting',
+      summary: 'Police investigated a shooting during the Bite of Seattle festival at Seattle Center without treating quoted witnesses as story subjects.',
+      fingerprint: [
+        { label: 'Bite of Seattle festival shooting', type: 'event' },
+        { label: 'Seattle Center, Seattle, United States', type: 'location' },
+        { label: 'Seattle Police Department', type: 'organization' },
+        { label: 'Quoted festival witness', type: 'person' },
+      ],
+      profile: { primaryPeople: [], otherPeople: ['Quoted festival witness'], locations: ['Seattle Center, Seattle, United States'], organizations: ['Seattle Police Department'], events: ['Bite of Seattle festival shooting'] },
+      expected: [
+        { label: 'Bite of Seattle festival shooting', type: 'event' },
+        { label: 'Seattle Center, Seattle, United States', type: 'location' },
+        { label: 'Seattle Police Department', type: 'organization' },
+      ],
+    },
+    {
+      name: 'brain fog during perimenopause',
+      summary: perimenopauseStructuredSuggestion.storyProfile.storySummary,
+      fingerprint: [
+        { label: 'Brain fog', type: 'symptom' },
+        { label: 'Perimenopause', type: 'condition' },
+        { label: 'Short breaks', type: 'phenomenon' },
+        { label: 'Cognitive reset', type: 'phenomenon' },
+        { label: 'Calendars and reminders', type: 'phenomenon' },
+      ],
+      profile: { symptoms: ['Brain fog'], conditions: ['Perimenopause'], distinctiveFacts: ['Short breaks can provide a cognitive reset', 'Calendars and reminders can reduce mental load'] },
+      expected: [
+        { label: 'Brain fog', type: 'symptom' },
+        { label: 'Perimenopause', type: 'condition' },
+      ],
+    },
+    {
+      name: 'medical tourism in South Korea',
+      summary: 'The article reports on medical tourism in South Korea and the services attracting international patients.',
+      fingerprint: [
+        { label: 'Medical tourism in South Korea', type: 'phenomenon' },
+        { label: 'South Korea', type: 'person' },
+        { label: 'South Korea', type: 'location' },
+        { label: 'Becoming one', type: 'phenomenon' },
+      ],
+      profile: { primaryPeople: [], locations: ['South Korea'], phenomena: ['Medical tourism in South Korea'] },
+      expected: [
+        { label: 'Medical tourism in South Korea', type: 'phenomenon' },
+        { label: 'South Korea', type: 'location' },
+      ],
+    },
+    {
+      name: 'birdwatching among young people',
+      summary: 'The article describes growing interest in birdwatching among young people in San Francisco without promoting every quoted motivation.',
+      fingerprint: [
+        { label: 'Birdwatching among young people', type: 'phenomenon' },
+        { label: 'San Francisco', type: 'location' },
+        { label: 'A way to disconnect from screens', type: 'phenomenon' },
+      ],
+      profile: { locations: ['San Francisco'], phenomena: ['Birdwatching among young people'], distinctiveFacts: ['A way to disconnect from screens'] },
+      expected: [
+        { label: 'Birdwatching among young people', type: 'phenomenon' },
+        { label: 'San Francisco', type: 'location' },
+      ],
+    },
+    {
+      name: 'US–Saudi conditional civil nuclear agreement',
+      summary: 'The United States tied civil nuclear cooperation with Saudi Arabia to Saudi recognition of Israel, preserving the condition rather than presenting an unconditional agreement.',
+      fingerprint: [
+        { label: 'Saudi Arabia', type: 'location' },
+        { label: 'US–Saudi civil nuclear agreement conditional on Saudi recognition of Israel', type: 'relationship' },
+        { label: "Etats-Unis conditionnent l'accord", type: 'relationship' },
+      ],
+      profile: { locations: ['Saudi Arabia'], relationships: ['US–Saudi civil nuclear agreement conditional on Saudi recognition of Israel'], distinctiveFacts: ["Etats-Unis conditionnent l'accord"] },
+      expected: [
+        { label: 'Saudi Arabia', type: 'location' },
+        { label: 'US–Saudi civil nuclear agreement conditional on Saudi recognition of Israel', type: 'relationship' },
+      ],
+    },
+  ];
+
+  for (const reference of cases) {
+    await t.test(reference.name, async () => {
+      const suggestion = await generateWatchSuggestion({
+        title: reference.name,
+        articleText: reference.summary,
+        apiKey: 'test-key',
+        model: 'test-model',
+        fetchImpl: async () => createOpenAiResponse({
+          watchTitle: reference.name,
+          watchingFor: `Monitor ${reference.name}.`,
+          description: `Tracks ${reference.name}.`,
+          storyFingerprint: reference.fingerprint,
+          storyProfile: {
+            primaryPeople: [], otherPeople: [], peopleRoles: [], locations: [], organizations: [], eventTypes: [],
+            distinctiveFacts: [], aliases: [], uncertaintyPhrases: [], works: [], productsServices: [], events: [],
+            relationships: [], phenomena: [], conditions: [], symptoms: [],
+            ...reference.profile,
+            storySummary: reference.summary,
+          },
+        }),
+      });
+      assert.equal(suggestion.storyProfile.storySummary, reference.summary);
+      assert.deepEqual(suggestion.storyFingerprint, reference.expected);
+      assert.deepEqual(suggestion.keywords, reference.expected.map(({ label }) => label));
+      assert.ok(suggestion.storyFingerprint.length >= 2 && suggestion.storyFingerprint.length <= 5);
+      assert.equal(suggestion.storyFingerprint.some(({ type }) => ['supporting', 'fact'].includes(type)), false);
+    });
+  }
+});
+
 test('legacy fact output is contextualized instead of becoming an automatic identifier', async () => {
   const suggestion = await generateWatchSuggestion({
     title: 'Company announces plans',

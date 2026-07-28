@@ -68,7 +68,7 @@ const WATCH_SUGGESTION_SCHEMA = {
         type: 'object',
         additionalProperties: false,
         properties: {
-          label: { type: 'string', minLength: 1, maxLength: 100 },
+          label: { type: 'string', minLength: 1, maxLength: 160 },
           type: { type: 'string', enum: AUTOMATIC_STORY_CONCEPT_TYPES },
         },
         required: ['label', 'type'],
@@ -453,18 +453,42 @@ const getComparableTokens = (value) => String(value || '')
   .toLocaleLowerCase()
   .match(/[\p{L}\p{N}]+/gu) || [];
 
-const materiallyOverlaps = (label, contextualValue) => {
+const isContextualRestatement = (label, contextualValue, type) => {
   const first = new Set(getComparableTokens(label));
   const second = new Set(getComparableTokens(contextualValue));
   if (!first.size || !second.size) return false;
   const shared = [...first].filter((token) => second.has(token)).length;
-  return shared === Math.min(first.size, second.size)
-    || shared / Math.max(first.size, second.size) >= 0.8;
+  return shared === first.size && first.size === second.size
+    || (Math.min(first.size, second.size) >= 2
+      && shared / Math.max(first.size, second.size) >= 0.75)
+    || (
+      !['condition', 'symptom', 'relationship'].includes(type)
+      && shared === first.size
+    );
 };
 
 const hasSameNormalizedLabel = (first, second) => (
   getComparableTokens(first).join(' ') === getComparableTokens(second).join(' ')
 );
+
+const getProfileSupportedType = (concept, profile) => {
+  if (['fact', 'supporting'].includes(concept?.type)) return concept?.type;
+  const supportedTypes = [
+    ['location', profile.locations],
+    ['organization', profile.organizations],
+    ['work', profile.works],
+    ['product_service', profile.productsServices],
+    ['relationship', profile.relationships],
+    ['condition', profile.conditions],
+    ['symptom', profile.symptoms],
+    ['phenomenon', profile.phenomena],
+    ['event', [...profile.events, ...profile.eventTypes]],
+    ['person', profile.primaryPeople],
+  ];
+  return supportedTypes.find(([, values]) => (
+    values.some((value) => hasSameNormalizedLabel(concept?.label, value))
+  ))?.[0] || concept?.type;
+};
 
 const OPTIONAL_PROFILE_ARRAYS = [
   'primaryPeople', 'otherPeople', 'peopleRoles', 'locations', 'organizations', 'eventTypes',
@@ -524,16 +548,20 @@ const validateSuggestion = (suggestion) => {
     ...normalizedProfile.uncertaintyPhrases,
   ];
   const primaryPeople = normalizedProfile.primaryPeople;
-  const eligibleFingerprint = (Array.isArray(suppliedFingerprint) ? suppliedFingerprint : [])
+  const typedFingerprint = (Array.isArray(suppliedFingerprint) ? suppliedFingerprint : [])
+    .map((concept) => ({
+      ...concept,
+      type: getProfileSupportedType(concept, normalizedProfile),
+    }));
+  const eligibleFingerprint = typedFingerprint
     .filter((concept) => (
       (
         concept?.type !== 'person'
         || primaryPeople.some((person) => hasSameNormalizedLabel(concept?.label, person))
       )
-      && (
-        ['condition', 'symptom', 'relationship'].includes(concept?.type)
-        || !contextualValues.some((value) => materiallyOverlaps(concept?.label, value))
-      )
+      && !contextualValues.some((value) => (
+        isContextualRestatement(concept?.label, value, concept?.type)
+      ))
     ));
   const legacyFacts = (Array.isArray(suppliedFingerprint) ? suppliedFingerprint : [])
     .filter((concept) => ['fact', 'supporting'].includes(concept?.type))
