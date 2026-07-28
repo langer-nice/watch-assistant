@@ -20,7 +20,7 @@ test('Story Summary uses the standard padded detail-card alignment at all breakp
   );
 });
 
-test('Story Identifiers uses the selected concepts in a compact responsive grid', async () => {
+test('Story Identifiers uses one full-width row per selected concept at every width', async () => {
   const [html, styles, navigation, english] = await Promise.all([
     readFile(new URL('../../watch-detail.html', import.meta.url), 'utf8'),
     readFile(new URL('../scss/pages/_watch-detail.scss', import.meta.url), 'utf8'),
@@ -41,8 +41,8 @@ test('Story Identifiers uses the selected concepts in a compact responsive grid'
   )?.[0] || '';
   assert.doesNotMatch(renderBlock, /distinctiveFacts|uncertaintyPhrases|otherPeople/);
   assert.match(styles, /\.story-concepts__grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
-  assert.match(styles, /@media \(min-width: 36rem\)[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /\.story-concepts__item--wide\s*\{[\s\S]*?grid-column:\s*1 \/ -1/);
+  assert.doesNotMatch(styles, /\.story-concepts__grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
+  assert.match(styles, /\.story-concepts__item\s*\{[\s\S]*?width:\s*100%/);
   assert.match(styles, /\.story-concepts__label\s*\{[\s\S]*?overflow-wrap:\s*anywhere/);
   assert.match(styles, /\.story-concepts__action\s*\{[\s\S]*?min-height:\s*2\.75rem/);
   assert.match(styles, /\.story-concepts__action:focus-visible\s*\{[\s\S]*?outline:/);
@@ -61,7 +61,7 @@ test('Watch Detail renders only selected concepts, never detail or uncertainty p
   assert.match(rendering, /getStoryProfileIdentifiers\(watch\.storyProfile\)/);
   assert.doesNotMatch(rendering, /distinctiveFacts|uncertaintyPhrases|DETAIL|UNCERTAINTY/);
   assert.match(rendering, /storyIdentifiers\.map/);
-  assert.match(rendering, /type === 'relationship' \|\| label\.length > 56/);
+  assert.doesNotMatch(rendering, /story-concepts__item--wide|usesWideLayout/);
   assert.match(rendering, /data-story-concept-edit/);
   assert.match(rendering, /detail\.editStoryConcept/);
   assert.match(rendering, /addEventListener\('click', openExistingWatchEditor\)/);
@@ -87,4 +87,61 @@ test('Watch Detail hides successful AI provenance but presents fallback as a sty
   assert.match(navigation, /messageKey === 'detail\.analysisProvenanceFallback'/);
   assert.doesNotMatch(navigation, /SHOW_ANALYSIS_PROVENANCE/);
   assert.match(styles, /\.detail-card__take \.detail-analysis-provenance\s*\{[\s\S]*?background:\s*var\(--color-attention-tint\)/);
+});
+
+test('Watch Detail omits missing-feed technical copy without removing monitoring controls', async () => {
+  const [navigation, html, newWatchHtml, english, french] = await Promise.all([
+    readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
+    readFile(new URL('../../watch-detail.html', import.meta.url), 'utf8'),
+    readFile(new URL('../../new-watch.html', import.meta.url), 'utf8'),
+    readFile(new URL('../locales/en.json', import.meta.url), 'utf8'),
+    readFile(new URL('../locales/fr.json', import.meta.url), 'utf8'),
+  ]);
+
+  assert.doesNotMatch(english, /Automatic monitoring isn.t available for this source/);
+  assert.doesNotMatch(french, /surveillance automatique n.est pas disponible pour cette source/i);
+  assert.doesNotMatch(navigation, /detail\.feedUrlMissing/);
+  assert.match(navigation, /else if \(!hasFeedUrl\) \{[\s\S]*?checkFeedbackEl\.textContent = '';[\s\S]*?checkFeedbackEl\.hidden = true/);
+  assert.match(html, /id="watchCheckNow"/);
+  assert.match(newWatchHtml, /id="watchAdvancedPanel" hidden[\s\S]*id="watchFeedUrlInput"/);
+  assert.match(navigation, /feedUrl:\s*feedUrlInputEl\?\.value \|\| ''/);
+});
+
+test('Edit Watch actions use one rounded keyboard focus ring and retain focus elsewhere', async () => {
+  const [detailStyles, accessibilityStyles] = await Promise.all([
+    readFile(new URL('../scss/pages/_watch-detail.scss', import.meta.url), 'utf8'),
+    readFile(new URL('../scss/base/_accessibility.scss', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(detailStyles, /\.watch-edit-sheet__action\s*\{[\s\S]*?border-radius:\s*var\(--radius-input\)/);
+  assert.match(detailStyles, /\.watch-edit-sheet__action:not\(:disabled\):focus-visible\s*\{[\s\S]*?outline:\s*2px solid var\(--color-action\);[\s\S]*?outline-offset:\s*2px/);
+  assert.doesNotMatch(
+    detailStyles,
+    /\.watch-edit-sheet__action:not\(:disabled\):hover,\s*\.watch-edit-sheet__action:not\(:disabled\):focus-visible/,
+  );
+  assert.match(accessibilityStyles, /:focus-visible\s*\{[\s\S]*?outline:/);
+  assert.match(detailStyles, /\.story-concepts__action:focus-visible\s*\{[\s\S]*?outline:/);
+  assert.match(detailStyles, /\.detail-edit-action:hover,\s*\.detail-edit-action:focus-visible/);
+});
+
+test('Home summary keeps zero, singular and plural forms in English and French', async () => {
+  const [navigation, englishSource, frenchSource] = await Promise.all([
+    readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
+    readFile(new URL('../locales/en.json', import.meta.url), 'utf8'),
+    readFile(new URL('../locales/fr.json', import.meta.url), 'utf8'),
+  ]);
+  const english = JSON.parse(englishSource).home;
+  const french = JSON.parse(frenchSource).home;
+
+  assert.match(navigation, /count === 1 \? 'one' : 'other'/);
+  for (const messages of [english, french]) {
+    assert.ok(messages.checkedAway.one.includes('{count}'));
+    assert.ok(messages.checkedAway.other.includes('{count}'));
+    assert.ok(messages.attentionLabel.one);
+    assert.ok(messages.attentionLabel.other);
+    assert.ok(messages.updatedLabel.one);
+    assert.ok(messages.updatedLabel.other);
+    assert.ok(messages.unchangedLabel.one);
+    assert.ok(messages.unchangedLabel.other);
+  }
 });

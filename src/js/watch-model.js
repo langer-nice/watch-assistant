@@ -20,7 +20,7 @@ const TECHNICAL_ATTENTION_REASONS = new Set([
 
 export const getMonitoringHealthPresentation = (watch) => {
   if (watch?.monitoringStatus?.state === 'setup-required') {
-    return { statusKey: 'setupRequired', detailMessageKey: 'detail.feedUrlMissing' };
+    return { statusKey: 'setupRequired' };
   }
   if (watch?.monitoringStatus?.state === 'unavailable') {
     return { statusKey: 'monitoringUnavailable', detailMessageKey: 'detail.monitoringUnavailable' };

@@ -156,6 +156,7 @@ body.is-watch-edit-open {
   align-items: start;
   gap: var(--space-sm);
   min-width: 0;
+  width: 100%;
   padding: var(--space-xs) var(--space-sm);
   background: var(--color-surface-subtle);
   border-radius: var(--radius-sm);
@@ -247,16 +248,8 @@ body.is-watch-edit-open {
 }
 
 @media (min-width: 36rem) {
-  .story-concepts__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .story-concepts__item {
     grid-template-columns: minmax(6.5rem, auto) minmax(0, 1fr);
-  }
-
-  .story-concepts__item--wide {
-    grid-column: 1 / -1;
   }
 }
 
@@ -416,6 +409,7 @@ body.is-watch-edit-open {
   padding: 0;
   color: var(--color-text);
   background: transparent;
+  border-radius: var(--radius-input);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-regular);
   cursor: pointer;
@@ -436,10 +430,14 @@ body.is-watch-edit-open {
   cursor: default;
 }
 
-.watch-edit-sheet__action:not(:disabled):hover,
-.watch-edit-sheet__action:not(:disabled):focus-visible {
+.watch-edit-sheet__action:not(:disabled):hover {
   text-decoration: underline;
   text-underline-offset: var(--space-3xs);
+}
+
+.watch-edit-sheet__action:not(:disabled):focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
 }
 
 @keyframes watch-edit-sheet-in {

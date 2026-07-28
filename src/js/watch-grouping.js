@@ -48,15 +48,12 @@ export const groupHomeWatches = (watches, {
   language = 'en',
   now = new Date(),
 } = {}) => {
-  const active = watches.filter((watch) => watch.status !== 'completed' && isDisplayableWatch(watch));
-  const attention = active
-    .filter(isUserActionRequired)
-    .sort(newestFirst(activityTimestamp));
-  const attentionIds = new Set(attention.map(({ id }) => id));
-  const updates = active
-    .filter((watch) => !attentionIds.has(watch.id) && Boolean(getMeaningfulUpdate?.(watch)?.trim()))
-    .filter((watch) => getLatestWatchUpdateTimestamp(watch) > 0)
-    .sort(newestFirst(getLatestWatchUpdateTimestamp));
+  const { attentionWatches, updatedWatches } = getBriefingWatchGroups(watches, {
+    getMeaningfulUpdate,
+    isDisplayableWatch,
+  });
+  const attention = attentionWatches.sort(newestFirst(activityTimestamp));
+  const updates = updatedWatches.sort(newestFirst(getLatestWatchUpdateTimestamp));
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
@@ -64,9 +61,15 @@ export const groupHomeWatches = (watches, {
   weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
   const today = [];
   const thisWeek = [];
+  const undated = [];
   const months = new Map();
   updates.forEach((watch) => {
-    const updatedAt = new Date(getLatestWatchUpdateTimestamp(watch));
+    const timestamp = getLatestWatchUpdateTimestamp(watch);
+    if (!timestamp) {
+      undated.push(watch);
+      return;
+    }
+    const updatedAt = new Date(timestamp);
     if (updatedAt >= todayStart && updatedAt < tomorrowStart) {
       today.push(watch);
       return;
@@ -94,6 +97,7 @@ export const groupHomeWatches = (watches, {
     { type: 'updatedToday', watches: today },
     { type: 'updatedThisWeek', watches: thisWeek },
     ...[...months.values()].sort((first, second) => second.timestamp - first.timestamp),
+    { type: 'updated', watches: undated },
   ].filter((group) => group.watches.length);
 };
 

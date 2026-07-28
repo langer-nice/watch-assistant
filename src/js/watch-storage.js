@@ -10,6 +10,12 @@ const DEMO_DATA_VERSION = 'home-report-v1';
 const HTML_ENTITY_MIGRATION_KEY = 'watchAssistant.htmlEntityDecodeVersion';
 const HTML_ENTITY_MIGRATION_VERSION = '1';
 const creationDateWarnings = new Set();
+export const WATCH_STORAGE_CHANGED_EVENT = 'watchassistant:watcheschanged';
+
+const notifyWatchStorageChanged = () => {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+  window.dispatchEvent(new Event(WATCH_STORAGE_CHANGED_EVENT));
+};
 
 const normalizeWatchModels = (watches, { persist = false } = {}) => {
   let changed = false;
@@ -156,6 +162,7 @@ export function resetStoredWatches() {
   localStorage.removeItem(DELETED_WATCHES_STORAGE_KEY);
   localStorage.removeItem(DEMO_DATA_VERSION_KEY);
   localStorage.removeItem(HTML_ENTITY_MIGRATION_KEY);
+  notifyWatchStorageChanged();
 }
 
 export function getWatches() {
@@ -203,6 +210,7 @@ export function addWatch(watch) {
   }
   saveWatches(stored);
   saveDeletedWatchIds(getDeletedWatchIds().filter((id) => id !== watch.id));
+  notifyWatchStorageChanged();
 }
 
 export function updateWatch(id, changes) {
@@ -223,6 +231,7 @@ export function deleteWatch(id) {
   const deletedIds = new Set(getDeletedWatchIds());
   deletedIds.add(id);
   saveDeletedWatchIds([...deletedIds]);
+  notifyWatchStorageChanged();
 }
 
 export function getWatchById(id) {

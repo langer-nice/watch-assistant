@@ -8,6 +8,7 @@ import {
   getBriefingGeneratedAt,
   setBriefingGeneratedAt,
   resetStoredWatches,
+  WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
 import { getLanguage, t } from './i18n.js';
 import { analyseUrl } from './url-analysis.js';
@@ -709,20 +710,19 @@ const getHomeReport = () => {
   const isDisplayableWatch = (watch) => (
     hasMeaningfulText(localizeField(watch, 'title'))
   );
+  const briefing = getBriefingWatchGroups(watches, {
+    getMeaningfulUpdate: getHomeUpdateText,
+    isDisplayableWatch,
+  });
   const groups = groupHomeWatches(watches, {
     getMeaningfulUpdate: getHomeUpdateText,
     isDisplayableWatch,
     language: getLanguage(),
   });
-  const attentionWatches = groups.find(({ type }) => type === 'attention')?.watches || [];
+  const attentionWatches = briefing.attentionWatches;
   const updateGroups = groups.filter(({ type }) => type !== 'attention');
-  const updatedWatches = updateGroups.flatMap(({ watches: groupWatches }) => groupWatches);
-  const visibleIds = new Set([...attentionWatches, ...updatedWatches].map(({ id }) => id));
-  const quietWatches = watches.filter((watch) => (
-    watch.status !== 'completed'
-    && !visibleIds.has(watch.id)
-    && !getMonitoringHealthStatus(watch)
-  ));
+  const updatedWatches = briefing.updatedWatches;
+  const quietWatches = briefing.quietWatches;
   const unchangedCount = quietWatches.length;
 
   return {
@@ -792,7 +792,9 @@ const renderHomeBriefing = () => {
   updateGroupsEl.innerHTML = updateGroups.map((group, index) => {
     const label = group.type === 'updatedToday'
       ? t('home.updatedToday')
-      : group.type === 'updatedThisWeek' ? t('home.updatedThisWeek') : group.label;
+      : group.type === 'updatedThisWeek'
+        ? t('home.updatedThisWeek')
+        : group.type === 'updated' ? t('home.updatedSection') : group.label;
     const headingId = `home-update-group-${index}`;
     return `<section class="briefing-group" aria-labelledby="${headingId}">
       <p class="section-heading" id="${headingId}">${escapeHtml(label)}</p>
@@ -819,6 +821,12 @@ const renderWatchList = () => {
     isDisplayableWatch: (watch) => hasMeaningfulText(localizeField(watch, 'title')),
     language: getLanguage(),
   });
+  const canonicalGroups = getBriefingWatchGroups(watches, {
+    getMeaningfulUpdate: getHomeUpdateText,
+    isDisplayableWatch: (watch) => hasMeaningfulText(localizeField(watch, 'title')),
+  });
+  const attentionIds = new Set(canonicalGroups.attentionWatches.map(({ id }) => id));
+  const updatedIds = new Set(canonicalGroups.updatedWatches.map(({ id }) => id));
 
   const renderWatchCards = (group) => group.watches
     .map((watch) => {
@@ -826,11 +834,13 @@ const renderWatchList = () => {
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
       const isPaused = watch.status === 'paused';
       const monitoringHealthStatus = getMonitoringHealthStatus(watch);
-      const status = monitoringHealthStatus || (group.type === 'actionRequired'
+      const status = monitoringHealthStatus || (attentionIds.has(watch.id)
         ? 'attention'
-        : group.type === 'updated'
+        : updatedIds.has(watch.id)
           ? getMonitoringUpdates(watch).length ? 'new' : 'updated'
-          : STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking');
+          : ['paused', 'completed'].includes(watch.status)
+            ? watch.status
+            : 'watching');
       const statusModifier = getStatusLabelVariant(status);
       const statusText = status === 'attention'
         ? t('watches.needsAttention')
@@ -1123,9 +1133,8 @@ const renderWatchDetail = () => {
   const storyIdentifiers = getStoryProfileIdentifiers(watch.storyProfile);
   if (storyConceptsListEl) {
     storyConceptsListEl.innerHTML = storyIdentifiers.map(({ label, type }) => {
-      const usesWideLayout = type === 'relationship' || label.length > 56;
       return `
-        <div class="story-concepts__item${usesWideLayout ? ' story-concepts__item--wide' : ''}">
+        <div class="story-concepts__item">
           <dt><span>${escapeHtml(t(`newWatch.conceptTypes.${type}`))}</span></dt>
           <dd>
             <span class="story-concepts__label">${escapeHtml(label)}</span>
@@ -1391,11 +1400,7 @@ const renderWatchDetail = () => {
         if (checkNowLabelEl) checkNowLabelEl.textContent = t('detail.checkNow');
         if (checkSpinnerEl) checkSpinnerEl.hidden = true;
         if (checkFeedbackEl) {
-          checkFeedbackEl.textContent = t(
-            error instanceof MonitoringCheckError && error.code === 'MISSING_FEED_URL'
-              ? 'detail.feedUrlMissing'
-              : 'detail.checkFailed',
-          );
+          checkFeedbackEl.textContent = t('detail.checkFailed');
           checkFeedbackEl.dataset.state = 'error';
           checkFeedbackEl.hidden = false;
         }
@@ -1434,11 +1439,9 @@ const renderWatchDetail = () => {
         : 'success';
       checkFeedbackEl.hidden = false;
     } else if (!hasFeedUrl) {
-      checkFeedbackEl.textContent = t(
-        getMonitoringHealthPresentation(watch)?.detailMessageKey || 'detail.feedUrlMissing',
-      );
-      checkFeedbackEl.dataset.state = 'info';
-      checkFeedbackEl.hidden = false;
+      checkFeedbackEl.textContent = '';
+      checkFeedbackEl.hidden = true;
+      delete checkFeedbackEl.dataset.state;
     } else if (watch.monitoringStatus?.state === 'unavailable') {
       checkFeedbackEl.textContent = t('detail.monitoringUnavailable');
       checkFeedbackEl.dataset.state = 'info';
@@ -3646,6 +3649,14 @@ export const initApp = () => {
   window.addEventListener('pageshow', renderRecentWatches);
 
   window.addEventListener('storage', () => {
+    renderHomeSummary();
+    renderHomeBriefing();
+    renderWatchList();
+    renderWatchDetail();
+    renderRecentWatches();
+  });
+
+  window.addEventListener(WATCH_STORAGE_CHANGED_EVENT, () => {
     renderHomeSummary();
     renderHomeBriefing();
     renderWatchList();

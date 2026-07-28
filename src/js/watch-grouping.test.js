@@ -250,3 +250,33 @@ test('a genuine candidate update remains in the correct Home date group', () => 
   assert.deepEqual(groups.map(({ type }) => type), ['updatedToday']);
   assert.deepEqual(groups[0].watches.map(({ id }) => id), ['candidate']);
 });
+
+test('one attention, two undated updates and five quiet Watches reconcile as 1, 2 and 5', () => {
+  const watches = [
+    { id: 'attention', status: 'attention', actionRequired: true, update: 'Act now.' },
+    { id: 'updated-1', status: 'updated', update: 'A meaningful change.' },
+    { id: 'updated-2', status: 'updated', update: 'Another meaningful change.' },
+    ...Array.from({ length: 5 }, (_, index) => ({
+      id: `quiet-${index + 1}`,
+      status: 'watching',
+    })),
+  ];
+  const sharedOptions = {
+    getMeaningfulUpdate: (watch) => watch.update || '',
+    isDisplayableWatch: () => true,
+    now: new Date('2026-07-23T12:00:00+02:00'),
+  };
+  const briefing = getBriefingWatchGroups(watches, sharedOptions);
+  const homeGroups = groupHomeWatches(watches, sharedOptions);
+  const homeAttention = homeGroups.find(({ type }) => type === 'attention')?.watches || [];
+  const homeUpdates = homeGroups
+    .filter(({ type }) => type !== 'attention')
+    .flatMap(({ watches: groupedWatches }) => groupedWatches);
+
+  assert.deepEqual(homeGroups.map(({ type }) => type), ['attention', 'updated']);
+  assert.equal(homeAttention.length, 1);
+  assert.equal(homeUpdates.length, 2);
+  assert.equal(briefing.quietWatches.length, 5);
+  assert.equal(homeAttention.length + homeUpdates.length + briefing.quietWatches.length, 8);
+  assert.equal(new Set([...homeAttention, ...homeUpdates, ...briefing.quietWatches].map(({ id }) => id)).size, 8);
+});

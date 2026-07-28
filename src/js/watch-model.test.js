@@ -175,7 +175,6 @@ test('marks an older article Watch without a source as setup-required, not actio
   assert.equal(watch.status, 'watching');
   assert.deepEqual(getMonitoringHealthPresentation(watch), {
     statusKey: 'setupRequired',
-    detailMessageKey: 'detail.feedUrlMissing',
   });
 });
 

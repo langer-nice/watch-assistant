@@ -77,3 +77,40 @@ test('preserves an explicit clarity warning flag without adding it to legacy Wat
     else globalThis.localStorage = originalStorage;
   }
 });
+
+test('notifies the current page immediately after Watch state changes', async () => {
+  const originalStorage = globalThis.localStorage;
+  const originalWindow = globalThis.window;
+  const storage = createStorage({
+    'watchAssistant.htmlEntityDecodeVersion': '1',
+  });
+  const eventTarget = new EventTarget();
+  globalThis.localStorage = storage;
+  globalThis.window = eventTarget;
+
+  try {
+    const {
+      addWatch,
+      updateWatch,
+      WATCH_STORAGE_CHANGED_EVENT,
+    } = await import('./watch-storage.js?change-event');
+    let changeCount = 0;
+    eventTarget.addEventListener(WATCH_STORAGE_CHANGED_EVENT, () => {
+      changeCount += 1;
+    });
+
+    addWatch({ id: 'live-watch', title: 'Live Watch', status: 'watching' });
+    updateWatch('live-watch', { status: 'updated', latestChange: 'A new update.' });
+
+    assert.equal(changeCount, 2);
+    assert.equal(
+      JSON.parse(storage.getItem('watchAssistant.watches'))[0].latestChange,
+      'A new update.',
+    );
+  } finally {
+    if (originalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = originalStorage;
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
+  }
+});

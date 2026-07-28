@@ -170,7 +170,6 @@
       "other": "{count} mises à jour candidates trouvées. Leur importance n’a pas encore été évaluée."
     },
     "checkFailed": "Impossible de vérifier ce flux. Réessayez.",
-    "feedUrlMissing": "La surveillance automatique n’est pas disponible pour cette source. Vous pouvez conserver la Watch et vérifier son réglage avancé.",
     "monitoringUnavailable": "La source de surveillance est temporairement indisponible. Vous pouvez relancer la vérification.",
     "newItems": "Mises à jour candidates",
     "untitledItem": "Élément sans titre",

@@ -170,7 +170,6 @@
       "other": "Found {count} candidate story updates. These have not been reviewed for significance."
     },
     "checkFailed": "I couldn’t check this feed. Please try again.",
-    "feedUrlMissing": "Automatic monitoring isn’t available for this source. You can still keep the Watch and review its advanced source setting.",
     "monitoringUnavailable": "The monitoring source is temporarily unavailable. You can retry this check.",
     "newItems": "Candidate story updates",
     "untitledItem": "Untitled item",
