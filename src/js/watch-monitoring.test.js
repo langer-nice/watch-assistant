@@ -35,6 +35,11 @@ test('first successful check creates a baseline without false new updates', () =
   assert.deepEqual(result.changes.monitoringSnapshot.itemIds, ['a', 'b']);
   assert.deepEqual(result.changes.monitoringUpdates, []);
   assert.equal(result.changes.lastChecked, checkedAt);
+  assert.deepEqual(result.changes.lastCheckAttempt, {
+    status: 'succeeded',
+    attemptedAt: checkedAt,
+    outcome: 'baseline',
+  });
 });
 
 test('later checks detect only unseen IDs and repeated checks do not duplicate updates', () => {
@@ -95,6 +100,7 @@ test('controller preserves a snapshot after failure and restores checking state'
     requestCheck: async () => {
       throw new Error('network detail');
     },
+    now: () => new Date(checkedAt),
   });
 
   await assert.rejects(controller.check('watch-1', {
@@ -103,6 +109,12 @@ test('controller preserves a snapshot after failure and restores checking state'
   assert.deepEqual(states, [true, false]);
   assert.equal(saveCount, 1);
   assert.deepEqual(watch.monitoringSnapshot, original.monitoringSnapshot);
+  assert.equal(watch.lastChecked, undefined);
+  assert.deepEqual(watch.lastCheckAttempt, {
+    status: 'failed',
+    attemptedAt: checkedAt,
+    code: 'CHECK_FAILED',
+  });
   assert.equal(watch.monitoringFailure.consecutiveCount, 1);
   assert.equal(watch.requiresAttention, undefined);
   assert.equal(controller.isChecking('watch-1'), false);
@@ -135,6 +147,11 @@ test('three consecutive failures mark monitoring unavailable without creating us
   assert.equal(watch.monitoringIssueReason, 'source-persistently-unavailable');
   assert.deepEqual(watch.monitoringSnapshot.itemIds, ['a']);
   assert.equal(watch.candidateUpdates[0].id, 'candidate');
+  assert.equal(watch.status, 'watching');
+  const briefing = getBriefingWatchGroups([watch], {
+    getMeaningfulUpdate: (candidateWatch) => getMonitoringUpdates(candidateWatch)[0]?.title || '',
+  });
+  assert.deepEqual(briefing.updatedWatches.map(({ id }) => id), ['watch-1']);
 });
 
 test('controller prevents concurrent checks and restores state after success', async () => {
@@ -216,12 +233,66 @@ test('controller persists setup-required health without creating action when sou
       watch = { ...watch, ...changes };
       return watch;
     },
+    now: () => new Date(checkedAt),
   });
   await assert.rejects(controller.check('watch-1'), (error) => error.code === 'MISSING_FEED_URL');
   assert.equal(watch.requiresAttention, undefined);
   assert.equal(watch.actionRequired, undefined);
   assert.equal(watch.monitoringIssueReason, 'no-compatible-source');
   assert.equal(watch.monitoringStatus.state, 'setup-required');
+  assert.deepEqual(watch.lastCheckAttempt, {
+    status: 'failed',
+    attemptedAt: checkedAt,
+    code: 'MISSING_FEED_URL',
+  });
+});
+
+test('a failed retry preserves the previous success and can then succeed', async () => {
+  const successfulAt = '2026-07-26T10:00:00.000Z';
+  let requestCount = 0;
+  let watch = {
+    id: 'watch-retry',
+    feedUrl: 'https://example.com/feed.xml',
+    sourceUrl: 'https://example.com/story',
+    monitoringSnapshot: { itemIds: ['a'], checkedAt: successfulAt },
+    lastChecked: successfulAt,
+    lastCheckOutcome: { type: 'no-new-items', checkedAt: successfulAt },
+    candidateUpdates: [{ ...item('candidate'), status: 'candidate', detectedAt: successfulAt }],
+    status: 'updated',
+  };
+  const controller = createWatchCheckController({
+    getWatch: () => watch,
+    saveWatch: (_id, changes) => {
+      watch = { ...watch, ...changes };
+      return watch;
+    },
+    requestCheck: async () => {
+      requestCount += 1;
+      if (requestCount === 1) throw new Error('private upstream detail');
+      return response(['a'], checkedAt);
+    },
+    now: () => new Date(checkedAt),
+  });
+
+  await assert.rejects(controller.check(watch.id));
+  assert.equal(watch.lastChecked, successfulAt);
+  assert.equal(watch.lastCheckOutcome.type, 'no-new-items');
+  assert.equal(watch.status, 'updated');
+  assert.equal(watch.sourceUrl, 'https://example.com/story');
+  assert.equal(watch.candidateUpdates[0].id, 'candidate');
+  assert.equal(watch.lastCheckAttempt.status, 'failed');
+
+  const retry = await controller.check(watch.id);
+  assert.equal(requestCount, 2);
+  assert.equal(retry.outcome, 'no-new-items');
+  assert.equal(watch.lastChecked, checkedAt);
+  assert.deepEqual(watch.lastCheckAttempt, {
+    status: 'succeeded',
+    attemptedAt: checkedAt,
+    outcome: 'no-new-items',
+  });
+  assert.equal(watch.monitoringFailure, null);
+  assert.equal(watch.candidateUpdates[0].id, 'candidate');
 });
 
 test('unseen unrelated publications are counted but never stored as Watch updates', () => {

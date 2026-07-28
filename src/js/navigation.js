@@ -20,6 +20,7 @@ import {
 } from './request-clarification.js';
 import {
   getBriefingWatchGroups,
+  getUpdatedSeparatorWatchId,
   groupHomeWatches,
   groupWatches,
   isUserActionRequired,
@@ -82,6 +83,7 @@ let homeCreatedWatchFeedbackTimer = null;
 let detailConfirmationAutoTimer = null;
 let detailConfirmationHideTimer = null;
 let detailCheckInProgress = false;
+let detailCheckErrorWatchId = null;
 let detailCreatedWatchId = null;
 let firstMonitoringTimer = null;
 let firstMonitoringTransitionTimer = null;
@@ -827,6 +829,10 @@ const renderWatchList = () => {
   });
   const attentionIds = new Set(canonicalGroups.attentionWatches.map(({ id }) => id));
   const updatedIds = new Set(canonicalGroups.updatedWatches.map(({ id }) => id));
+  const separatorAfterWatchId = getUpdatedSeparatorWatchId(
+    groups,
+    canonicalGroups.updatedWatches,
+  );
 
   const renderWatchCards = (group) => group.watches
     .map((watch) => {
@@ -834,11 +840,11 @@ const renderWatchList = () => {
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
       const isPaused = watch.status === 'paused';
       const monitoringHealthStatus = getMonitoringHealthStatus(watch);
-      const status = monitoringHealthStatus || (attentionIds.has(watch.id)
+      const status = attentionIds.has(watch.id)
         ? 'attention'
         : updatedIds.has(watch.id)
           ? getMonitoringUpdates(watch).length ? 'new' : 'updated'
-          : ['paused', 'completed'].includes(watch.status)
+          : monitoringHealthStatus || (['paused', 'completed'].includes(watch.status)
             ? watch.status
             : 'watching');
       const statusModifier = getStatusLabelVariant(status);
@@ -856,7 +862,7 @@ const renderWatchList = () => {
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : getMonitoringSummary(watch, title);
-      return `
+      const card = `
       <a class="watch-row${isPaused ? ' watch-row--paused' : ''}" href="${getWatchDetailHref(watch.id)}">
         <div class="watch-row__metadata">
           <p class="watch-row__category">${escapeHtml(t(`categories.${watch.category}`))}</p>
@@ -869,6 +875,9 @@ const renderWatchList = () => {
         </div>
       </a>
     `;
+      return watch.id === separatorAfterWatchId
+        ? `${card}<div class="watch-list__update-separator" aria-hidden="true"></div>`
+        : card;
     })
     .join('');
 
@@ -1076,10 +1085,16 @@ const renderWatchDetail = () => {
   }
 
   if (statusEl) {
+    const isCanonicallyUpdated = getBriefingWatchGroups([watch], {
+      getMeaningfulUpdate: getHomeUpdateText,
+      isDisplayableWatch: () => true,
+    }).updatedWatches.length > 0;
     const statusKey = isUserActionRequired(watch)
       ? 'attention'
-      : getMonitoringHealthStatus(watch)
-        || (STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking');
+      : isCanonicallyUpdated
+        ? getMonitoringUpdates(watch).length ? 'new' : 'updated'
+        : getMonitoringHealthStatus(watch)
+          || (STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking');
     const status = watch.status && t(`statuses.${statusKey}`);
     const statusModifier = getStatusLabelVariant(statusKey);
     statusEl.textContent = status || '';
@@ -1216,7 +1231,20 @@ const renderWatchDetail = () => {
   if (latestChangeContainer) {
     latestChangeContainer.hidden = !hasLatestChange;
   }
-  const lastChecked = formatLastChecked(watch) || t('detail.notCheckedYet');
+  const lastSuccessfulCheckTimestamp = Date.parse(watch.lastChecked);
+  const lastAttemptTimestamp = Date.parse(watch.lastCheckAttempt?.attemptedAt);
+  const persistedAttemptFailed = watch.lastCheckAttempt?.status === 'failed'
+    && !Number.isNaN(lastAttemptTimestamp)
+    && (
+      Number.isNaN(lastSuccessfulCheckTimestamp)
+      || lastAttemptTimestamp >= lastSuccessfulCheckTimestamp
+    );
+  const lastAttemptFailed = detailCheckErrorWatchId === watch.id || persistedAttemptFailed;
+  const lastChecked = formatLastChecked(watch) || (
+    detailCheckInProgress
+      ? t('detail.checking')
+      : lastAttemptFailed ? t('detail.checkFailedStatus') : t('detail.notCheckedYet')
+  );
   const hasLastChecked = setOptionalField('lastChecked', lastCheckedEl, lastChecked);
 
   let confidence = localizeField(watch, 'confidence');
@@ -1368,42 +1396,42 @@ const renderWatchDetail = () => {
   if (checkNowEl) {
     checkNowEl.hidden = isPreparing;
     checkNowEl.disabled = detailCheckInProgress || isPreparing;
+    checkNowEl.setAttribute('aria-busy', String(detailCheckInProgress));
     checkNowEl.onclick = async () => {
-      if (detailCheckInProgress) return;
+      if (detailCheckInProgress || watchCheckController.isChecking(watch.id)) return;
 
+      detailCheckInProgress = true;
+      detailCheckErrorWatchId = null;
+      checkNowEl.disabled = true;
+      checkNowEl.setAttribute('aria-busy', 'true');
+      if (checkNowLabelEl) checkNowLabelEl.textContent = t('detail.checking');
+      if (checkSpinnerEl) checkSpinnerEl.hidden = false;
+      if (!watch.lastChecked && lastCheckedEl) {
+        lastCheckedEl.textContent = t('detail.checking');
+      }
+      if (checkFeedbackEl) {
+        checkFeedbackEl.textContent = t('detail.checkingForUpdates');
+        checkFeedbackEl.dataset.state = 'info';
+        checkFeedbackEl.hidden = false;
+      }
       try {
         if (import.meta.env.DEV) {
           console.info('[Watch monitoring] Check requested', { watchId: watch.id });
         }
-        const result = await watchCheckController.check(watch.id, {
-          onCheckingChange: (checking) => {
-            detailCheckInProgress = checking;
-            checkNowEl.disabled = checking;
-            if (checkNowLabelEl) {
-              checkNowLabelEl.textContent = t(checking ? 'detail.checking' : 'detail.checkNow');
-            }
-            if (checkSpinnerEl) checkSpinnerEl.hidden = !checking;
-            if (checking && checkFeedbackEl) checkFeedbackEl.hidden = true;
-          },
-        });
+        const result = await watchCheckController.check(watch.id);
+        detailCheckErrorWatchId = null;
         setBriefingGeneratedAt(result.changes.lastChecked);
-        renderWatchDetail();
       } catch (error) {
+        detailCheckErrorWatchId = watch.id;
         if (import.meta.env.DEV) {
           console.warn('[Watch monitoring] Check failed', {
             watchId: watch.id,
             code: error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED',
           });
         }
+      } finally {
         detailCheckInProgress = false;
-        checkNowEl.disabled = false;
-        if (checkNowLabelEl) checkNowLabelEl.textContent = t('detail.checkNow');
-        if (checkSpinnerEl) checkSpinnerEl.hidden = true;
-        if (checkFeedbackEl) {
-          checkFeedbackEl.textContent = t('detail.checkFailed');
-          checkFeedbackEl.dataset.state = 'error';
-          checkFeedbackEl.hidden = false;
-        }
+        renderWatchDetail();
       }
     };
   }
@@ -1423,7 +1451,13 @@ const renderWatchDetail = () => {
           ? 'detail.noMatchingUpdates'
           : ['matching-items', 'new-items'].includes(outcome) ? 'detail.newItemsFound' : null;
     const hasFeedUrl = Boolean(normalizeFeedUrl(watch.feedUrl));
-    if (outcomeKey) {
+    if (lastAttemptFailed) {
+      checkFeedbackEl.textContent = watch.lastChecked
+        ? `${t('detail.checkFailedStatus')} — ${t('detail.checkFailed')}`
+        : t('detail.checkFailed');
+      checkFeedbackEl.dataset.state = 'error';
+      checkFeedbackEl.hidden = false;
+    } else if (outcomeKey) {
       const candidateIds = watch.lastCheckResult?.candidateItemIds
         || watch.lastCheckOutcome?.candidateItemIds
         || watch.lastCheckOutcome?.newItemIds;

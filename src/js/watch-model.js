@@ -10,7 +10,7 @@ import {
   normalizeWatchCategory,
 } from './watch-category.js';
 
-export const WATCH_MODEL_VERSION = 7;
+export const WATCH_MODEL_VERSION = 8;
 
 const TECHNICAL_ATTENTION_REASONS = new Set([
   'monitoring-source-missing',
@@ -42,6 +42,25 @@ const newestUpdateAt = (updates) => (Array.isArray(updates) ? updates : [])
   .map((item) => item?.detectedAt || item?.publishedAt)
   .filter((value) => value && !Number.isNaN(Date.parse(value)))
   .sort((first, second) => Date.parse(second) - Date.parse(first))[0] || null;
+
+const normalizeLastCheckAttempt = (attempt) => {
+  if (
+    !attempt
+    || !['succeeded', 'failed'].includes(attempt.status)
+    || typeof attempt.attemptedAt !== 'string'
+    || Number.isNaN(Date.parse(attempt.attemptedAt))
+  ) return null;
+  return {
+    status: attempt.status,
+    attemptedAt: new Date(attempt.attemptedAt).toISOString(),
+    ...(attempt.status === 'succeeded' && typeof attempt.outcome === 'string'
+      ? { outcome: attempt.outcome }
+      : {}),
+    ...(attempt.status === 'failed' && typeof attempt.code === 'string'
+      ? { code: attempt.code }
+      : {}),
+  };
+};
 
 export const migrateWatchModel = (watch) => {
   if (!watch || typeof watch !== 'object') return { watch, migrated: false };
@@ -242,6 +261,7 @@ export const migrateWatchModel = (watch) => {
     requiresAttention: actionRequired,
     status,
     lastCheckResult: watch.lastCheckResult || watch.lastCheckOutcome || null,
+    lastCheckAttempt: normalizeLastCheckAttempt(watch.lastCheckAttempt),
   };
   return {
     watch: migratedWatch,

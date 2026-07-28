@@ -28,6 +28,32 @@ test('preserves analysis provenance and selects only the Preview diagnostic copy
   assert.equal(getAnalysisProvenanceMessageKey({}), null);
 });
 
+test('normalizes persisted check-attempt state without changing successful history', () => {
+  const lastChecked = '2026-07-27T10:00:00.000Z';
+  const watch = migrateWatchModel({
+    id: 'failed-retry',
+    status: 'updated',
+    lastChecked,
+    lastCheckOutcome: { type: 'matching-items', checkedAt: lastChecked },
+    lastCheckAttempt: {
+      status: 'failed',
+      attemptedAt: '2026-07-27T11:00:00Z',
+      code: 'CHECK_FAILED',
+      rawMessage: 'sensitive upstream detail',
+    },
+  }).watch;
+
+  assert.equal(watch.lastChecked, lastChecked);
+  assert.equal(watch.lastCheckOutcome.type, 'matching-items');
+  assert.equal(watch.status, 'updated');
+  assert.deepEqual(watch.lastCheckAttempt, {
+    status: 'failed',
+    attemptedAt: '2026-07-27T11:00:00.000Z',
+    code: 'CHECK_FAILED',
+  });
+  assert.equal(watch.lastCheckAttempt.rawMessage, undefined);
+});
+
 test('migrates a legacy URL Watch without losing manually edited keywords', () => {
   const result = migrateWatchModel({
     id: 'legacy',

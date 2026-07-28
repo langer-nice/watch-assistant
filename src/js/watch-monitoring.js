@@ -223,6 +223,11 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
         candidateItemIds: detectedUpdates.map(({ id }) => id),
         diagnostics,
       },
+      lastCheckAttempt: {
+        status: 'succeeded',
+        attemptedAt: checkedAt,
+        outcome,
+      },
       monitoringReviewStatus: detectedUpdates.length ? 'candidate' : watch.monitoringReviewStatus || null,
       unreadUpdateCount: monitoringUpdates.filter((item) => (
         ['candidate', 'unreviewed'].includes(item?.status)
@@ -286,10 +291,6 @@ export const createWatchCheckController = ({
         }
         const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
         if (!feedUrl) {
-          saveWatch(watchId, {
-            monitoringStatus: { state: 'setup-required', reason: 'no-compatible-source' },
-            monitoringIssueReason: 'no-compatible-source',
-          });
           throw new MonitoringCheckError(
             'MISSING_FEED_URL',
             'No monitoring source is configured for this Watch.',
@@ -307,8 +308,16 @@ export const createWatchCheckController = ({
         }
         return { ...result, watch: updatedWatch };
       } catch (error) {
-        if (!(error instanceof MonitoringCheckError && error.code === 'MISSING_FEED_URL')) {
-          const currentWatch = getWatch(watchId) || {};
+        const currentWatch = getWatch(watchId) || {};
+        const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
+        const failedAt = now().toISOString();
+        if (code === 'MISSING_FEED_URL') {
+          saveWatch(watchId, {
+            monitoringStatus: { state: 'setup-required', reason: 'no-compatible-source' },
+            monitoringIssueReason: 'no-compatible-source',
+            lastCheckAttempt: { status: 'failed', attemptedAt: failedAt, code },
+          });
+        } else {
           const failureCount = Math.min(
             3,
             (Number(currentWatch.monitoringFailure?.consecutiveCount) || 0) + 1,
@@ -317,9 +326,10 @@ export const createWatchCheckController = ({
           saveWatch(watchId, {
             monitoringFailure: {
               consecutiveCount: failureCount,
-              failedAt: now().toISOString(),
-              code: error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED',
+              failedAt,
+              code,
             },
+            lastCheckAttempt: { status: 'failed', attemptedAt: failedAt, code },
             ...(persistent ? {
               monitoringStatus: { state: 'unavailable', reason: 'source-persistently-unavailable' },
               monitoringIssueReason: 'source-persistently-unavailable',

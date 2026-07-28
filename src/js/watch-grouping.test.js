@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mockWatches } from './data/mock-watches.js';
-import { getBriefingWatchGroups, groupHomeWatches, groupWatches } from './watch-grouping.js';
+import {
+  getBriefingWatchGroups,
+  getUpdatedSeparatorWatchId,
+  groupHomeWatches,
+  groupWatches,
+} from './watch-grouping.js';
 
 const options = {
   getMeaningfulUpdate: (watch) => watch.latestChange || '',
@@ -279,4 +284,56 @@ test('one attention, two undated updates and five quiet Watches reconcile as 1, 
   assert.equal(briefing.quietWatches.length, 5);
   assert.equal(homeAttention.length + homeUpdates.length + briefing.quietWatches.length, 8);
   assert.equal(new Set([...homeAttention, ...homeUpdates, ...briefing.quietWatches].map(({ id }) => id)).size, 8);
+});
+
+test('places one separator after the final canonical update when later content follows', () => {
+  const attention = { id: 'attention' };
+  const firstUpdate = { id: 'updated-1' };
+  const secondUpdate = { id: 'updated-2' };
+  const watching = { id: 'watching' };
+  const groups = [
+    { type: 'actionRequired', watches: [attention] },
+    { type: 'updated', watches: [firstUpdate, secondUpdate] },
+    { type: 'last7Days', watches: [watching] },
+  ];
+
+  assert.equal(
+    getUpdatedSeparatorWatchId(groups, [firstUpdate, secondUpdate]),
+    'updated-2',
+  );
+});
+
+test('omits the update separator with no update or no following content', () => {
+  const updated = { id: 'updated' };
+  const watching = { id: 'watching' };
+  assert.equal(getUpdatedSeparatorWatchId([
+    { type: 'last7Days', watches: [watching] },
+  ], []), null);
+  assert.equal(getUpdatedSeparatorWatchId([
+    { type: 'updated', watches: [updated] },
+  ], [updated]), null);
+});
+
+test('uses canonical update membership and ignores attention for separator placement', () => {
+  const attention = { id: 'attention' };
+  const updated = { id: 'updated' };
+  const watching = { id: 'watching' };
+  const groups = [
+    { type: 'actionRequired', watches: [attention] },
+    { type: 'today', watches: [updated, watching] },
+  ];
+
+  assert.equal(getUpdatedSeparatorWatchId(groups, [updated]), 'updated');
+  assert.equal(getUpdatedSeparatorWatchId(groups, []), null);
+});
+
+test('repositions or removes the separator when canonical status changes', () => {
+  const first = { id: 'first' };
+  const second = { id: 'second' };
+  const third = { id: 'third' };
+  const groups = [{ type: 'today', watches: [first, second, third] }];
+
+  assert.equal(getUpdatedSeparatorWatchId(groups, [first]), 'first');
+  assert.equal(getUpdatedSeparatorWatchId(groups, [first, second]), 'second');
+  assert.equal(getUpdatedSeparatorWatchId(groups, [third]), null);
 });

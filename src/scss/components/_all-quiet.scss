@@ -5,13 +5,18 @@
   font-style: normal;
 }
 
-.all-quiet::before {
+.all-quiet::before,
+.watch-list__update-separator {
   display: block;
   height: 2px;
   // margin-inline: var(--briefing-gutter);
   margin-bottom: var(--space-xl);
   background: var(--color-border-strong);
   content: '';
+}
+
+.watch-list__update-separator {
+  width: 100%;
 }
 
 .all-quiet h2 {

@@ -184,6 +184,15 @@ export const groupWatches = (watches, {
   ].filter((group) => group.watches.length > 0);
 };
 
+export const getUpdatedSeparatorWatchId = (groups, updatedWatches) => {
+  const updatedIds = new Set(updatedWatches.map(({ id }) => id));
+  const orderedWatches = groups.flatMap(({ watches }) => watches);
+  const lastUpdatedIndex = orderedWatches.findLastIndex(({ id }) => updatedIds.has(id));
+  return lastUpdatedIndex >= 0 && lastUpdatedIndex < orderedWatches.length - 1
+    ? orderedWatches[lastUpdatedIndex].id
+    : null;
+};
+
 export const getBriefingWatchGroups = (watches, {
   getMeaningfulUpdate,
   isDisplayableWatch = () => true,

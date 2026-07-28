@@ -145,3 +145,46 @@ test('Home summary keeps zero, singular and plural forms in English and French',
     assert.ok(messages.unchangedLabel.other);
   }
 });
+
+test('Check now exposes an immediate accessible lifecycle and always restores through finally', async () => {
+  const [html, navigation, styles, englishSource, frenchSource] = await Promise.all([
+    readFile(new URL('../../watch-detail.html', import.meta.url), 'utf8'),
+    readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
+    readFile(new URL('../scss/pages/_watch-detail.scss', import.meta.url), 'utf8'),
+    readFile(new URL('../locales/en.json', import.meta.url), 'utf8'),
+    readFile(new URL('../locales/fr.json', import.meta.url), 'utf8'),
+  ]);
+  const lifecycle = navigation.match(
+    /if \(checkNowEl\) \{[\s\S]*?if \(checkFeedbackEl && !detailCheckInProgress\)/,
+  )?.[0] || '';
+  const english = JSON.parse(englishSource).detail;
+  const french = JSON.parse(frenchSource).detail;
+
+  assert.match(html, /watch-fact-check__spinner[^>]*aria-hidden="true"[^>]*hidden/);
+  assert.match(html, /id="watchCheckFeedback"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/);
+  assert.match(lifecycle, /detailCheckInProgress = true;[\s\S]*?checkNowEl\.disabled = true;[\s\S]*?setAttribute\('aria-busy', 'true'\)/);
+  assert.match(lifecycle, /detail\.checking[\s\S]*?checkSpinnerEl\.hidden = false/);
+  assert.match(lifecycle, /detail\.checkingForUpdates/);
+  assert.match(lifecycle, /detailCheckInProgress \|\| watchCheckController\.isChecking\(watch\.id\)/);
+  assert.match(lifecycle, /try \{[\s\S]*?await watchCheckController\.check\(watch\.id\)[\s\S]*?catch \(error\)[\s\S]*?finally \{[\s\S]*?detailCheckInProgress = false;[\s\S]*?renderWatchDetail\(\)/);
+  assert.match(styles, /\.watch-fact-check__button\s*\{[\s\S]*?min-width:\s*7\.5rem/);
+  assert.equal(english.checkFailedStatus, 'Check failed');
+  assert.equal(english.checkFailed, 'We couldn’t check for updates. Please try again.');
+  assert.equal(french.checkFailedStatus, 'Échec de la vérification');
+  assert.equal(french.checkFailed, 'Nous n’avons pas pu vérifier les mises à jour. Réessayez.');
+  assert.doesNotMatch(`${english.checkFailed} ${french.checkFailed}`, /RSS|Atom|feed|flux|HTTP|Advanced/i);
+});
+
+test('Watch Detail distinguishes never checked, checking, successful outcomes and failed attempts', async () => {
+  const navigation = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
+  const stateRendering = navigation.match(
+    /const lastAttemptFailed =[\s\S]*?const isPaused = watch\.status === 'paused'/,
+  )?.[0] || '';
+
+  assert.match(stateRendering, /detailCheckInProgress[\s\S]*?detail\.checking/);
+  assert.match(stateRendering, /lastAttemptFailed \? t\('detail\.checkFailedStatus'\) : t\('detail\.notCheckedYet'\)/);
+  assert.match(stateRendering, /outcome === 'baseline'[\s\S]*?detail\.baselineCreated/);
+  assert.match(stateRendering, /outcome === 'no-new-items'[\s\S]*?detail\.noNewUpdates/);
+  assert.match(stateRendering, /\['matching-items', 'new-items'\]\.includes\(outcome\)[\s\S]*?detail\.newItemsFound/);
+  assert.match(stateRendering, /if \(lastAttemptFailed\) \{[\s\S]*?detail\.checkFailed[\s\S]*?dataset\.state = 'error'/);
+});

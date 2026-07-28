@@ -48,3 +48,17 @@ test('different and dynamically added Watch IDs produce distinct encoded routes'
   ]);
   assert.equal(getWatchDetailHref('new id/after-refresh'), 'watch-detail.html?id=new%20id%2Fafter-refresh');
 });
+
+test('All Watches renders at most one canonical Home-style update separator per rerender', async () => {
+  const [navigation, allQuietStyles] = await Promise.all([
+    readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
+    readFile(new URL('../scss/components/_all-quiet.scss', import.meta.url), 'utf8'),
+  ]);
+  const listRenderer = navigation.match(/const renderWatchList = \(\) => \{[\s\S]*?const renderWatchDetail/)?.[0] || '';
+
+  assert.match(listRenderer, /getUpdatedSeparatorWatchId\(\s*groups,\s*canonicalGroups\.updatedWatches/);
+  assert.match(listRenderer, /watch\.id === separatorAfterWatchId/);
+  assert.equal((listRenderer.match(/watch-list__update-separator/g) || []).length, 1);
+  assert.match(listRenderer, /list\.innerHTML = groups/);
+  assert.match(allQuietStyles, /\.all-quiet::before,\s*\.watch-list__update-separator\s*\{[\s\S]*?height:\s*2px;[\s\S]*?margin-bottom:\s*var\(--space-xl\);[\s\S]*?background:\s*var\(--color-border-strong\)/);
+});
