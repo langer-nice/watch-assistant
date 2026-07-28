@@ -77,6 +77,50 @@ test('migrates a legacy URL Watch without losing manually edited keywords', () =
   ]);
   assert.equal(result.candidateUpdates[0].id, 'candidate-1');
   assert.equal(result.unreadUpdateCount, 1);
+  assert.equal(result.currentStatus, 'watching');
+  assert.equal(result.lastUpdated, '2026-07-26T10:00:00.000Z');
+  assert.deepEqual(result.updates.map(({ id, status }) => ({ id, status })), [
+    { id: 'candidate-1', status: 'new' },
+  ]);
+});
+
+test('legacy Update migration preserves data and is idempotent across repeated loads', () => {
+  const legacy = {
+    id: 'legacy-history',
+    title: 'Stored title',
+    sourceUrl: 'https://www.example.com/story',
+    latestChange: 'A meaningful stored change.',
+    latestChangeAt: '2026-07-27T11:00:00Z',
+    userNote: 'Never discard this note.',
+    status: 'updated',
+  };
+  const first = migrateWatchModel(legacy).watch;
+  const second = migrateWatchModel(first);
+
+  assert.equal(first.userNote, legacy.userNote);
+  assert.equal(first.updates.length, 1);
+  assert.equal(first.updates[0].summary, legacy.latestChange);
+  assert.equal(first.updates[0].sourceDomain, 'example.com');
+  assert.equal(first.updates[0].status, 'new');
+  assert.equal(first.lastChecked, null);
+  assert.equal(second.migrated, false);
+  assert.deepEqual(second.watch.updates, first.updates);
+});
+
+test('a new Watch with an explicit empty history does not receive a migration Update', () => {
+  const watch = migrateWatchModel({
+    id: 'new-watch',
+    title: 'New Watch',
+    status: 'watching',
+    currentStatus: 'watching',
+    lastChecked: null,
+    lastUpdated: null,
+    updates: [],
+  }).watch;
+
+  assert.deepEqual(watch.updates, []);
+  assert.equal(watch.currentStatus, 'watching');
+  assert.equal(watch.lastUpdated, null);
 });
 
 test('migrates automatic legacy facts to context without touching monitoring state', () => {

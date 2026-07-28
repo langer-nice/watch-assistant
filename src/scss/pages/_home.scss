@@ -227,6 +227,7 @@
   display: none;
 }
 
-.briefing-group + .briefing-group {
+.briefing-group + .briefing-group,
+#homeAttentionSection:not([hidden]) + #homeUpdateGroups > .briefing-group:first-child {
   border-top: 1px solid var(--color-divider);
 }

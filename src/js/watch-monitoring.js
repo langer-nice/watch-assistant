@@ -1,4 +1,5 @@
 import { getStoryProfileIdentifiers } from './story-profile.js';
+import { addUpdateToWatch } from './watch-updates.js';
 
 export const MAX_SNAPSHOT_ITEMS = 20;
 export const MAX_SEEN_ITEM_IDS = 200;
@@ -162,6 +163,17 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
     [...detectedUpdates, ...existingUpdates],
     MAX_MONITORING_UPDATES,
   );
+  const watchWithUpdates = detectedUpdates.reduce((updatedWatch, detectedUpdate) => (
+    addUpdateToWatch(updatedWatch, {
+      id: detectedUpdate.id,
+      timestamp: detectedUpdate.detectedAt,
+      sourceUrl: detectedUpdate.url,
+      sourceTitle: detectedUpdate.title,
+      summary: detectedUpdate.excerpt || detectedUpdate.title,
+      status: 'new',
+      rawMonitoringResult: detectedUpdate,
+    })
+  ), watch);
   const seenMonitoringItemIds = [...new Set([
     ...currentIds,
     ...previouslySeen,
@@ -186,6 +198,9 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
   const actionRequired = watch.actionRequired === true || (
     !hadMonitoringIssue && (watch.requiresAttention === true || watch.status === 'attention')
   );
+  const status = actionRequired && watch.status !== 'paused'
+    ? 'attention'
+    : watch.status === 'attention' && hadMonitoringIssue ? 'watching' : watch.status || 'watching';
 
   return {
     outcome,
@@ -233,15 +248,20 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
         ['candidate', 'unreviewed'].includes(item?.status)
       )).length,
       latestUpdateAt,
+      ...(detectedUpdates.length || Array.isArray(watch.updates) ? {
+        currentStatus: ['attention', 'paused', 'completed'].includes(status)
+          ? status
+          : watchWithUpdates.currentStatus || watch.currentStatus || status,
+        lastUpdated: watchWithUpdates.lastUpdated || watch.lastUpdated || null,
+        updates: watchWithUpdates.updates || watch.updates || [],
+      } : {}),
       monitoringStatus: { state: 'active', reason: null },
       monitoringIssueReason: null,
       monitoringFailure: null,
       actionRequired,
       attentionReason: actionRequired ? watch.attentionReason || null : null,
       requiresAttention: actionRequired,
-      status: actionRequired && watch.status !== 'paused'
-        ? 'attention'
-        : watch.status === 'attention' && hadMonitoringIssue ? 'watching' : watch.status || 'watching',
+      status,
     },
   };
 };

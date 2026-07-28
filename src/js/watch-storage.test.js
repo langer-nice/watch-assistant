@@ -107,10 +107,114 @@ test('notifies the current page immediately after Watch state changes', async ()
       JSON.parse(storage.getItem('watchAssistant.watches'))[0].latestChange,
       'A new update.',
     );
+    assert.equal(
+      JSON.parse(storage.getItem('watchAssistant.watches'))[0].currentStatus,
+      'updated',
+    );
   } finally {
     if (originalStorage === undefined) delete globalThis.localStorage;
     else globalThis.localStorage = originalStorage;
     if (originalWindow === undefined) delete globalThis.window;
     else globalThis.window = originalWindow;
+  }
+});
+
+test('repeated localStorage reads do not duplicate a legacy migration Update', async () => {
+  const originalStorage = globalThis.localStorage;
+  const storage = createStorage({
+    'watchAssistant.watches': JSON.stringify([{
+      id: 'legacy-repeat',
+      title: 'Stored Watch',
+      latestChange: 'Stored update',
+      latestChangeAt: '2026-07-27T10:00:00Z',
+      createdAt: '2026-07-26T10:00:00Z',
+      status: 'updated',
+    }]),
+    'watchAssistant.htmlEntityDecodeVersion': '1',
+  });
+  globalThis.localStorage = storage;
+
+  try {
+    const { getStoredWatches } = await import('./watch-storage.js?repeat-update-migration');
+    const first = getStoredWatches();
+    const second = getStoredWatches();
+    const persisted = JSON.parse(storage.getItem('watchAssistant.watches'));
+
+    assert.equal(first[0].updates.length, 1);
+    assert.deepEqual(second[0].updates, first[0].updates);
+    assert.deepEqual(persisted[0].updates, first[0].updates);
+  } finally {
+    if (originalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = originalStorage;
+  }
+});
+
+test('persists the Watch/Update foundation for a newly created Watch', async () => {
+  const originalStorage = globalThis.localStorage;
+  const storage = createStorage({
+    'watchAssistant.htmlEntityDecodeVersion': '1',
+  });
+  globalThis.localStorage = storage;
+
+  try {
+    const { addWatch } = await import('./watch-storage.js?new-update-foundation');
+    addWatch({
+      id: 'new-watch-with-history',
+      title: 'New Watch',
+      status: 'watching',
+      currentStatus: 'watching',
+      lastChecked: null,
+      lastUpdated: null,
+      updates: [],
+    });
+
+    const persisted = JSON.parse(storage.getItem('watchAssistant.watches'))[0];
+    assert.equal(persisted.currentStatus, 'watching');
+    assert.equal(persisted.lastChecked, null);
+    assert.equal(persisted.lastUpdated, null);
+    assert.deepEqual(persisted.updates, []);
+  } finally {
+    if (originalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = originalStorage;
+  }
+});
+
+test('the storage helper marks one Update read without deleting its Watch or history', async () => {
+  const originalStorage = globalThis.localStorage;
+  const storage = createStorage({
+    'watchAssistant.watches': JSON.stringify([{
+      id: 'stored-history',
+      title: 'Stored history',
+      status: 'updated',
+      currentStatus: 'updated',
+      updates: [
+        {
+          id: 'read-me',
+          timestamp: '2026-07-28T10:00:00Z',
+          sourceUrl: 'https://example.com/update',
+          sourceTitle: 'Update',
+          sourceDomain: 'example.com',
+          summary: 'A stored update.',
+          status: 'new',
+        },
+      ],
+    }]),
+    'watchAssistant.htmlEntityDecodeVersion': '1',
+  });
+  globalThis.localStorage = storage;
+
+  try {
+    const { markUpdateAsRead } = await import('./watch-storage.js?mark-update-read');
+    const result = markUpdateAsRead('stored-history', 'read-me');
+    const persisted = JSON.parse(storage.getItem('watchAssistant.watches'));
+
+    assert.equal(result.updates[0].status, 'read');
+    assert.equal(persisted.length, 1);
+    assert.equal(persisted[0].id, 'stored-history');
+    assert.equal(persisted[0].updates.length, 1);
+    assert.equal(persisted[0].updates[0].status, 'read');
+  } finally {
+    if (originalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = originalStorage;
   }
 });

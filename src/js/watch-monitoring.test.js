@@ -344,6 +344,13 @@ test('a strong story identifier creates one candidate with explainable evidence'
   assert.equal(result.changes.candidateUpdates[0].status, 'candidate');
   assert.equal(result.changes.unreadUpdateCount, 1);
   assert.equal(result.changes.latestUpdateAt, checkedAt);
+  assert.equal(result.changes.currentStatus, 'updated');
+  assert.equal(result.changes.lastUpdated, checkedAt);
+  assert.deepEqual(result.changes.updates.map(({ id, status }) => ({ id, status })), [
+    { id: 'match', status: 'new' },
+  ]);
+  assert.equal(result.changes.updates[0].sourceDomain, 'example.com');
+  assert.equal(result.changes.updates[0].rawMonitoringResult.id, 'match');
 });
 
 test('a precise place only matches when combined with identifying event context', () => {

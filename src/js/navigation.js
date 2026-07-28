@@ -64,6 +64,7 @@ import {
   MonitoringCheckError,
   normalizeFeedUrl,
 } from './watch-monitoring.js';
+import { waitForVisiblePaint } from './browser-paint.js';
 import { getStoryProfileIdentifiers, synchronizeStoryProfile } from './story-profile.js';
 import {
   getAnalysisProvenanceMessageKey,
@@ -667,6 +668,7 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, optio
     whyFollowing: whyFollowing.trim(),
     ...derivedData,
     status: 'watching',
+    currentStatus: 'watching',
     monitoringStatus: {
       state: missingMonitoringSource ? 'setup-required' : 'configured',
       reason: missingMonitoringSource ? 'no-compatible-source' : null,
@@ -678,6 +680,8 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, optio
     firstCheckCompletesAt: new Date(Date.now() + FIRST_MONITORING_DELAY).toISOString(),
     createdAt: now,
     lastChecked: null,
+    lastUpdated: null,
+    updates: [],
     requiresAttention: false,
     latestChange: null,
     latestChangeAt: null,
@@ -1415,6 +1419,7 @@ const renderWatchDetail = () => {
         checkFeedbackEl.hidden = false;
       }
       try {
+        await waitForVisiblePaint();
         if (import.meta.env.DEV) {
           console.info('[Watch monitoring] Check requested', { watchId: watch.id });
         }

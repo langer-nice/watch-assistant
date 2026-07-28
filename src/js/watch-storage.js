@@ -1,6 +1,7 @@
 import { mockWatches } from './data/mock-watches.js';
 import { normalizeWatchCreationDate } from './watch-dates.js';
 import { migrateWatchModel } from './watch-model.js';
+import { markUpdateAsRead as markStoredUpdateAsRead } from './watch-updates.js';
 
 const STORAGE_KEY = 'watchAssistant.watches';
 const DELETED_WATCHES_STORAGE_KEY = 'watchAssistant.deletedWatchIds';
@@ -177,7 +178,7 @@ export function getWatches() {
   const customWatches = stored.filter(
     (watch) => !mockIds.has(watch.id) && !deletedIds.has(watch.id),
   );
-  return normalizeWatchCreationDates([...seededWatches, ...customWatches]);
+  return normalizeWatchModels(normalizeWatchCreationDates([...seededWatches, ...customWatches]));
 }
 
 export function getDemoWatches() {
@@ -201,15 +202,16 @@ export function hydrateWatchStorage() {
 }
 
 export function addWatch(watch) {
+  const normalizedWatch = migrateWatchModel(watch).watch;
   const stored = getStoredWatches();
-  const existingIndex = stored.findIndex((item) => item.id === watch.id);
+  const existingIndex = stored.findIndex((item) => item.id === normalizedWatch.id);
   if (existingIndex >= 0) {
-    stored[existingIndex] = watch;
+    stored[existingIndex] = normalizedWatch;
   } else {
-    stored.push(watch);
+    stored.push(normalizedWatch);
   }
   saveWatches(stored);
-  saveDeletedWatchIds(getDeletedWatchIds().filter((id) => id !== watch.id));
+  saveDeletedWatchIds(getDeletedWatchIds().filter((id) => id !== normalizedWatch.id));
   notifyWatchStorageChanged();
 }
 
@@ -219,9 +221,22 @@ export function updateWatch(id, changes) {
     return null;
   }
 
-  const updatedWatch = { ...currentWatch, ...changes, id };
+  const updatedWatch = {
+    ...currentWatch,
+    ...changes,
+    ...('status' in changes && !('currentStatus' in changes)
+      ? { currentStatus: changes.status }
+      : {}),
+    id,
+  };
   addWatch(updatedWatch);
   return updatedWatch;
+}
+
+export function markUpdateAsRead(watchId, updateId) {
+  const watch = getWatchById(watchId);
+  if (!watch) return null;
+  return markStoredUpdateAsRead(watch, updateId, { persist: addWatch });
 }
 
 export function deleteWatch(id) {

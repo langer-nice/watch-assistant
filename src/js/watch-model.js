@@ -9,8 +9,9 @@ import {
   inferWatchCategory,
   normalizeWatchCategory,
 } from './watch-category.js';
+import { getLatestUpdate, migrateLegacyWatchUpdates } from './watch-updates.js';
 
-export const WATCH_MODEL_VERSION = 8;
+export const WATCH_MODEL_VERSION = 9;
 
 const TECHNICAL_ATTENTION_REASONS = new Set([
   'monitoring-source-missing',
@@ -187,6 +188,8 @@ export const migrateWatchModel = (watch) => {
   const status = watch.status === 'paused' || watch.status === 'completed'
     ? watch.status
     : actionRequired ? 'attention' : watch.status === 'attention' ? 'watching' : watch.status || 'watching';
+  const updates = migrateLegacyWatchUpdates(watch, candidateUpdates);
+  const latestUpdate = getLatestUpdate({ updates });
   // Older models did not record provenance, so preserve their stored category conservatively.
   const categorySource = watch.categorySource === 'manual' || (
     watch.categorySource !== 'inferred' && watch.category
@@ -260,6 +263,10 @@ export const migrateWatchModel = (watch) => {
     attentionReason: actionRequired && !legacyTechnicalReason ? watch.attentionReason || null : null,
     requiresAttention: actionRequired,
     status,
+    currentStatus: watch.currentStatus || status,
+    lastChecked: watch.lastChecked ?? null,
+    lastUpdated: latestUpdate?.timestamp || watch.lastUpdated || null,
+    updates,
     lastCheckResult: watch.lastCheckResult || watch.lastCheckOutcome || null,
     lastCheckAttempt: normalizeLastCheckAttempt(watch.lastCheckAttempt),
   };
