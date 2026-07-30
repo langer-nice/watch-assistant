@@ -25,7 +25,7 @@ export const normalizeMonitoringSource = (source) => {
 
 export const requestMonitoringSource = async (
   request,
-  { language = 'en', fetchImpl = fetch } = {},
+  { language = 'en', fetchImpl = fetch, signal } = {},
 ) => {
   let response;
   try {
@@ -33,8 +33,10 @@ export const requestMonitoringSource = async (
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ request, language }),
+      signal,
     });
-  } catch {
+  } catch (error) {
+    if (error?.name === 'AbortError') throw error;
     throw new SourceDiscoveryError('DISCOVERY_UNAVAILABLE');
   }
   const result = await response.json().catch(() => null);
@@ -45,4 +47,21 @@ export const requestMonitoringSource = async (
     );
   }
   return monitoringSource;
+};
+
+export const resolveUrlMonitoringSource = async (
+  analysis,
+  options = {},
+) => {
+  const existingSource = normalizeMonitoringSource(analysis?.monitoringSource);
+  if (existingSource) {
+    return { ...analysis, monitoringSource: existingSource };
+  }
+  const request = [analysis?.sourceTitle, analysis?.source]
+    .filter((value) => typeof value === 'string' && value.trim())
+    .map((value) => value.trim())
+    .join(' ');
+  if (!request) throw new SourceDiscoveryError('NO_COMPATIBLE_SOURCE');
+  const monitoringSource = await requestMonitoringSource(request, options);
+  return { ...analysis, monitoringSource };
 };

@@ -28,6 +28,9 @@ test('Create preflights source support before disabling actions and persists onc
   const createHandler = navigation.match(
     /reviewCreate\?\.addEventListener\('click',[\s\S]*?reviewCancel\?\.addEventListener/,
   )?.[0] || '';
+  const completion = navigation.match(
+    /const completeWatchCreation = \(watch\) => \{[\s\S]*?const finishModalTransition/,
+  )?.[0] || '';
   const unsupportedIndex = createHandler.indexOf('!createOptions.feedUrl && !analysis.monitoringSource');
   const creationIndex = createHandler.indexOf('creationInProgress = true');
   const disableIndex = createHandler.indexOf('control.disabled = true');
@@ -38,6 +41,30 @@ test('Create preflights source support before disabling actions and persists onc
   assert.match(createHandler, /input\?\.focus\(\)/);
   assert.equal((createHandler.match(/completeWatchCreation\(createWatchObject\(/g) || []).length, 1);
   assert.match(createHandler, /completeWatchUpdate\(pendingRequest, pendingWhyFollowing, analysis\)/);
+  assert.equal((completion.match(/addWatch\(watch\)/g) || []).length, 1);
+  assert.match(completion, /window\.location\.href = getCreatedWatchDetailHref\(watch\.id\)/);
+  assert.ok(completion.indexOf('addWatch(watch)') < completion.indexOf('getCreatedWatchDetailHref(watch.id)'));
+});
+
+test('successful review waits for one resolved source and carries it unchanged into persistence', async () => {
+  const navigation = await read('./navigation.js');
+  const analysisFlow = navigation.match(
+    /const startUrlAnalysis = async[\s\S]*?const resetUrlFlow/,
+  )?.[0] || '';
+  const createHandler = navigation.match(
+    /reviewCreate\?\.addEventListener\('click',[\s\S]*?reviewCancel\?\.addEventListener/,
+  )?.[0] || '';
+
+  assert.equal((analysisFlow.match(/resolveUrlMonitoringSource\(/g) || []).length, 1);
+  assert.match(analysisFlow, /await resolveUrlMonitoringSource\(analysis/);
+  assert.match(analysisFlow, /showReview\(resolvedAnalysis\)/);
+  assert.ok(
+    analysisFlow.indexOf('await resolveUrlMonitoringSource(analysis')
+      < analysisFlow.indexOf('showReview(resolvedAnalysis)'),
+  );
+  assert.match(createHandler, /const analysis = \{\s*\.\.\.pendingAnalysis/);
+  assert.doesNotMatch(createHandler, /requestMonitoringSource|resolveUrlMonitoringSource/);
+  assert.equal((createHandler.match(/completeWatchCreation\(createWatchObject\(/g) || []).length, 1);
 });
 
 test('Edit preserves review values and Cancel exits through the validated reset flow', async () => {

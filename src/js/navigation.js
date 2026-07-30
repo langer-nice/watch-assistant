@@ -65,7 +65,11 @@ import {
   MonitoringCheckError,
   normalizeFeedUrl,
 } from './watch-monitoring.js';
-import { requestMonitoringSource } from './watch-source-discovery.js';
+import {
+  requestMonitoringSource,
+  resolveUrlMonitoringSource,
+  SourceDiscoveryError,
+} from './watch-source-discovery.js';
 import { waitForVisiblePaint } from './browser-paint.js';
 import { getMonitoringFailureMessageKey } from './watch-monitoring-errors.js';
 import {
@@ -2845,6 +2849,7 @@ export function initForm() {
     analysisInProgress = true;
     pendingRequest = request;
     pendingWhyFollowing = whyFollowing;
+    pendingAnalysis = null;
     trackProductEvent(PRODUCT_EVENTS.URL_ANALYSIS_STARTED);
     form.classList.add('is-analysing');
     setCreationControlsDisabled(true);
@@ -2878,9 +2883,20 @@ export function initForm() {
         signal: controller.signal,
       });
       if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
-      showReview(analysis);
+      const resolvedAnalysis = await resolveUrlMonitoringSource(analysis, {
+        language: getLanguage(),
+        signal: controller.signal,
+      });
+      if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
+      showReview(resolvedAnalysis);
     } catch (error) {
       if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
+      if (error instanceof SourceDiscoveryError) {
+        resetUrlFlow({ clearInput: false });
+        if (watchError) watchError.textContent = t('newWatch.monitoringSourceUnsupported');
+        input?.focus();
+        return;
+      }
       console.error('URL analysis failed:', error);
       showReview({
         status: 'failure',

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   normalizeMonitoringSource,
   requestMonitoringSource,
+  resolveUrlMonitoringSource,
 } from './watch-source-discovery.js';
 import { createWatchCheckController } from './watch-monitoring.js';
 
@@ -57,4 +58,69 @@ test('empty and malformed discovered source data remains safe', async () => {
       code: 'NO_COMPATIBLE_SOURCE',
     }), { status: 422 }),
   }), (error) => error.code === 'NO_COMPATIBLE_SOURCE');
+});
+
+test('URL review reuses the webpage-discovered source without a second request', async () => {
+  const monitoringSource = {
+    url: 'https://example.com/feed.xml',
+    type: 'atom',
+    title: 'Example updates',
+    discovery: 'html-alternate',
+  };
+  const analysis = await resolveUrlMonitoringSource({
+    status: 'success',
+    sourceTitle: 'Example article',
+    source: 'Example',
+    monitoringSource,
+  }, {
+    fetchImpl: async () => {
+      assert.fail('an already validated webpage feed must not trigger fallback discovery');
+    },
+  });
+
+  assert.deepEqual(analysis.monitoringSource, monitoringSource);
+});
+
+test('BBC News analysis receives one validated source before the successful review', async () => {
+  const requests = [];
+  const analysis = await resolveUrlMonitoringSource({
+    status: 'success',
+    sourceTitle: 'Brain fog and four easy ways to help fix it',
+    source: 'BBC News',
+    sourceUrl: 'https://www.bbc.com/news/articles/c87ydw7xdxvo',
+    monitoringSource: null,
+  }, {
+    language: 'en',
+    fetchImpl: async (path, options) => {
+      requests.push({ path, options });
+      return new Response(JSON.stringify({
+        monitoringSource: {
+          url: 'https://news.google.com/rss/search?q=Brain+fog+BBC+News',
+          type: 'rss',
+          title: 'Brain fog BBC News - Google News',
+          discovery: 'news-search',
+        },
+      }), { status: 200 });
+    },
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].path, '/api/monitoring-source');
+  assert.deepEqual(JSON.parse(requests[0].options.body), {
+    request: 'Brain fog and four easy ways to help fix it BBC News',
+    language: 'en',
+  });
+  assert.equal(analysis.sourceUrl, 'https://www.bbc.com/news/articles/c87ydw7xdxvo');
+  assert.equal(analysis.monitoringSource.discovery, 'news-search');
+  assert.match(analysis.monitoringSource.url, /^https:\/\/news\.google\.com\/rss\/search/);
+});
+
+test('aborted URL source discovery does not become an unsupported-source failure', async () => {
+  const abortError = new DOMException('The operation was aborted.', 'AbortError');
+  await assert.rejects(resolveUrlMonitoringSource({
+    sourceTitle: 'BBC article',
+    source: 'BBC News',
+  }, {
+    fetchImpl: async () => { throw abortError; },
+  }), (error) => error === abortError);
 });
