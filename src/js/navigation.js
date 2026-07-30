@@ -3526,10 +3526,6 @@ export function initForm() {
       return;
     }
 
-    creationInProgress = true;
-    [reviewCreate, reviewEdit, reviewCancel].forEach((control) => {
-      if (control) control.disabled = true;
-    });
     const analysis = {
       ...pendingAnalysis,
       status: 'success',
@@ -3540,10 +3536,15 @@ export function initForm() {
     };
     const createOptions = getCreateOptions();
     if (!isEditMode && !createOptions.feedUrl && !analysis.monitoringSource) {
+      resetUrlFlow({ clearInput: false });
       if (watchError) watchError.textContent = t('newWatch.monitoringSourceUnsupported');
-      review?.focus();
+      input?.focus();
       return;
     }
+    creationInProgress = true;
+    [reviewCreate, reviewEdit, reviewCancel].forEach((control) => {
+      if (control) control.disabled = true;
+    });
     if (isEditMode) {
       await completeWatchUpdate(pendingRequest, pendingWhyFollowing, analysis);
     } else {
