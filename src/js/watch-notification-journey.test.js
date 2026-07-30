@@ -20,11 +20,14 @@ test('Detail renders persisted history before marking only displayed unread Upda
     || '';
   const renderIndex = detailRenderer.indexOf('monitoringUpdatesListEl.innerHTML');
   const visibleIndex = detailRenderer.indexOf('monitoringUpdatesEl.hidden = monitoringUpdates.length === 0');
-  const readIndex = detailRenderer.indexOf('queueMicrotask(() => markUpdatesAsRead(watch.id, displayedUnreadUpdateIds))');
+  const readIndex = detailRenderer.indexOf('queueMicrotask(() => markUpdatesAsRead(watch.id, readableUpdateIds))');
 
   assert.match(detailRenderer, /getWatchUpdates\(watch\)\.reverse\(\)/);
   assert.match(detailRenderer, /filter\(\(\{ status: updateStatus \}\) => updateStatus === 'new'\)/);
   assert.ok(renderIndex >= 0 && visibleIndex > renderIndex && readIndex > visibleIndex);
+  assert.match(detailRenderer, /!detailCheckInProgress/);
+  assert.match(detailRenderer, /!detailDeferredReadUpdateIds\.has\(getDeferredReadKey\(watch\.id, updateId\)\)/);
+  assert.match(detailRenderer, /result\.matchedItems\.forEach/);
   assert.match(detailRenderer, /item\.sourceTitle \|\| item\.summary/);
   assert.match(detailRenderer, /formatMonitoringTimestamp\(item\.timestamp\)/);
   assert.match(detailRenderer, /1970-01-01T00:00:00\.000Z[\s\S]*?localizeField\(watch, 'latestChangeAt'\)/);

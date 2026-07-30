@@ -65,9 +65,14 @@ import {
   MonitoringCheckError,
   normalizeFeedUrl,
 } from './watch-monitoring.js';
+import { requestMonitoringSource } from './watch-source-discovery.js';
 import { waitForVisiblePaint } from './browser-paint.js';
 import { getMonitoringFailureMessageKey } from './watch-monitoring-errors.js';
-import { getStoryProfileIdentifiers, synchronizeStoryProfile } from './story-profile.js';
+import {
+  createStoryProfile,
+  getStoryProfileIdentifiers,
+  synchronizeStoryProfile,
+} from './story-profile.js';
 import {
   getAnalysisProvenanceMessageKey,
   getMonitoringHealthPresentation,
@@ -97,6 +102,8 @@ let detailConfirmationAutoTimer = null;
 let detailConfirmationHideTimer = null;
 let detailCheckInProgress = false;
 let detailCheckErrorWatchId = null;
+const detailDeferredReadUpdateIds = new Set();
+const getDeferredReadKey = (watchId, updateId) => `${watchId}\u0000${updateId}`;
 let detailCreatedWatchId = null;
 let firstMonitoringTimer = null;
 let firstMonitoringTransitionTimer = null;
@@ -611,27 +618,32 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     : urlAnalysis?.storyFingerprint;
   const sourceStoryProfile = urlAnalysis?.storyProfile || options.storyProfile || null;
   const storyProfile = isUrlRequest
-    && options.monitoringConceptsManuallyEdited === true
-    && Array.isArray(storyFingerprint)
-    ? synchronizeStoryProfile(
-      sourceStoryProfile,
+    ? options.monitoringConceptsManuallyEdited === true && Array.isArray(storyFingerprint)
+      ? synchronizeStoryProfile(
+        sourceStoryProfile,
+        storyFingerprint,
+        storyFingerprint
+          .filter((concept) => !(urlAnalysis?.storyFingerprint || []).some((original) => (
+            normalizeComparableText(original?.label) === normalizeComparableText(concept?.label)
+          )))
+          .map(({ label }) => label),
+      )
+      : sourceStoryProfile
+    : createStoryProfile({
       storyFingerprint,
-      storyFingerprint
-        .filter((concept) => !(urlAnalysis?.storyFingerprint || []).some((original) => (
-          normalizeComparableText(original?.label) === normalizeComparableText(concept?.label)
-        )))
-        .map(({ label }) => label),
-    )
-    : sourceStoryProfile;
+      profile: { storySummary: options.monitoringSummary || request },
+      sourceTitle: request,
+    });
   const monitoringUrl = normalizeFeedUrl(
-    options.feedUrl || urlAnalysis?.monitoringSource?.url || '',
+    options.feedUrl || options.monitoringSource?.url || urlAnalysis?.monitoringSource?.url || '',
   );
+  const automaticMonitoringSource = options.monitoringSource || urlAnalysis?.monitoringSource;
   const monitoringSource = monitoringUrl
     ? {
       url: monitoringUrl,
-      type: urlAnalysis?.monitoringSource?.type || 'feed',
-      title: urlAnalysis?.monitoringSource?.title || null,
-      discovery: options.feedUrl ? 'manual' : urlAnalysis?.monitoringSource?.discovery || 'manual',
+      type: automaticMonitoringSource?.type || 'feed',
+      title: automaticMonitoringSource?.title || null,
+      discovery: options.feedUrl ? 'manual' : automaticMonitoringSource?.discovery || 'manual',
     }
     : null;
   return {
@@ -675,7 +687,7 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
 const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, options = {}) => {
   const now = new Date().toISOString();
   const derivedData = deriveWatchData(request, urlAnalysis, options);
-  const missingMonitoringSource = derivedData.inputType === 'url' && !derivedData.monitoringSource;
+  const missingMonitoringSource = !derivedData.monitoringSource;
   return {
     id: crypto.randomUUID(),
     request,
@@ -1420,8 +1432,17 @@ const renderWatchDetail = () => {
     && monitoringUpdatesListEl
     && !monitoringUpdatesEl.hidden
     && displayedUnreadUpdateIds.length
+    && !detailCheckInProgress
   ) {
-    queueMicrotask(() => markUpdatesAsRead(watch.id, displayedUnreadUpdateIds));
+    const readableUpdateIds = displayedUnreadUpdateIds.filter(
+      (updateId) => !detailDeferredReadUpdateIds.has(getDeferredReadKey(watch.id, updateId)),
+    );
+    if (readableUpdateIds.length) {
+      queueMicrotask(() => markUpdatesAsRead(watch.id, readableUpdateIds));
+    }
+    displayedUnreadUpdateIds.forEach((updateId) => (
+      detailDeferredReadUpdateIds.delete(getDeferredReadKey(watch.id, updateId))
+    ));
   }
 
   if (preparingEl) {
@@ -1465,6 +1486,9 @@ const renderWatchDetail = () => {
           console.info('[Watch monitoring] Check requested', { watchId: watch.id });
         }
         const result = await watchCheckController.check(watch.id);
+        result.matchedItems.forEach(({ id }) => (
+          detailDeferredReadUpdateIds.add(getDeferredReadKey(watch.id, id))
+        ));
         detailCheckErrorWatchId = null;
         setBriefingGeneratedAt(result.changes.lastChecked);
       } catch (error) {
@@ -2607,12 +2631,27 @@ export function initForm() {
       });
       return;
     }
+    const createOptions = getCreateOptions();
+    if (!createOptions.feedUrl) {
+      try {
+        createOptions.monitoringSource = await requestMonitoringSource(selectedRequest, {
+          language: getLanguage(),
+        });
+      } catch {
+        creationInProgress = false;
+        setCreationControlsDisabled(false);
+        setSubmitLabel();
+        if (watchError) watchError.textContent = t('newWatch.monitoringSourceUnsupported');
+        input?.focus();
+        return;
+      }
+    }
     const monitoringSummary = await generateMonitoringSummary(selectedRequest);
     const watch = createWatchObject(
       selectedRequest,
       whyFollowing,
       null,
-      { ...getCreateOptions(), monitoringSummary },
+      { ...createOptions, monitoringSummary },
     );
     if (useRequestAsTitle) watch.title = selectedRequest;
     if (createdAsWrittenAfterClarityWarning === true) {
@@ -3499,6 +3538,12 @@ export function initForm() {
       source: getSourceText(pendingAnalysis?.sourceName || pendingAnalysis?.source) || null,
       sourceUrl: pendingAnalysis?.sourceUrl || pendingRequest,
     };
+    const createOptions = getCreateOptions();
+    if (!isEditMode && !createOptions.feedUrl && !analysis.monitoringSource) {
+      if (watchError) watchError.textContent = t('newWatch.monitoringSourceUnsupported');
+      review?.focus();
+      return;
+    }
     if (isEditMode) {
       await completeWatchUpdate(pendingRequest, pendingWhyFollowing, analysis);
     } else {
@@ -3506,7 +3551,7 @@ export function initForm() {
         pendingRequest,
         pendingWhyFollowing,
         analysis,
-        getCreateOptions(),
+        createOptions,
       ));
     }
   });

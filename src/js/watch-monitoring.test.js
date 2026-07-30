@@ -9,6 +9,7 @@ import {
   MAX_SEEN_ITEM_IDS,
   normalizeFeedUrl,
   matchFeedItemToStory,
+  matchFeedItemToWatch,
   MonitoringCheckError,
   requestFeedCheck,
 } from './watch-monitoring.js';
@@ -484,6 +485,45 @@ test('unseen unrelated publications are counted but never stored as Watch update
     matchedCandidateCount: 0,
     storedUpdateCount: 0,
   });
+});
+
+test('a validated query-scoped source treats its returned feed items as matching evidence', () => {
+  const watch = {
+    id: 'query-watch',
+    request: 'US–Iran strikes BBC News',
+    monitoringSource: {
+      url: 'https://news.google.com/rss/search?q=US-Iran',
+      type: 'rss',
+      discovery: 'news-search',
+    },
+    monitoringSnapshot: { itemIds: ['existing'] },
+  };
+  const match = matchFeedItemToWatch(item('new-result', 'A new report from BBC News'), watch);
+  assert.equal(match.matched, true);
+  assert.deepEqual(match.evidence, [{
+    field: 'monitoringSource',
+    strength: 'strong',
+    label: watch.request,
+  }]);
+
+  const result = applyFeedCheckResult(watch, response(['new-result', 'existing']));
+  assert.equal(result.outcome, 'matching-items');
+  assert.equal(result.changes.updates.length, 1);
+  assert.equal(result.changes.updates[0].status, 'new');
+});
+
+test('a malformed or forged query-scoped source cannot bypass Story Profile matching', () => {
+  const itemResult = item('unrelated', 'An unrelated publication');
+  for (const monitoringSource of [
+    { url: 'https://example.com/feed.xml', discovery: 'news-search' },
+    { url: 'http://news.google.com/rss/search?q=topic', discovery: 'news-search' },
+    { url: 'https://news.google.com:8443/rss/search?q=topic', discovery: 'news-search' },
+    { url: 'https://user@news.google.com/rss/search?q=topic', discovery: 'news-search' },
+    { url: 'https://news.google.com/rss/search', discovery: 'news-search' },
+    { url: 'not a URL', discovery: 'news-search' },
+  ]) {
+    assert.equal(matchFeedItemToWatch(itemResult, { monitoringSource }).matched, false);
+  }
 });
 
 test('a strong story identifier creates one candidate with explainable evidence', () => {

@@ -3,6 +3,7 @@ import { resolve } from 'path';
 import { createUrlWatchMiddleware } from './server/url-watch-api.js';
 import { createRequestClarificationMiddleware } from './server/request-clarification-api.js';
 import { createCheckWatchMiddleware } from './server/check-watch-api.js';
+import { createMonitoringSourceMiddleware } from './server/monitoring-source-api.js';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -15,17 +16,20 @@ export default defineConfig(({ mode }) => {
     model: process.env.OPENAI_MODEL || env.OPENAI_MODEL || 'gpt-5.6-luna',
   });
   const checkWatchMiddleware = createCheckWatchMiddleware();
+  const monitoringSourceMiddleware = createMonitoringSourceMiddleware();
   const urlWatchPlugin = {
     name: 'url-watch-prototype-api',
     configureServer(server) {
       server.middlewares.use(middleware);
       server.middlewares.use(clarificationMiddleware);
       server.middlewares.use(checkWatchMiddleware);
+      server.middlewares.use(monitoringSourceMiddleware);
     },
     configurePreviewServer(server) {
       server.middlewares.use(middleware);
       server.middlewares.use(clarificationMiddleware);
       server.middlewares.use(checkWatchMiddleware);
+      server.middlewares.use(monitoringSourceMiddleware);
     },
   };
 

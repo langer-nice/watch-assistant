@@ -235,6 +235,7 @@
     "feedUrlPlaceholder": "https://example.com/feed.xml",
     "feedUrlHelper": "Facultatif. Utilisez ce champ uniquement pour surveiller un flux RSS ou Atom précis.",
     "feedUrlError": "Saisissez une URL de flux HTTP ou HTTPS valide sans identifiants.",
+    "monitoringSourceUnsupported": "Je n’ai trouvé aucune source publique compatible pour cette Watch. Précisez votre demande ou collez une page publique proposant des mises à jour.",
     "addNote": "+ Ajouter une note",
     "noteHeading": "Ajouter une note",
     "closeNote": "Fermer la note",

@@ -235,6 +235,7 @@
     "feedUrlPlaceholder": "https://example.com/feed.xml",
     "feedUrlHelper": "Optional. Use this only to monitor a specific RSS or Atom feed.",
     "feedUrlError": "Enter a valid HTTP or HTTPS feed URL without credentials.",
+    "monitoringSourceUnsupported": "I couldn’t find a supported public source for this Watch. Try a more specific request or paste a public webpage that offers updates.",
     "addNote": "+ Add note",
     "noteHeading": "Add note",
     "closeNote": "Close note",
