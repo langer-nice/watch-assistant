@@ -122,7 +122,7 @@
     "viewHomeReport": "View Home report",
     "title": "Watch detail",
     "createdTitle": "Your Watch has been created.",
-    "createdCopy": "I’m watching this now.",
+    "createdCopy": "Monitoring is active. I’ll check automatically for future updates.",
     "updatedTitle": "Watch updated",
     "updatedCopy": "Your changes have been saved.",
     "dismissCreated": "Dismiss confirmation",
@@ -164,8 +164,7 @@
     "noChangesFound": "No changes found.",
     "notCheckedYet": "Not checked yet",
     "checkFailedStatus": "Check failed",
-    "baselineCreated": "Monitoring baseline created. Future checks will identify later publications.",
-    "noNewUpdates": "No new publications found",
+    "noNewUpdates": "No changes detected since monitoring started.",
     "noMatchingUpdates": "New publications checked, but none matched this story",
     "newItemsFound": {
       "one": "Found {count} candidate story update. It has not been reviewed for significance.",

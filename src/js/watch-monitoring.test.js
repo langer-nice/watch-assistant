@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { getBriefingWatchGroups } from './watch-grouping.js';
 import {
+  activateWatchMonitoring,
   applyFeedCheckResult,
   createWatchCheckController,
   getMonitoringUpdates,
@@ -42,6 +43,39 @@ test('first successful check creates a baseline without false new updates', () =
     attemptedAt: checkedAt,
     outcome: 'baseline',
   });
+});
+
+test('creation activation stores the baseline before later checks compare against it', async () => {
+  let watch = {
+    id: 'watch-creation',
+    feedUrl: 'https://example.com/feed.xml',
+    monitoringState: 'preparing',
+  };
+  const responses = [response(['a', 'b']), response(['a', 'b'], '2026-07-26T13:00:00.000Z')];
+  const controller = createWatchCheckController({
+    getWatch: () => watch,
+    saveWatch: (_watchId, changes) => {
+      watch = { ...watch, ...changes };
+      return watch;
+    },
+    requestCheck: async () => responses.shift(),
+  });
+
+  const activation = await activateWatchMonitoring(watch.id, {
+    checkController: controller,
+    saveWatch: (_watchId, changes) => {
+      watch = { ...watch, ...changes };
+      return watch;
+    },
+  });
+  assert.equal(activation.outcome, 'baseline');
+  assert.equal(watch.monitoringState, 'monitoring');
+  assert.deepEqual(watch.monitoringSnapshot.itemIds, ['a', 'b']);
+  assert.equal(watch.firstCheckCompletedAt, checkedAt);
+
+  const firstManualCheck = await controller.check(watch.id);
+  assert.equal(firstManualCheck.outcome, 'no-new-items');
+  assert.deepEqual(firstManualCheck.newItems, []);
 });
 
 test('later checks detect only unseen IDs and repeated checks do not duplicate updates', () => {

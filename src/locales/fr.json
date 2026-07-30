@@ -122,7 +122,7 @@
     "viewHomeReport": "Voir le rapport d’accueil",
     "title": "Détails de la Watch",
     "createdTitle": "Votre Watch a été créée.",
-    "createdCopy": "Je la surveille maintenant.",
+    "createdCopy": "La surveillance est active. Je vérifierai automatiquement les prochaines mises à jour.",
     "updatedTitle": "Watch mise à jour",
     "updatedCopy": "Vos modifications ont été enregistrées.",
     "dismissCreated": "Fermer la confirmation",
@@ -164,8 +164,7 @@
     "noChangesFound": "Aucun changement détecté.",
     "notCheckedYet": "Pas encore vérifiée",
     "checkFailedStatus": "Échec de la vérification",
-    "baselineCreated": "Référence de surveillance créée. Les prochaines vérifications identifieront les publications ultérieures.",
-    "noNewUpdates": "Aucune nouvelle publication trouvée",
+    "noNewUpdates": "Aucun changement détecté depuis le début de la surveillance.",
     "noMatchingUpdates": "De nouvelles publications ont été vérifiées, mais aucune ne correspond à cette actualité",
     "newItemsFound": {
       "one": "{count} mise à jour candidate trouvée. Son importance n’a pas encore été évaluée.",

@@ -412,3 +412,17 @@ export const createWatchCheckController = ({
     isChecking: (watchId) => inFlight.has(watchId),
   };
 };
+
+export const activateWatchMonitoring = async (
+  watchId,
+  { checkController, saveWatch },
+) => {
+  const result = await checkController.check(watchId);
+  const checkedAt = result.changes.lastChecked;
+  const watch = saveWatch(watchId, {
+    monitoringState: 'monitoring',
+    firstCheckCompletedAt: checkedAt,
+    firstCheckCompletesAt: null,
+  });
+  return { ...result, watch };
+};

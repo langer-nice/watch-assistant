@@ -60,6 +60,7 @@ import {
   trackProductEventOnce,
 } from './analytics.js';
 import {
+  activateWatchMonitoring,
   createWatchCheckController,
   getMonitoringUpdates,
   MonitoringCheckError,
@@ -1518,7 +1519,7 @@ const renderWatchDetail = () => {
   if (checkFeedbackEl && !detailCheckInProgress) {
     const outcome = watch.lastCheckOutcome?.type;
     const outcomeKey = outcome === 'baseline'
-      ? 'detail.baselineCreated'
+      ? 'detail.noNewUpdates'
       : outcome === 'no-new-items'
         ? 'detail.noNewUpdates'
         : outcome === 'no-matching-items'
@@ -2351,11 +2352,20 @@ export function initForm() {
     refreshEditSaveState();
   };
 
-  const completeWatchCreation = (watch) => {
+  const completeWatchCreation = async (watch) => {
+    addWatch(watch);
+    try {
+      await activateWatchMonitoring(watch.id, {
+        checkController: watchCheckController,
+        saveWatch: updateWatch,
+      });
+    } catch (error) {
+      deleteWatch(watch.id);
+      throw error;
+    }
     trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, {
       input_type: watch.inputType === 'url' ? 'url' : 'text',
     });
-    addWatch(watch);
     sessionStorage.removeItem('watchAssistant.newWatchId');
     if (isOnboardingFirstWatch()) {
       completeOnboardingFirstWatch(watch.id);
@@ -2661,7 +2671,18 @@ export function initForm() {
     if (createdAsWrittenAfterClarityWarning === true) {
       watch.createdAsWrittenAfterClarityWarning = true;
     }
-    completeWatchCreation(watch);
+    try {
+      await completeWatchCreation(watch);
+    } catch (error) {
+      creationInProgress = false;
+      setCreationControlsDisabled(false);
+      setSubmitLabel();
+      if (watchError) {
+        const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
+        watchError.textContent = t(getMonitoringFailureMessageKey(code));
+      }
+      input?.focus();
+    }
   };
 
   const renderClarificationActions = () => {
@@ -3564,12 +3585,21 @@ export function initForm() {
     if (isEditMode) {
       await completeWatchUpdate(pendingRequest, pendingWhyFollowing, analysis);
     } else {
-      completeWatchCreation(createWatchObject(
-        pendingRequest,
-        pendingWhyFollowing,
-        analysis,
-        createOptions,
-      ));
+      try {
+        await completeWatchCreation(createWatchObject(
+          pendingRequest,
+          pendingWhyFollowing,
+          analysis,
+          createOptions,
+        ));
+      } catch (error) {
+        resetUrlFlow({ clearInput: false });
+        if (watchError) {
+          const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
+          watchError.textContent = t(getMonitoringFailureMessageKey(code));
+        }
+        input?.focus();
+      }
     }
   });
 

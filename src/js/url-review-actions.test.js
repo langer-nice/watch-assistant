@@ -29,7 +29,7 @@ test('Create preflights source support before disabling actions and persists onc
     /reviewCreate\?\.addEventListener\('click',[\s\S]*?reviewCancel\?\.addEventListener/,
   )?.[0] || '';
   const completion = navigation.match(
-    /const completeWatchCreation = \(watch\) => \{[\s\S]*?const finishModalTransition/,
+    /const completeWatchCreation = async \(watch\) => \{[\s\S]*?const finishModalTransition/,
   )?.[0] || '';
   const unsupportedIndex = createHandler.indexOf('!createOptions.feedUrl && !analysis.monitoringSource');
   const creationIndex = createHandler.indexOf('creationInProgress = true');
