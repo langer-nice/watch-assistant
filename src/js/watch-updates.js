@@ -81,13 +81,15 @@ const normalizeUpdates = (updates) => {
     .sort((first, second) => Date.parse(first.timestamp) - Date.parse(second.timestamp));
 };
 
+export const getWatchUpdates = (watch) => normalizeUpdates(watch?.updates);
+
 export const getLatestUpdate = (watch) => {
-  const updates = normalizeUpdates(watch?.updates);
+  const updates = getWatchUpdates(watch);
   return updates[updates.length - 1] || null;
 };
 
 export const getUnreadUpdates = (watch) => (
-  normalizeUpdates(watch?.updates).filter(({ status }) => status === 'new')
+  getWatchUpdates(watch).filter(({ status }) => status === 'new')
 );
 
 export const addUpdateToWatch = (watch, update) => {
@@ -103,6 +105,7 @@ export const addUpdateToWatch = (watch, update) => {
   if (duplicate) return {
     ...watch,
     updates,
+    unreadUpdateCount: getUnreadUpdates({ updates }).length,
     lastUpdated: getLatestUpdate({ updates })?.timestamp || watch.lastUpdated || null,
   };
 
@@ -118,31 +121,36 @@ export const addUpdateToWatch = (watch, update) => {
     ...watch,
     currentStatus,
     lastUpdated: updates[updates.length - 1].timestamp,
+    unreadUpdateCount: getUnreadUpdates({ updates }).length,
     updates,
   };
 };
 
-export const markUpdateAsRead = (watch, updateId, { persist } = {}) => {
-  if (!watch || typeof watch !== 'object' || !normalizeText(updateId)) return watch;
+export const markUpdatesAsRead = (watch, updateIds, { persist } = {}) => {
+  if (!watch || typeof watch !== 'object') return watch;
+  const requestedIds = new Set((Array.isArray(updateIds) ? updateIds : [])
+    .map(normalizeText).filter(Boolean));
+  if (!requestedIds.size) return watch;
   let changed = false;
   const updates = normalizeUpdates(watch.updates).map((update) => {
-    if (update.id !== updateId || update.status === 'read') return update;
+    if (!requestedIds.has(update.id) || update.status === 'read') return update;
     changed = true;
     return { ...update, status: 'read' };
   });
   if (!changed) return watch;
 
-  const hasUnreadUpdates = updates.some(({ status }) => status === 'new');
   const updatedWatch = {
     ...watch,
-    currentStatus: !hasUnreadUpdates && watch.currentStatus === 'updated'
-      ? 'watching'
-      : watch.currentStatus || watch.status || 'watching',
+    unreadUpdateCount: getUnreadUpdates({ updates }).length,
     updates,
   };
   if (typeof persist === 'function') persist(updatedWatch);
   return updatedWatch;
 };
+
+export const markUpdateAsRead = (watch, updateId, options) => (
+  markUpdatesAsRead(watch, [updateId], options)
+);
 
 const newestLegacyCandidate = (candidateUpdates) => [...candidateUpdates]
   .sort((first, second) => (
@@ -196,4 +204,3 @@ export const migrateLegacyWatchUpdates = (watch, candidateUpdates = []) => {
   }
   return [initial];
 };
-

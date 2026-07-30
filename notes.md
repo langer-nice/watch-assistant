@@ -18,7 +18,7 @@ git switch -c feature/micro
 
 # Changer de branche
 git switch master
-git switch feature/micro
+git switch feature/watch-notifications
 
 # Merge une branche dans master
 git switch master

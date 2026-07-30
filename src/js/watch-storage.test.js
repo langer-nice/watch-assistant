@@ -218,3 +218,45 @@ test('the storage helper marks one Update read without deleting its Watch or his
     else globalThis.localStorage = originalStorage;
   }
 });
+
+test('batch read state persists across storage reloads without clearing factual Updated status', async () => {
+  const originalStorage = globalThis.localStorage;
+  const storage = createStorage({
+    'watchAssistant.watches': JSON.stringify([{
+      id: 'batch-history',
+      title: 'Batch history',
+      status: 'watching',
+      currentStatus: 'updated',
+      updates: [
+        {
+          id: 'first-unread',
+          timestamp: '2026-07-28T10:00:00Z',
+          sourceTitle: 'First update',
+          status: 'new',
+        },
+        {
+          id: 'second-unread',
+          timestamp: '2026-07-28T11:00:00Z',
+          sourceTitle: 'Second update',
+          status: 'new',
+        },
+      ],
+    }]),
+    'watchAssistant.htmlEntityDecodeVersion': '1',
+  });
+  globalThis.localStorage = storage;
+
+  try {
+    const storageModule = await import('./watch-storage.js?mark-updates-read');
+    storageModule.markUpdatesAsRead('batch-history', ['first-unread', 'second-unread']);
+    const reloaded = storageModule.getWatchById('batch-history');
+
+    assert.deepEqual(reloaded.updates.map(({ status }) => status), ['read', 'read']);
+    assert.equal(reloaded.unreadUpdateCount, 0);
+    assert.equal(reloaded.currentStatus, 'updated');
+    assert.equal(reloaded.updates.length, 2);
+  } finally {
+    if (originalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = originalStorage;
+  }
+});

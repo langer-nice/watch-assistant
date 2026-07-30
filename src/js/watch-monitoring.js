@@ -1,5 +1,5 @@
 import { getStoryProfileIdentifiers } from './story-profile.js';
-import { addUpdateToWatch } from './watch-updates.js';
+import { addUpdateToWatch, getUnreadUpdates } from './watch-updates.js';
 import { MONITORING_FAILURE_CODES } from './watch-monitoring-errors.js';
 
 export const MAX_SNAPSHOT_ITEMS = 20;
@@ -245,9 +245,7 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
         outcome,
       },
       monitoringReviewStatus: detectedUpdates.length ? 'candidate' : watch.monitoringReviewStatus || null,
-      unreadUpdateCount: monitoringUpdates.filter((item) => (
-        ['candidate', 'unreviewed'].includes(item?.status)
-      )).length,
+      unreadUpdateCount: getUnreadUpdates(watchWithUpdates).length,
       latestUpdateAt,
       ...(detectedUpdates.length || Array.isArray(watch.updates) ? {
         currentStatus: ['attention', 'paused', 'completed'].includes(status)

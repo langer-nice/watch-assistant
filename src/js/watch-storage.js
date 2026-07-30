@@ -1,7 +1,10 @@
 import { mockWatches } from './data/mock-watches.js';
 import { normalizeWatchCreationDate } from './watch-dates.js';
 import { migrateWatchModel } from './watch-model.js';
-import { markUpdateAsRead as markStoredUpdateAsRead } from './watch-updates.js';
+import {
+  markUpdateAsRead as markStoredUpdateAsRead,
+  markUpdatesAsRead as markStoredUpdatesAsRead,
+} from './watch-updates.js';
 
 const STORAGE_KEY = 'watchAssistant.watches';
 const DELETED_WATCHES_STORAGE_KEY = 'watchAssistant.deletedWatchIds';
@@ -237,6 +240,12 @@ export function markUpdateAsRead(watchId, updateId) {
   const watch = getWatchById(watchId);
   if (!watch) return null;
   return markStoredUpdateAsRead(watch, updateId, { persist: addWatch });
+}
+
+export function markUpdatesAsRead(watchId, updateIds) {
+  const watch = getWatchById(watchId);
+  if (!watch) return null;
+  return markStoredUpdatesAsRead(watch, updateIds, { persist: addWatch });
 }
 
 export function deleteWatch(id) {

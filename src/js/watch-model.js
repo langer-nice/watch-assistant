@@ -9,9 +9,13 @@ import {
   inferWatchCategory,
   normalizeWatchCategory,
 } from './watch-category.js';
-import { getLatestUpdate, migrateLegacyWatchUpdates } from './watch-updates.js';
+import {
+  getLatestUpdate,
+  getUnreadUpdates,
+  migrateLegacyWatchUpdates,
+} from './watch-updates.js';
 
-export const WATCH_MODEL_VERSION = 9;
+export const WATCH_MODEL_VERSION = 10;
 
 const TECHNICAL_ATTENTION_REASONS = new Set([
   'monitoring-source-missing',
@@ -252,7 +256,7 @@ export const migrateWatchModel = (watch) => {
     } : {}),
     candidateUpdates,
     monitoringUpdates: candidateUpdates,
-    unreadUpdateCount: candidateUpdates.filter((item) => item?.status === 'candidate' || item?.status === 'unreviewed').length,
+    unreadUpdateCount: getUnreadUpdates({ updates }).length,
     latestUpdateAt: watch.latestUpdateAt || newestUpdateAt(candidateUpdates) || watch.latestChangeAt || null,
     monitoringStatus,
     monitoringIssueReason,

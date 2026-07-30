@@ -4,7 +4,9 @@ import {
   addUpdateToWatch,
   getLatestUpdate,
   getUnreadUpdates,
+  getWatchUpdates,
   markUpdateAsRead,
+  markUpdatesAsRead,
 } from './watch-updates.js';
 
 const update = (id, timestamp, overrides = {}) => ({
@@ -75,8 +77,65 @@ test('marks only the requested Update read, preserves history and persists the W
     { id: 'first', status: 'read' },
     { id: 'second', status: 'read' },
   ]);
-  assert.equal(result.currentStatus, 'watching');
+  assert.equal(result.currentStatus, 'updated');
+  assert.equal(result.unreadUpdateCount, 0);
   assert.equal(persisted, result);
   assert.equal(result.id, 'watch-1');
 });
 
+test('marks multiple displayed Updates read in one persisted transition', () => {
+  const watch = {
+    id: 'watch-batch',
+    currentStatus: 'updated',
+    unreadUpdateCount: 3,
+    updates: [
+      update('first', '2026-07-28T08:00:00Z'),
+      update('second', '2026-07-28T10:00:00Z'),
+      update('third', '2026-07-28T12:00:00Z'),
+    ],
+  };
+  let persistCount = 0;
+  const result = markUpdatesAsRead(watch, ['first', 'third'], {
+    persist: () => { persistCount += 1; },
+  });
+
+  assert.deepEqual(result.updates.map(({ status }) => status), ['read', 'new', 'read']);
+  assert.equal(result.unreadUpdateCount, 1);
+  assert.equal(result.currentStatus, 'updated');
+  assert.equal(persistCount, 1);
+});
+
+test('a later detection becomes unread without reopening previously read Updates', () => {
+  const readWatch = markUpdatesAsRead({
+    id: 'watch-later',
+    currentStatus: 'updated',
+    updates: [update('first', '2026-07-28T08:00:00Z')],
+  }, ['first']);
+  const result = addUpdateToWatch(readWatch, update('later', '2026-07-29T08:00:00Z'));
+
+  assert.deepEqual(result.updates.map(({ id, status }) => ({ id, status })), [
+    { id: 'first', status: 'read' },
+    { id: 'later', status: 'new' },
+  ]);
+  assert.equal(result.unreadUpdateCount, 1);
+  assert.equal(result.currentStatus, 'updated');
+});
+
+test('duplicate detections preserve an existing read state', () => {
+  const watch = {
+    id: 'watch-duplicate-read',
+    currentStatus: 'updated',
+    updates: [update('same', '2026-07-28T08:00:00Z', { status: 'read' })],
+  };
+  const result = addUpdateToWatch(watch, update('same', '2026-07-28T08:00:00Z'));
+
+  assert.equal(result.updates.length, 1);
+  assert.equal(result.updates[0].status, 'read');
+  assert.equal(result.unreadUpdateCount, 0);
+});
+
+test('empty and malformed Update histories remain safe to render', () => {
+  assert.deepEqual(getWatchUpdates({ updates: [null, {}, { timestamp: 'not-a-date' }] }), []);
+  assert.deepEqual(getUnreadUpdates({ updates: 'not-an-array' }), []);
+  assert.equal(markUpdatesAsRead(null, ['missing']), null);
+});

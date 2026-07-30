@@ -183,6 +183,7 @@
     },
     "monitoringUnavailable": "La source de surveillance est temporairement indisponible. Vous pouvez relancer la vérification.",
     "newItems": "Mises à jour candidates",
+    "updateHistory": "Historique des mises à jour",
     "untitledItem": "Élément sans titre",
     "pauseWatch": "Mettre la Watch en pause",
     "resumeWatch": "Reprendre la Watch",

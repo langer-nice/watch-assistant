@@ -8,6 +8,7 @@ import {
   getBriefingGeneratedAt,
   setBriefingGeneratedAt,
   resetStoredWatches,
+  markUpdatesAsRead,
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
 import { getLanguage, t } from './i18n.js';
@@ -82,6 +83,11 @@ import {
   inferWatchCategory,
   normalizeWatchCategory,
 } from './watch-category.js';
+import {
+  getLatestUpdate,
+  getUnreadUpdates,
+  getWatchUpdates,
+} from './watch-updates.js';
 
 let homeCreatedWatchId = null;
 let homeFirstWatchConfirmation = false;
@@ -377,9 +383,11 @@ const getLatestChange = (watch) => {
 };
 
 const getHomeUpdateText = (watch) => {
-  const monitoringUpdates = getMonitoringUpdates(watch);
-  return monitoringUpdates[0]?.title
-    || (monitoringUpdates.length ? t('detail.untitledItem') : getLatestChange(watch));
+  const latestUpdate = getLatestUpdate(watch);
+  return latestUpdate?.sourceTitle
+    || latestUpdate?.summary
+    || getLatestChange(watch)
+    || (latestUpdate ? t('detail.untitledItem') : '');
 };
 
 const getMonitoringHealthStatus = (watch) => {
@@ -749,7 +757,8 @@ const getHomeReport = () => {
 const renderHomeWatchCards = (watches) => watches
   .map((watch) => {
     const title = localizeField(watch, 'title');
-    const monitoringUpdates = getMonitoringUpdates(watch);
+    const unreadUpdates = getUnreadUpdates(watch);
+    const latestUpdate = getLatestUpdate(watch);
     const latestChange = getHomeUpdateText(watch);
     if (!hasMeaningfulText(title) || !hasMeaningfulText(latestChange)) {
       return '';
@@ -759,13 +768,15 @@ const renderHomeWatchCards = (watches) => watches
     const statusModifier = needsAttention ? 'attention' : 'updated';
     const status = t(needsAttention
       ? 'statuses.attention'
-      : monitoringUpdates.length ? 'statuses.new' : 'statuses.updated');
+      : unreadUpdates.length ? 'statuses.new' : 'statuses.updated');
+    const unreadStatus = needsAttention && unreadUpdates.length
+      ? `<span class="status-label status-label--updated">${escapeHtml(t('statuses.new'))}</span>`
+      : '';
     const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
     const categoryModifier = watch.category || 'general';
-    const latestChangeAt = monitoringUpdates[0]?.detectedAt
-      ? formatMonitoringTimestamp(monitoringUpdates[0].detectedAt)
+    const latestChangeAt = latestUpdate?.timestamp
+      ? formatMonitoringTimestamp(latestUpdate.timestamp)
       : localizeField(watch, 'latestChangeAt');
-    const latestMonitoringUpdate = monitoringUpdates[0];
 
     const link = renderWatchCardLink({
       watchId: watch.id,
@@ -774,13 +785,14 @@ const renderHomeWatchCards = (watches) => watches
           <div class="briefing-item__labels">
             <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
             <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
+            ${unreadStatus}
           </div>
           <h2>${escapeHtml(title)}</h2>
-          ${latestMonitoringUpdate
-    ? `<p>${escapeHtml(latestMonitoringUpdate.title || t('detail.untitledItem'))}</p>`
+          ${latestUpdate
+    ? `<p>${escapeHtml(latestUpdate.sourceTitle || latestUpdate.summary || t('detail.untitledItem'))}</p>`
     : `<p>${escapeHtml(latestChange)}</p>`}
-          ${monitoringUpdates.length > 1
-    ? `<p>${escapeHtml(t('home.newUpdateCount', { count: monitoringUpdates.length }))}</p>`
+          ${unreadUpdates.length > 1
+    ? `<p>${escapeHtml(t('home.newUpdateCount', { count: unreadUpdates.length }))}</p>`
     : ''}
           ${hasMeaningfulText(latestChangeAt)
     ? `<p class="briefing-item__time">${escapeHtml(latestChangeAt)}</p>`
@@ -854,7 +866,7 @@ const renderWatchList = () => {
       const status = attentionIds.has(watch.id)
         ? 'attention'
         : updatedIds.has(watch.id)
-          ? getMonitoringUpdates(watch).length ? 'new' : 'updated'
+          ? getUnreadUpdates(watch).length ? 'new' : 'updated'
           : monitoringHealthStatus || (['paused', 'completed'].includes(watch.status)
             ? watch.status
             : 'watching');
@@ -862,7 +874,10 @@ const renderWatchList = () => {
       const statusText = status === 'attention'
         ? t('watches.needsAttention')
         : t(`statuses.${status}`);
-      const statusLabel = `<span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(statusText)}</span>`;
+      const unreadStatusLabel = status === 'attention' && getUnreadUpdates(watch).length
+        ? `<span class="watch-row__status status-label status-label--updated">${escapeHtml(t('statuses.new'))}</span>`
+        : '';
+      const statusLabel = `<span class="watch-row__statuses"><span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(statusText)}</span>${unreadStatusLabel}</span>`;
       const showCreationMetadata = group.type === 'last7Days';
       const creationMetadata = showCreationMetadata
         ? formatWatchCreationMetadata(getWatchCreationDate(watch), {
@@ -1106,7 +1121,7 @@ const renderWatchDetail = () => {
     const statusKey = isUserActionRequired(watch)
       ? 'attention'
       : isCanonicallyUpdated
-        ? getMonitoringUpdates(watch).length ? 'new' : 'updated'
+        ? getUnreadUpdates(watch).length ? 'new' : 'updated'
         : getMonitoringHealthStatus(watch)
           || (STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking');
     const status = watch.status && t(`statuses.${statusKey}`);
@@ -1367,23 +1382,31 @@ const renderWatchDetail = () => {
     actionsSectionEl.hidden = renderedActions.length === 0;
   }
 
-  const monitoringUpdates = getMonitoringUpdates(watch);
+  const monitoringUpdates = getWatchUpdates(watch).reverse();
+  const displayedUnreadUpdateIds = monitoringUpdates
+    .filter(({ status: updateStatus }) => updateStatus === 'new')
+    .map(({ id }) => id);
   if (monitoringUpdatesListEl) {
     monitoringUpdatesListEl.innerHTML = monitoringUpdates
-      .map((item) => {
-        const itemUrl = getSafeExternalUrl(item.url);
-        const title = item.title || t('detail.untitledItem');
+      .map((item, index) => {
+        const itemUrl = getSafeExternalUrl(item.sourceUrl);
+        const legacyChange = index === 0 ? getLatestChange(watch) : '';
+        const title = item.sourceTitle || item.summary || legacyChange || t('detail.untitledItem');
+        const timestamp = item.timestamp === '1970-01-01T00:00:00.000Z'
+          ? localizeField(watch, 'latestChangeAt')
+          : formatMonitoringTimestamp(item.timestamp);
         const metadata = [
-          item.source,
-          item.publishedAt ? formatMonitoringTimestamp(item.publishedAt) : '',
+          item.sourceDomain,
+          timestamp,
         ].filter(Boolean).join(' · ');
+        const summary = item.summary && item.summary !== title ? item.summary : '';
         return `
           <li class="monitoring-update">
             ${itemUrl
     ? `<a href="${escapeHtml(itemUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)} <span aria-hidden="true">↗</span></a>`
     : `<p class="monitoring-update__title">${escapeHtml(title)}</p>`}
             ${metadata ? `<p class="monitoring-update__metadata">${escapeHtml(metadata)}</p>` : ''}
-            ${item.excerpt ? `<p>${escapeHtml(item.excerpt)}</p>` : ''}
+            ${summary ? `<p>${escapeHtml(summary)}</p>` : ''}
           </li>
         `;
       })
@@ -1391,6 +1414,14 @@ const renderWatchDetail = () => {
   }
   if (monitoringUpdatesEl) {
     monitoringUpdatesEl.hidden = monitoringUpdates.length === 0;
+  }
+  if (
+    monitoringUpdatesEl
+    && monitoringUpdatesListEl
+    && !monitoringUpdatesEl.hidden
+    && displayedUnreadUpdateIds.length
+  ) {
+    queueMicrotask(() => markUpdatesAsRead(watch.id, displayedUnreadUpdateIds));
   }
 
   if (preparingEl) {

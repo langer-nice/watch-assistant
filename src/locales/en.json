@@ -183,6 +183,7 @@
     },
     "monitoringUnavailable": "The monitoring source is temporarily unavailable. You can retry this check.",
     "newItems": "Candidate story updates",
+    "updateHistory": "Update history",
     "untitledItem": "Untitled item",
     "pauseWatch": "Pause Watch",
     "resumeWatch": "Resume Watch",

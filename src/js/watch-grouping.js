@@ -9,7 +9,11 @@ const getTimestamp = (...values) => {
 };
 
 const creationTimestamp = (watch) => getWatchCreationDate(watch)?.getTime() || 0;
-const updateTimestamp = (watch) => getTimestamp(watch.latestChangeAt, watch.updatedAt);
+const updateTimestamp = (watch) => getTimestamp(
+  watch.lastUpdated,
+  watch.latestChangeAt,
+  watch.updatedAt,
+);
 const activityTimestamp = (watch) => getTimestamp(
   watch.latestChangeAt,
   watch.updatedAt,
@@ -36,6 +40,7 @@ export const isUserActionRequired = (watch) => {
 
 export const getLatestWatchUpdateTimestamp = (watch) => getTimestamp(
   watch?.latestUpdateAt,
+  watch?.lastUpdated,
   watch?.candidateUpdates?.[0]?.detectedAt,
   watch?.monitoringUpdates?.[0]?.detectedAt,
   watch?.latestChangeAt,
