@@ -1,7 +1,15 @@
 import { createHash } from 'node:crypto';
+import http from 'node:http';
+import https from 'node:https';
+import { Readable } from 'node:stream';
 import he from 'he';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
-import { PublicUrlError, validatePublicUrl } from './public-url-security.js';
+import {
+  createPinnedLookup,
+  isPublicIpAddress,
+  PublicUrlError,
+  resolvePublicUrl,
+} from './public-url-security.js';
 
 const ENDPOINT = '/api/check-watch';
 export const MAX_BODY_BYTES = 4 * 1024;
@@ -258,6 +266,40 @@ const readLimitedText = async (response, maxBytes) => {
   return result;
 };
 
+const fetchPinnedPublicUrl = ({ url, addresses }, { headers, signal }) => new Promise((resolve, reject) => {
+  const transport = url.protocol === 'https:' ? https : http;
+  const request = transport.request(url, {
+    method: 'GET',
+    headers,
+    lookup: createPinnedLookup(addresses),
+    autoSelectFamily: true,
+    autoSelectFamilyAttemptTimeout: 250,
+    signal,
+  }, (response) => {
+    const remoteAddress = response.socket?.remoteAddress;
+    if (!remoteAddress || !isPublicIpAddress(remoteAddress)) {
+      response.destroy();
+      reject(new PublicUrlError(
+        'PRIVATE_ADDRESS',
+        'The URL connection did not use a public address.',
+      ));
+      return;
+    }
+    const responseHeaders = new Headers();
+    for (let index = 0; index < response.rawHeaders.length; index += 2) {
+      responseHeaders.append(response.rawHeaders[index], response.rawHeaders[index + 1]);
+    }
+    resolve({
+      status: response.statusCode || 0,
+      ok: response.statusCode >= 200 && response.statusCode < 300,
+      headers: responseHeaders,
+      body: Readable.toWeb(response),
+    });
+  });
+  request.once('error', reject);
+  request.end();
+});
+
 const fetchFeedWithinDeadline = async (sourceUrl, {
   fetchImpl,
   lookup,
@@ -265,18 +307,21 @@ const fetchFeedWithinDeadline = async (sourceUrl, {
   maxFeedBytes,
   maxRedirects,
 }) => {
-  let url = await validatePublicUrl(sourceUrl, { lookup });
+  let destination = await resolvePublicUrl(sourceUrl, { lookup });
   for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
     let response;
     try {
-      response = await fetchImpl(url, {
+      const requestOptions = {
         headers: {
           Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, text/plain;q=0.5',
           'User-Agent': 'WatchAssistantPrototype/1.0',
         },
         redirect: 'manual',
         signal,
-      });
+      };
+      response = fetchImpl
+        ? await fetchImpl(destination.url, requestOptions)
+        : await fetchPinnedPublicUrl(destination, requestOptions);
     } catch (error) {
       if (signal.aborted) {
         throw new CheckWatchError('TIMEOUT', 504, 'The feed request timed out.');
@@ -296,11 +341,16 @@ const fetchFeedWithinDeadline = async (sourceUrl, {
       if (!location || redirectCount === maxRedirects) {
         throw new CheckWatchError('TOO_MANY_REDIRECTS', 502, 'The feed redirected too many times.');
       }
-      const redirectedUrl = new URL(location, url).href;
+      let redirectedUrl;
+      try {
+        redirectedUrl = new URL(location, destination.url).href;
+      } catch {
+        throw new CheckWatchError('INVALID_REDIRECT', 502, 'The feed redirect is invalid.');
+      }
       if (redirectedUrl.length > MAX_SOURCE_URL_LENGTH) {
         throw new CheckWatchError('INVALID_REDIRECT', 502, 'The feed redirect is invalid.');
       }
-      url = await validatePublicUrl(redirectedUrl, { lookup });
+      destination = await resolvePublicUrl(redirectedUrl, { lookup });
       continue;
     }
     if (!response.ok) {
@@ -322,13 +372,13 @@ const fetchFeedWithinDeadline = async (sourceUrl, {
     if (!looksLikeFeedXml(xml)) {
       throw new CheckWatchError('NOT_A_FEED', 422, 'The document is not an RSS or Atom feed.');
     }
-    return { xml, finalUrl: url.href };
+    return { xml, finalUrl: destination.url.href };
   }
   throw new CheckWatchError('TOO_MANY_REDIRECTS', 502, 'The feed redirected too many times.');
 };
 
 export const fetchAndNormalizeFeed = async (sourceUrl, {
-  fetchImpl = fetch,
+  fetchImpl,
   lookup,
   timeoutMs = FETCH_TIMEOUT_MS,
   maxFeedBytes = MAX_FEED_BYTES,

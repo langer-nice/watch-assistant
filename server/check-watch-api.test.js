@@ -10,7 +10,12 @@ import {
   MAX_ITEMS,
   parseFeedXml,
 } from './check-watch-api.js';
-import { isPublicIpAddress, validatePublicUrl } from './public-url-security.js';
+import {
+  createPinnedLookup,
+  isPublicIpAddress,
+  resolvePublicUrl,
+  validatePublicUrl,
+} from './public-url-security.js';
 
 const fixture = async (name) => readFile(new URL(`fixtures/${name}`, import.meta.url), 'utf8');
 const publicLookup = async () => [{ address: '93.184.216.34', family: 4 }];
@@ -145,6 +150,30 @@ test('rejects forbidden protocols, credentials, localhost, local names, and priv
   }), /public address/i);
 });
 
+test('pins connections to the public addresses approved during validation', async () => {
+  let resolutionCount = 0;
+  const destination = await resolvePublicUrl('https://example.com/feed', {
+    lookup: async () => {
+      resolutionCount += 1;
+      return [{ address: '93.184.216.34', family: 4 }];
+    },
+  });
+  const pinnedLookup = createPinnedLookup(destination.addresses);
+  const selected = await new Promise((resolve, reject) => {
+    pinnedLookup('example.com', { family: 4 }, (error, address, family) => {
+      if (error) reject(error);
+      else resolve({ address, family });
+    });
+  });
+
+  assert.equal(resolutionCount, 1);
+  assert.deepEqual(selected, { address: '93.184.216.34', family: 4 });
+  assert.throws(
+    () => createPinnedLookup([{ address: '127.0.0.1', family: 4 }]),
+    /could not be resolved/i,
+  );
+});
+
 test('revalidates redirects and blocks a redirect to a private address', async () => {
   const fetchImpl = async () => new Response(null, {
     status: 302,
@@ -157,6 +186,42 @@ test('revalidates redirects and blocks a redirect to a private address', async (
       family: 4,
     }],
   }), /public address/i);
+
+  await assert.rejects(fetchAndNormalizeFeed('https://example.com/feed', {
+    fetchImpl: async () => new Response(null, {
+      status: 302,
+      headers: { location: 'http://[invalid-address' },
+    }),
+    lookup: publicLookup,
+  }), (error) => error.code === 'INVALID_REDIRECT');
+});
+
+test('resolves and validates every public redirect hop', async () => {
+  const resolvedHosts = [];
+  const requestedUrls = [];
+  const xml = await fixture('valid-rss.xml');
+  const result = await fetchAndNormalizeFeed('https://example.com/feed', {
+    lookup: async (hostname) => {
+      resolvedHosts.push(hostname);
+      return [{ address: '93.184.216.34', family: 4 }];
+    },
+    fetchImpl: async (url) => {
+      requestedUrls.push(String(url));
+      return requestedUrls.length === 1
+        ? new Response(null, {
+          status: 302,
+          headers: { location: 'https://feeds.example.net/world.xml' },
+        })
+        : new Response(xml, { headers: { 'content-type': 'application/rss+xml' } });
+    },
+  });
+
+  assert.deepEqual(resolvedHosts, ['example.com', 'feeds.example.net']);
+  assert.deepEqual(requestedUrls, [
+    'https://example.com/feed',
+    'https://feeds.example.net/world.xml',
+  ]);
+  assert.equal(result.items.length, 2);
 });
 
 test('enforces one total fetch timeout', async () => {

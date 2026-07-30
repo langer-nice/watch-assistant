@@ -3,9 +3,6 @@
   "functions": {
     "api/watch-suggestion.js": {
       "maxDuration": 60
-    },
-    "api/article-analysis-diagnostics.js": {
-      "maxDuration": 60
     }
   }
 }

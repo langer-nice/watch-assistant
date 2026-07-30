@@ -2300,9 +2300,10 @@ export function initForm() {
     sessionStorage.removeItem('watchAssistant.newWatchId');
     if (isOnboardingFirstWatch()) {
       completeOnboardingFirstWatch(watch.id);
-    } else {
-      markOnboardingCompleted();
+      window.location.href = 'index.html';
+      return;
     }
+    markOnboardingCompleted();
     window.location.href = getCreatedWatchDetailHref(watch.id);
   };
 

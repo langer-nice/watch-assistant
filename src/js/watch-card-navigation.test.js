@@ -122,6 +122,7 @@ test('a malformed Watch ID is skipped without breaking valid sibling links', () 
 test('application navigation has no inline onclick or string event dependency', async () => {
   const source = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /<[^>]+\sonclick\s*=|setAttribute\(['"]onclick|javascript:/i);
+  assert.match(source, /if \(isOnboardingFirstWatch\(\)\) \{[\s\S]*?completeOnboardingFirstWatch\(watch\.id\);[\s\S]*?window\.location\.href = 'index\.html';[\s\S]*?return;/);
   assert.match(source, /window\.location\.href = getCreatedWatchDetailHref\(watch\.id\)/);
 });
 

@@ -64,7 +64,7 @@ const isLocalHostname = (hostname) => {
     || normalized.endsWith('.home.arpa');
 };
 
-export const validatePublicUrl = async (value, { lookup = dns.lookup } = {}) => {
+export const resolvePublicUrl = async (value, { lookup = dns.lookup } = {}) => {
   let url;
   try {
     url = new URL(value);
@@ -91,9 +91,56 @@ export const validatePublicUrl = async (value, { lookup = dns.lookup } = {}) => 
   if (!Array.isArray(addresses) || !addresses.length) {
     throw new PublicUrlError('DNS_FAILURE', 'The hostname could not be resolved.');
   }
-  if (addresses.some(({ address }) => !isPublicIpAddress(address))) {
+  const normalizedAddresses = addresses
+    .map(({ address, family }) => ({
+      address,
+      family: Number(family) || net.isIP(address),
+    }))
+    .filter(({ address, family }) => typeof address === 'string' && [4, 6].includes(family));
+  if (normalizedAddresses.length !== addresses.length) {
+    throw new PublicUrlError('DNS_FAILURE', 'The hostname could not be resolved.');
+  }
+  if (normalizedAddresses.some(({ address }) => !isPublicIpAddress(address))) {
     throw new PublicUrlError('PRIVATE_ADDRESS', 'The URL does not resolve to a public address.');
   }
 
-  return url;
+  return { url, addresses: normalizedAddresses };
+};
+
+export const validatePublicUrl = async (value, options) => (
+  (await resolvePublicUrl(value, options)).url
+);
+
+export const createPinnedLookup = (addresses) => {
+  const approvedAddresses = (Array.isArray(addresses) ? addresses : [])
+    .filter(({ address, family }) => (
+      typeof address === 'string'
+      && [4, 6].includes(Number(family))
+      && isPublicIpAddress(address)
+    ));
+  if (!approvedAddresses.length) {
+    throw new PublicUrlError('DNS_FAILURE', 'The hostname could not be resolved.');
+  }
+
+  let nextAddress = 0;
+  return (_hostname, options, callback) => {
+    const lookupOptions = typeof options === 'number' ? { family: options } : options || {};
+    const requestedFamily = Number(lookupOptions.family) || 0;
+    const candidates = requestedFamily
+      ? approvedAddresses.filter(({ family }) => Number(family) === requestedFamily)
+      : approvedAddresses;
+    if (!candidates.length) {
+      const error = new Error('No approved address matches the requested address family.');
+      error.code = 'ENOTFOUND';
+      callback(error);
+      return;
+    }
+    if (lookupOptions.all) {
+      callback(null, candidates);
+      return;
+    }
+    const selected = candidates[nextAddress % candidates.length];
+    nextAddress += 1;
+    callback(null, selected.address, Number(selected.family));
+  };
 };
