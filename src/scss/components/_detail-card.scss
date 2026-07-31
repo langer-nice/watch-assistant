@@ -5,8 +5,10 @@
   box-shadow: var(--shadow-sm);
 }
 
-.detail-card > .section-heading {
-  padding: var(--space-lg) var(--space-lg) 0;
+.detail-panel > .section-heading {
+  margin: 0;
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+  border-bottom: 1px solid var(--color-divider);
 }
 
 .detail-card__primary {
@@ -85,7 +87,6 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-xl);
   padding: var(--space-lg);
-  border-top: 1px solid var(--color-divider);
 }
 
 .detail-card__metadata > section {
@@ -119,7 +120,7 @@
 }
 
 @media (min-width: 36rem) {
-  .detail-card > .section-heading {
+  .detail-panel > .section-heading {
     padding-inline: var(--space-xl);
   }
 

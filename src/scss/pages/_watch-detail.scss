@@ -581,7 +581,7 @@ body.is-watch-edit-open {
   border-radius: 0;
 }
 
-.page--detail.is-paused .detail-card > .section-heading {
+.page--detail.is-paused .detail-panel > .section-heading {
   padding: 0;
 }
 
@@ -868,27 +868,31 @@ body.is-watch-edit-open {
   display: grid;
   gap: 0;
   margin: 0;
-  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  padding: var(--space-lg);
   list-style: none;
 }
 
 .monitoring-update {
   display: grid;
   gap: var(--space-xxs);
-  padding: var(--space-md) 0;
+  min-width: 0;
 }
 
 .monitoring-update + .monitoring-update {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-xl);
   border-top: 1px solid var(--color-divider);
 }
 
 .monitoring-update a,
 .monitoring-update__title {
+  min-width: 0;
   margin: 0;
   color: var(--color-text);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .monitoring-update a {
@@ -902,15 +906,22 @@ body.is-watch-edit-open {
   text-underline-offset: 0.2em;
 }
 
-.monitoring-update p {
+.monitoring-update__description {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  line-height: 1.5;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
 }
 
 .monitoring-update .monitoring-update__metadata {
+  margin: 0;
+  color: var(--color-text-subtle);
   font-size: 0.75rem;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 @media (min-width: 36rem) {

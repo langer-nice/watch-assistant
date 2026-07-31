@@ -1425,7 +1425,7 @@ const renderWatchDetail = () => {
     ? `<a href="${escapeHtml(itemUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)} <span aria-hidden="true">↗</span></a>`
     : `<p class="monitoring-update__title">${escapeHtml(title)}</p>`}
             ${metadata ? `<p class="monitoring-update__metadata">${escapeHtml(metadata)}</p>` : ''}
-            ${summary ? `<p>${escapeHtml(summary)}</p>` : ''}
+            ${summary ? `<p class="monitoring-update__description">${escapeHtml(summary)}</p>` : ''}
           </li>
         `;
       })
