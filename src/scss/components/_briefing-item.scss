@@ -4,7 +4,7 @@
 
 .briefing-item__link {
   display: block;
-  padding: var(--space-lg) 0;
+  padding: var(--space-md) 0;
   color: var(--color-text);
   font-style: normal;
   text-decoration: none;
@@ -19,24 +19,55 @@
   border-radius: var(--radius-sm);
 }
 
-.briefing-item__labels {
-  display: flex;
+.briefing-item {
+  min-width: 0;
+  scroll-margin-top: calc(var(--app-header-height) + var(--space-md));
+}
+
+.briefing-item__header {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.briefing-item__metadata {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
   gap: var(--space-xs);
-  margin-bottom: var(--space-sm);
+  overflow: hidden;
+}
+
+.briefing-item__metadata .category-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.briefing-item__statuses {
+  display: inline-flex;
+  min-width: max-content;
+  align-items: center;
+  justify-self: end;
+  gap: var(--space-xs);
 }
 
 .briefing-item h2 {
   display: flex;
   align-items: flex-start;
   gap: var(--space-xs);
-  margin: 0 0 var(--space-sm);
+  margin: 0 0 var(--space-xs);
   font-size: var(--font-size-lg);
   font-style: normal;
   font-weight: var(--font-weight-bold);
   line-height: 1.18;
   letter-spacing: -0.025em;
   transition: color var(--transition-default);
+  overflow-wrap: anywhere;
 }
 
 .briefing-item h2 [aria-hidden='true'] {
@@ -44,21 +75,35 @@
 }
 
 .briefing-item p {
-  margin: 0 0 var(--space-sm);
+  margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.briefing-item > .briefing-item__link p + p {
+  margin-top: var(--space-xs);
 }
 
 .briefing-item .briefing-item__time {
-  margin-bottom: 0;
+  min-width: 0;
+  overflow: hidden;
   color: var(--color-text-subtle);
   font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .briefing-item__link:hover .editorial-link,
 .briefing-item__link:focus-visible .editorial-link {
   text-decoration: underline;
+}
+
+@media (max-width: 22rem) {
+  .briefing-item__header {
+    gap: var(--space-xs);
+  }
 }

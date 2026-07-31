@@ -140,14 +140,14 @@ test('All Watches renders at most one canonical Home-style update separator per 
   assert.match(allQuietStyles, /\.all-quiet::before,\s*\.watch-list__update-separator\s*\{[\s\S]*?height:\s*2px;[\s\S]*?margin-bottom:\s*var\(--space-xl\);[\s\S]*?background:\s*var\(--color-border-strong\)/);
 });
 
-test('Home preserves the validated separator across attention and update containers', async () => {
-  const [html, homeStyles, itemStyles] = await Promise.all([
+test('Home preserves the validated separator in the globally sorted Watch list', async () => {
+  const [html, navigation, itemStyles] = await Promise.all([
     readFile(new URL('../../index.html', import.meta.url), 'utf8'),
-    readFile(new URL('../scss/pages/_home.scss', import.meta.url), 'utf8'),
+    readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
     readFile(new URL('../scss/components/_briefing-item.scss', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(html, /id="homeAttentionSection"[\s\S]*?id="homeUpdateGroups"/);
-  assert.match(homeStyles, /#homeAttentionSection:not\(\[hidden\]\) \+ #homeUpdateGroups > \.briefing-group:first-child\s*\{[\s\S]*?border-top:\s*1px solid var\(--color-divider\)/);
+  assert.match(html, /id="homeWatchSort"[\s\S]*?id="homeBriefingList"/);
+  assert.match(navigation, /list\.innerHTML = renderHomeWatchCards\(orderedWatches, statusById\)/);
   assert.match(itemStyles, /\.briefing-item \+ \.briefing-item\s*\{[\s\S]*?border-top:\s*1px solid var\(--color-divider\)/);
 });

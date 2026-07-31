@@ -227,3 +227,18 @@ export const getBriefingWatchGroups = (watches, {
     quietWatches: activeWatches.filter((watch) => !visibleIds.has(watch.id)),
   };
 };
+
+export const getHomeInboxSelection = (watches, options = {}) => {
+  const briefing = getBriefingWatchGroups(watches, options);
+  const attentionIds = new Set(briefing.attentionWatches.map(({ id }) => id));
+  const updatedIds = new Set(briefing.updatedWatches.map(({ id }) => id));
+  const inboxIds = new Set([...attentionIds, ...updatedIds]);
+  return {
+    ...briefing,
+    watches: watches.filter((watch) => inboxIds.has(watch.id)),
+    statusById: new Map([
+      ...briefing.attentionWatches.map((watch) => [watch.id, 'attention']),
+      ...briefing.updatedWatches.map((watch) => [watch.id, 'updated']),
+    ]),
+  };
+};

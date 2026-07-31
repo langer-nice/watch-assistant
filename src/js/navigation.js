@@ -21,8 +21,8 @@ import {
 } from './request-clarification.js';
 import {
   getBriefingWatchGroups,
+  getHomeInboxSelection,
   getUpdatedSeparatorWatchId,
-  groupHomeWatches,
   groupWatches,
   isUserActionRequired,
 } from './watch-grouping.js';
@@ -30,7 +30,14 @@ import {
   formatWatchCreationMetadata,
   formatWatchCreationTime,
   getWatchCreationDate,
+  parseTimestampValue,
 } from './watch-dates.js';
+import {
+  getHomeSortPreference,
+  setHomeSortPreference,
+  sortHomeWatches,
+} from './home-watch-order.js';
+import { navigateToHomeWatchStatus } from './home-summary-navigation.js';
 import {
   extractMonitoringConcepts,
   MONITORING_CONCEPTS_VERSION,
@@ -744,46 +751,62 @@ const STATUS_LABEL_VARIANTS = {
 const getStatusLabelVariant = (status) => STATUS_LABEL_VARIANTS[status] || 'checking';
 
 const getHomeReport = () => {
-  const watches = getWatches();
   const isDisplayableWatch = (watch) => (
     hasMeaningfulText(localizeField(watch, 'title'))
   );
-  const briefing = getBriefingWatchGroups(watches, {
+  const watches = getWatches().filter((watch) => (
+    watch.status !== 'completed' && isDisplayableWatch(watch)
+  ));
+  const briefing = getHomeInboxSelection(watches, {
     getMeaningfulUpdate: getHomeUpdateText,
     isDisplayableWatch,
-  });
-  const groups = groupHomeWatches(watches, {
-    getMeaningfulUpdate: getHomeUpdateText,
-    isDisplayableWatch,
-    language: getLanguage(),
   });
   const attentionWatches = briefing.attentionWatches;
-  const updateGroups = groups.filter(({ type }) => type !== 'attention');
   const updatedWatches = briefing.updatedWatches;
   const quietWatches = briefing.quietWatches;
-  const unchangedCount = quietWatches.length;
 
   return {
+    watches: briefing.watches,
+    statusById: briefing.statusById,
     attentionWatches,
     updatedWatches,
-    updateGroups,
-    unchangedCount,
-    totalChecked: attentionWatches.length + updatedWatches.length + unchangedCount,
+    quietWatches,
+    totalChecked: briefing.watches.length,
   };
 };
 
-const renderHomeWatchCards = (watches) => watches
+const formatHomeWatchTimestamp = (value) => {
+  const date = parseTimestampValue(value);
+  if (!date || date.getTime() <= 0) return '';
+  return new Intl.DateTimeFormat(getLanguage() === 'fr' ? 'fr-FR' : 'en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+};
+
+const getHomeWatchTimestampText = (watch, latestUpdate) => {
+  const latestUpdateTimestamp = formatHomeWatchTimestamp(latestUpdate?.timestamp);
+  if (latestUpdateTimestamp) return latestUpdateTimestamp;
+  const latestChangeAt = localizeField(watch, 'latestChangeAt');
+  if (watch.latestChangeAtKey) return latestChangeAt;
+  const formattedChange = formatHomeWatchTimestamp(latestChangeAt);
+  if (formattedChange) return formattedChange;
+  const lastChecked = localizeField(watch, 'lastChecked');
+  return watch.lastCheckedKey ? lastChecked : formatHomeWatchTimestamp(lastChecked);
+};
+
+const renderHomeWatchCards = (watches, statusById) => watches
   .map((watch) => {
     const title = localizeField(watch, 'title');
     const unreadUpdates = getUnreadUpdates(watch);
     const latestUpdate = getLatestUpdate(watch);
     const latestChange = getHomeUpdateText(watch);
-    if (!hasMeaningfulText(title) || !hasMeaningfulText(latestChange)) {
-      return '';
-    }
+    if (!hasMeaningfulText(title)) return '';
 
-    const needsAttention = isUserActionRequired(watch);
-    const statusModifier = needsAttention ? 'attention' : 'updated';
+    const homeStatus = statusById.get(watch.id);
+    if (!homeStatus) return '';
+    const needsAttention = homeStatus === 'attention';
+    const statusModifier = homeStatus;
     const status = t(needsAttention
       ? 'statuses.attention'
       : unreadUpdates.length ? 'statuses.new' : 'statuses.updated');
@@ -792,58 +815,74 @@ const renderHomeWatchCards = (watches) => watches
       : '';
     const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
     const categoryModifier = watch.category || 'general';
-    const latestChangeAt = latestUpdate?.timestamp
-      ? formatMonitoringTimestamp(latestUpdate.timestamp)
-      : localizeField(watch, 'latestChangeAt');
+    const latestChangeAt = getHomeWatchTimestampText(watch, latestUpdate);
+    const supportingText = latestUpdate
+      ? latestUpdate.sourceTitle || latestUpdate.summary || t('detail.untitledItem')
+      : latestChange || getMonitoringSummary(watch, title) || t('common.monitoringFallback');
 
     const link = renderWatchCardLink({
       watchId: watch.id,
       className: 'briefing-item__link',
       content: `
-          <div class="briefing-item__labels">
+        <div class="briefing-item__header">
+          <div class="briefing-item__metadata">
             <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
+            ${hasMeaningfulText(latestChangeAt)
+    ? `<span class="briefing-item__time">${escapeHtml(latestChangeAt)}</span>`
+    : ''}
+          </div>
+          <div class="briefing-item__statuses">
             <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
             ${unreadStatus}
           </div>
-          <h2>${escapeHtml(title)}</h2>
-          ${latestUpdate
-    ? `<p>${escapeHtml(latestUpdate.sourceTitle || latestUpdate.summary || t('detail.untitledItem'))}</p>`
-    : `<p>${escapeHtml(latestChange)}</p>`}
-          ${unreadUpdates.length > 1
+        </div>
+        <h2>${escapeHtml(title)}</h2>
+        <p>${escapeHtml(supportingText)}</p>
+        ${unreadUpdates.length > 1
     ? `<p>${escapeHtml(t('home.newUpdateCount', { count: unreadUpdates.length }))}</p>`
-    : ''}
-          ${hasMeaningfulText(latestChangeAt)
-    ? `<p class="briefing-item__time">${escapeHtml(latestChangeAt)}</p>`
     : ''}
       `,
     });
-    return link ? `<article class="briefing-item">${link}</article>` : '';
+    const articleId = `home-watch-${homeStatus}-${encodeURIComponent(String(watch.id))}`;
+    return link
+      ? `<article class="briefing-item" id="${escapeHtml(articleId)}" data-home-watch-status="${homeStatus}">${link}</article>`
+      : '';
   })
   .join('');
 
 const renderHomeBriefing = () => {
-  const attentionSection = document.querySelector('#homeAttentionSection');
-  const attentionList = document.querySelector('#homeAttentionList');
-  const updateGroupsEl = document.querySelector('#homeUpdateGroups');
-  if (!attentionSection || !attentionList || !updateGroupsEl) {
-    return;
-  }
+  const list = document.querySelector('#homeBriefingList');
+  const sortControl = document.querySelector('#homeWatchSort');
+  if (!list || !sortControl) return;
 
-  const { attentionWatches, updateGroups } = getHomeReport();
-  attentionSection.hidden = attentionWatches.length === 0;
-  attentionList.innerHTML = renderHomeWatchCards(attentionWatches);
-  updateGroupsEl.innerHTML = updateGroups.map((group, index) => {
-    const label = group.type === 'updatedToday'
-      ? t('home.updatedToday')
-      : group.type === 'updatedThisWeek'
-        ? t('home.updatedThisWeek')
-        : group.type === 'updated' ? t('home.updatedSection') : group.label;
-    const headingId = `home-update-group-${index}`;
-    return `<section class="briefing-group" aria-labelledby="${headingId}">
-      <p class="section-heading" id="${headingId}">${escapeHtml(label)}</p>
-      <div>${renderHomeWatchCards(group.watches)}</div>
-    </section>`;
-  }).join('');
+  const { watches, statusById } = getHomeReport();
+  const mode = getHomeSortPreference();
+  const orderedWatches = sortHomeWatches(watches, {
+    mode,
+    getStatus: (watch) => statusById.get(watch.id),
+  });
+  sortControl.value = mode;
+  list.innerHTML = renderHomeWatchCards(orderedWatches, statusById);
+};
+
+const initHomeWatchControls = () => {
+  const sortControl = document.querySelector('#homeWatchSort');
+  const statusOverview = document.querySelector('.briefing-summary__statuses');
+  if (sortControl && !sortControl.dataset.homeSortBound) {
+    sortControl.dataset.homeSortBound = 'true';
+    sortControl.addEventListener('change', () => {
+      setHomeSortPreference(sortControl.value);
+      renderHomeBriefing();
+    });
+  }
+  if (statusOverview && !statusOverview.dataset.homeNavigationBound) {
+    statusOverview.dataset.homeNavigationBound = 'true';
+    statusOverview.addEventListener('click', (event) => {
+      const trigger = event.target.closest('[data-home-status-target]');
+      if (!trigger || trigger.disabled) return;
+      navigateToHomeWatchStatus(document, trigger.dataset.homeStatusTarget);
+    });
+  }
 };
 
 const renderWatchList = () => {
@@ -1724,6 +1763,7 @@ const renderHomeSummary = () => {
   const briefingReport = document.querySelector('#homeBriefingReport');
   const briefingFeed = document.querySelector('#homeBriefingFeed');
   const emptyState = document.querySelector('#homeEmptyState');
+  const caughtUpState = document.querySelector('#homeCaughtUpState');
   const briefingDate = document.querySelector('#homeBriefingDate');
   const greeting = document.querySelector('#homeSummaryLabel');
   const checkedSummary = document.querySelector('#homeCheckedSummary');
@@ -1731,18 +1771,18 @@ const renderHomeSummary = () => {
   const attentionLabel = document.querySelector('#homeAttentionLabel');
   const updatedCount = document.querySelector('#homeUpdatedCount');
   const updatedLabel = document.querySelector('#homeUpdatedLabel');
-  const noChangesCount = document.querySelector('#homeNoChangesCount');
-  const unchangedLabel = document.querySelector('#homeUnchangedLabel');
-  const everythingChecked = document.querySelector('#homeEverythingChecked');
 
   if (!confirmationBanner && !briefingDate) {
     return;
   }
 
+  const homeReport = getHomeReport();
   const hasUserCreatedWatches = getUserCreatedWatches().length > 0;
-  if (briefingReport) briefingReport.hidden = !hasUserCreatedWatches;
-  if (briefingFeed) briefingFeed.hidden = !hasUserCreatedWatches;
+  const hasHomeItems = homeReport.watches.length > 0;
+  if (briefingReport) briefingReport.hidden = !hasUserCreatedWatches || !hasHomeItems;
+  if (briefingFeed) briefingFeed.hidden = !hasUserCreatedWatches || !hasHomeItems;
   if (emptyState) emptyState.hidden = hasUserCreatedWatches;
+  if (caughtUpState) caughtUpState.hidden = !hasUserCreatedWatches || hasHomeItems;
 
   if (!homeFirstWatchConfirmationChecked) {
     const firstWatchId = consumeFirstWatchConfirmation();
@@ -1793,9 +1833,8 @@ const renderHomeSummary = () => {
   const {
     attentionWatches,
     updatedWatches,
-    unchangedCount,
     totalChecked,
-  } = getHomeReport();
+  } = homeReport;
   const pluralKey = (key, count) => `${key}.${count === 1 ? 'one' : 'other'}`;
   const currentHour = new Date().getHours();
   const greetingKey = currentHour < 12
@@ -1822,17 +1861,18 @@ const renderHomeSummary = () => {
   if (updatedLabel) {
     updatedLabel.textContent = t(pluralKey('home.updatedLabel', updatedWatches.length));
   }
-  if (noChangesCount) {
-    noChangesCount.textContent = String(unchangedCount);
-  }
-  if (unchangedLabel) {
-    unchangedLabel.textContent = t(pluralKey('home.unchangedLabel', unchangedCount));
-  }
-  if (everythingChecked) {
-    everythingChecked.textContent = t(pluralKey('home.everythingChecked', unchangedCount), {
-      count: unchangedCount,
-    });
-  }
+  [
+    ['attention', attentionWatches.length, attentionLabel],
+    ['updated', updatedWatches.length, updatedLabel],
+  ].forEach(([status, count, labelElement]) => {
+    const trigger = document.querySelector(`[data-home-status-target="${status}"]`);
+    if (!trigger) return;
+    trigger.disabled = count === 0;
+    trigger.setAttribute('aria-label', t('home.statusNavigationLabel', {
+      count,
+      status: labelElement?.textContent || '',
+    }));
+  });
 
   const homeUrl = new URL(window.location.href);
   const createdWatchIdFromUrl = homeUrl.searchParams.get('watchCreated');
@@ -3810,6 +3850,7 @@ export const initApp = () => {
 
   renderHomeSummary();
   renderHomeBriefing();
+  initHomeWatchControls();
   renderWatchList();
   renderWatchDetail();
   renderRecentWatches();

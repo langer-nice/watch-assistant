@@ -33,6 +33,10 @@ export const parseTimestampValue = (value) => {
 };
 
 const parseDate = parseTimestampValue;
+const parseMeaningfulCreationDate = (value) => {
+  const date = parseDate(value);
+  return date && date.getTime() > 0 ? date : null;
+};
 
 const getCreatedTimelineDate = (watch) => {
   if (!Array.isArray(watch.timeline)) return null;
@@ -42,16 +46,16 @@ const getCreatedTimelineDate = (watch) => {
     || /^(watch created|watch créée)$/i.test(String(event?.label || '').trim())
   ));
   if (!createdEvent) return null;
-  return parseDate(createdEvent.date)
-    || parseDate(createdEvent.createdAt)
-    || parseDate(createdEvent.timestamp);
+  return parseMeaningfulCreationDate(createdEvent.date)
+    || parseMeaningfulCreationDate(createdEvent.createdAt)
+    || parseMeaningfulCreationDate(createdEvent.timestamp);
 };
 
 export const getWatchCreationDate = (watch) => {
-  const currentDate = parseDate(watch?.createdAt);
+  const currentDate = parseMeaningfulCreationDate(watch?.createdAt);
   if (currentDate) return currentDate;
   for (const field of LEGACY_CREATION_FIELDS) {
-    const legacyDate = parseDate(watch?.[field]);
+    const legacyDate = parseMeaningfulCreationDate(watch?.[field]);
     if (legacyDate) return legacyDate;
   }
   return getCreatedTimelineDate(watch);
@@ -91,7 +95,7 @@ const formatTime = (date, locale) => new Intl.DateTimeFormat(locale, {
 }).format(date);
 
 export const formatWatchCreationTime = (date, { language = 'en' } = {}) => {
-  const creationDate = parseDate(date);
+  const creationDate = parseMeaningfulCreationDate(date);
   return creationDate ? formatTime(creationDate, getLocale(language)) : '';
 };
 
@@ -100,7 +104,7 @@ export const formatWatchCreationMetadata = (date, {
   language = 'en',
   now = new Date(),
 } = {}) => {
-  const creationDate = parseDate(date);
+  const creationDate = parseMeaningfulCreationDate(date);
   if (!creationDate) return '';
   const locale = getLocale(language);
   const time = formatTime(creationDate, locale);
