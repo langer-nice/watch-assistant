@@ -36,7 +36,11 @@
   background: var(--color-status-checking-bg);
 }
 
-.status-label--attention,
+.status-label--attention {
+  color: var(--color-text-on-dark);
+  background: var(--color-status-action);
+}
+
 .status-label--error {
   color: var(--color-status-action);
   background: var(--color-status-action-bg);

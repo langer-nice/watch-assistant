@@ -63,9 +63,9 @@
   --color-status-action: var(--color-attention-strong);
   --color-status-action-bg: color-mix(in srgb, var(--color-attention) 18%, var(--color-surface));
   --color-status-action-border: color-mix(in srgb, var(--color-attention) 46%, var(--color-border));
-  --color-status-update: var(--color-ink-blue-500);
-  --color-status-update-text: var(--color-ink-blue-500);
-  --color-status-update-bg: var(--color-ink-blue-100);
+  --color-status-update: var(--color-action);
+  --color-status-update-text: var(--color-text-on-dark);
+  --color-status-update-bg: color-mix(in srgb, var(--color-action) 96%, var(--color-surface));
   --color-status-neutral-surface: #f1f1ef;
   --color-status-neutral-emphasis: color-mix(in srgb, var(--color-text-secondary) 85%, var(--color-text-primary));
   --color-status-state: #6b7280;

@@ -2339,14 +2339,18 @@ export function initForm() {
       || Number.parseFloat(styles.fontSize) * 1.55;
     const verticalPadding = Number.parseFloat(styles.paddingTop)
       + Number.parseFloat(styles.paddingBottom);
+    const borderAdjustment = styles.boxSizing === 'border-box'
+      ? Number.parseFloat(styles.borderTopWidth) + Number.parseFloat(styles.borderBottomWidth)
+      : 0;
     const cssMinHeight = Number.parseFloat(styles.minHeight) || 0;
     const cssMaxHeight = Number.parseFloat(styles.maxHeight);
     const maxHeight = Number.isFinite(cssMaxHeight)
       ? cssMaxHeight
-      : (lineHeight * maxLines) + verticalPadding;
+      : (lineHeight * maxLines) + verticalPadding + borderAdjustment;
     const contentHeight = textarea.scrollHeight;
-    const nextHeight = Math.max(cssMinHeight, Math.min(contentHeight, maxHeight));
-    textarea.style.overflowY = contentHeight > maxHeight + 1 ? 'auto' : 'hidden';
+    const requiredHeight = contentHeight + borderAdjustment;
+    const nextHeight = Math.max(cssMinHeight, Math.min(requiredHeight, maxHeight));
+    textarea.style.overflowY = requiredHeight > maxHeight + 1 ? 'auto' : 'hidden';
 
     if (immediate) {
       textarea.style.height = `${nextHeight}px`;
@@ -2364,6 +2368,10 @@ export function initForm() {
 
   const resizeInput = (options) => resizeTextarea(input, options);
   const resizeNote = (options) => resizeTextarea(noteInput, { maxLines: 12, ...options });
+  const resizeReviewSummary = (options) => resizeTextarea(
+    reviewSummary,
+    { maxLines: 12, ...options },
+  );
 
   const setSubmitLabel = (key = isEditMode ? 'newWatch.saveChanges' : 'newWatch.submit') => {
     if (submitLabel) {
@@ -2838,6 +2846,7 @@ export function initForm() {
     if (reviewEdit) {
       reviewEdit.textContent = t(editing ? 'newWatch.urlReviewDone' : 'newWatch.urlReviewEdit');
     }
+    resizeReviewSummary({ immediate: true });
     if (editing) {
       reviewTitle?.focus();
     }
@@ -2868,6 +2877,9 @@ export function initForm() {
     });
     pendingAnalysis = analysis;
     form.classList.add('is-reviewing');
+    if (analysisSection) {
+      analysisSection.hidden = false;
+    }
     if (processingState) {
       processingState.hidden = true;
     }
@@ -2935,9 +2947,6 @@ export function initForm() {
     setCreationControlsDisabled(true);
     if (watchClear) watchClear.disabled = false;
     setSubmitLabel('newWatch.urlProcessingButton');
-    if (analysisSection) {
-      analysisSection.hidden = false;
-    }
     if (processingState) {
       processingState.hidden = false;
     }
@@ -2945,15 +2954,13 @@ export function initForm() {
       review.hidden = true;
     }
 
-    const showProgress = (stage) => {
-      urlAnalysisProgressKey = stage === 'generating-watch'
-        ? 'newWatch.urlProcessingGeneratingWatch'
-        : 'newWatch.urlProcessingFetchingTitle';
+    const showProgress = () => {
+      urlAnalysisProgressKey = 'newWatch.urlProcessingButton';
       if (processingMessage) {
         processingMessage.textContent = t(urlAnalysisProgressKey);
       }
     };
-    showProgress('fetching-title');
+    showProgress();
 
     try {
       // Yield once so the browser paints the disabled button and processing state.
@@ -3607,6 +3614,7 @@ export function initForm() {
 
   reviewSummary?.addEventListener('input', () => {
     validateReviewSummary();
+    resizeReviewSummary();
   });
 
   reviewCreate?.addEventListener('click', async () => {
@@ -3667,7 +3675,7 @@ export function initForm() {
   });
 
   analysisCancel?.addEventListener('click', () => {
-    resetUrlFlow({ clearInput: true, trackCancellation: true });
+    resetUrlFlow({ clearInput: false, trackCancellation: true });
   });
 
   const showVoiceInputTooltip = (microphone) => {

@@ -75,7 +75,7 @@ test('Home markup and handlers expose accessible live summary navigation and sor
 test('Sort by stays a compact native row with a subtle separator at mobile widths', async () => {
   const styles = await readFile(new URL('../scss/pages/_home.scss', import.meta.url), 'utf8');
 
-  assert.match(styles, /\.home-watch-sort\s*\{[\s\S]*?align-items:\s*center;[\s\S]*?justify-content:\s*space-between;[\s\S]*?border-bottom:\s*1px solid var\(--color-divider\)/);
+  assert.match(styles, /\.home-watch-sort\s*\{[\s\S]*?align-items:\s*center;[\s\S]*?justify-content:\s*flex-end;[\s\S]*?gap:\s*var\(--space-xs\);[\s\S]*?border-bottom:\s*1px solid var\(--color-divider\)/);
   assert.match(styles, /\.home-watch-sort select\s*\{[\s\S]*?width:\s*auto;[\s\S]*?max-width:\s*calc\(100% - 4\.75rem\)/);
   assert.doesNotMatch(styles, /\.home-watch-sort\s*\{[^}]*flex-direction:\s*column/);
   assert.doesNotMatch(styles, /\.home-watch-sort select\s*\{[^}]*width:\s*100%/);
