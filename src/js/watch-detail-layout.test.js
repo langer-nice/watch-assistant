@@ -2,6 +2,37 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
+
+test('Watch Detail header omits redundant status and Home-report actions', async () => {
+  const [html, navigation, styles, topNavigation, englishSource, frenchSource] = await Promise.all([
+    read('../../watch-detail.html'),
+    read('./navigation.js'),
+    read('../scss/pages/_watch-detail.scss'),
+    read('./top-navigation.js'),
+    read('../locales/en.json'),
+    read('../locales/fr.json'),
+  ]);
+  const english = JSON.parse(englishSource);
+  const french = JSON.parse(frenchSource);
+  const detailRenderer = navigation.match(/const renderWatchDetail = \(\) => \{[\s\S]*?const renderTimeline/)?.[0] || '';
+
+  assert.doesNotMatch(html, /id="watchStatus"|id="watchCreatedHomeAction"|detail-first-watch-home|detail\.viewHomeReport/);
+  assert.doesNotMatch(detailRenderer, /watchStatus|watchCreatedHomeAction|detailCreatedWatchId/);
+  assert.doesNotMatch(styles, /detail-first-watch-home|detail-header > \.status-label/);
+  assert.equal(Object.hasOwn(english.detail, 'viewHomeReport'), false);
+  assert.equal(Object.hasOwn(french.detail, 'viewHomeReport'), false);
+
+  assert.match(html, /id="watchCategory"[\s\S]*?id="watchTitle"[\s\S]*?id="watchBriefing"[\s\S]*?id="whatIKnowTitle"/);
+  assert.match(html, /id="watchEditAction"/);
+  assert.match(topNavigation, /id:\s*'home',[\s\S]*?href:\s*HOME_DESTINATION/);
+  assert.match(topNavigation, /\.page--detail[\s\S]*?activeSection:\s*'watches'/);
+  assert.equal(english.statuses.watching, 'Watching');
+  assert.ok(french.statuses.watching);
+  assert.match(styles, /\.detail-header\s*\{[\s\S]*?margin:\s*0 0 var\(--space-lg\)/);
+  assert.match(styles, /\.detail-header h1\s*\{[\s\S]*?grid-column:\s*1 \/ -1;[\s\S]*?min-width:\s*0;[\s\S]*?overflow-wrap:\s*anywhere/);
+});
+
 test('Story Summary uses the standard padded detail-card alignment at all breakpoints', async () => {
   const [html, styles] = await Promise.all([
     readFile(new URL('../../watch-detail.html', import.meta.url), 'utf8'),

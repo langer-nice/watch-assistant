@@ -53,6 +53,7 @@
 
 .watch-composer__microphone,
 .watch-composer__clear,
+.url-analysis__cancel,
 .watch-reason__close,
 .watch-reason__microphone {
   display: grid;
@@ -153,6 +154,8 @@
 
 .watch-composer__clear:hover,
 .watch-composer__clear:focus-visible,
+.url-analysis__cancel:hover,
+.url-analysis__cancel:focus-visible,
 .watch-reason__close:hover,
 .watch-reason__close:focus-visible {
   color: var(--color-text);

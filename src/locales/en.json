@@ -126,7 +126,6 @@
     "allWatches": "All Watches",
     "backToAllWatches": "Back to All Watches",
     "breadcrumbLabel": "Watch location",
-    "viewHomeReport": "View Home report",
     "title": "Watch detail",
     "createdTitle": "Your Watch has been created.",
     "createdCopy": "Monitoring is active. I’ll check automatically for future updates.",
@@ -212,6 +211,7 @@
     "urlHelper": "Or paste a URL.",
     "voiceUnavailable": "Voice input coming soon.",
     "clearWatchInput": "Clear Watch description",
+    "cancelAnalysis": "Cancel analysis",
     "understood": "WHAT I UNDERSTOOD",
     "conceptsHelper": "Review the concepts I’ll use to monitor this Watch. You can add, remove or edit them if needed.",
     "conceptsRegenerating": "Refreshing story concepts…",
@@ -289,7 +289,6 @@
     "clarificationWarning": "Results may be incomplete or irrelevant if this Watch is created as written.",
     "clarificationDone": "Done",
     "examplesTitle": "For example",
-    "recent": "Recent",
     "emptyError": "Tell me what you would like me to watch.",
     "meaningfulError": "Please add a little more detail."
   },

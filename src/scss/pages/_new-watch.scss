@@ -300,10 +300,6 @@ body.is-edit-modal .language-control {
   font-size: var(--font-size-xs);
 }
 
-.recent-watches {
-  margin-top: var(--space-lg);
-}
-
 .edit-discard-dialog {
   width: min(calc(100% - (var(--space-md) * 2)), 28rem);
   padding: var(--space-xl);

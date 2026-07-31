@@ -31,10 +31,18 @@
 }
 
 .url-analysis__cancel {
-  min-height: 2.75rem;
-  padding-inline: var(--space-sm);
+  position: relative;
+  flex: 0 0 auto;
   margin: 0;
-  box-shadow: none;
+  cursor: pointer;
+  font-size: var(--font-size-lg);
+  line-height: 1;
+}
+
+.url-analysis__cancel::before {
+  position: absolute;
+  inset: calc(var(--space-xxs) * -1);
+  content: '';
 }
 
 .url-analysis__spinner {

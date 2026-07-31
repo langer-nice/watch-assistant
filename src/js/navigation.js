@@ -117,7 +117,6 @@ let detailCheckInProgress = false;
 let detailCheckErrorWatchId = null;
 const detailDeferredReadUpdateIds = new Set();
 const getDeferredReadKey = (watchId, updateId) => `${watchId}\u0000${updateId}`;
-let detailCreatedWatchId = null;
 let firstMonitoringTimer = null;
 let firstMonitoringTransitionTimer = null;
 let editSheetCloseTimer = null;
@@ -1010,10 +1009,7 @@ const renderWatchDetail = () => {
     return;
   }
 
-  const params = new URLSearchParams(window.location.search);
   const watchId = getWatchIdFromLocation(window.location);
-  const createdWatchIdFromRoute = params.get('watchCreated');
-  if (createdWatchIdFromRoute === watchId) detailCreatedWatchId = createdWatchIdFromRoute;
   let watch = getWatchById(watchId);
   if (
     watch?.monitoringState === 'preparing'
@@ -1030,7 +1026,6 @@ const renderWatchDetail = () => {
   detailPageEl?.classList.toggle('is-paused', watch?.status === 'paused');
 
   const categoryEl = document.querySelector('#watchCategory');
-  const statusEl = document.querySelector('#watchStatus');
   const pausedStateEl = document.querySelector('#watchPausedState');
   const pausedResumeEl = document.querySelector('#watchPausedResume');
   const notFoundEl = document.querySelector('#watchNotFound');
@@ -1070,7 +1065,6 @@ const renderWatchDetail = () => {
   const editActionEl = document.querySelector('#watchEditAction');
   const clarityWarningEl = document.querySelector('#watchClarityWarning');
   const clarityWarningEditEl = document.querySelector('#watchClarityWarningEdit');
-  const homeActionEl = document.querySelector('#watchCreatedHomeAction');
   const preparingEl = document.querySelector('#watchPreparing');
   const managementEl = document.querySelector('#watchManagement');
   const checkNowEl = document.querySelector('#watchCheckNow');
@@ -1114,17 +1108,11 @@ const renderWatchDetail = () => {
     if (categoryEl) {
       categoryEl.hidden = true;
     }
-    if (statusEl) {
-      statusEl.hidden = true;
-    }
     if (pausedStateEl) {
       pausedStateEl.hidden = true;
     }
     if (editActionEl) {
       editActionEl.hidden = true;
-    }
-    if (homeActionEl) {
-      homeActionEl.hidden = true;
     }
     if (notFoundEl) {
       notFoundEl.textContent = t('detail.notFoundCopy');
@@ -1159,9 +1147,6 @@ const renderWatchDetail = () => {
     clarityWarningEditEl.href = editWatchHref;
     clarityWarningEditEl.onclick = openExistingWatchEditor;
   }
-  if (homeActionEl) {
-    homeActionEl.hidden = detailCreatedWatchId !== watch.id;
-  }
   if (notFoundEl) {
     notFoundEl.hidden = true;
   }
@@ -1173,24 +1158,6 @@ const renderWatchDetail = () => {
     categoryEl.className = `category-pill${watch.category === 'travel' ? ' category-pill--travel' : ''}`;
   }
 
-  if (statusEl) {
-    const isCanonicallyUpdated = getBriefingWatchGroups([watch], {
-      getMeaningfulUpdate: getHomeUpdateText,
-      isDisplayableWatch: () => true,
-    }).updatedWatches.length > 0;
-    const statusKey = isUserActionRequired(watch)
-      ? 'attention'
-      : isCanonicallyUpdated
-        ? getUnreadUpdates(watch).length ? 'new' : 'updated'
-        : getMonitoringHealthStatus(watch)
-          || (STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking');
-    const status = watch.status && t(`statuses.${statusKey}`);
-    const statusModifier = getStatusLabelVariant(statusKey);
-    statusEl.textContent = status || '';
-    statusEl.hidden = !status
-      || watch.status === 'paused';
-    statusEl.className = `status-label status-label--${statusModifier}`;
-  }
   if (pausedStateEl) {
     pausedStateEl.hidden = watch.status !== 'paused';
   }
@@ -1997,43 +1964,6 @@ export const refreshBriefing = () => {
   return generatedAt;
 };
 
-const renderRecentWatches = () => {
-  const section = document.querySelector('#recentWatchesSection');
-  const list = document.querySelector('#recentWatchesList');
-  if (!section || !list) {
-    return;
-  }
-  if (new URLSearchParams(window.location.search).has('edit')) {
-    section.hidden = true;
-    return;
-  }
-
-  const recentWatches = getWatches().slice().reverse().slice(0, 3);
-  section.hidden = recentWatches.length === 0;
-  list.innerHTML = recentWatches
-    .map((watch) => {
-      const title = localizeField(watch, 'title') || localizeField(watch, 'request');
-      if (!title) {
-        return '';
-      }
-      const category = watch.category ? t(`categories.${watch.category}`) : '';
-      const isCompleted = watch.status === 'completed';
-      const metadata = [category, isCompleted ? t('statuses.completed') : '']
-        .filter(Boolean)
-        .join(' · ');
-      return `
-        <a class="recent-watch${isCompleted ? ' recent-watch--completed' : ''}" href="watch-detail.html?id=${encodeURIComponent(watch.id)}">
-          <span class="recent-watch__dot recent-watch__dot--${escapeHtml(watch.status || 'watching')}" aria-hidden="true"></span>
-          <span>
-            <strong>${escapeHtml(title)}</strong>
-            ${metadata ? `<span class="recent-watch__metadata">${escapeHtml(metadata)}</span>` : ''}
-          </span>
-        </a>
-      `;
-    })
-    .join('');
-};
-
 export function initForm() {
   const form = document.querySelector('#newWatchForm');
   const watchError = document.querySelector('#watchError');
@@ -2071,7 +2001,6 @@ export function initForm() {
   const headingEl = document.querySelector('#newWatchHeading');
   const backEl = document.querySelector('#newWatchBack');
   const backLabelEl = backEl?.querySelector('[data-top-navigation-label]');
-  const recentSectionEl = document.querySelector('#recentWatchesSection');
   const watchOptionsEl = document.querySelector('#watchOptions');
   const keywordChipsEl = document.querySelector('#watchKeywordChips');
   const keywordHelperEl = document.querySelector('.watch-keywords__helper');
@@ -3130,10 +3059,6 @@ export function initForm() {
         reviewCreate.dataset.i18n = 'newWatch.urlReviewSave';
         reviewCreate.textContent = t('newWatch.urlReviewSave');
       }
-      if (recentSectionEl) {
-        recentSectionEl.hidden = true;
-        recentSectionEl.dataset.editMode = 'true';
-      }
       if (watchOptionsEl) {
         watchOptionsEl.hidden = false;
       }
@@ -3878,21 +3803,17 @@ export const initApp = () => {
   initHomeWatchControls();
   renderWatchList();
   renderWatchDetail();
-  renderRecentWatches();
   initForm();
   renderDevTools();
 
   // Exposed for prototype testing; normal page loads never update the timestamp.
   window.refreshBriefing = refreshBriefing;
 
-  window.addEventListener('pageshow', renderRecentWatches);
-
   window.addEventListener('storage', () => {
     renderHomeSummary();
     renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
-    renderRecentWatches();
   });
 
   window.addEventListener(WATCH_STORAGE_CHANGED_EVENT, () => {
@@ -3900,7 +3821,6 @@ export const initApp = () => {
     renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
-    renderRecentWatches();
   });
 
   // Re-render data-driven content if setLanguage() is called at runtime.
@@ -3909,6 +3829,5 @@ export const initApp = () => {
     renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
-    renderRecentWatches();
   });
 };

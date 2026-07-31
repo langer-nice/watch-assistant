@@ -126,7 +126,6 @@
     "allWatches": "Toutes les Watches",
     "backToAllWatches": "Retour à toutes les Watches",
     "breadcrumbLabel": "Emplacement de la Watch",
-    "viewHomeReport": "Voir le rapport d’accueil",
     "title": "Détails de la Watch",
     "createdTitle": "Votre Watch a été créée.",
     "createdCopy": "La surveillance est active. Je vérifierai automatiquement les prochaines mises à jour.",
@@ -212,6 +211,7 @@
     "urlHelper": "Ou collez une URL.",
     "voiceUnavailable": "Saisie vocale bientôt disponible.",
     "clearWatchInput": "Effacer la description de la Watch",
+    "cancelAnalysis": "Annuler l’analyse",
     "understood": "CE QUE J’AI COMPRIS",
     "conceptsHelper": "Vérifiez les concepts que j’utiliserai pour surveiller cette Watch. Vous pouvez les ajouter, les supprimer ou les modifier si nécessaire.",
     "conceptsRegenerating": "Actualisation des concepts du sujet…",
@@ -289,7 +289,6 @@
     "clarificationWarning": "Les résultats peuvent être incomplets ou non pertinents si cette Watch est créée telle quelle.",
     "clarificationDone": "Terminer",
     "examplesTitle": "Par exemple",
-    "recent": "Récent",
     "emptyError": "Indiquez-moi ce que vous souhaitez surveiller.",
     "meaningfulError": "Ajoutez un peu plus de détails."
   },

@@ -32,36 +32,6 @@ body.is-watch-edit-open {
   background: var(--color-detail-background);
 }
 
-.detail-first-watch-home {
-  color: var(--color-action);
-  font-weight: var(--font-weight-regular);
-  text-decoration: none;
-}
-
-.detail-first-watch-home:hover,
-.detail-first-watch-home:focus-visible {
-  text-decoration: underline;
-}
-
-.detail-first-watch-home:active {
-  color: var(--color-action-hover);
-}
-
-.detail-first-watch-home {
-  display: inline-flex;
-  margin: 0 0 var(--space-xs);
-  font-size: var(--font-size-sm);
-}
-
-.detail-first-watch-home::after {
-  margin-left: var(--space-xs);
-  content: '→';
-}
-
-.detail-first-watch-home[hidden] {
-  display: none;
-}
-
 .detail-header {
   position: relative;
   display: grid;
@@ -490,15 +460,16 @@ body.is-watch-edit-open {
 
 .detail-header h1 {
   grid-column: 1 / -1;
+  min-width: 0;
   margin: var(--space-xs) 0 0;
   font-size: var(--font-size-detail-title);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.04em;
   line-height: 1.08;
+  overflow-wrap: anywhere;
 }
 
 .detail-header > .detail-paused-state,
-.detail-header > .status-label,
 .detail-header > .detail-header__message {
   grid-column: 1 / -1;
 }

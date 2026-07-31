@@ -4,21 +4,35 @@ import { readFile } from 'node:fs/promises';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
-test('analysis progress replaces the original action in one accessible grouped region', async () => {
-  const [html, reviewStyles, composerStyles] = await Promise.all([
+test('analysis progress uses one localized circular cancel control beside the original action', async () => {
+  const [html, navigation, enSource, frSource, reviewStyles, composerStyles] = await Promise.all([
     read('../../new-watch.html'),
+    read('./navigation.js'),
+    read('../locales/en.json'),
+    read('../locales/fr.json'),
     read('../scss/components/_url-review.scss'),
     read('../scss/components/_watch-composer.scss'),
   ]);
+  const english = JSON.parse(enSource);
+  const french = JSON.parse(frSource);
   const actionGroup = html.match(/<div class="watch-analysis-action">[\s\S]*?<\/div>\s*<\/div>/)?.[0] || '';
   const analysisSection = html.match(/<section class="url-analysis"[\s\S]*?<\/section>/)?.[0] || '';
+  const urlClear = html.match(/<button[\s\S]*?data-watch-clear[\s\S]*?<\/button>/)?.[0] || '';
 
   assert.equal((html.match(/id="urlAnalysisProcessing"/g) || []).length, 1);
   assert.equal((html.match(/id="urlAnalysisCancel"/g) || []).length, 1);
-  assert.match(actionGroup, /id="newWatchSubmit"[\s\S]*?id="urlAnalysisProcessing"[\s\S]*?role="status"[\s\S]*?aria-live="polite"[\s\S]*?url-analysis__spinner[\s\S]*?id="urlAnalysisMessage"[\s\S]*?id="urlAnalysisCancel"[^>]*type="button"/);
+  assert.match(actionGroup, /id="newWatchSubmit"[\s\S]*?id="urlAnalysisProcessing"[\s\S]*?role="status"[\s\S]*?aria-live="polite"[\s\S]*?url-analysis__spinner[\s\S]*?id="urlAnalysisMessage"[\s\S]*?class="url-analysis__cancel"[\s\S]*?id="urlAnalysisCancel"[\s\S]*?type="button"[\s\S]*?data-i18n-aria-label="newWatch\.cancelAnalysis"[\s\S]*?>×<\/button>/);
+  assert.doesNotMatch(actionGroup, /button--secondary|data-i18n="newWatch\.urlReviewCancel"/);
+  assert.match(urlClear, /class="watch-composer__clear"[\s\S]*?data-watch-clear[\s\S]*?data-i18n-aria-label="newWatch\.clearWatchInput"/);
+  assert.equal(english.newWatch.cancelAnalysis, 'Cancel analysis');
+  assert.equal(french.newWatch.cancelAnalysis, 'Annuler l’analyse');
+  assert.notEqual(english.newWatch.cancelAnalysis, english.newWatch.clearWatchInput);
   assert.doesNotMatch(analysisSection, /urlAnalysisProcessing|url-analysis__spinner/);
   assert.match(reviewStyles, /\.url-analysis__processing\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*auto minmax\(0, 1fr\) auto;[\s\S]*?min-height:\s*2\.75rem/);
-  assert.match(reviewStyles, /\.url-analysis__cancel\s*\{[\s\S]*?min-height:\s*2\.75rem;[\s\S]*?box-shadow:\s*none/);
+  assert.match(composerStyles, /\.watch-composer__clear,[\s\S]*?\.url-analysis__cancel,[\s\S]*?width:\s*2\.25rem;[\s\S]*?height:\s*2\.25rem;[\s\S]*?border-radius:\s*var\(--radius-pill\)/);
+  assert.match(composerStyles, /\.watch-composer__clear:hover,[\s\S]*?\.url-analysis__cancel:hover,[\s\S]*?\.url-analysis__cancel:focus-visible/);
+  assert.match(reviewStyles, /\.url-analysis__cancel::before\s*\{[\s\S]*?inset:\s*calc\(var\(--space-xxs\) \* -1\)/);
+  assert.match(navigation, /analysisCancel\?\.addEventListener\('click',[\s\S]*?clearInput: false/);
   assert.doesNotMatch(reviewStyles, /\.url-analysis__processing\s*\{[^}]*min-height:\s*8rem/);
   assert.match(composerStyles, /\.watch-form\.is-analysing \.watch-composer__submit\s*\{[\s\S]*?display:\s*none/);
 });
@@ -28,6 +42,7 @@ test('analysis cancellation preserves the URL and invalidates every late respons
   const analysisFlow = navigation.match(/const startUrlAnalysis = async[\s\S]*?const resetUrlFlow/)?.[0] || '';
   const resetFlow = navigation.match(/const resetUrlFlow =[\s\S]*?const updateComposer/)?.[0] || '';
   const analysisCancel = navigation.match(/analysisCancel\?\.addEventListener\('click',[\s\S]*?\n  \}\);/)?.[0] || '';
+  const inputClear = navigation.match(/watchClear\?\.addEventListener\('click',[\s\S]*?\n  \}\);/)?.[0] || '';
   const submitHandler = navigation.match(/form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/)?.[0] || '';
 
   assert.match(submitHandler, /analysisInProgress[\s\S]*?return/);
@@ -36,8 +51,28 @@ test('analysis cancellation preserves the URL and invalidates every late respons
   assert.match(analysisFlow, /await resolveUrlMonitoringSource\(analysis,[\s\S]*?if \(requestId !== urlAnalysisRequestId \|\| controller\.signal\.aborted\) return;[\s\S]*?showReview\(resolvedAnalysis\)/);
   assert.match(resetFlow, /urlAnalysisRequestId \+= 1;[\s\S]*?urlAnalysisController\?\.abort\(\)/);
   assert.match(analysisCancel, /resetUrlFlow\(\{ clearInput: false, trackCancellation: true \}\)/);
+  assert.match(inputClear, /resetUrlFlow\(\{ clearInput: true \}\)/);
   assert.doesNotMatch(analysisCancel, /addWatch|completeWatchCreation/);
   assert.match(analysisFlow, /catch \(error\)[\s\S]*?showReview\(\{[\s\S]*?status: 'failure'/);
+});
+
+test('New Watch removes its Recent UI and renderer without changing other collection pages', async () => {
+  const [html, navigation, mainStyles, pageStyles, homeHtml, watchesHtml] = await Promise.all([
+    read('../../new-watch.html'),
+    read('./navigation.js'),
+    read('../scss/main.scss'),
+    read('../scss/pages/_new-watch.scss'),
+    read('../../index.html'),
+    read('../../watches.html'),
+  ]);
+
+  assert.doesNotMatch(html, /recentWatchesSection|recentWatchesList|id="recentTitle"|newWatch\.recent|class="recent-watch/);
+  assert.doesNotMatch(navigation, /renderRecentWatches|recentWatchesSection|recentWatchesList|class="recent-watch/);
+  assert.doesNotMatch(mainStyles, /components\/recent-watches/);
+  assert.doesNotMatch(pageStyles, /\.recent-watches/);
+  assert.match(html, /id="urlAnalysis"[\s\S]*?id="urlReviewCreate"[\s\S]*?id="urlReviewEdit"[\s\S]*?id="urlReviewCancel"/);
+  assert.match(homeHtml, /page--home/);
+  assert.match(watchesHtml, /id="watchList"/);
 });
 
 test('analysis and review copy consistently identifies the supplied article', async () => {
