@@ -74,7 +74,7 @@
         </section>
 
         <section class="briefing-feed" id="homeBriefingFeed" aria-label="Briefing items" data-i18n-aria-label="home.briefingItemsLabel">
-          <div class="home-watch-sort">
+          <div class="home-watch-sort" id="homeWatchSortRow">
             <label for="homeWatchSort" data-i18n="home.sortBy"></label>
             <select id="homeWatchSort">
               <option value="needs-attention-first" data-i18n="home.sortAttentionFirst"></option>
@@ -84,6 +84,16 @@
             </select>
           </div>
           <div id="homeBriefingList"></div>
+
+          <section class="all-quiet" id="homeAllQuiet" aria-labelledby="allQuietTitle" hidden>
+            <p class="section-heading" data-i18n="home.everythingLabel"></p>
+            <h2 id="allQuietTitle" data-i18n="home.everythingTitle"></h2>
+            <p class="all-quiet__summary">
+              <span id="homeEverythingChecked"></span>
+              <span data-i18n="home.everythingNoChanges"></span>
+            </p>
+            <a class="editorial-link" href="watches.html" data-i18n="home.allWatches"></a>
+          </section>
         </section>
 
         <nav class="home-secondary-navigation" aria-label="Prototype previews" data-i18n-aria-label="home.prototypePreviewsLabel">

@@ -211,12 +211,17 @@
 .home-watch-sort {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: var(--space-xs);
   padding-top: var(--space-lg);
-  padding-bottom: var(--space-xs);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-divider);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+
+.home-watch-sort[hidden] {
+  display: none;
 }
 
 .home-watch-sort label {
@@ -225,9 +230,11 @@
 }
 
 .home-watch-sort select {
+  width: auto;
   min-height: 2.5rem;
-  max-width: 100%;
-  padding: var(--space-xs) calc(var(--space-xl) + var(--space-xs)) var(--space-xs) var(--space-sm);
+  min-width: 0;
+  max-width: calc(100% - 4.75rem);
+  padding: var(--space-xs) var(--space-lg) var(--space-xs) var(--space-sm);
   color: var(--color-text);
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -252,13 +259,13 @@
   text-decoration: underline;
 }
 
-@media (max-width: 26rem) {
+@media (max-width: 20rem) {
   .home-watch-sort {
-    align-items: stretch;
-    flex-direction: column;
+    gap: var(--space-xxs);
   }
 
   .home-watch-sort select {
-    width: 100%;
+    max-width: calc(100% - 4.25rem);
+    padding-right: var(--space-md);
   }
 }

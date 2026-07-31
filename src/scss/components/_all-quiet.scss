@@ -5,6 +5,10 @@
   font-style: normal;
 }
 
+.all-quiet[hidden] {
+  display: none;
+}
+
 .all-quiet::before,
 .watch-list__update-separator {
   display: block;

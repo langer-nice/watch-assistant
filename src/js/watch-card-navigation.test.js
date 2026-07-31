@@ -141,13 +141,17 @@ test('All Watches renders at most one canonical Home-style update separator per 
 });
 
 test('Home preserves the validated separator in the globally sorted Watch list', async () => {
-  const [html, navigation, itemStyles] = await Promise.all([
+  const [html, navigation, itemStyles, homeStyles, allQuietStyles] = await Promise.all([
     readFile(new URL('../../index.html', import.meta.url), 'utf8'),
     readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
     readFile(new URL('../scss/components/_briefing-item.scss', import.meta.url), 'utf8'),
+    readFile(new URL('../scss/pages/_home.scss', import.meta.url), 'utf8'),
+    readFile(new URL('../scss/components/_all-quiet.scss', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(html, /id="homeWatchSort"[\s\S]*?id="homeBriefingList"/);
+  assert.match(html, /id="homeWatchSort"[\s\S]*?id="homeBriefingList"[\s\S]*?id="homeAllQuiet"[\s\S]*?href="watches\.html"/);
   assert.match(navigation, /list\.innerHTML = renderHomeWatchCards\(orderedWatches, statusById\)/);
   assert.match(itemStyles, /\.briefing-item \+ \.briefing-item\s*\{[\s\S]*?border-top:\s*1px solid var\(--color-divider\)/);
+  assert.match(homeStyles, /\.home-watch-sort\s*\{[\s\S]*?border-bottom:\s*1px solid var\(--color-divider\)/);
+  assert.match(allQuietStyles, /\.all-quiet::before,[\s\S]*?height:\s*2px;[\s\S]*?background:\s*var\(--color-border-strong\)/);
 });

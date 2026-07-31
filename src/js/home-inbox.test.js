@@ -41,7 +41,7 @@ test('the same unchanged Watch remains in the complete All Watches grouping', ()
   assert.deepEqual(allWatches.map(({ id }) => id), ['unchanged']);
 });
 
-test('Home distinguishes first-use and all-caught-up empty states in English and French', async () => {
+test('Home distinguishes first-use, all-quiet, and fallback caught-up states', async () => {
   const [html, navigation, en, fr] = await Promise.all([
     readFile(new URL('../../index.html', import.meta.url), 'utf8'),
     readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
@@ -53,8 +53,14 @@ test('Home distinguishes first-use and all-caught-up empty states in English and
 
   assert.match(html, /id="homeEmptyState"[\s\S]*?data-i18n="home\.emptyAction"/);
   assert.match(html, /id="homeCaughtUpState"[\s\S]*?data-i18n="home\.allCaughtUp"/);
+  assert.match(html, /id="homeBriefingList"[\s\S]*?id="homeAllQuiet"/);
+  assert.match(html, /id="homeEverythingChecked"[\s\S]*?href="watches\.html"/);
   assert.match(navigation, /emptyState\.hidden = hasUserCreatedWatches/);
-  assert.match(navigation, /caughtUpState\.hidden = !hasUserCreatedWatches \|\| hasHomeItems/);
+  assert.match(navigation, /briefingFeed\.hidden = !hasUserCreatedWatches \|\| \(!hasHomeItems && !hasQuietItems\)/);
+  assert.match(navigation, /caughtUpState\.hidden = !hasUserCreatedWatches \|\| hasHomeItems \|\| hasQuietItems/);
+  assert.match(navigation, /allQuiet\.hidden = !hasUserCreatedWatches \|\| !hasQuietItems/);
+  assert.match(navigation, /pluralKey\('home\.everythingChecked', unchangedCount\)/);
+  assert.doesNotMatch(navigation, /homeEverythingChecked[^\n]*=\s*['"`]\d/);
   assert.equal(
     english.home.allCaughtUp,
     'You’re all caught up. No Watches need your attention right now.',
@@ -63,6 +69,21 @@ test('Home distinguishes first-use and all-caught-up empty states in English and
     french.home.allCaughtUp,
     'Vous êtes à jour. Aucune Watch ne nécessite votre attention pour le moment.',
   );
+});
+
+test('unchanged Watches supply the Everything else count without becoming Home cards', () => {
+  const unchanged = [
+    { id: 'quiet-one', title: 'Quiet one', status: 'watching' },
+    { id: 'quiet-two', title: 'Quiet two', status: 'stable' },
+  ];
+  const updated = {
+    id: 'updated', title: 'Updated', status: 'new', summary: 'Meaningful update',
+  };
+  const selection = getHomeInboxSelection([unchanged[0], updated, unchanged[1]], options);
+
+  assert.deepEqual(selection.watches.map(({ id }) => id), ['updated']);
+  assert.equal(selection.quietWatches.length, 2);
+  assert.deepEqual(selection.quietWatches, unchanged);
 });
 
 test('All Watches renderer continues to read and render the complete collection', async () => {

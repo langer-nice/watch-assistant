@@ -42,18 +42,43 @@ test('Home markup and handlers expose accessible live summary navigation and sor
   ]);
 
   assert.equal((html.match(/data-home-status-target=/g) || []).length, 2);
+  assert.equal((html.match(/<select id="homeWatchSort">/g) || []).length, 1);
   assert.match(html, /<button[^>]+data-home-status-target="attention"/);
+  assert.match(html, /<label for="homeWatchSort"[^>]*data-i18n="home\.sortBy"/);
   assert.match(html, /<select id="homeWatchSort">[\s\S]*?value="needs-attention-first"[\s\S]*?value="updated-first"[\s\S]*?value="most-recent"[\s\S]*?value="oldest-first"/);
   assert.match(navigation, /trigger\.disabled = count === 0/);
   assert.match(navigation, /navigateToHomeWatchStatus\(document, trigger\.dataset\.homeStatusTarget\)/);
   assert.match(navigation, /setHomeSortPreference\(sortControl\.value\);[\s\S]*?renderHomeBriefing\(\)/);
-  for (const messages of [JSON.parse(en), JSON.parse(fr)]) {
+  const english = JSON.parse(en);
+  const french = JSON.parse(fr);
+  assert.deepEqual([
+    english.home.sortAttentionFirst,
+    english.home.sortUpdatedFirst,
+    english.home.sortMostRecent,
+    english.home.sortOldestFirst,
+  ], ['Needs attention', 'Updated', 'Most recent', 'Oldest first']);
+  assert.deepEqual([
+    french.home.sortAttentionFirst,
+    french.home.sortUpdatedFirst,
+    french.home.sortMostRecent,
+    french.home.sortOldestFirst,
+  ], ['Attention requise', 'Mises à jour', 'Plus récentes', 'Plus anciennes']);
+  for (const messages of [english, french]) {
     assert.ok(messages.home.sortBy);
     assert.ok(messages.home.sortAttentionFirst);
     assert.ok(messages.home.sortUpdatedFirst);
     assert.ok(messages.home.sortMostRecent);
     assert.ok(messages.home.sortOldestFirst);
   }
+});
+
+test('Sort by stays a compact native row with a subtle separator at mobile widths', async () => {
+  const styles = await readFile(new URL('../scss/pages/_home.scss', import.meta.url), 'utf8');
+
+  assert.match(styles, /\.home-watch-sort\s*\{[\s\S]*?align-items:\s*center;[\s\S]*?justify-content:\s*space-between;[\s\S]*?border-bottom:\s*1px solid var\(--color-divider\)/);
+  assert.match(styles, /\.home-watch-sort select\s*\{[\s\S]*?width:\s*auto;[\s\S]*?max-width:\s*calc\(100% - 4\.75rem\)/);
+  assert.doesNotMatch(styles, /\.home-watch-sort\s*\{[^}]*flex-direction:\s*column/);
+  assert.doesNotMatch(styles, /\.home-watch-sort select\s*\{[^}]*width:\s*100%/);
 });
 
 test('compact Home cards retain content, navigation, separators, and responsive overflow rules', async () => {

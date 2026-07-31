@@ -771,6 +771,7 @@ const getHomeReport = () => {
     attentionWatches,
     updatedWatches,
     quietWatches,
+    unchangedCount: quietWatches.length,
     totalChecked: briefing.watches.length,
   };
 };
@@ -853,6 +854,7 @@ const renderHomeWatchCards = (watches, statusById) => watches
 const renderHomeBriefing = () => {
   const list = document.querySelector('#homeBriefingList');
   const sortControl = document.querySelector('#homeWatchSort');
+  const sortRow = document.querySelector('#homeWatchSortRow');
   if (!list || !sortControl) return;
 
   const { watches, statusById } = getHomeReport();
@@ -862,6 +864,7 @@ const renderHomeBriefing = () => {
     getStatus: (watch) => statusById.get(watch.id),
   });
   sortControl.value = mode;
+  if (sortRow) sortRow.hidden = watches.length === 0;
   list.innerHTML = renderHomeWatchCards(orderedWatches, statusById);
 };
 
@@ -1764,6 +1767,8 @@ const renderHomeSummary = () => {
   const briefingFeed = document.querySelector('#homeBriefingFeed');
   const emptyState = document.querySelector('#homeEmptyState');
   const caughtUpState = document.querySelector('#homeCaughtUpState');
+  const allQuiet = document.querySelector('#homeAllQuiet');
+  const everythingChecked = document.querySelector('#homeEverythingChecked');
   const briefingDate = document.querySelector('#homeBriefingDate');
   const greeting = document.querySelector('#homeSummaryLabel');
   const checkedSummary = document.querySelector('#homeCheckedSummary');
@@ -1779,10 +1784,16 @@ const renderHomeSummary = () => {
   const homeReport = getHomeReport();
   const hasUserCreatedWatches = getUserCreatedWatches().length > 0;
   const hasHomeItems = homeReport.watches.length > 0;
+  const hasQuietItems = homeReport.quietWatches.length > 0;
   if (briefingReport) briefingReport.hidden = !hasUserCreatedWatches || !hasHomeItems;
-  if (briefingFeed) briefingFeed.hidden = !hasUserCreatedWatches || !hasHomeItems;
+  if (briefingFeed) {
+    briefingFeed.hidden = !hasUserCreatedWatches || (!hasHomeItems && !hasQuietItems);
+  }
   if (emptyState) emptyState.hidden = hasUserCreatedWatches;
-  if (caughtUpState) caughtUpState.hidden = !hasUserCreatedWatches || hasHomeItems;
+  if (caughtUpState) {
+    caughtUpState.hidden = !hasUserCreatedWatches || hasHomeItems || hasQuietItems;
+  }
+  if (allQuiet) allQuiet.hidden = !hasUserCreatedWatches || !hasQuietItems;
 
   if (!homeFirstWatchConfirmationChecked) {
     const firstWatchId = consumeFirstWatchConfirmation();
@@ -1833,6 +1844,7 @@ const renderHomeSummary = () => {
   const {
     attentionWatches,
     updatedWatches,
+    unchangedCount,
     totalChecked,
   } = homeReport;
   const pluralKey = (key, count) => `${key}.${count === 1 ? 'one' : 'other'}`;
@@ -1860,6 +1872,11 @@ const renderHomeSummary = () => {
   }
   if (updatedLabel) {
     updatedLabel.textContent = t(pluralKey('home.updatedLabel', updatedWatches.length));
+  }
+  if (everythingChecked) {
+    everythingChecked.textContent = t(pluralKey('home.everythingChecked', unchangedCount), {
+      count: unchangedCount,
+    });
   }
   [
     ['attention', attentionWatches.length, attentionLabel],
