@@ -98,6 +98,7 @@ import {
   getUnreadUpdates,
   getWatchUpdates,
 } from './watch-updates.js';
+import { getWatchTimelineEvents } from './watch-timeline.js';
 
 let homeCreatedWatchId = null;
 let homeFirstWatchConfirmation = false;
@@ -1339,26 +1340,29 @@ const renderWatchDetail = () => {
     whyFollowingEl.hidden = !hasWhyFollowing;
   }
 
-  const timeline = Array.isArray(watch.timeline)
-    ? watch.timeline
-      .map((item, index, items) => {
-        const label = item?.type === 'created'
-          ? t('watchData.created')
-          : localizeListItem(item);
-        if (!label) {
-          return null;
-        }
-        const date = item?.dateKey
-          ? t(item.dateKey)
-          : item?.date ? formatDate(item.date) : '';
-        return {
-          date,
-          label,
-          isLatest: item?.state === 'latest' || index === items.length - 1,
-        };
-      })
-      .filter(Boolean)
-    : [];
+  const timeline = getWatchTimelineEvents(watch)
+    .map((item) => {
+      const label = item.type === 'created'
+        ? t('watchData.created')
+        : item.type === 'update'
+          ? item.source.sourceTitle || item.source.summary || t('detail.updateDetected')
+          : localizeListItem(item.source);
+      if (!label) {
+        return null;
+      }
+      const date = item.dateKey
+        ? t(item.dateKey)
+        : item.timestamp ? formatDate(item.timestamp) : '';
+      return {
+        date,
+        label,
+      };
+    })
+    .filter(Boolean)
+    .map((item, index, items) => ({
+      ...item,
+      isLatest: index === items.length - 1,
+    }));
   if (timelineEl) {
     timelineEl.innerHTML = timeline
       .map((item) => `
@@ -1409,9 +1413,7 @@ const renderWatchDetail = () => {
         const itemUrl = getSafeExternalUrl(item.sourceUrl);
         const legacyChange = index === 0 ? getLatestChange(watch) : '';
         const title = item.sourceTitle || item.summary || legacyChange || t('detail.untitledItem');
-        const timestamp = item.timestamp === '1970-01-01T00:00:00.000Z'
-          ? localizeField(watch, 'latestChangeAt')
-          : formatMonitoringTimestamp(item.timestamp);
+        const timestamp = formatMonitoringTimestamp(item.timestamp);
         const metadata = [
           item.sourceDomain,
           timestamp,

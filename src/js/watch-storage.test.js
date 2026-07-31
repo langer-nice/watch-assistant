@@ -34,6 +34,33 @@ test('persists a recoverable legacy creation date as createdAt', async () => {
   }
 });
 
+test('migrates an existing Watch stored with Unix seconds without recreation', async () => {
+  const originalStorage = globalThis.localStorage;
+  const expected = '2026-07-31T08:00:00.000Z';
+  const storage = createStorage({
+    'watchAssistant.watches': JSON.stringify([{
+      id: 'seconds-watch',
+      title: 'Existing seconds Watch',
+      createdAt: Date.parse(expected) / 1_000,
+    }]),
+    'watchAssistant.htmlEntityDecodeVersion': '1',
+  });
+  globalThis.localStorage = storage;
+
+  try {
+    const { getStoredWatches } = await import('./watch-storage.js?seconds-creation-date');
+    const watches = getStoredWatches();
+    const persisted = JSON.parse(storage.getItem('watchAssistant.watches'));
+    assert.equal(watches[0].id, 'seconds-watch');
+    assert.equal(watches[0].title, 'Existing seconds Watch');
+    assert.equal(watches[0].createdAt, expected);
+    assert.equal(persisted[0].createdAt, expected);
+  } finally {
+    if (originalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = originalStorage;
+  }
+});
+
 test('preserves an explicit clarity warning flag without adding it to legacy Watches', async () => {
   const originalStorage = globalThis.localStorage;
   const storage = createStorage({

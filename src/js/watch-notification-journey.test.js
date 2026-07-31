@@ -23,6 +23,7 @@ test('Detail renders persisted history before marking only displayed unread Upda
   const readIndex = detailRenderer.indexOf('queueMicrotask(() => markUpdatesAsRead(watch.id, readableUpdateIds))');
 
   assert.match(detailRenderer, /getWatchUpdates\(watch\)\.reverse\(\)/);
+  assert.match(detailRenderer, /getWatchTimelineEvents\(watch\)/);
   assert.match(detailRenderer, /filter\(\(\{ status: updateStatus \}\) => updateStatus === 'new'\)/);
   assert.ok(renderIndex >= 0 && visibleIndex > renderIndex && readIndex > visibleIndex);
   assert.match(detailRenderer, /!detailCheckInProgress/);
@@ -30,7 +31,7 @@ test('Detail renders persisted history before marking only displayed unread Upda
   assert.match(detailRenderer, /result\.matchedItems\.forEach/);
   assert.match(detailRenderer, /item\.sourceTitle \|\| item\.summary/);
   assert.match(detailRenderer, /formatMonitoringTimestamp\(item\.timestamp\)/);
-  assert.match(detailRenderer, /1970-01-01T00:00:00\.000Z[\s\S]*?localizeField\(watch, 'latestChangeAt'\)/);
+  assert.doesNotMatch(detailRenderer, /1970-01-01T00:00:00\.000Z/);
 });
 
 test('notification journey keeps validated separators and responsive detail styles intact', async () => {

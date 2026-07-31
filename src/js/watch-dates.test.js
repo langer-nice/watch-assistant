@@ -37,6 +37,33 @@ test('does not invent a creation date when no legacy value is recoverable', () =
   });
 });
 
+test('normalizes Unix seconds and milliseconds to the same meaningful Watch date', () => {
+  const expected = '2026-07-31T08:00:00.000Z';
+  const milliseconds = Date.parse(expected);
+  const seconds = milliseconds / 1_000;
+
+  assert.equal(getWatchCreationDate({ createdAt: seconds }).toISOString(), expected);
+  assert.equal(getWatchCreationDate({ createdAt: milliseconds }).toISOString(), expected);
+  assert.equal(getWatchCreationDate({ createdAt: String(seconds) }).toISOString(), expected);
+});
+
+test('missing, empty, invalid, and zero Watch dates never become 1970', () => {
+  for (const createdAt of [undefined, null, '', 'not-a-date', 0, '0', Number.NaN]) {
+    assert.equal(getWatchCreationDate({ createdAt }), null);
+    assert.equal(formatWatchCreationTime(createdAt, { language: 'en' }), '');
+    assert.equal(formatWatchCreationMetadata(createdAt, { language: 'en' }), '');
+  }
+});
+
+test('the current createdAt remains authoritative over legacy creation fields', () => {
+  const date = getWatchCreationDate({
+    createdAt: '2026-07-30T10:00:00Z',
+    created_at: '2024-01-01T00:00:00Z',
+  });
+
+  assert.equal(date.toISOString(), '2026-07-30T10:00:00.000Z');
+});
+
 test('formats the newest TODAY heading time in local 24-hour time', () => {
   const date = new Date(2026, 6, 23, 19, 20);
   assert.equal(formatWatchCreationTime(date, { language: 'en' }), '19:20');

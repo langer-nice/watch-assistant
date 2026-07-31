@@ -7,6 +7,8 @@ import {
   getWatchUpdates,
   markUpdateAsRead,
   markUpdatesAsRead,
+  migrateLegacyWatchUpdates,
+  normalizeUpdate,
 } from './watch-updates.js';
 
 const update = (id, timestamp, overrides = {}) => ({
@@ -138,4 +140,45 @@ test('empty and malformed Update histories remain safe to render', () => {
   assert.deepEqual(getWatchUpdates({ updates: [null, {}, { timestamp: 'not-a-date' }] }), []);
   assert.deepEqual(getUnreadUpdates({ updates: 'not-an-array' }), []);
   assert.equal(markUpdatesAsRead(null, ['missing']), null);
+});
+
+test('legacy migration never invents a 1970 Update when no timestamp exists', () => {
+  assert.deepEqual(migrateLegacyWatchUpdates({
+    id: 'undated-legacy',
+    title: 'Undated legacy Watch',
+    latestChange: 'A stored change without a date.',
+    status: 'updated',
+  }), []);
+});
+
+test('legacy epoch sentinels use a meaningful stored Watch date or are removed', () => {
+  const sentinelUpdate = {
+    id: 'legacy-update',
+    timestamp: '1970-01-01T00:00:00.000Z',
+    sourceTitle: 'Existing card content',
+    status: 'new',
+  };
+  const seconds = Date.parse('2026-07-30T10:00:00.000Z') / 1_000;
+
+  assert.equal(migrateLegacyWatchUpdates({
+    id: 'repairable',
+    createdAt: seconds,
+    updates: [sentinelUpdate],
+  })[0].timestamp, '2026-07-30T10:00:00.000Z');
+  assert.deepEqual(migrateLegacyWatchUpdates({
+    id: 'undated',
+    updates: [sentinelUpdate],
+  }), []);
+});
+
+test('Update timestamps accept Unix seconds and milliseconds consistently', () => {
+  const expected = '2026-07-31T08:00:00.000Z';
+  const milliseconds = Date.parse(expected);
+  const seconds = milliseconds / 1_000;
+
+  assert.equal(normalizeUpdate({ id: 'seconds', timestamp: seconds }).timestamp, expected);
+  assert.equal(normalizeUpdate({ id: 'milliseconds', timestamp: milliseconds }).timestamp, expected);
+  for (const timestamp of [undefined, null, '', 'invalid', 0, '0']) {
+    assert.equal(normalizeUpdate({ id: 'invalid', timestamp }), null);
+  }
 });
