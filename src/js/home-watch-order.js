@@ -1,4 +1,5 @@
 import { getWatchCreationDate, parseTimestampValue } from './watch-dates.js';
+import { getLatestUpdate } from './watch-updates.js';
 
 export const HOME_SORT_MODES = Object.freeze({
   ATTENTION_FIRST: 'needs-attention-first',
@@ -86,6 +87,23 @@ export const getHomeWatchActivityTimestamp = (watch) => {
   return toSortableTimestamp(getWatchCreationDate(watch));
 };
 
+export const getMeaningfulUpdateTimestamp = (watch) => {
+  const persistedTimestamp = toSortableTimestamp(getLatestUpdate(watch)?.timestamp);
+  if (persistedTimestamp !== null) return persistedTimestamp;
+  const legacyValues = [
+    watch?.latestUpdateAt,
+    watch?.lastUpdated,
+    ...getCollectionTimestamps(watch, 'candidateUpdates', ['detectedAt', 'timestamp']),
+    ...getCollectionTimestamps(watch, 'monitoringUpdates', ['detectedAt', 'timestamp']),
+    watch?.latestChangeAt,
+    watch?.updatedAt,
+  ];
+  const legacyTimestamps = legacyValues
+    .map(toSortableTimestamp)
+    .filter((timestamp) => timestamp !== null);
+  return legacyTimestamps.length ? Math.max(...legacyTimestamps) : null;
+};
+
 const compareFallback = (first, second) => {
   const firstId = typeof first.watch?.id === 'string' ? first.watch.id : '';
   const secondId = typeof second.watch?.id === 'string' ? second.watch.id : '';
@@ -110,8 +128,13 @@ export const sortHomeWatches = (watches, {
     watch,
     index,
     status: getStatus(watch),
-    timestamp: getHomeWatchActivityTimestamp(watch),
+    timestamp: null,
   }));
+  entries.forEach((entry) => {
+    entry.timestamp = entry.status === 'updated' && STATUS_PRIORITIES[normalizedMode]
+      ? getMeaningfulUpdateTimestamp(entry.watch)
+      : getHomeWatchActivityTimestamp(entry.watch);
+  });
 
   entries.sort((first, second) => {
     const statusPriorities = STATUS_PRIORITIES[normalizedMode];
@@ -128,4 +151,46 @@ export const sortHomeWatches = (watches, {
   });
 
   return entries.map(({ watch }) => watch);
+};
+
+export const orderAllWatchGroups = (groups, {
+  attentionWatches = [],
+  updatedWatches = [],
+  orderedWatches = [],
+  mode = DEFAULT_HOME_SORT_MODE,
+} = {}) => {
+  const normalizedMode = normalizeHomeSortMode(mode);
+  const orderById = new Map(orderedWatches.map((watch, index) => [watch.id, index]));
+  const sortBySelectedOrder = (watches) => [...watches].sort((first, second) => (
+    orderById.get(first.id) - orderById.get(second.id)
+  ));
+  const statusMode = [
+    HOME_SORT_MODES.ATTENTION_FIRST,
+    HOME_SORT_MODES.UPDATED_FIRST,
+  ].includes(normalizedMode);
+
+  if (statusMode) {
+    const statusIds = new Set([
+      ...attentionWatches.map(({ id }) => id),
+      ...updatedWatches.map(({ id }) => id),
+    ]);
+    const statusGroups = [
+      { type: 'actionRequired', watches: sortBySelectedOrder(attentionWatches) },
+      { type: 'updated', watches: sortBySelectedOrder(updatedWatches) },
+    ].filter((group) => group.watches.length);
+    if (normalizedMode === HOME_SORT_MODES.UPDATED_FIRST) statusGroups.reverse();
+    const quietGroups = groups
+      .map((group) => ({
+        ...group,
+        watches: sortBySelectedOrder(group.watches.filter(({ id }) => !statusIds.has(id))),
+      }))
+      .filter((group) => group.watches.length);
+    return [...statusGroups, ...quietGroups];
+  }
+
+  return groups
+    .map((group) => ({ ...group, watches: sortBySelectedOrder(group.watches) }))
+    .sort((first, second) => (
+      orderById.get(first.watches[0]?.id) - orderById.get(second.watches[0]?.id)
+    ));
 };

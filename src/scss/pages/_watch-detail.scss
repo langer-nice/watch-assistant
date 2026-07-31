@@ -41,6 +41,10 @@ body.is-watch-edit-open {
   margin: 0 0 var(--space-lg);
 }
 
+.page--detail .detail-section--confirmation:not([hidden]) + .detail-header {
+  margin-top: var(--space-lg);
+}
+
 .detail-edit-action {
   position: static;
   grid-column: 2;
@@ -104,6 +108,53 @@ body.is-watch-edit-open {
   line-height: 1.45;
 }
 
+.detail-current-update {
+  min-width: 0;
+  scroll-margin-top: calc(var(--app-header-height) + var(--space-lg));
+}
+
+.detail-current-update:focus-visible,
+.monitoring-updates:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: calc(var(--space-xxs) * -1);
+}
+
+.detail-current-update .detail-current-update__title {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.detail-current-update .detail-current-update__metadata {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.detail-current-update__link,
+.watch-fact-check__review,
+.timeline__article-link {
+  display: inline-flex;
+  width: fit-content;
+  color: var(--color-action);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+  text-underline-offset: var(--space-3xs);
+}
+
+.detail-current-update__link {
+  margin-top: var(--space-sm);
+}
+
+.detail-current-update [hidden] {
+  display: none;
+}
+
+.detail-current-update .detail-current-update__metadata {
+  margin-top: var(--space-xs);
+}
+
 .story-concepts__helper,
 .story-concepts__empty {
   color: var(--color-text-muted);
@@ -121,15 +172,20 @@ body.is-watch-edit-open {
 
 .story-concepts__item {
   display: grid;
-  grid-template-columns: 5.25rem minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-self: start;
-  align-items: start;
+  align-items: center;
   gap: var(--space-sm);
   min-width: 0;
   width: 100%;
   padding: var(--space-xs) var(--space-sm);
   background: var(--color-surface-subtle);
   border-radius: var(--radius-sm);
+}
+
+.story-concepts__text {
+  min-width: 0;
+  margin: 0;
 }
 
 .story-concepts__item dt {
@@ -147,10 +203,6 @@ body.is-watch-edit-open {
 }
 
 .story-concepts__item dd {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: var(--space-xs);
   min-width: 0;
   font-size: var(--font-size-sm);
   line-height: 1.45;
@@ -158,7 +210,8 @@ body.is-watch-edit-open {
 
 .story-concepts__label {
   min-width: 0;
-  padding: 0.45rem 0;
+  margin-top: var(--space-xxs);
+  padding: 0 var(--space-xs);
   overflow-wrap: anywhere;
 }
 
@@ -215,12 +268,6 @@ body.is-watch-edit-open {
 .story-concepts__edit:hover,
 .story-concepts__edit:focus-visible {
   text-decoration: underline;
-}
-
-@media (min-width: 36rem) {
-  .story-concepts__item {
-    grid-template-columns: minmax(6.5rem, auto) minmax(0, 1fr);
-  }
 }
 
 .detail-clarity-warning[hidden] {
@@ -764,8 +811,14 @@ body.is-watch-edit-open {
   line-height: 1.5;
 }
 
-#watchFacts.is-revealing {
+.detail-monitoring-controls.is-revealing {
   animation: watch-facts-reveal 420ms ease both;
+}
+
+.detail-monitoring-controls {
+  min-width: 0;
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-divider);
 }
 
 .watch-fact-check {
@@ -774,6 +827,12 @@ body.is-watch-edit-open {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
+}
+
+.watch-fact-check > p {
+  min-width: 0;
+  flex: 1 1 12rem;
+  overflow-wrap: anywhere;
 }
 
 .watch-fact-check__button {
@@ -817,22 +876,29 @@ body.is-watch-edit-open {
 }
 
 .watch-fact-check__spinner[hidden],
-.watch-fact-check__feedback[hidden] {
+.watch-fact-check__feedback[hidden],
+.watch-fact-check__review[hidden] {
   display: none;
 }
 
-.detail-card__metadata .watch-fact-check__feedback {
+.detail-monitoring-controls .watch-fact-check__feedback {
   margin-top: var(--space-xs);
   color: var(--color-status-success);
   font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
 }
 
-.detail-card__metadata .watch-fact-check__feedback[data-state='error'] {
+.detail-monitoring-controls .watch-fact-check__feedback[data-state='error'] {
   color: var(--color-status-action);
 }
 
-.detail-card__metadata .watch-fact-check__feedback[data-state='info'] {
+.detail-monitoring-controls .watch-fact-check__feedback[data-state='info'] {
   color: var(--color-text-muted);
+}
+
+.watch-fact-check__review {
+  margin-top: var(--space-xs);
+  font-size: var(--font-size-xs);
 }
 
 .monitoring-updates > ul {

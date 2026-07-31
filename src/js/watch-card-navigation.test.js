@@ -133,10 +133,10 @@ test('All Watches renders at most one canonical Home-style update separator per 
   ]);
   const listRenderer = navigation.match(/const renderWatchList = \(\) => \{[\s\S]*?const renderWatchDetail/)?.[0] || '';
 
-  assert.match(listRenderer, /getUpdatedSeparatorWatchId\(\s*groups,\s*canonicalGroups\.updatedWatches/);
-  assert.match(listRenderer, /watch\.id === separatorAfterWatchId/);
+  assert.match(listRenderer, /getUpdatedSeparatorWatchId\(\s*orderedGroups,\s*canonicalGroups\.updatedWatches/);
+  assert.match(listRenderer, /watch\.id === orderedSeparatorAfterWatchId/);
   assert.equal((listRenderer.match(/watch-list__update-separator/g) || []).length, 1);
-  assert.match(listRenderer, /list\.innerHTML = groups/);
+  assert.match(listRenderer, /list\.innerHTML = orderedGroups/);
   assert.match(allQuietStyles, /\.all-quiet::before,\s*\.watch-list__update-separator\s*\{[\s\S]*?height:\s*2px;[\s\S]*?margin-bottom:\s*var\(--space-xl\);[\s\S]*?background:\s*var\(--color-border-strong\)/);
 });
 

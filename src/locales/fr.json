@@ -151,6 +151,7 @@
     "recommendation": "Recommandation",
     "source": "Source",
     "openOriginalArticle": "Ouvrir l’article original",
+    "openArticle": "Ouvrir l’article",
     "whyToday": "Pourquoi aujourd’hui",
     "watchFacts": "Informations sur la Watch",
     "lastChecked": "Dernière vérification",
@@ -173,9 +174,11 @@
     "noNewUpdates": "Aucun changement détecté depuis le début de la surveillance.",
     "noMatchingUpdates": "De nouvelles publications ont été vérifiées, mais aucune ne correspond à cette actualité",
     "newItemsFound": {
-      "one": "{count} mise à jour candidate trouvée. Son importance n’a pas encore été évaluée.",
-      "other": "{count} mises à jour candidates trouvées. Leur importance n’a pas encore été évaluée."
+      "one": "{count} nouvel article trouvé",
+      "other": "{count} nouveaux articles trouvés"
     },
+    "reviewUpdate": "Consulter la mise à jour",
+    "reviewUpdates": "Consulter les mises à jour",
     "checkFailed": "Nous n’avons pas pu vérifier les mises à jour. Réessayez.",
     "checkFailure": {
       "missingSource": "Aucune source de surveillance n’est disponible pour cette Watch. Ajoutez une source compatible dans les réglages avancés, puis réessayez.",
@@ -187,7 +190,7 @@
       "temporary": "Un problème temporaire de service ou de réseau a interrompu la vérification. Réessayez."
     },
     "monitoringUnavailable": "La source de surveillance est temporairement indisponible. Vous pouvez relancer la vérification.",
-    "newItems": "Mises à jour candidates",
+    "newItems": "Nouveaux articles",
     "updateHistory": "Historique des mises à jour",
     "updateDetected": "Mise à jour détectée",
     "untitledItem": "Élément sans titre",

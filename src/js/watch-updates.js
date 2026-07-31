@@ -45,6 +45,7 @@ export const normalizeUpdate = (update, { fallbackTimestamp = null } = {}) => {
 
   const sourceUrl = normalizeText(update.sourceUrl || update.url);
   const sourceTitle = normalizeText(update.sourceTitle || update.title);
+  const sourceName = normalizeText(update.sourceName || update.source);
   const summary = normalizeText(update.summary || update.excerpt || update.title);
   const sourceDomain = normalizeText(update.sourceDomain) || getSourceDomain(sourceUrl);
   const status = UPDATE_STATUSES.has(update.status)
@@ -59,6 +60,7 @@ export const normalizeUpdate = (update, { fallbackTimestamp = null } = {}) => {
     timestamp,
     sourceUrl,
     sourceTitle,
+    sourceName,
     sourceDomain,
     summary,
     status,
@@ -165,9 +167,10 @@ const getLegacyUpdateTimestamp = (watch, candidate) => [
   candidate?.detectedAt,
   candidate?.publishedAt,
   watch.latestUpdateAt,
+  watch.lastUpdated,
   watch.latestChangeAt,
+  watch.updatedAt,
   watch.lastChecked,
-  watch.sourcePublishedAt,
   watch.createdAt,
 ].map(normalizeTimestamp).find(Boolean) || null;
 
@@ -181,6 +184,13 @@ export const migrateLegacyWatchUpdates = (watch, candidateUpdates = []) => {
   }
 
   const candidate = newestLegacyCandidate(candidateUpdates);
+  const hasLegacyMeaningfulUpdate = Boolean(
+    candidate
+    || normalizeText(watch.latestChange)
+    || ['new', 'updated'].includes(watch.currentStatus)
+    || ['new', 'updated'].includes(watch.status),
+  );
+  if (!hasLegacyMeaningfulUpdate) return [];
   const timestamp = getLegacyUpdateTimestamp(watch, candidate);
   const rawMonitoringResult = candidate
     || watch.lastCheckResult
@@ -190,17 +200,13 @@ export const migrateLegacyWatchUpdates = (watch, candidateUpdates = []) => {
   const initial = normalizeUpdate({
     id: candidate?.id || null,
     timestamp,
-    sourceUrl: candidate?.url || watch.sourceUrl || watch.storyProfile?.sourceArticle?.url,
+    sourceUrl: candidate?.url,
     sourceTitle: candidate?.title
-      || watch.sourceTitle
-      || watch.storyProfile?.sourceArticle?.title
-      || watch.title,
+      || watch.latestChange,
+    sourceName: candidate?.source,
     summary: candidate?.excerpt
       || watch.latestChange
-      || watch.monitoringSummary
-      || watch.storyProfile?.storySummary
       || watch.currentSituation
-      || watch.sourceTitle
       || watch.title
       || watch.request,
     status: ['candidate', 'unreviewed'].includes(candidate?.status)

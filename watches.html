@@ -20,6 +20,15 @@
           <p class="intro" data-i18n="watches.intro"></p>
         </header>
 
+        <div class="home-watch-sort" id="allWatchesSortRow">
+          <label for="allWatchesSort" data-i18n="home.sortBy"></label>
+          <select id="allWatchesSort">
+            <option value="needs-attention-first" data-i18n="home.sortAttentionFirst"></option>
+            <option value="updated-first" data-i18n="home.sortUpdatedFirst"></option>
+            <option value="most-recent" data-i18n="home.sortMostRecent"></option>
+            <option value="oldest-first" data-i18n="home.sortOldestFirst"></option>
+          </select>
+        </div>
         <section class="watch-list" id="watchList" aria-live="polite"></section>
       </main>
 

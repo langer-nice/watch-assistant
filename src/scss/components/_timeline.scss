@@ -73,6 +73,10 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.timeline__article-link {
+  margin-top: var(--space-xs);
+}
+
 @media (min-width: 36rem) {
   .timeline ol {
     padding-inline: var(--space-xl);

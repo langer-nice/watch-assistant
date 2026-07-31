@@ -34,6 +34,7 @@ import {
 } from './watch-dates.js';
 import {
   getHomeSortPreference,
+  orderAllWatchGroups,
   setHomeSortPreference,
   sortHomeWatches,
 } from './home-watch-order.js';
@@ -91,6 +92,7 @@ import {
 } from './watch-model.js';
 import { renderWatchCardLink } from './watch-card-link.js';
 import {
+  CURRENT_UPDATE_FRAGMENT,
   getCreatedWatchDetailHref,
   getWatchDetailHref,
   getWatchIdFromLocation,
@@ -102,10 +104,13 @@ import {
 } from './watch-category.js';
 import {
   getLatestUpdate,
-  getUnreadUpdates,
   getWatchUpdates,
 } from './watch-updates.js';
 import { getWatchTimelineEvents } from './watch-timeline.js';
+import {
+  getCurrentSituationPresentation,
+  getLatestCheckUpdates,
+} from './watch-update-presentation.js';
 
 let homeCreatedWatchId = null;
 let homeFirstWatchConfirmation = false;
@@ -115,6 +120,7 @@ let detailConfirmationAutoTimer = null;
 let detailConfirmationHideTimer = null;
 let detailCheckInProgress = false;
 let detailCheckErrorWatchId = null;
+let detailRevealedUpdateRoute = null;
 const detailDeferredReadUpdateIds = new Set();
 const getDeferredReadKey = (watchId, updateId) => `${watchId}\u0000${updateId}`;
 let firstMonitoringTimer = null;
@@ -798,7 +804,6 @@ const getHomeWatchTimestampText = (watch, latestUpdate) => {
 const renderHomeWatchCards = (watches, statusById) => watches
   .map((watch) => {
     const title = localizeField(watch, 'title');
-    const unreadUpdates = getUnreadUpdates(watch);
     const latestUpdate = getLatestUpdate(watch);
     const latestChange = getHomeUpdateText(watch);
     if (!hasMeaningfulText(title)) return '';
@@ -807,12 +812,7 @@ const renderHomeWatchCards = (watches, statusById) => watches
     if (!homeStatus) return '';
     const needsAttention = homeStatus === 'attention';
     const statusModifier = homeStatus;
-    const status = t(needsAttention
-      ? 'statuses.attention'
-      : unreadUpdates.length ? 'statuses.new' : 'statuses.updated');
-    const unreadStatus = needsAttention && unreadUpdates.length
-      ? `<span class="status-label status-label--updated">${escapeHtml(t('statuses.new'))}</span>`
-      : '';
+    const status = t(needsAttention ? 'statuses.attention' : 'statuses.updated');
     const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
     const categoryModifier = watch.category || 'general';
     const latestChangeAt = getHomeWatchTimestampText(watch, latestUpdate);
@@ -823,6 +823,7 @@ const renderHomeWatchCards = (watches, statusById) => watches
     const link = renderWatchCardLink({
       watchId: watch.id,
       className: 'briefing-item__link',
+      revealLatestUpdate: homeStatus === 'updated',
       content: `
         <div class="briefing-item__header">
           <div class="briefing-item__metadata">
@@ -833,14 +834,10 @@ const renderHomeWatchCards = (watches, statusById) => watches
           </div>
           <div class="briefing-item__statuses">
             <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
-            ${unreadStatus}
           </div>
         </div>
         <h2>${escapeHtml(title)}</h2>
         <p>${escapeHtml(supportingText)}</p>
-        ${unreadUpdates.length > 1
-    ? `<p>${escapeHtml(t('home.newUpdateCount', { count: unreadUpdates.length }))}</p>`
-    : ''}
       `,
     });
     const articleId = `home-watch-${homeStatus}-${encodeURIComponent(String(watch.id))}`;
@@ -869,12 +866,20 @@ const renderHomeBriefing = () => {
 
 const initHomeWatchControls = () => {
   const sortControl = document.querySelector('#homeWatchSort');
+  const allWatchesSortControl = document.querySelector('#allWatchesSort');
   const statusOverview = document.querySelector('.briefing-summary__statuses');
   if (sortControl && !sortControl.dataset.homeSortBound) {
     sortControl.dataset.homeSortBound = 'true';
     sortControl.addEventListener('change', () => {
       setHomeSortPreference(sortControl.value);
       renderHomeBriefing();
+    });
+  }
+  if (allWatchesSortControl && !allWatchesSortControl.dataset.homeSortBound) {
+    allWatchesSortControl.dataset.homeSortBound = 'true';
+    allWatchesSortControl.addEventListener('change', () => {
+      setHomeSortPreference(allWatchesSortControl.value);
+      renderWatchList();
     });
   }
   if (statusOverview && !statusOverview.dataset.homeNavigationBound) {
@@ -889,6 +894,8 @@ const initHomeWatchControls = () => {
 
 const renderWatchList = () => {
   const list = document.querySelector('#watchList');
+  const sortControl = document.querySelector('#allWatchesSort');
+  const sortRow = document.querySelector('#allWatchesSortRow');
   if (!list) {
     return;
   }
@@ -896,6 +903,7 @@ const renderWatchList = () => {
   const watches = getWatches();
 
   if (watches.length === 0) {
+    if (sortRow) sortRow.hidden = true;
     list.innerHTML = `<p>${escapeHtml(t('watches.empty'))}</p>`;
     return;
   }
@@ -911,10 +919,27 @@ const renderWatchList = () => {
   });
   const attentionIds = new Set(canonicalGroups.attentionWatches.map(({ id }) => id));
   const updatedIds = new Set(canonicalGroups.updatedWatches.map(({ id }) => id));
-  const separatorAfterWatchId = getUpdatedSeparatorWatchId(
-    groups,
+  const statusById = new Map([
+    ...canonicalGroups.attentionWatches.map((watch) => [watch.id, 'attention']),
+    ...canonicalGroups.updatedWatches.map((watch) => [watch.id, 'updated']),
+  ]);
+  const mode = getHomeSortPreference();
+  const orderedWatches = sortHomeWatches(watches, {
+    mode,
+    getStatus: (watch) => statusById.get(watch.id) || 'unchanged',
+  });
+  const orderedGroups = orderAllWatchGroups(groups, {
+    attentionWatches: canonicalGroups.attentionWatches,
+    updatedWatches: canonicalGroups.updatedWatches,
+    orderedWatches,
+    mode,
+  });
+  const orderedSeparatorAfterWatchId = getUpdatedSeparatorWatchId(
+    orderedGroups,
     canonicalGroups.updatedWatches,
   );
+  if (sortControl) sortControl.value = mode;
+  if (sortRow) sortRow.hidden = false;
 
   const renderWatchCards = (group) => group.watches
     .map((watch) => {
@@ -925,7 +950,7 @@ const renderWatchList = () => {
       const status = attentionIds.has(watch.id)
         ? 'attention'
         : updatedIds.has(watch.id)
-          ? getUnreadUpdates(watch).length ? 'new' : 'updated'
+          ? 'updated'
           : monitoringHealthStatus || (['paused', 'completed'].includes(watch.status)
             ? watch.status
             : 'watching');
@@ -933,10 +958,7 @@ const renderWatchList = () => {
       const statusText = status === 'attention'
         ? t('watches.needsAttention')
         : t(`statuses.${status}`);
-      const unreadStatusLabel = status === 'attention' && getUnreadUpdates(watch).length
-        ? `<span class="watch-row__status status-label status-label--updated">${escapeHtml(t('statuses.new'))}</span>`
-        : '';
-      const statusLabel = `<span class="watch-row__statuses"><span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(statusText)}</span>${unreadStatusLabel}</span>`;
+      const statusLabel = `<span class="watch-row__statuses"><span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(statusText)}</span></span>`;
       const showCreationMetadata = group.type === 'last7Days';
       const creationMetadata = showCreationMetadata
         ? formatWatchCreationMetadata(getWatchCreationDate(watch), {
@@ -946,10 +968,13 @@ const renderWatchList = () => {
         : '';
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
-        : getMonitoringSummary(watch, title);
+        : updatedIds.has(watch.id)
+          ? getHomeUpdateText(watch)
+          : getMonitoringSummary(watch, title);
       const card = renderWatchCardLink({
         watchId: watch.id,
         className: `watch-row${isPaused ? ' watch-row--paused' : ''}`,
+        revealLatestUpdate: updatedIds.has(watch.id),
         content: `
         <div class="watch-row__metadata">
           <p class="watch-row__category">${escapeHtml(t(`categories.${watch.category}`))}</p>
@@ -963,13 +988,13 @@ const renderWatchList = () => {
       `,
       });
       if (!card) return '';
-      return watch.id === separatorAfterWatchId
+      return watch.id === orderedSeparatorAfterWatchId
         ? `${card}<div class="watch-list__update-separator" aria-hidden="true"></div>`
         : card;
     })
     .join('');
 
-  list.innerHTML = groups
+  list.innerHTML = orderedGroups
     .map((group, index) => {
       if (['actionRequired', 'updated'].includes(group.type)) {
         return renderWatchCards(group);
@@ -1033,6 +1058,11 @@ const renderWatchDetail = () => {
   const factsEl = document.querySelector('#watchFacts');
   const primaryEl = document.querySelector('#watchPrimary');
   const currentSituationEl = document.querySelector('#watchCurrentSituation');
+  const currentSituationContainerEl = document.querySelector('#current-situation');
+  const currentUpdateTitleEl = document.querySelector('#watchCurrentUpdateTitle');
+  const currentUpdateMetadataEl = document.querySelector('#watchCurrentUpdateMetadata');
+  const currentUpdateLinkEl = document.querySelector('#watchCurrentUpdateLink');
+  const monitoringControlsEl = document.querySelector('#watchMonitoringControls');
   const recommendationEl = document.querySelector('#watchRecommendation');
   const originalSourceEl = document.querySelector('#watchOriginalSource');
   const sourceNameEl = document.querySelector('#watchSourceName');
@@ -1071,6 +1101,7 @@ const renderWatchDetail = () => {
   const checkNowLabelEl = document.querySelector('#watchCheckNowLabel');
   const checkSpinnerEl = document.querySelector('.watch-fact-check__spinner');
   const checkFeedbackEl = document.querySelector('#watchCheckFeedback');
+  const checkReviewEl = document.querySelector('#watchCheckReview');
   const monitoringUpdatesEl = document.querySelector('#watchMonitoringUpdates');
   const monitoringUpdatesListEl = document.querySelector('#watchMonitoringUpdatesList');
   const pauseResumeEl = document.querySelector('#watchPauseResume');
@@ -1173,16 +1204,46 @@ const renderWatchDetail = () => {
     }
     return hasValue;
   };
+  const revealUpdateTarget = (target) => {
+    if (!target || target.hidden) return;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'start' });
+  };
 
   const storedCurrentSituation = localizeField(watch, 'currentSituation');
-  const currentSituation = isDistinctMeaningfulText(storedCurrentSituation, request || '')
+  const pendingSituation = isDistinctMeaningfulText(storedCurrentSituation, request || '')
     ? storedCurrentSituation
     : t(inferCurrentSituationKey(request || '', watch.category));
+  const currentUpdate = getCurrentSituationPresentation(watch, {
+    fallback: pendingSituation,
+    formatTimestamp: formatMonitoringTimestamp,
+    sanitizeUrl: getSafeExternalUrl,
+  });
+  const latestMeaningfulUpdate = currentUpdate.update;
+  const currentSituation = currentUpdate.summary;
   const hasCurrentSituation = setOptionalField(
     'currentSituation',
     currentSituationEl,
     currentSituation,
   );
+  if (currentUpdateTitleEl) {
+    currentUpdateTitleEl.textContent = currentUpdate.title;
+    currentUpdateTitleEl.hidden = !currentUpdate.title;
+  }
+  if (currentUpdateMetadataEl) {
+    currentUpdateMetadataEl.textContent = currentUpdate.metadata;
+    currentUpdateMetadataEl.hidden = !currentUpdate.metadata;
+  }
+  if (currentUpdateLinkEl) {
+    if (currentUpdate.articleUrl) {
+      currentUpdateLinkEl.href = currentUpdate.articleUrl;
+      currentUpdateLinkEl.setAttribute('aria-label', t('detail.openArticle'));
+    } else {
+      currentUpdateLinkEl.removeAttribute('href');
+      currentUpdateLinkEl.removeAttribute('aria-label');
+    }
+    currentUpdateLinkEl.hidden = !currentUpdate.articleUrl;
+  }
   const hasRecommendation = setOptionalField(
     'recommendation',
     recommendationEl,
@@ -1206,18 +1267,18 @@ const renderWatchDetail = () => {
     storyConceptsListEl.innerHTML = storyIdentifiers.map(({ label, type }) => {
       return `
         <div class="story-concepts__item">
-          <dt><span>${escapeHtml(t(`newWatch.conceptTypes.${type}`))}</span></dt>
-          <dd>
-            <span class="story-concepts__label">${escapeHtml(label)}</span>
-            <button
-              class="story-concepts__action"
-              type="button"
-              data-story-concept-edit
-              aria-label="${escapeHtml(t('detail.editStoryConcept', { concept: label }))}"
-            >
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 11.8-.4 1.6 1.6-.4 7.9-7.9-1.2-1.2L3 11.8Z"/><path d="m9.8 5 1.2 1.2"/></svg>
-            </button>
-          </dd>
+          <dl class="story-concepts__text">
+            <dt><span>${escapeHtml(t(`newWatch.conceptTypes.${type}`))}</span></dt>
+            <dd class="story-concepts__label">${escapeHtml(label)}</dd>
+          </dl>
+          <button
+            class="story-concepts__action"
+            type="button"
+            data-story-concept-edit
+            aria-label="${escapeHtml(t('detail.editStoryConcept', { concept: label }))}"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 11.8-.4 1.6 1.6-.4 7.9-7.9-1.2-1.2L3 11.8Z"/><path d="m9.8 5 1.2 1.2"/></svg>
+          </button>
         </div>
       `;
     }).join('');
@@ -1302,6 +1363,9 @@ const renderWatchDetail = () => {
       : lastAttemptFailed ? t('detail.checkFailedStatus') : t('detail.notCheckedYet')
   );
   const hasLastChecked = setOptionalField('lastChecked', lastCheckedEl, lastChecked);
+  if (monitoringControlsEl) {
+    monitoringControlsEl.hidden = isPreparing || !hasLastChecked;
+  }
 
   let confidence = localizeField(watch, 'confidence');
   if (confidence && ['high', 'medium', 'low'].includes(confidence)) {
@@ -1322,7 +1386,7 @@ const renderWatchDetail = () => {
     sourcesContainer.hidden = sources.length === 0;
   }
 
-  const hasMetadata = sources.length > 0 || hasConfidence || hasLatestChange || hasLastChecked;
+  const hasMetadata = sources.length > 0 || hasConfidence || hasLatestChange;
   if (metadataEl) {
     metadataEl.hidden = !hasMetadata;
   }
@@ -1336,6 +1400,7 @@ const renderWatchDetail = () => {
       || hasOriginalSource
       || storySummary
       || storyIdentifiers.length
+      || (hasLastChecked && !isPreparing)
     );
   }
 
@@ -1365,6 +1430,9 @@ const renderWatchDetail = () => {
       return {
         date,
         label,
+        articleUrl: item.type === 'update'
+          ? getSafeExternalUrl(item.source.sourceUrl)
+          : null,
       };
     })
     .filter(Boolean)
@@ -1380,6 +1448,11 @@ const renderWatchDetail = () => {
           <div>
             ${item.date ? `<p class="timeline__date">${escapeHtml(item.date)}</p>` : ''}
             <p class="timeline__event">${escapeHtml(item.label)}</p>
+            ${item.articleUrl ? `
+              <a class="timeline__article-link" href="${escapeHtml(item.articleUrl)}" target="_blank" rel="noopener noreferrer">
+                ${escapeHtml(t('detail.openArticle'))} <span aria-hidden="true">↗</span>
+              </a>
+            ` : ''}
           </div>
         </li>
       `)
@@ -1527,6 +1600,11 @@ const renderWatchDetail = () => {
   if (checkSpinnerEl) {
     checkSpinnerEl.hidden = !detailCheckInProgress;
   }
+  if (checkReviewEl) {
+    checkReviewEl.hidden = true;
+    checkReviewEl.removeAttribute('aria-label');
+    checkReviewEl.onclick = null;
+  }
   if (checkFeedbackEl && !detailCheckInProgress) {
     const outcome = watch.lastCheckOutcome?.type;
     const outcomeKey = outcome === 'baseline'
@@ -1543,20 +1621,34 @@ const renderWatchDetail = () => {
       checkFeedbackEl.dataset.state = 'error';
       checkFeedbackEl.hidden = false;
     } else if (outcomeKey) {
-      const candidateIds = watch.lastCheckResult?.candidateItemIds
-        || watch.lastCheckOutcome?.candidateItemIds
-        || watch.lastCheckOutcome?.newItemIds;
-      const count = Array.isArray(candidateIds)
-        ? candidateIds.length
-        : 0;
-      const localizedOutcomeKey = ['matching-items', 'new-items'].includes(outcome)
+      const reviewableUpdates = getLatestCheckUpdates(watch);
+      const count = reviewableUpdates.length;
+      const hasReviewableUpdates = ['matching-items', 'new-items'].includes(outcome) && count > 0;
+      const localizedOutcomeKey = hasReviewableUpdates
         ? `${outcomeKey}.${count === 1 ? 'one' : 'other'}`
-        : outcomeKey;
+        : ['matching-items', 'new-items'].includes(outcome) ? 'detail.noMatchingUpdates' : outcomeKey;
       checkFeedbackEl.textContent = t(localizedOutcomeKey, { count });
-      checkFeedbackEl.dataset.state = ['matching-items', 'new-items'].includes(outcome)
+      checkFeedbackEl.dataset.state = hasReviewableUpdates
         ? 'new'
         : 'success';
       checkFeedbackEl.hidden = false;
+      if (hasReviewableUpdates && checkReviewEl) {
+        const reviewTarget = count === 1 ? currentSituationContainerEl : monitoringUpdatesEl;
+        const labelKey = count === 1 ? 'detail.reviewUpdate' : 'detail.reviewUpdates';
+        checkReviewEl.href = count === 1 ? '#current-situation' : '#watchMonitoringUpdates';
+        checkReviewEl.textContent = t(labelKey);
+        checkReviewEl.setAttribute('aria-label', t(labelKey));
+        checkReviewEl.hidden = false;
+        checkReviewEl.onclick = (event) => {
+          event.preventDefault();
+          window.history.replaceState(
+            window.history.state,
+            '',
+            `${window.location.pathname}${window.location.search}${checkReviewEl.getAttribute('href')}`,
+          );
+          revealUpdateTarget(reviewTarget);
+        };
+      }
     } else if (!hasFeedUrl) {
       checkFeedbackEl.textContent = '';
       checkFeedbackEl.hidden = true;
@@ -1569,6 +1661,16 @@ const renderWatchDetail = () => {
       checkFeedbackEl.hidden = true;
       delete checkFeedbackEl.dataset.state;
     }
+  }
+
+  const shouldRevealCurrentUpdate = window.location.hash === `#${CURRENT_UPDATE_FRAGMENT}`
+    && Boolean(latestMeaningfulUpdate);
+  const revealRouteKey = shouldRevealCurrentUpdate
+    ? `${watch.id}\u0000${latestMeaningfulUpdate.id}\u0000${window.location.href}`
+    : null;
+  if (revealRouteKey && detailRevealedUpdateRoute !== revealRouteKey) {
+    detailRevealedUpdateRoute = revealRouteKey;
+    window.requestAnimationFrame(() => revealUpdateTarget(currentSituationContainerEl));
   }
 
   const isPaused = watch.status === 'paused';
@@ -1680,10 +1782,10 @@ function scheduleFirstMonitoringPass(watch, preparingEl) {
       });
       renderWatchDetail();
 
-      const refreshedFactsEl = document.querySelector('#watchFacts');
-      if (refreshedFactsEl && !refreshedFactsEl.hidden) {
-        refreshedFactsEl.classList.add('is-revealing');
-        window.setTimeout(() => refreshedFactsEl.classList.remove('is-revealing'), 420);
+      const refreshedMonitoringControlsEl = document.querySelector('#watchMonitoringControls');
+      if (refreshedMonitoringControlsEl && !refreshedMonitoringControlsEl.hidden) {
+        refreshedMonitoringControlsEl.classList.add('is-revealing');
+        window.setTimeout(() => refreshedMonitoringControlsEl.classList.remove('is-revealing'), 420);
       }
       firstMonitoringTransitionTimer = null;
     }, 240);

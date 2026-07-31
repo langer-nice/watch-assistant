@@ -41,7 +41,7 @@ test('Update History uses shared panel spacing and content typography with secon
   assert.doesNotMatch(detailStyles, /\.monitoring-update p\s*\{/);
 });
 
-test('Watch Facts and Check now retain their validated layout rules', async () => {
+test('remaining Watch Facts and relocated Check now retain their validated layout rules', async () => {
   const [cardStyles, detailStyles] = await Promise.all([
     read('../scss/components/_detail-card.scss'),
     read('../scss/pages/_watch-detail.scss'),

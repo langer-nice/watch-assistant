@@ -198,6 +198,7 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
       timestamp: detectedUpdate.detectedAt,
       sourceUrl: detectedUpdate.url,
       sourceTitle: detectedUpdate.title,
+      sourceName: detectedUpdate.source,
       summary: detectedUpdate.excerpt || detectedUpdate.title,
       status: 'new',
       rawMonitoringResult: detectedUpdate,

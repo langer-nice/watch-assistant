@@ -151,6 +151,7 @@
     "recommendation": "Recommendation",
     "source": "Source",
     "openOriginalArticle": "Open original article",
+    "openArticle": "Open article",
     "whyToday": "Why today",
     "watchFacts": "Watch facts",
     "lastChecked": "Last checked",
@@ -173,9 +174,11 @@
     "noNewUpdates": "No changes detected since monitoring started.",
     "noMatchingUpdates": "New publications checked, but none matched this story",
     "newItemsFound": {
-      "one": "Found {count} candidate story update. It has not been reviewed for significance.",
-      "other": "Found {count} candidate story updates. These have not been reviewed for significance."
+      "one": "{count} new article found",
+      "other": "{count} new articles found"
     },
+    "reviewUpdate": "Review update",
+    "reviewUpdates": "Review updates",
     "checkFailed": "We couldn’t check for updates. Please try again.",
     "checkFailure": {
       "missingSource": "No monitoring source is available for this Watch. Add a supported source in Advanced settings, then try again.",
@@ -187,7 +190,7 @@
       "temporary": "A temporary service or network problem interrupted the check. Try again."
     },
     "monitoringUnavailable": "The monitoring source is temporarily unavailable. You can retry this check.",
-    "newItems": "Candidate story updates",
+    "newItems": "New articles",
     "updateHistory": "Update history",
     "updateDetected": "Update detected",
     "untitledItem": "Untitled item",

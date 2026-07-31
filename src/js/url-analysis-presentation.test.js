@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
-test('analysis progress uses one localized circular cancel control beside the original action', async () => {
+test('analysis progress uses one localized borderless cancel control at the far right', async () => {
   const [html, navigation, enSource, frSource, reviewStyles, composerStyles] = await Promise.all([
     read('../../new-watch.html'),
     read('./navigation.js'),
@@ -29,8 +29,12 @@ test('analysis progress uses one localized circular cancel control beside the or
   assert.notEqual(english.newWatch.cancelAnalysis, english.newWatch.clearWatchInput);
   assert.doesNotMatch(analysisSection, /urlAnalysisProcessing|url-analysis__spinner/);
   assert.match(reviewStyles, /\.url-analysis__processing\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*auto minmax\(0, 1fr\) auto;[\s\S]*?min-height:\s*2\.75rem/);
-  assert.match(composerStyles, /\.watch-composer__clear,[\s\S]*?\.url-analysis__cancel,[\s\S]*?width:\s*2\.25rem;[\s\S]*?height:\s*2\.25rem;[\s\S]*?border-radius:\s*var\(--radius-pill\)/);
-  assert.match(composerStyles, /\.watch-composer__clear:hover,[\s\S]*?\.url-analysis__cancel:hover,[\s\S]*?\.url-analysis__cancel:focus-visible/);
+  assert.doesNotMatch(composerStyles, /\.watch-composer__clear,[\s\S]*?\.url-analysis__cancel/);
+  assert.match(reviewStyles, /\.url-analysis__cancel\s*\{[\s\S]*?width:\s*2\.25rem;[\s\S]*?height:\s*2\.25rem;[\s\S]*?background:\s*transparent;[\s\S]*?border:\s*0;/);
+  assert.doesNotMatch(reviewStyles, /\.url-analysis__cancel\s*\{[^}]*border-radius:\s*var\(--radius-pill\)/);
+  assert.match(reviewStyles, /\.url-analysis__cancel:focus-visible\s*\{[\s\S]*?outline:\s*2px solid var\(--color-action\);[\s\S]*?outline-offset:\s*2px/);
+  assert.match(reviewStyles, /\.url-analysis__cancel:active:not\(:disabled\)/);
+  assert.match(reviewStyles, /\.url-analysis__cancel:disabled\s*\{[\s\S]*?opacity:/);
   assert.match(reviewStyles, /\.url-analysis__cancel::before\s*\{[\s\S]*?inset:\s*calc\(var\(--space-xxs\) \* -1\)/);
   assert.match(navigation, /analysisCancel\?\.addEventListener\('click',[\s\S]*?clearInput: false/);
   assert.doesNotMatch(reviewStyles, /\.url-analysis__processing\s*\{[^}]*min-height:\s*8rem/);

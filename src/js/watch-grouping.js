@@ -1,4 +1,5 @@
 import { getLocalDateBoundaries, getWatchCreationDate } from './watch-dates.js';
+import { getLatestUpdate } from './watch-updates.js';
 
 const getTimestamp = (...values) => {
   for (const value of values) {
@@ -39,6 +40,7 @@ export const isUserActionRequired = (watch) => {
 };
 
 export const getLatestWatchUpdateTimestamp = (watch) => getTimestamp(
+  getLatestUpdate(watch)?.timestamp,
   watch?.latestUpdateAt,
   watch?.lastUpdated,
   watch?.candidateUpdates?.[0]?.detectedAt,

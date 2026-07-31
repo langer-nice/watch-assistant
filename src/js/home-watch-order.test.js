@@ -6,6 +6,7 @@ import {
   getHomeWatchActivityTimestamp,
   HOME_SORT_MODES,
   HOME_SORT_STORAGE_KEY,
+  orderAllWatchGroups,
   setHomeSortPreference,
   sortHomeWatches,
 } from './home-watch-order.js';
@@ -123,4 +124,29 @@ test('sort preference is persisted, restored, and old Priority migrates safely',
   assert.equal(values.get(HOME_SORT_STORAGE_KEY), HOME_SORT_MODES.ATTENTION_FIRST);
   values.set(HOME_SORT_STORAGE_KEY, 'unsupported');
   assert.equal(getHomeSortPreference(storage), HOME_SORT_MODES.ATTENTION_FIRST);
+});
+
+test('All Watches status modes extract every Updated Watch ahead of dated unchanged groups', () => {
+  const attention = { id: 'attention' };
+  const newestUpdate = { id: 'updated-new' };
+  const olderUpdate = { id: 'updated-old' };
+  const quietToday = { id: 'quiet-today' };
+  const groups = [
+    { type: 'actionRequired', watches: [attention] },
+    { type: 'today', watches: [newestUpdate, quietToday] },
+    { type: 'updated', watches: [olderUpdate] },
+  ];
+  const orderedWatches = [attention, newestUpdate, olderUpdate, quietToday];
+  const result = orderAllWatchGroups(groups, {
+    attentionWatches: [attention],
+    updatedWatches: [newestUpdate, olderUpdate],
+    orderedWatches,
+    mode: HOME_SORT_MODES.ATTENTION_FIRST,
+  });
+
+  assert.deepEqual(result.map(({ type }) => type), ['actionRequired', 'updated', 'today']);
+  assert.deepEqual(result.flatMap(({ watches: items }) => items.map(({ id }) => id)), [
+    'attention', 'updated-new', 'updated-old', 'quiet-today',
+  ]);
+  assert.deepEqual(groups[1].watches, [newestUpdate, quietToday]);
 });
