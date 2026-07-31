@@ -34,6 +34,33 @@ test('persists a recoverable legacy creation date as createdAt', async () => {
   }
 });
 
+test('migrates an existing Watch stored with Unix seconds without recreation', async () => {
+  const originalStorage = globalThis.localStorage;
+  const expected = '2026-07-31T08:00:00.000Z';
+  const storage = createStorage({
+    'watchAssistant.watches': JSON.stringify([{
+      id: 'seconds-watch',
+      title: 'Existing seconds Watch',
+      createdAt: Date.parse(expected) / 1_000,
+    }]),
+    'watchAssistant.htmlEntityDecodeVersion': '1',
+  });
+  globalThis.localStorage = storage;
+
+  try {
+    const { getStoredWatches } = await import('./watch-storage.js?seconds-creation-date');
+    const watches = getStoredWatches();
+    const persisted = JSON.parse(storage.getItem('watchAssistant.watches'));
+    assert.equal(watches[0].id, 'seconds-watch');
+    assert.equal(watches[0].title, 'Existing seconds Watch');
+    assert.equal(watches[0].createdAt, expected);
+    assert.equal(persisted[0].createdAt, expected);
+  } finally {
+    if (originalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = originalStorage;
+  }
+});
+
 test('preserves an explicit clarity warning flag without adding it to legacy Watches', async () => {
   const originalStorage = globalThis.localStorage;
   const storage = createStorage({
@@ -213,6 +240,48 @@ test('the storage helper marks one Update read without deleting its Watch or his
     assert.equal(persisted[0].id, 'stored-history');
     assert.equal(persisted[0].updates.length, 1);
     assert.equal(persisted[0].updates[0].status, 'read');
+  } finally {
+    if (originalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = originalStorage;
+  }
+});
+
+test('batch read state persists across storage reloads without clearing factual Updated status', async () => {
+  const originalStorage = globalThis.localStorage;
+  const storage = createStorage({
+    'watchAssistant.watches': JSON.stringify([{
+      id: 'batch-history',
+      title: 'Batch history',
+      status: 'watching',
+      currentStatus: 'updated',
+      updates: [
+        {
+          id: 'first-unread',
+          timestamp: '2026-07-28T10:00:00Z',
+          sourceTitle: 'First update',
+          status: 'new',
+        },
+        {
+          id: 'second-unread',
+          timestamp: '2026-07-28T11:00:00Z',
+          sourceTitle: 'Second update',
+          status: 'new',
+        },
+      ],
+    }]),
+    'watchAssistant.htmlEntityDecodeVersion': '1',
+  });
+  globalThis.localStorage = storage;
+
+  try {
+    const storageModule = await import('./watch-storage.js?mark-updates-read');
+    storageModule.markUpdatesAsRead('batch-history', ['first-unread', 'second-unread']);
+    const reloaded = storageModule.getWatchById('batch-history');
+
+    assert.deepEqual(reloaded.updates.map(({ status }) => status), ['read', 'read']);
+    assert.equal(reloaded.unreadUpdateCount, 0);
+    assert.equal(reloaded.currentStatus, 'updated');
+    assert.equal(reloaded.updates.length, 2);
   } finally {
     if (originalStorage === undefined) delete globalThis.localStorage;
     else globalThis.localStorage = originalStorage;

@@ -6,11 +6,33 @@ const LEGACY_CREATION_FIELDS = [
   'creationDate',
 ];
 
-const parseDate = (value) => {
+const SECONDS_TO_MILLISECONDS = 1_000;
+const MAX_UNIX_SECONDS = 99_999_999_999;
+
+export const parseTimestampValue = (value) => {
   if (value === null || value === undefined || value === '') return null;
-  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  if (value instanceof Date) {
+    const date = new Date(value.getTime());
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  const numericValue = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value.trim())
+      ? Number(value.trim())
+      : null;
+  if (numericValue !== null) {
+    if (!Number.isFinite(numericValue) || numericValue <= 0) return null;
+    const milliseconds = numericValue <= MAX_UNIX_SECONDS
+      ? numericValue * SECONDS_TO_MILLISECONDS
+      : numericValue;
+    const date = new Date(milliseconds);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 };
+
+const parseDate = parseTimestampValue;
 
 const getCreatedTimelineDate = (watch) => {
   if (!Array.isArray(watch.timeline)) return null;

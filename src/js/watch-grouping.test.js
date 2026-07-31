@@ -161,6 +161,28 @@ test('Home briefing and All Watches share the same attention and updated records
   );
 });
 
+test('Needs attention keeps precedence when the Watch also has an unread Update', () => {
+  const watch = {
+    id: 'attention-with-update',
+    title: 'Attention and update',
+    status: 'attention',
+    actionRequired: true,
+    updates: [{
+      id: 'unread',
+      timestamp: '2026-07-28T10:00:00Z',
+      sourceTitle: 'Meaningful update',
+      status: 'new',
+    }],
+  };
+  const result = getBriefingWatchGroups([watch], {
+    getMeaningfulUpdate: () => 'Meaningful update',
+    isDisplayableWatch: () => true,
+  });
+
+  assert.deepEqual(result.attentionWatches.map(({ id }) => id), [watch.id]);
+  assert.deepEqual(result.updatedWatches, []);
+});
+
 test('uses the previous seven local calendar days before historical months', () => {
   const groups = groupWatches([
     { id: 'yesterday', createdAt: '2026-07-22T10:00:00+02:00', status: 'watching' },

@@ -168,7 +168,7 @@ test('Check now exposes an immediate accessible lifecycle and always restores th
   assert.match(lifecycle, /detailCheckInProgress \|\| watchCheckController\.isChecking\(watch\.id\)/);
   assert.match(lifecycle, /try \{[\s\S]*?await waitForVisiblePaint\(\);[\s\S]*?await watchCheckController\.check\(watch\.id\)[\s\S]*?catch \(error\)[\s\S]*?finally \{[\s\S]*?detailCheckInProgress = false;[\s\S]*?renderWatchDetail\(\)/);
   assert.match(styles, /\.watch-fact-check__button\s*\{[\s\S]*?width:\s*fit-content;[\s\S]*?flex:\s*0 0 auto/);
-  assert.match(styles, /\.watch-fact-check__button\s*\{[\s\S]*?box-shadow:\s*var\(--shadow-soft\)/);
+  assert.match(styles, /\.watch-fact-check__button\s*\{[\s\S]*?box-shadow:\s*none/);
   assert.doesNotMatch(styles, /\.watch-fact-check__button\s*\{[^}]*min-width/);
   assert.equal(english.checkFailedStatus, 'Check failed');
   assert.equal(english.checkFailed, 'We couldn’t check for updates. Please try again.');
@@ -185,7 +185,7 @@ test('Watch Detail distinguishes never checked, checking, successful outcomes an
 
   assert.match(stateRendering, /detailCheckInProgress[\s\S]*?detail\.checking/);
   assert.match(stateRendering, /lastAttemptFailed \? t\('detail\.checkFailedStatus'\) : t\('detail\.notCheckedYet'\)/);
-  assert.match(stateRendering, /outcome === 'baseline'[\s\S]*?detail\.baselineCreated/);
+  assert.match(stateRendering, /outcome === 'baseline'[\s\S]*?detail\.noNewUpdates/);
   assert.match(stateRendering, /outcome === 'no-new-items'[\s\S]*?detail\.noNewUpdates/);
   assert.match(stateRendering, /\['matching-items', 'new-items'\]\.includes\(outcome\)[\s\S]*?detail\.newItemsFound/);
   assert.match(stateRendering, /if \(lastAttemptFailed\) \{[\s\S]*?getMonitoringFailureMessageKey\(watch\.lastCheckAttempt\?\.code\)[\s\S]*?dataset\.state = 'error'/);

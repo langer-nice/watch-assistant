@@ -8,6 +8,7 @@ import {
   getBriefingGeneratedAt,
   setBriefingGeneratedAt,
   resetStoredWatches,
+  markUpdatesAsRead,
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
 import { getLanguage, t } from './i18n.js';
@@ -59,14 +60,24 @@ import {
   trackProductEventOnce,
 } from './analytics.js';
 import {
+  activateWatchMonitoring,
   createWatchCheckController,
   getMonitoringUpdates,
   MonitoringCheckError,
   normalizeFeedUrl,
 } from './watch-monitoring.js';
+import {
+  requestMonitoringSource,
+  resolveUrlMonitoringSource,
+  SourceDiscoveryError,
+} from './watch-source-discovery.js';
 import { waitForVisiblePaint } from './browser-paint.js';
 import { getMonitoringFailureMessageKey } from './watch-monitoring-errors.js';
-import { getStoryProfileIdentifiers, synchronizeStoryProfile } from './story-profile.js';
+import {
+  createStoryProfile,
+  getStoryProfileIdentifiers,
+  synchronizeStoryProfile,
+} from './story-profile.js';
 import {
   getAnalysisProvenanceMessageKey,
   getMonitoringHealthPresentation,
@@ -82,6 +93,12 @@ import {
   inferWatchCategory,
   normalizeWatchCategory,
 } from './watch-category.js';
+import {
+  getLatestUpdate,
+  getUnreadUpdates,
+  getWatchUpdates,
+} from './watch-updates.js';
+import { getWatchTimelineEvents } from './watch-timeline.js';
 
 let homeCreatedWatchId = null;
 let homeFirstWatchConfirmation = false;
@@ -91,6 +108,8 @@ let detailConfirmationAutoTimer = null;
 let detailConfirmationHideTimer = null;
 let detailCheckInProgress = false;
 let detailCheckErrorWatchId = null;
+const detailDeferredReadUpdateIds = new Set();
+const getDeferredReadKey = (watchId, updateId) => `${watchId}\u0000${updateId}`;
 let detailCreatedWatchId = null;
 let firstMonitoringTimer = null;
 let firstMonitoringTransitionTimer = null;
@@ -377,9 +396,11 @@ const getLatestChange = (watch) => {
 };
 
 const getHomeUpdateText = (watch) => {
-  const monitoringUpdates = getMonitoringUpdates(watch);
-  return monitoringUpdates[0]?.title
-    || (monitoringUpdates.length ? t('detail.untitledItem') : getLatestChange(watch));
+  const latestUpdate = getLatestUpdate(watch);
+  return latestUpdate?.sourceTitle
+    || latestUpdate?.summary
+    || getLatestChange(watch)
+    || (latestUpdate ? t('detail.untitledItem') : '');
 };
 
 const getMonitoringHealthStatus = (watch) => {
@@ -603,27 +624,32 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     : urlAnalysis?.storyFingerprint;
   const sourceStoryProfile = urlAnalysis?.storyProfile || options.storyProfile || null;
   const storyProfile = isUrlRequest
-    && options.monitoringConceptsManuallyEdited === true
-    && Array.isArray(storyFingerprint)
-    ? synchronizeStoryProfile(
-      sourceStoryProfile,
+    ? options.monitoringConceptsManuallyEdited === true && Array.isArray(storyFingerprint)
+      ? synchronizeStoryProfile(
+        sourceStoryProfile,
+        storyFingerprint,
+        storyFingerprint
+          .filter((concept) => !(urlAnalysis?.storyFingerprint || []).some((original) => (
+            normalizeComparableText(original?.label) === normalizeComparableText(concept?.label)
+          )))
+          .map(({ label }) => label),
+      )
+      : sourceStoryProfile
+    : createStoryProfile({
       storyFingerprint,
-      storyFingerprint
-        .filter((concept) => !(urlAnalysis?.storyFingerprint || []).some((original) => (
-          normalizeComparableText(original?.label) === normalizeComparableText(concept?.label)
-        )))
-        .map(({ label }) => label),
-    )
-    : sourceStoryProfile;
+      profile: { storySummary: options.monitoringSummary || request },
+      sourceTitle: request,
+    });
   const monitoringUrl = normalizeFeedUrl(
-    options.feedUrl || urlAnalysis?.monitoringSource?.url || '',
+    options.feedUrl || options.monitoringSource?.url || urlAnalysis?.monitoringSource?.url || '',
   );
+  const automaticMonitoringSource = options.monitoringSource || urlAnalysis?.monitoringSource;
   const monitoringSource = monitoringUrl
     ? {
       url: monitoringUrl,
-      type: urlAnalysis?.monitoringSource?.type || 'feed',
-      title: urlAnalysis?.monitoringSource?.title || null,
-      discovery: options.feedUrl ? 'manual' : urlAnalysis?.monitoringSource?.discovery || 'manual',
+      type: automaticMonitoringSource?.type || 'feed',
+      title: automaticMonitoringSource?.title || null,
+      discovery: options.feedUrl ? 'manual' : automaticMonitoringSource?.discovery || 'manual',
     }
     : null;
   return {
@@ -667,7 +693,7 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
 const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, options = {}) => {
   const now = new Date().toISOString();
   const derivedData = deriveWatchData(request, urlAnalysis, options);
-  const missingMonitoringSource = derivedData.inputType === 'url' && !derivedData.monitoringSource;
+  const missingMonitoringSource = !derivedData.monitoringSource;
   return {
     id: crypto.randomUUID(),
     request,
@@ -749,7 +775,8 @@ const getHomeReport = () => {
 const renderHomeWatchCards = (watches) => watches
   .map((watch) => {
     const title = localizeField(watch, 'title');
-    const monitoringUpdates = getMonitoringUpdates(watch);
+    const unreadUpdates = getUnreadUpdates(watch);
+    const latestUpdate = getLatestUpdate(watch);
     const latestChange = getHomeUpdateText(watch);
     if (!hasMeaningfulText(title) || !hasMeaningfulText(latestChange)) {
       return '';
@@ -759,13 +786,15 @@ const renderHomeWatchCards = (watches) => watches
     const statusModifier = needsAttention ? 'attention' : 'updated';
     const status = t(needsAttention
       ? 'statuses.attention'
-      : monitoringUpdates.length ? 'statuses.new' : 'statuses.updated');
+      : unreadUpdates.length ? 'statuses.new' : 'statuses.updated');
+    const unreadStatus = needsAttention && unreadUpdates.length
+      ? `<span class="status-label status-label--updated">${escapeHtml(t('statuses.new'))}</span>`
+      : '';
     const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
     const categoryModifier = watch.category || 'general';
-    const latestChangeAt = monitoringUpdates[0]?.detectedAt
-      ? formatMonitoringTimestamp(monitoringUpdates[0].detectedAt)
+    const latestChangeAt = latestUpdate?.timestamp
+      ? formatMonitoringTimestamp(latestUpdate.timestamp)
       : localizeField(watch, 'latestChangeAt');
-    const latestMonitoringUpdate = monitoringUpdates[0];
 
     const link = renderWatchCardLink({
       watchId: watch.id,
@@ -774,13 +803,14 @@ const renderHomeWatchCards = (watches) => watches
           <div class="briefing-item__labels">
             <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
             <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
+            ${unreadStatus}
           </div>
           <h2>${escapeHtml(title)}</h2>
-          ${latestMonitoringUpdate
-    ? `<p>${escapeHtml(latestMonitoringUpdate.title || t('detail.untitledItem'))}</p>`
+          ${latestUpdate
+    ? `<p>${escapeHtml(latestUpdate.sourceTitle || latestUpdate.summary || t('detail.untitledItem'))}</p>`
     : `<p>${escapeHtml(latestChange)}</p>`}
-          ${monitoringUpdates.length > 1
-    ? `<p>${escapeHtml(t('home.newUpdateCount', { count: monitoringUpdates.length }))}</p>`
+          ${unreadUpdates.length > 1
+    ? `<p>${escapeHtml(t('home.newUpdateCount', { count: unreadUpdates.length }))}</p>`
     : ''}
           ${hasMeaningfulText(latestChangeAt)
     ? `<p class="briefing-item__time">${escapeHtml(latestChangeAt)}</p>`
@@ -854,7 +884,7 @@ const renderWatchList = () => {
       const status = attentionIds.has(watch.id)
         ? 'attention'
         : updatedIds.has(watch.id)
-          ? getMonitoringUpdates(watch).length ? 'new' : 'updated'
+          ? getUnreadUpdates(watch).length ? 'new' : 'updated'
           : monitoringHealthStatus || (['paused', 'completed'].includes(watch.status)
             ? watch.status
             : 'watching');
@@ -862,7 +892,10 @@ const renderWatchList = () => {
       const statusText = status === 'attention'
         ? t('watches.needsAttention')
         : t(`statuses.${status}`);
-      const statusLabel = `<span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(statusText)}</span>`;
+      const unreadStatusLabel = status === 'attention' && getUnreadUpdates(watch).length
+        ? `<span class="watch-row__status status-label status-label--updated">${escapeHtml(t('statuses.new'))}</span>`
+        : '';
+      const statusLabel = `<span class="watch-row__statuses"><span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(statusText)}</span>${unreadStatusLabel}</span>`;
       const showCreationMetadata = group.type === 'last7Days';
       const creationMetadata = showCreationMetadata
         ? formatWatchCreationMetadata(getWatchCreationDate(watch), {
@@ -1106,7 +1139,7 @@ const renderWatchDetail = () => {
     const statusKey = isUserActionRequired(watch)
       ? 'attention'
       : isCanonicallyUpdated
-        ? getMonitoringUpdates(watch).length ? 'new' : 'updated'
+        ? getUnreadUpdates(watch).length ? 'new' : 'updated'
         : getMonitoringHealthStatus(watch)
           || (STATUS_LABEL_VARIANTS[watch.status] ? watch.status : 'checking');
     const status = watch.status && t(`statuses.${statusKey}`);
@@ -1307,26 +1340,29 @@ const renderWatchDetail = () => {
     whyFollowingEl.hidden = !hasWhyFollowing;
   }
 
-  const timeline = Array.isArray(watch.timeline)
-    ? watch.timeline
-      .map((item, index, items) => {
-        const label = item?.type === 'created'
-          ? t('watchData.created')
-          : localizeListItem(item);
-        if (!label) {
-          return null;
-        }
-        const date = item?.dateKey
-          ? t(item.dateKey)
-          : item?.date ? formatDate(item.date) : '';
-        return {
-          date,
-          label,
-          isLatest: item?.state === 'latest' || index === items.length - 1,
-        };
-      })
-      .filter(Boolean)
-    : [];
+  const timeline = getWatchTimelineEvents(watch)
+    .map((item) => {
+      const label = item.type === 'created'
+        ? t('watchData.created')
+        : item.type === 'update'
+          ? item.source.sourceTitle || item.source.summary || t('detail.updateDetected')
+          : localizeListItem(item.source);
+      if (!label) {
+        return null;
+      }
+      const date = item.dateKey
+        ? t(item.dateKey)
+        : item.timestamp ? formatDate(item.timestamp) : '';
+      return {
+        date,
+        label,
+      };
+    })
+    .filter(Boolean)
+    .map((item, index, items) => ({
+      ...item,
+      isLatest: index === items.length - 1,
+    }));
   if (timelineEl) {
     timelineEl.innerHTML = timeline
       .map((item) => `
@@ -1367,23 +1403,29 @@ const renderWatchDetail = () => {
     actionsSectionEl.hidden = renderedActions.length === 0;
   }
 
-  const monitoringUpdates = getMonitoringUpdates(watch);
+  const monitoringUpdates = getWatchUpdates(watch).reverse();
+  const displayedUnreadUpdateIds = monitoringUpdates
+    .filter(({ status: updateStatus }) => updateStatus === 'new')
+    .map(({ id }) => id);
   if (monitoringUpdatesListEl) {
     monitoringUpdatesListEl.innerHTML = monitoringUpdates
-      .map((item) => {
-        const itemUrl = getSafeExternalUrl(item.url);
-        const title = item.title || t('detail.untitledItem');
+      .map((item, index) => {
+        const itemUrl = getSafeExternalUrl(item.sourceUrl);
+        const legacyChange = index === 0 ? getLatestChange(watch) : '';
+        const title = item.sourceTitle || item.summary || legacyChange || t('detail.untitledItem');
+        const timestamp = formatMonitoringTimestamp(item.timestamp);
         const metadata = [
-          item.source,
-          item.publishedAt ? formatMonitoringTimestamp(item.publishedAt) : '',
+          item.sourceDomain,
+          timestamp,
         ].filter(Boolean).join(' · ');
+        const summary = item.summary && item.summary !== title ? item.summary : '';
         return `
           <li class="monitoring-update">
             ${itemUrl
     ? `<a href="${escapeHtml(itemUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)} <span aria-hidden="true">↗</span></a>`
     : `<p class="monitoring-update__title">${escapeHtml(title)}</p>`}
             ${metadata ? `<p class="monitoring-update__metadata">${escapeHtml(metadata)}</p>` : ''}
-            ${item.excerpt ? `<p>${escapeHtml(item.excerpt)}</p>` : ''}
+            ${summary ? `<p class="monitoring-update__description">${escapeHtml(summary)}</p>` : ''}
           </li>
         `;
       })
@@ -1391,6 +1433,23 @@ const renderWatchDetail = () => {
   }
   if (monitoringUpdatesEl) {
     monitoringUpdatesEl.hidden = monitoringUpdates.length === 0;
+  }
+  if (
+    monitoringUpdatesEl
+    && monitoringUpdatesListEl
+    && !monitoringUpdatesEl.hidden
+    && displayedUnreadUpdateIds.length
+    && !detailCheckInProgress
+  ) {
+    const readableUpdateIds = displayedUnreadUpdateIds.filter(
+      (updateId) => !detailDeferredReadUpdateIds.has(getDeferredReadKey(watch.id, updateId)),
+    );
+    if (readableUpdateIds.length) {
+      queueMicrotask(() => markUpdatesAsRead(watch.id, readableUpdateIds));
+    }
+    displayedUnreadUpdateIds.forEach((updateId) => (
+      detailDeferredReadUpdateIds.delete(getDeferredReadKey(watch.id, updateId))
+    ));
   }
 
   if (preparingEl) {
@@ -1434,6 +1493,9 @@ const renderWatchDetail = () => {
           console.info('[Watch monitoring] Check requested', { watchId: watch.id });
         }
         const result = await watchCheckController.check(watch.id);
+        result.matchedItems.forEach(({ id }) => (
+          detailDeferredReadUpdateIds.add(getDeferredReadKey(watch.id, id))
+        ));
         detailCheckErrorWatchId = null;
         setBriefingGeneratedAt(result.changes.lastChecked);
       } catch (error) {
@@ -1459,7 +1521,7 @@ const renderWatchDetail = () => {
   if (checkFeedbackEl && !detailCheckInProgress) {
     const outcome = watch.lastCheckOutcome?.type;
     const outcomeKey = outcome === 'baseline'
-      ? 'detail.baselineCreated'
+      ? 'detail.noNewUpdates'
       : outcome === 'no-new-items'
         ? 'detail.noNewUpdates'
         : outcome === 'no-matching-items'
@@ -2292,11 +2354,20 @@ export function initForm() {
     refreshEditSaveState();
   };
 
-  const completeWatchCreation = (watch) => {
+  const completeWatchCreation = async (watch) => {
+    addWatch(watch);
+    try {
+      await activateWatchMonitoring(watch.id, {
+        checkController: watchCheckController,
+        saveWatch: updateWatch,
+      });
+    } catch (error) {
+      deleteWatch(watch.id);
+      throw error;
+    }
     trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, {
       input_type: watch.inputType === 'url' ? 'url' : 'text',
     });
-    addWatch(watch);
     sessionStorage.removeItem('watchAssistant.newWatchId');
     if (isOnboardingFirstWatch()) {
       completeOnboardingFirstWatch(watch.id);
@@ -2576,18 +2647,44 @@ export function initForm() {
       });
       return;
     }
+    const createOptions = getCreateOptions();
+    if (!createOptions.feedUrl) {
+      try {
+        createOptions.monitoringSource = await requestMonitoringSource(selectedRequest, {
+          language: getLanguage(),
+        });
+      } catch {
+        creationInProgress = false;
+        setCreationControlsDisabled(false);
+        setSubmitLabel();
+        if (watchError) watchError.textContent = t('newWatch.monitoringSourceUnsupported');
+        input?.focus();
+        return;
+      }
+    }
     const monitoringSummary = await generateMonitoringSummary(selectedRequest);
     const watch = createWatchObject(
       selectedRequest,
       whyFollowing,
       null,
-      { ...getCreateOptions(), monitoringSummary },
+      { ...createOptions, monitoringSummary },
     );
     if (useRequestAsTitle) watch.title = selectedRequest;
     if (createdAsWrittenAfterClarityWarning === true) {
       watch.createdAsWrittenAfterClarityWarning = true;
     }
-    completeWatchCreation(watch);
+    try {
+      await completeWatchCreation(watch);
+    } catch (error) {
+      creationInProgress = false;
+      setCreationControlsDisabled(false);
+      setSubmitLabel();
+      if (watchError) {
+        const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
+        watchError.textContent = t(getMonitoringFailureMessageKey(code));
+      }
+      input?.focus();
+    }
   };
 
   const renderClarificationActions = () => {
@@ -2775,6 +2872,7 @@ export function initForm() {
     analysisInProgress = true;
     pendingRequest = request;
     pendingWhyFollowing = whyFollowing;
+    pendingAnalysis = null;
     trackProductEvent(PRODUCT_EVENTS.URL_ANALYSIS_STARTED);
     form.classList.add('is-analysing');
     setCreationControlsDisabled(true);
@@ -2808,9 +2906,20 @@ export function initForm() {
         signal: controller.signal,
       });
       if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
-      showReview(analysis);
+      const resolvedAnalysis = await resolveUrlMonitoringSource(analysis, {
+        language: getLanguage(),
+        signal: controller.signal,
+      });
+      if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
+      showReview(resolvedAnalysis);
     } catch (error) {
       if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
+      if (error instanceof SourceDiscoveryError) {
+        resetUrlFlow({ clearInput: false });
+        if (watchError) watchError.textContent = t('newWatch.monitoringSourceUnsupported');
+        input?.focus();
+        return;
+      }
       console.error('URL analysis failed:', error);
       showReview({
         status: 'failure',
@@ -3456,10 +3565,6 @@ export function initForm() {
       return;
     }
 
-    creationInProgress = true;
-    [reviewCreate, reviewEdit, reviewCancel].forEach((control) => {
-      if (control) control.disabled = true;
-    });
     const analysis = {
       ...pendingAnalysis,
       status: 'success',
@@ -3468,15 +3573,35 @@ export function initForm() {
       source: getSourceText(pendingAnalysis?.sourceName || pendingAnalysis?.source) || null,
       sourceUrl: pendingAnalysis?.sourceUrl || pendingRequest,
     };
+    const createOptions = getCreateOptions();
+    if (!isEditMode && !createOptions.feedUrl && !analysis.monitoringSource) {
+      resetUrlFlow({ clearInput: false });
+      if (watchError) watchError.textContent = t('newWatch.monitoringSourceUnsupported');
+      input?.focus();
+      return;
+    }
+    creationInProgress = true;
+    [reviewCreate, reviewEdit, reviewCancel].forEach((control) => {
+      if (control) control.disabled = true;
+    });
     if (isEditMode) {
       await completeWatchUpdate(pendingRequest, pendingWhyFollowing, analysis);
     } else {
-      completeWatchCreation(createWatchObject(
-        pendingRequest,
-        pendingWhyFollowing,
-        analysis,
-        getCreateOptions(),
-      ));
+      try {
+        await completeWatchCreation(createWatchObject(
+          pendingRequest,
+          pendingWhyFollowing,
+          analysis,
+          createOptions,
+        ));
+      } catch (error) {
+        resetUrlFlow({ clearInput: false });
+        if (watchError) {
+          const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
+          watchError.textContent = t(getMonitoringFailureMessageKey(code));
+        }
+        input?.focus();
+      }
     }
   });
 

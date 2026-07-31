@@ -1,5 +1,5 @@
 import { getStoryProfileIdentifiers } from './story-profile.js';
-import { addUpdateToWatch } from './watch-updates.js';
+import { addUpdateToWatch, getUnreadUpdates } from './watch-updates.js';
 import { MONITORING_FAILURE_CODES } from './watch-monitoring-errors.js';
 
 export const MAX_SNAPSHOT_ITEMS = 20;
@@ -116,6 +116,34 @@ export const matchFeedItemToStory = (item, storyProfile) => {
   };
 };
 
+const isValidatedNewsSearchSource = (source) => {
+  if (source?.discovery !== 'news-search') return false;
+  try {
+    const url = new URL(source.url);
+    return url.origin === 'https://news.google.com'
+      && !url.username
+      && !url.password
+      && url.pathname === '/rss/search'
+      && Boolean(url.searchParams.get('q'));
+  } catch {
+    return false;
+  }
+};
+
+export const matchFeedItemToWatch = (item, watch) => {
+  if (isValidatedNewsSearchSource(watch?.monitoringSource)) {
+    return {
+      matched: true,
+      evidence: [{
+        field: 'monitoringSource',
+        strength: 'strong',
+        label: watch.request || watch.title || 'News search',
+      }],
+    };
+  }
+  return matchFeedItemToStory(item, watch?.storyProfile);
+};
+
 export const getMonitoringUpdates = (watch) => (
   Array.isArray(watch?.candidateUpdates || watch?.monitoringUpdates)
     ? (watch.candidateUpdates || watch.monitoringUpdates)
@@ -149,7 +177,7 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
     ? items.filter(({ id }) => !previouslySeen.has(id))
     : [];
   const matchedItems = unseenItems
-    .map((item) => ({ item, match: matchFeedItemToStory(item, watch.storyProfile) }))
+    .map((item) => ({ item, match: matchFeedItemToWatch(item, watch) }))
     .filter(({ match }) => match.matched);
   const detectedUpdates = matchedItems.map(({ item, match }) => ({
     ...item,
@@ -245,9 +273,7 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
         outcome,
       },
       monitoringReviewStatus: detectedUpdates.length ? 'candidate' : watch.monitoringReviewStatus || null,
-      unreadUpdateCount: monitoringUpdates.filter((item) => (
-        ['candidate', 'unreviewed'].includes(item?.status)
-      )).length,
+      unreadUpdateCount: getUnreadUpdates(watchWithUpdates).length,
       latestUpdateAt,
       ...(detectedUpdates.length || Array.isArray(watch.updates) ? {
         currentStatus: ['attention', 'paused', 'completed'].includes(status)
@@ -385,4 +411,18 @@ export const createWatchCheckController = ({
     check,
     isChecking: (watchId) => inFlight.has(watchId),
   };
+};
+
+export const activateWatchMonitoring = async (
+  watchId,
+  { checkController, saveWatch },
+) => {
+  const result = await checkController.check(watchId);
+  const checkedAt = result.changes.lastChecked;
+  const watch = saveWatch(watchId, {
+    monitoringState: 'monitoring',
+    firstCheckCompletedAt: checkedAt,
+    firstCheckCompletesAt: null,
+  });
+  return { ...result, watch };
 };

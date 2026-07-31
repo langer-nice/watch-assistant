@@ -1,5 +1,5 @@
 .timeline {
-  padding: var(--space-lg);
+  overflow: hidden;
   background: var(--color-surface);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
@@ -7,7 +7,7 @@
 
 .timeline ol {
   margin: 0;
-  padding: 0;
+  padding: var(--space-lg);
   list-style: none;
 }
 
@@ -74,7 +74,7 @@
 }
 
 @media (min-width: 36rem) {
-  .timeline {
-    padding: var(--space-xl);
+  .timeline ol {
+    padding-inline: var(--space-xl);
   }
 }
