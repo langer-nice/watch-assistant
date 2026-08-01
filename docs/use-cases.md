@@ -188,6 +188,10 @@ The introduction should explain the product in under 30 seconds, demonstrate its
 - Review whether a fixed minimum character count is the right rule for enabling **Start Watching**.
 - A future intelligent check could enable submission when it detects a usable intent.
 
+#### Known limitation — flight dates without a year
+
+A flight request containing a day and month but no year may currently be interpreted incompletely. This will be addressed later as part of the specialised Watch data-source and intent-interpretation work. The expected future rule is to use the next future occurrence when the year is unambiguous, and otherwise ask the user to confirm the year.
+
 #### Optional reason
 
 - Consider changing **Why are you following this?** from a single-line input to a compact multiline textarea with microphone input.

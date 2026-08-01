@@ -1,4 +1,5 @@
 import { getLocalDateBoundaries, getWatchCreationDate } from './watch-dates.js';
+import { getLatestUpdate } from './watch-updates.js';
 
 const getTimestamp = (...values) => {
   for (const value of values) {
@@ -39,6 +40,7 @@ export const isUserActionRequired = (watch) => {
 };
 
 export const getLatestWatchUpdateTimestamp = (watch) => getTimestamp(
+  getLatestUpdate(watch)?.timestamp,
   watch?.latestUpdateAt,
   watch?.lastUpdated,
   watch?.candidateUpdates?.[0]?.detectedAt,
@@ -225,5 +227,23 @@ export const getBriefingWatchGroups = (watches, {
     attentionWatches,
     updatedWatches,
     quietWatches: activeWatches.filter((watch) => !visibleIds.has(watch.id)),
+  };
+};
+
+export const getHomeInboxSelection = (watches, options = {}) => {
+  const briefing = getBriefingWatchGroups(watches, options);
+  const attentionIds = new Set(briefing.attentionWatches.map(({ id }) => id));
+  const updatedIds = new Set(briefing.updatedWatches.map(({ id }) => id));
+  const inboxIds = new Set([...attentionIds, ...updatedIds]);
+  return {
+    ...briefing,
+    watches: watches.filter((watch) => inboxIds.has(watch.id)),
+    totalChecked: briefing.attentionWatches.length
+      + briefing.updatedWatches.length
+      + briefing.quietWatches.length,
+    statusById: new Map([
+      ...briefing.attentionWatches.map((watch) => [watch.id, 'attention']),
+      ...briefing.updatedWatches.map((watch) => [watch.id, 'updated']),
+    ]),
   };
 };

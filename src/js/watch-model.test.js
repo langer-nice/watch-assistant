@@ -100,7 +100,8 @@ test('legacy Update migration preserves data and is idempotent across repeated l
   assert.equal(first.userNote, legacy.userNote);
   assert.equal(first.updates.length, 1);
   assert.equal(first.updates[0].summary, legacy.latestChange);
-  assert.equal(first.updates[0].sourceDomain, 'example.com');
+  assert.equal(first.updates[0].sourceUrl, null);
+  assert.equal(first.updates[0].sourceDomain, null);
   assert.equal(first.updates[0].status, 'new');
   assert.equal(first.lastChecked, null);
   assert.equal(second.migrated, false);

@@ -36,17 +36,17 @@
             <p class="briefing-summary__total" id="homeCheckedSummary"></p>
 
             <ul class="briefing-summary__statuses" aria-label="Status overview" data-i18n-aria-label="home.statusOverviewLabel">
-              <li class="briefing-summary__status briefing-summary__status--action">
-                <span class="briefing-summary__dot" aria-hidden="true"></span>
-                <span><strong id="homeAttentionCount"></strong> <span id="homeAttentionLabel"></span></span>
+              <li>
+                <button class="briefing-summary__status briefing-summary__status--action" type="button" data-home-status-target="attention">
+                  <span class="briefing-summary__dot" aria-hidden="true"></span>
+                  <span><strong id="homeAttentionCount"></strong> <span id="homeAttentionLabel"></span></span>
+                </button>
               </li>
-              <li class="briefing-summary__status briefing-summary__status--update">
-                <span class="briefing-summary__dot" aria-hidden="true"></span>
-                <span><strong id="homeUpdatedCount"></strong> <span id="homeUpdatedLabel"></span></span>
-              </li>
-              <li class="briefing-summary__status briefing-summary__status--success">
-                <span class="briefing-summary__dot" aria-hidden="true"></span>
-                <span><strong id="homeNoChangesCount"></strong> <span id="homeUnchangedLabel"></span></span>
+              <li>
+                <button class="briefing-summary__status briefing-summary__status--update" type="button" data-home-status-target="updated">
+                  <span class="briefing-summary__dot" aria-hidden="true"></span>
+                  <span><strong id="homeUpdatedCount"></strong> <span id="homeUpdatedLabel"></span></span>
+                </button>
               </li>
             </ul>
           </div>
@@ -69,23 +69,30 @@
           <a class="button button--primary" href="new-watch.html" data-i18n="home.emptyAction"></a>
         </section>
 
+        <section class="home-empty-state home-empty-state--caught-up" id="homeCaughtUpState" aria-live="polite" hidden>
+          <p data-i18n="home.allCaughtUp"></p>
+        </section>
+
         <section class="briefing-feed" id="homeBriefingFeed" aria-label="Briefing items" data-i18n-aria-label="home.briefingItemsLabel">
-          <div id="homeBriefingList">
-            <section class="briefing-group" id="homeAttentionSection" aria-labelledby="homeAttentionSectionLabel" hidden>
-              <p class="section-heading" id="homeAttentionSectionLabel" data-i18n="home.needsAttentionSection"></p>
-              <div id="homeAttentionList"></div>
-            </section>
-
-            <div id="homeUpdateGroups"></div>
+          <div class="home-watch-sort" id="homeWatchSortRow">
+            <label for="homeWatchSort" data-i18n="home.sortBy"></label>
+            <select id="homeWatchSort">
+              <option value="needs-attention-first" data-i18n="home.sortAttentionFirst"></option>
+              <option value="updated-first" data-i18n="home.sortUpdatedFirst"></option>
+              <option value="most-recent" data-i18n="home.sortMostRecent"></option>
+              <option value="oldest-first" data-i18n="home.sortOldestFirst"></option>
+            </select>
           </div>
+          <div id="homeBriefingList"></div>
 
-          <section class="all-quiet" id="homeAllQuiet" aria-labelledby="allQuietTitle">
+          <section class="all-quiet" id="homeAllQuiet" aria-labelledby="allQuietTitle" hidden>
             <p class="section-heading" data-i18n="home.everythingLabel"></p>
             <h2 id="allQuietTitle" data-i18n="home.everythingTitle"></h2>
             <p class="all-quiet__summary">
               <span id="homeEverythingChecked"></span>
               <span data-i18n="home.everythingNoChanges"></span>
             </p>
+            <a class="editorial-link" href="watches.html" data-i18n="home.allWatches"></a>
           </section>
         </section>
 

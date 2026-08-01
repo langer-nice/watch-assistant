@@ -48,11 +48,28 @@ test('normalizes Unix seconds and milliseconds to the same meaningful Watch date
 });
 
 test('missing, empty, invalid, and zero Watch dates never become 1970', () => {
-  for (const createdAt of [undefined, null, '', 'not-a-date', 0, '0', Number.NaN]) {
+  for (const createdAt of [
+    undefined,
+    null,
+    '',
+    'not-a-date',
+    0,
+    '0',
+    Number.NaN,
+    '1970-01-01T00:00:00.000Z',
+  ]) {
     assert.equal(getWatchCreationDate({ createdAt }), null);
     assert.equal(formatWatchCreationTime(createdAt, { language: 'en' }), '');
     assert.equal(formatWatchCreationMetadata(createdAt, { language: 'en' }), '');
   }
+});
+
+test('a legacy epoch sentinel falls through to a meaningful stored creation date', () => {
+  const date = getWatchCreationDate({
+    createdAt: '1970-01-01T00:00:00.000Z',
+    created_at: '2026-07-18T12:00:00Z',
+  });
+  assert.equal(date.toISOString(), '2026-07-18T12:00:00.000Z');
 });
 
 test('the current createdAt remains authoritative over legacy creation fields', () => {

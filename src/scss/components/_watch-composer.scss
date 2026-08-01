@@ -186,6 +186,10 @@
   cursor: not-allowed;
 }
 
+.watch-form.is-analysing .watch-composer__submit {
+  display: none;
+}
+
 .watch-reason {
   display: grid;
   grid-template-rows: 0fr;

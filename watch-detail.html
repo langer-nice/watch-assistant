@@ -58,7 +58,6 @@
               <span data-i18n="detail.resumeWatch"></span>
             </button>
           </div>
-          <p class="status-label" id="watchStatus"></p>
           <p class="detail-header__message" id="watchNotFound" hidden></p>
         </header>
 
@@ -76,15 +75,48 @@
           </div>
         </aside>
 
-        <a class="detail-first-watch-home" id="watchCreatedHomeAction" href="index.html?entry=navigation" data-i18n="detail.viewHomeReport" hidden></a>
-
         <section class="detail-card detail-panel" id="watchBriefing" aria-labelledby="whatIKnowTitle">
           <h2 class="section-heading" id="whatIKnowTitle" data-i18n="detail.whatIKnow"></h2>
 
           <div class="detail-card__primary" id="watchPrimary">
-            <section class="detail-card__field" data-detail-field="currentSituation" hidden>
+            <section
+              class="detail-card__field detail-current-update"
+              id="current-situation"
+              data-detail-field="currentSituation"
+              tabindex="-1"
+              hidden
+            >
               <h3 class="section-heading" data-i18n="detail.currentSituation"></h3>
+              <p class="detail-current-update__title" id="watchCurrentUpdateTitle" hidden></p>
               <p id="watchCurrentSituation"></p>
+              <p class="detail-current-update__metadata" id="watchCurrentUpdateMetadata" hidden></p>
+              <a
+                class="detail-current-update__link"
+                id="watchCurrentUpdateLink"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="detail.openArticle"
+                hidden
+              ></a>
+            </section>
+
+            <section
+              class="detail-card__field detail-monitoring-controls"
+              id="watchMonitoringControls"
+              data-detail-field="lastChecked"
+              aria-labelledby="watchLastCheckedTitle"
+              hidden
+            >
+              <h3 class="section-heading" id="watchLastCheckedTitle" data-i18n="detail.lastChecked"></h3>
+              <div class="watch-fact-check">
+                <p id="watchLastChecked"></p>
+                <button class="watch-fact-check__button" id="watchCheckNow" type="button">
+                  <span class="watch-fact-check__spinner" aria-hidden="true" hidden></span>
+                  <span id="watchCheckNowLabel" data-i18n="detail.checkNow"></span>
+                </button>
+              </div>
+              <p class="watch-fact-check__feedback" id="watchCheckFeedback" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+              <a class="watch-fact-check__review" id="watchCheckReview" href="#current-situation" hidden></a>
             </section>
 
             <section class="detail-card__field detail-card__field--recommendation" data-detail-field="recommendation" hidden>
@@ -102,7 +134,7 @@
           <section class="detail-card__field detail-card__take story-concepts" id="watchStoryConcepts" aria-labelledby="watchStoryConceptsTitle" hidden>
             <h3 class="section-heading" id="watchStoryConceptsTitle" data-i18n="detail.storyConcepts"></h3>
             <p class="story-concepts__helper" data-i18n="detail.storyConceptsHelper"></p>
-            <dl class="story-concepts__grid" id="watchStoryConceptsList"></dl>
+            <div class="story-concepts__grid" id="watchStoryConceptsList"></div>
             <p class="story-concepts__empty" id="watchStoryConceptsEmpty" data-i18n="detail.storyConceptsEmpty" hidden></p>
             <a class="story-concepts__edit" id="watchStoryConceptsEdit" href="new-watch.html">
               <span data-i18n="detail.editStoryConcepts"></span>
@@ -161,17 +193,6 @@
               <h3 class="section-heading" data-i18n="detail.sources"></h3>
               <ul id="watchSources"></ul>
             </section>
-            <section data-detail-field="lastChecked" hidden>
-              <h3 class="section-heading" data-i18n="detail.lastChecked"></h3>
-              <div class="watch-fact-check">
-                <p id="watchLastChecked"></p>
-                <button class="watch-fact-check__button" id="watchCheckNow" type="button">
-                  <span class="watch-fact-check__spinner" aria-hidden="true" hidden></span>
-                  <span id="watchCheckNowLabel" data-i18n="detail.checkNow"></span>
-                </button>
-              </div>
-              <p class="watch-fact-check__feedback" id="watchCheckFeedback" role="status" aria-live="polite" aria-atomic="true" hidden></p>
-            </section>
             <section data-detail-field="latestChange" hidden>
               <h3 class="section-heading" data-i18n="detail.latestChange"></h3>
               <p id="watchLatestChange"></p>
@@ -184,7 +205,7 @@
           </div>
         </section>
 
-        <section class="detail-card detail-panel monitoring-updates" id="watchMonitoringUpdates" aria-labelledby="watchMonitoringUpdatesTitle" hidden>
+        <section class="detail-card detail-panel monitoring-updates" id="watchMonitoringUpdates" aria-labelledby="watchMonitoringUpdatesTitle" tabindex="-1" hidden>
           <h2 class="section-heading" id="watchMonitoringUpdatesTitle" data-i18n="detail.updateHistory"></h2>
           <ul id="watchMonitoringUpdatesList"></ul>
         </section>

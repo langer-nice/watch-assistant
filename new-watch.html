@@ -148,10 +148,29 @@
             </div>
           </div>
 
-          <button class="watch-composer__submit" id="newWatchSubmit" type="submit" disabled>
-            <span aria-hidden="true">➤</span>
-            <span id="newWatchSubmitLabel" data-i18n="newWatch.submit"></span>
-          </button>
+          <div class="watch-analysis-action">
+            <button class="watch-composer__submit" id="newWatchSubmit" type="submit" disabled>
+              <span aria-hidden="true">➤</span>
+              <span id="newWatchSubmitLabel" data-i18n="newWatch.submit"></span>
+            </button>
+            <div
+              class="url-analysis__processing"
+              id="urlAnalysisProcessing"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              hidden
+            >
+              <span class="url-analysis__spinner" aria-hidden="true"></span>
+              <p id="urlAnalysisMessage"></p>
+              <button
+                class="url-analysis__cancel"
+                id="urlAnalysisCancel"
+                type="button"
+                data-i18n-aria-label="newWatch.cancelAnalysis"
+              >×</button>
+            </div>
+          </div>
 
           <p class="watch-composer__feedback" id="inputTypeHint" aria-live="polite" hidden></p>
 
@@ -180,17 +199,6 @@
           </section>
 
           <section class="url-analysis" id="urlAnalysis" aria-live="polite" hidden>
-            <div class="url-analysis__processing" id="urlAnalysisProcessing" hidden>
-              <span class="url-analysis__spinner" aria-hidden="true"></span>
-              <p id="urlAnalysisMessage"></p>
-              <button
-                class="button button--secondary url-analysis__cancel"
-                id="urlAnalysisCancel"
-                type="button"
-                data-i18n="newWatch.urlReviewCancel"
-              ></button>
-            </div>
-
             <div class="url-review" id="urlReview" tabindex="-1" hidden>
               <div class="url-review__success" id="urlReviewSuccess">
                 <span aria-hidden="true">✓</span>
@@ -225,11 +233,6 @@
 
           <p class="form-error" id="watchError" aria-live="polite"></p>
         </form>
-
-        <section class="recent-watches" id="recentWatchesSection" aria-labelledby="recentTitle" hidden>
-          <h2 class="section-heading" id="recentTitle" data-i18n="newWatch.recent"></h2>
-          <div class="recent-watches__list" id="recentWatchesList"></div>
-        </section>
 
         <dialog class="edit-discard-dialog" id="editDiscardDialog" aria-labelledby="editDiscardTitle" aria-describedby="editDiscardCopy">
           <form method="dialog">

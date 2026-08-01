@@ -81,16 +81,38 @@
   list-style: none;
 }
 
+.briefing-summary__statuses li {
+  min-width: 0;
+}
+
 .briefing-summary__status {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: var(--space-xs);
+  padding: var(--space-xxs) var(--space-xs);
   color: var(--color-text-muted);
+  background: var(--color-transparent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
   font-size: var(--font-size-sm);
   font-style: normal;
   font-weight: var(--font-weight-regular);
   line-height: 1.4;
-  white-space: nowrap;
+  text-align: left;
+  white-space: normal;
+  transition: background-color var(--transition-default), color var(--transition-default);
+}
+
+.briefing-summary__status:not(:disabled):hover,
+.briefing-summary__status:not(:disabled):active {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface) 65%, var(--color-transparent));
+}
+
+.briefing-summary__status:disabled {
+  cursor: default;
+  opacity: 0.52;
 }
 
 .briefing-summary__status strong {
@@ -112,8 +134,4 @@
 
 .briefing-summary__status--update .briefing-summary__dot {
   color: var(--color-indicator-updated);
-}
-
-.briefing-summary__status--success .briefing-summary__dot {
-  color: var(--color-indicator-unchanged);
 }

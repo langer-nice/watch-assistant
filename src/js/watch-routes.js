@@ -5,10 +5,14 @@ export const normalizeWatchId = (watchId) => {
   return typeof value === 'string' && value.trim() && value.length <= 512 ? value : null;
 };
 
-export const getWatchDetailHref = (watchId) => {
+export const CURRENT_UPDATE_FRAGMENT = 'current-situation';
+
+export const getWatchDetailHref = (watchId, { revealLatestUpdate = false } = {}) => {
   const normalizedId = normalizeWatchId(watchId);
   return normalizedId
-    ? `watch-detail.html?id=${encodeURIComponent(normalizedId)}`
+    ? `watch-detail.html?id=${encodeURIComponent(normalizedId)}${
+      revealLatestUpdate ? `#${CURRENT_UPDATE_FRAGMENT}` : ''
+    }`
     : null;
 };
 

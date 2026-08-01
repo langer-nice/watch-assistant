@@ -2,15 +2,16 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-test('Home and All Watches derive unread presentation from persisted Updates', async () => {
+test('Home and All Watches derive Updated presentation from persisted Updates', async () => {
   const source = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
   const homeRenderer = source.match(/const renderHomeWatchCards =[\s\S]*?const renderHomeBriefing/)?.[0] || '';
   const listRenderer = source.match(/const renderWatchList =[\s\S]*?const renderWatchDetail/)?.[0] || '';
 
-  assert.match(homeRenderer, /getUnreadUpdates\(watch\)/);
   assert.match(homeRenderer, /getLatestUpdate\(watch\)/);
-  assert.match(homeRenderer, /statuses\.new/);
-  assert.match(listRenderer, /getUnreadUpdates\(watch\)\.length \? 'new' : 'updated'/);
+  assert.match(homeRenderer, /statuses\.updated/);
+  assert.doesNotMatch(homeRenderer, /statuses\.new/);
+  assert.match(listRenderer, /updatedIds\.has\(watch\.id\)[\s\S]*?\? 'updated'/);
+  assert.doesNotMatch(listRenderer, /\? 'new'/);
 });
 
 test('Detail renders persisted history before marking only displayed unread Updates read', async () => {
