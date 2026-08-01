@@ -238,6 +238,9 @@ export const getHomeInboxSelection = (watches, options = {}) => {
   return {
     ...briefing,
     watches: watches.filter((watch) => inboxIds.has(watch.id)),
+    totalChecked: briefing.attentionWatches.length
+      + briefing.updatedWatches.length
+      + briefing.quietWatches.length,
     statusById: new Map([
       ...briefing.attentionWatches.map((watch) => [watch.id, 'attention']),
       ...briefing.updatedWatches.map((watch) => [watch.id, 'updated']),

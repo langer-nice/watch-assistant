@@ -777,7 +777,7 @@ const getHomeReport = () => {
     updatedWatches,
     quietWatches,
     unchangedCount: quietWatches.length,
-    totalChecked: briefing.watches.length,
+    totalChecked: briefing.totalChecked,
   };
 };
 

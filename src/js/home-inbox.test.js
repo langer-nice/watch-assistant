@@ -27,6 +27,7 @@ test('Home selects canonical attention and updated Watches without mutating unch
   assert.equal(selection.statusById.get('attention-alias'), 'attention');
   assert.equal(selection.statusById.get('updated-alias'), 'updated');
   assert.deepEqual(selection.quietWatches.map(({ id }) => id), ['unchanged']);
+  assert.equal(selection.totalChecked, 3);
   assert.deepEqual(source, original);
 });
 
@@ -38,6 +39,7 @@ test('the same unchanged Watch remains in the complete All Watches grouping', ()
   const allWatches = groupWatches([unchanged], options).flatMap(({ watches }) => watches);
 
   assert.deepEqual(inbox.watches, []);
+  assert.equal(inbox.totalChecked, 1);
   assert.deepEqual(allWatches.map(({ id }) => id), ['unchanged']);
 });
 
