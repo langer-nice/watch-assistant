@@ -10,6 +10,52 @@
     "justNow": "Just now",
     "monitoringFallback": "Monitoring for meaningful updates."
   },
+  "companyStatus": {
+    "monitoringHeading": "Monitoring status",
+    "labels": {
+      "active": "Active",
+      "judicial_proceedings": "Judicial proceedings",
+      "receivership": "Receivership",
+      "judicial_liquidation": "Judicial liquidation",
+      "dissolved": "Dissolved",
+      "struck_off": "Struck off",
+      "unknown": "Unknown"
+    },
+    "descriptions": {
+      "active": "Official records indicate the company is currently active.",
+      "judicial_proceedings": "The company is currently subject to judicial proceedings.",
+      "receivership": "The company is currently in receivership.",
+      "judicial_liquidation": "The company is currently subject to judicial liquidation.",
+      "dissolved": "Official records indicate this company has already been dissolved.",
+      "struck_off": "Official records indicate this company has been struck off the register.",
+      "unknown": "The official status could not be determined."
+    },
+    "followUps": {
+      "active": "",
+      "judicial_proceedings": "Future official publications may relate to the ongoing proceedings.",
+      "receivership": "Future official publications may relate to the ongoing proceedings.",
+      "judicial_liquidation": "Future official publications may relate to the ongoing proceedings.",
+      "dissolved": "Future official BODACC publications may be rare.",
+      "struck_off": "Future official publications may be limited.",
+      "unknown": ""
+    },
+    "reviewWarnings": {
+      "dissolved": "This company is already dissolved.",
+      "struck_off": "This company has already been struck off."
+    },
+    "reviewQuestion": "Create Watch anyway?"
+  },
+  "administrativeStatus": {
+    "heading": "Current administrative status",
+    "labels": {
+      "active": "Active",
+      "ceased": "Ceased"
+    },
+    "descriptions": {
+      "active": "Current official administrative status.",
+      "ceased": "Current official administrative status."
+    }
+  },
   "languageSwitcher": {
     "label": "Language",
     "englishName": "English",
@@ -150,7 +196,9 @@
     "currentSituation": "Current situation",
     "recommendation": "Recommendation",
     "source": "Source",
+    "companySiren": "SIREN {siren}",
     "openOriginalArticle": "Open original article",
+    "viewOfficialBodaccPublications": "View official BODACC publications",
     "openArticle": "Open article",
     "whyToday": "Why today",
     "watchFacts": "Watch facts",
@@ -194,6 +242,20 @@
     "updateHistory": "Update history",
     "updateDetected": "Update detected",
     "untitledItem": "Untitled item",
+    "businessEvents": {
+      "capital_increase": "Capital increased",
+      "capital_reduction": "Capital reduced",
+      "director_change": "Director changed",
+      "registered_office_change": "Registered office changed",
+      "accounts_filed": "Accounts filed",
+      "company_created": "Company created",
+      "company_dissolved": "Company dissolved",
+      "judicial_proceedings": "Judicial proceedings opened",
+      "judicial_liquidation": "Judicial liquidation opened",
+      "receivership": "Receivership opened",
+      "business_sale": "Business sold",
+      "company_struck_off": "Company struck off"
+    },
     "pauseWatch": "Pause Watch",
     "resumeWatch": "Resume Watch",
     "deleteWatch": "Delete Watch",
@@ -246,6 +308,16 @@
     "feedUrlHelper": "Optional. Use this only to monitor a specific RSS or Atom feed.",
     "feedUrlError": "Enter a valid HTTP or HTTPS feed URL without credentials.",
     "monitoringSourceUnsupported": "I couldn’t find a supported public source for this Watch. Try a more specific request or paste a public webpage that offers updates.",
+    "companySirenGuidance": "Enter a valid 9-digit SIREN to monitor a French company.",
+    "companyStatusChecking": "Checking the official company status…",
+    "companyReviewFound": "Company monitoring",
+    "companyReviewTitle": "Company Watch",
+    "companyReviewTitleValue": "Company SIREN {siren}",
+    "companyReviewWatchingForRequired": "Watching for *",
+    "companyReviewSummary": "Monitoring official BODACC publications for SIREN {siren}.",
+    "companyReviewEventsSummary": "Detects director changes, capital changes, registered office changes, accounts filed, judicial proceedings and company dissolution.",
+    "companyReviewSource": "Official source",
+    "companyReviewEdit": "Edit request",
     "addNote": "+ Add note",
     "noteHeading": "Add note",
     "closeNote": "Close note",

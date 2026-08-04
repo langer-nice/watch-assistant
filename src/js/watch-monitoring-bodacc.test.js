@@ -22,6 +22,7 @@ const BODACC_SOURCE = {
 
 const bodaccItem = (id, title = `Announcement ${id}`) => ({
   id,
+  sirens: [SIREN],
   title,
   url: `https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:${id}`,
   publishedAt: '2026-08-04T00:00:00.000Z',
@@ -87,6 +88,32 @@ test('company and RSS requests dispatch to their dedicated endpoints', async () 
   });
 });
 
+test('company checks accept only normalized directory identity for the requested SIREN', async () => {
+  const result = await requestCompanyCheck(SIREN, {
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({
+        ...bodaccResponse([]),
+        company: {
+          siren: SIREN,
+          officialName: 'OFFICIAL COMPANY',
+          administrativeStatus: 'active',
+          rawStatus: 'A',
+          source: 'recherche-entreprises',
+        },
+      }),
+    }),
+  });
+
+  assert.deepEqual(result.company, {
+    siren: SIREN,
+    officialName: 'OFFICIAL COMPANY',
+    administrativeStatus: 'active',
+    rawStatus: 'A',
+    source: 'recherche-entreprises',
+  });
+});
+
 test('BODACC activation creates a baseline and repeated checks add exactly one stable Update', async () => {
   const lifecycle = createCompanyController({
     responses: [
@@ -140,6 +167,171 @@ test('distinct BODACC IDs published on the same date are both retained', async (
     lifecycle.getWatch().updates.map(({ id }) => id),
     ['SAME-DATE-1', 'SAME-DATE-2'],
   );
+});
+
+test('a BODACC business event survives normalization without changing ID deduplication', () => {
+  const watch = {
+    id: 'company-watch',
+    monitoringSource: BODACC_SOURCE,
+    monitoringSnapshot: { itemIds: [] },
+  };
+  const classifiedItem = {
+    ...bodaccItem('CAPITAL'),
+    eventType: 'capital_increase',
+  };
+  const first = applyFeedCheckResult(watch, {
+    ...bodaccResponse([]),
+    items: [classifiedItem],
+  }, { trustedSourceType: 'bodacc' });
+
+  assert.equal(first.matchedItems[0].eventType, 'capital_increase');
+  assert.deepEqual(first.changes.monitoringSnapshot.items[0].sirens, [SIREN]);
+  assert.equal(first.changes.updates[0].rawMonitoringResult.eventType, 'capital_increase');
+  assert.deepEqual(first.changes.updates[0].rawMonitoringResult.sirens, [SIREN]);
+  const repeated = applyFeedCheckResult(
+    { ...watch, ...first.changes },
+    { ...bodaccResponse([]), items: [classifiedItem] },
+    { trustedSourceType: 'bodacc' },
+  );
+  assert.equal(repeated.outcome, 'no-new-items');
+  assert.deepEqual(repeated.changes.updates.map(({ id }) => id), ['CAPITAL']);
+});
+
+test('a later BODACC event updates company.status without changing Update history', async () => {
+  const initialWatch = {
+    id: 'company-watch',
+    inputType: 'company',
+    company: { siren: SIREN, name: 'EXAMPLE', status: 'active' },
+    monitoringSource: BODACC_SOURCE,
+  };
+  const created = { ...bodaccItem('CREATED'), eventType: 'company_created' };
+  const liquidation = { ...bodaccItem('LIQUIDATION'), eventType: 'judicial_liquidation' };
+  const struckOff = { ...bodaccItem('STRUCK-OFF'), eventType: 'company_struck_off' };
+  const lifecycle = createCompanyController({
+    initialWatch,
+    responses: [
+      { ...bodaccResponse([]), items: [created] },
+      { ...bodaccResponse([], '2026-08-04T09:00:00.000Z'), items: [liquidation, created] },
+      { ...bodaccResponse([], '2026-08-04T10:00:00.000Z'), items: [struckOff, liquidation, created] },
+    ],
+  });
+
+  await lifecycle.controller.check('company-watch');
+  assert.equal(lifecycle.getWatch().company.status, 'active');
+  await lifecycle.controller.check('company-watch');
+  assert.equal(lifecycle.getWatch().company.status, 'judicial_liquidation');
+  assert.deepEqual(lifecycle.getWatch().updates.map(({ id }) => id), ['LIQUIDATION']);
+  await lifecycle.controller.check('company-watch');
+  assert.equal(lifecycle.getWatch().company.status, 'struck_off');
+  assert.deepEqual(
+    lifecycle.getWatch().updates.map(({ id }) => id),
+    ['LIQUIDATION', 'STRUCK-OFF'],
+  );
+});
+
+test('the first BODACC baseline fills an empty company name from the existing item title', async () => {
+  const initialWatch = {
+    id: 'company-watch',
+    inputType: 'company',
+    title: `Company SIREN ${SIREN}`,
+    company: { siren: SIREN, name: null },
+    monitoringSource: BODACC_SOURCE,
+  };
+  const response = {
+    ...bodaccResponse([]),
+    items: [{
+      ...bodaccItem('OFFICIAL'),
+      title: 'Modifications diverses · OFFICIAL COMPANY NAME',
+    }],
+  };
+  const lifecycle = createCompanyController({ initialWatch, responses: [response] });
+  const result = await lifecycle.controller.check('company-watch');
+
+  assert.equal(result.outcome, 'baseline');
+  assert.deepEqual(lifecycle.getWatch().company, {
+    siren: SIREN,
+    name: 'OFFICIAL COMPANY NAME',
+    status: 'unknown',
+  });
+  assert.equal(lifecycle.getWatch().title, 'OFFICIAL COMPANY NAME');
+  assert.deepEqual(lifecycle.getWatch().monitoringSnapshot.itemIds, ['OFFICIAL']);
+  assert.deepEqual(lifecycle.getWatch().updates || [], []);
+});
+
+test('BODACC enrichment preserves an existing user-supplied company name', () => {
+  const result = applyFeedCheckResult({
+    id: 'company-watch',
+    inputType: 'company',
+    title: 'LE GARIBALDI',
+    company: { siren: SIREN, name: 'LE GARIBALDI' },
+    monitoringSource: BODACC_SOURCE,
+  }, {
+    ...bodaccResponse([]),
+    items: [{
+      ...bodaccItem('OFFICIAL'),
+      title: 'Modifications diverses · DIFFERENT OFFICIAL NAME',
+    }],
+  }, { trustedSourceType: 'bodacc' });
+
+  assert.deepEqual(result.changes.company, {
+    siren: SIREN,
+    name: 'LE GARIBALDI',
+    status: 'unknown',
+  });
+  assert.equal('title' in result.changes, false);
+  assert.deepEqual(result.changes.monitoringSnapshot.itemIds, ['OFFICIAL']);
+});
+
+test('official directory identity takes priority while BODACC remains the monitoring source', () => {
+  const result = applyFeedCheckResult({
+    id: 'company-watch',
+    inputType: 'company',
+    title: 'User supplied name',
+    company: {
+      siren: SIREN,
+      name: 'User supplied name',
+      administrativeStatus: 'unknown',
+      status: 'unknown',
+    },
+    monitoringSource: BODACC_SOURCE,
+  }, {
+    ...bodaccResponse([]),
+    company: {
+      siren: SIREN,
+      officialName: 'OFFICIAL COMPANY',
+      administrativeStatus: 'ceased',
+      rawStatus: 'C',
+      source: 'recherche-entreprises',
+    },
+  }, { trustedSourceType: 'bodacc' });
+
+  assert.equal(result.changes.title, 'OFFICIAL COMPANY');
+  assert.deepEqual(result.changes.company, {
+    siren: SIREN,
+    name: 'OFFICIAL COMPANY',
+    administrativeStatus: 'ceased',
+    status: 'unknown',
+  });
+  assert.equal(result.changes.monitoringSnapshot.source.title, 'BODACC');
+});
+
+test('BODACC enrichment replaces a generic name stored inside company.name', () => {
+  const result = applyFeedCheckResult({
+    id: 'company-watch',
+    inputType: 'company',
+    title: `Company SIREN ${SIREN}`,
+    company: { siren: SIREN, name: `Company SIREN ${SIREN}` },
+    monitoringSource: BODACC_SOURCE,
+  }, {
+    ...bodaccResponse([]),
+    items: [{
+      ...bodaccItem('OFFICIAL'),
+      title: 'Modifications diverses · OFFICIAL COMPANY NAME',
+    }],
+  }, { trustedSourceType: 'bodacc' });
+
+  assert.equal(result.changes.company.name, 'OFFICIAL COMPANY NAME');
+  assert.equal(result.changes.title, 'OFFICIAL COMPANY NAME');
 });
 
 test('BODACC bypass requires a validated source and the dedicated trusted request path', () => {

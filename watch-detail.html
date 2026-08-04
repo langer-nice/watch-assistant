@@ -80,6 +80,29 @@
 
           <div class="detail-card__primary" id="watchPrimary">
             <section
+              class="detail-card__field detail-company-status"
+              id="watchCompanyAdministrativeStatus"
+              data-detail-field="companyAdministrativeStatus"
+              hidden
+            >
+              <h3 class="section-heading" data-i18n="administrativeStatus.heading"></h3>
+              <span class="status-label" id="watchCompanyAdministrativeStatusBadge"></span>
+              <p id="watchCompanyAdministrativeStatusDescription"></p>
+            </section>
+
+            <section
+              class="detail-card__field detail-company-status"
+              id="watchCompanyStatus"
+              data-detail-field="companyStatus"
+              hidden
+            >
+              <h3 class="section-heading" data-i18n="companyStatus.monitoringHeading"></h3>
+              <span class="status-label" id="watchCompanyStatusBadge"></span>
+              <p id="watchCompanyStatusDescription"></p>
+              <p id="watchCompanyStatusFollowUp" hidden></p>
+            </section>
+
+            <section
               class="detail-card__field detail-current-update"
               id="current-situation"
               data-detail-field="currentSituation"
@@ -153,7 +176,7 @@
               data-i18n-aria-label="detail.openOriginalArticle"
               hidden
             >
-              <span data-i18n="detail.openOriginalArticle"></span>
+              <span data-source-link-label data-i18n="detail.openOriginalArticle"></span>
               <span aria-hidden="true">↗</span>
             </a>
           </section>

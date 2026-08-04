@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   BODACC_PAGE_LIMIT,
   BodaccError,
+  classifyBodaccBusinessEvent,
   createBodaccRequestUrl,
   fetchBodaccAnnouncements,
   normalizeBodaccAnnouncement,
@@ -83,6 +84,8 @@ test('normalizes a valid BODACC response into the monitoring item format', async
     checkedAt: CHECKED_AT,
     items: [{
       id: 'B202600693010',
+      sirens: [],
+      eventType: 'unknown_change',
       title: 'Modifications diverses · CEMEX GRANULATS',
       url: 'https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:B202600693010',
       publishedAt: '2026-04-10T00:00:00.000Z',
@@ -168,6 +171,8 @@ test('normalizes category-specific details defensively and rejects invalid recor
     url_complete: 'https://unofficial.example/announcement',
   })), {
     id: 'C202601399890',
+    sirens: [],
+    eventType: 'accounts_filed',
     title: 'Dépôts des comptes · Example & Company',
     url: null,
     publishedAt: '2026-07-24T00:00:00.000Z',
@@ -180,4 +185,110 @@ test('normalizes category-specific details defensively and rejects invalid recor
     () => normalizeBodaccAnnouncement(announcement({ id: null })),
     (error) => error instanceof BodaccError && error.code === 'MALFORMED_RESPONSE',
   );
+});
+
+test('normalizes the official registry SIRENs used to verify publication ownership', () => {
+  assert.deepEqual(normalizeBodaccAnnouncement(announcement({
+    registre: ['905329314', '905 329 314'],
+  })).sirens, ['905329314']);
+});
+
+test('classifies official BODACC fields into conservative business events', () => {
+  const cases = [
+    ['company_created', {
+      familleavis: 'creation',
+      acte: { creation: { categorieCreation: 'Immatriculation d’une personne morale' } },
+    }],
+    ['company_dissolved', {
+      familleavis: 'modification',
+      modificationsgenerales: { descriptif: 'Dissolution de la société.' },
+    }],
+    ['director_change', {
+      familleavis: 'modification',
+      modificationsgenerales: { descriptif: 'Modification survenue sur l’administration.' },
+    }],
+    ['capital_increase', {
+      familleavis: 'modification',
+      modificationsgenerales: { descriptif: 'Modification du capital : augmentation.' },
+    }],
+    ['capital_reduction', {
+      familleavis: 'modification',
+      modificationsgenerales: { descriptif: 'Réduction du capital social.' },
+    }],
+    ['accounts_filed', {
+      familleavis: 'dpc',
+      depot: { typeDepot: 'Comptes annuels et rapports' },
+    }],
+    ['registered_office_change', {
+      familleavis: 'modification',
+      modificationsgenerales: { descriptif: 'Transfert du siège social.' },
+    }],
+    ['judicial_liquidation', {
+      familleavis: 'collective',
+      jugement: {
+        famille: 'Jugement d’ouverture',
+        nature: 'Jugement d’ouverture de liquidation judiciaire',
+      },
+    }],
+    ['receivership', {
+      familleavis: 'collective',
+      jugement: {
+        famille: 'Jugement d’ouverture',
+        nature: 'Jugement d’ouverture d’une procédure de redressement judiciaire',
+      },
+    }],
+    ['judicial_proceedings', {
+      familleavis: 'collective',
+      jugement: {
+        famille: 'Jugement d’ouverture',
+        nature: 'Jugement d’ouverture d’une procédure de sauvegarde',
+      },
+    }],
+    ['business_sale', {
+      familleavis: 'vente',
+      acte: { vente: { categorieVente: 'Achat d’un établissement principal' } },
+    }],
+    ['company_struck_off', {
+      familleavis: 'radiation',
+      radiationaurcs: { commentaire: 'Radiation d’office' },
+    }],
+    ['unknown_change', {
+      familleavis: 'modification',
+      modificationsgenerales: { descriptif: 'Modification survenue sur l’activité.' },
+    }],
+  ];
+
+  for (const [eventType, fields] of cases) {
+    assert.equal(classifyBodaccBusinessEvent(fields), eventType);
+    assert.equal(normalizeBodaccAnnouncement(announcement(fields)).eventType, eventType);
+  }
+});
+
+test('does not choose one ordinary event when an announcement contains several', () => {
+  assert.equal(classifyBodaccBusinessEvent({
+    familleavis: 'modification',
+    modificationsgenerales: {
+      descriptif: 'Transfert du siège social et modification de l’administration.',
+    },
+  }), 'unknown_change');
+});
+
+test('does not describe a plan or closure judgement as a newly opened proceeding', () => {
+  for (const jugement of [
+    {
+      famille: 'Extrait de jugement',
+      nature: 'Jugement de plan de redressement',
+      complementJugement: 'Jugement arrêtant le plan de redressement judiciaire.',
+    },
+    {
+      famille: 'Jugement de clôture',
+      nature: 'Jugement de clôture pour insuffisance d’actif',
+      complementJugement: 'Clôture de la procédure de liquidation judiciaire.',
+    },
+  ]) {
+    assert.equal(classifyBodaccBusinessEvent({
+      familleavis: 'collective',
+      jugement,
+    }), 'unknown_change');
+  }
 });

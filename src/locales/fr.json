@@ -10,6 +10,52 @@
     "justNow": "À l’instant",
     "monitoringFallback": "Surveillance des mises à jour importantes."
   },
+  "companyStatus": {
+    "monitoringHeading": "Statut de surveillance",
+    "labels": {
+      "active": "Active",
+      "judicial_proceedings": "Procédure judiciaire",
+      "receivership": "Redressement judiciaire",
+      "judicial_liquidation": "Liquidation judiciaire",
+      "dissolved": "Dissoute",
+      "struck_off": "Radiée",
+      "unknown": "Inconnu"
+    },
+    "descriptions": {
+      "active": "Les publications officielles indiquent que l’entreprise est actuellement active.",
+      "judicial_proceedings": "L’entreprise fait actuellement l’objet d’une procédure judiciaire.",
+      "receivership": "L’entreprise est actuellement en redressement judiciaire.",
+      "judicial_liquidation": "L’entreprise fait actuellement l’objet d’une liquidation judiciaire.",
+      "dissolved": "Les publications officielles indiquent que cette entreprise a déjà été dissoute.",
+      "struck_off": "Les publications officielles indiquent que cette entreprise a été radiée du registre.",
+      "unknown": "Le statut officiel n’a pas pu être déterminé."
+    },
+    "followUps": {
+      "active": "",
+      "judicial_proceedings": "Les prochaines publications officielles peuvent concerner la procédure en cours.",
+      "receivership": "Les prochaines publications officielles peuvent concerner la procédure en cours.",
+      "judicial_liquidation": "Les prochaines publications officielles peuvent concerner la procédure en cours.",
+      "dissolved": "Les prochaines publications officielles du BODACC peuvent être rares.",
+      "struck_off": "Les prochaines publications officielles peuvent être limitées.",
+      "unknown": ""
+    },
+    "reviewWarnings": {
+      "dissolved": "Cette entreprise est déjà dissoute.",
+      "struck_off": "Cette entreprise est déjà radiée."
+    },
+    "reviewQuestion": "Créer la Watch malgré tout ?"
+  },
+  "administrativeStatus": {
+    "heading": "Statut administratif actuel",
+    "labels": {
+      "active": "Active",
+      "ceased": "Cessée"
+    },
+    "descriptions": {
+      "active": "Statut administratif officiel actuel.",
+      "ceased": "Statut administratif officiel actuel."
+    }
+  },
   "languageSwitcher": {
     "label": "Langue",
     "englishName": "English",
@@ -150,7 +196,9 @@
     "currentSituation": "Situation actuelle",
     "recommendation": "Recommandation",
     "source": "Source",
+    "companySiren": "SIREN {siren}",
     "openOriginalArticle": "Ouvrir l’article original",
+    "viewOfficialBodaccPublications": "Voir les publications officielles du BODACC",
     "openArticle": "Ouvrir l’article",
     "whyToday": "Pourquoi aujourd’hui",
     "watchFacts": "Informations sur la Watch",
@@ -194,6 +242,20 @@
     "updateHistory": "Historique des mises à jour",
     "updateDetected": "Mise à jour détectée",
     "untitledItem": "Élément sans titre",
+    "businessEvents": {
+      "capital_increase": "Augmentation du capital",
+      "capital_reduction": "Réduction du capital",
+      "director_change": "Changement de dirigeant",
+      "registered_office_change": "Transfert du siège social",
+      "accounts_filed": "Dépôt des comptes",
+      "company_created": "Création de l’entreprise",
+      "company_dissolved": "Dissolution de l’entreprise",
+      "judicial_proceedings": "Ouverture d’une procédure judiciaire",
+      "judicial_liquidation": "Ouverture d’une liquidation judiciaire",
+      "receivership": "Ouverture d’un redressement judiciaire",
+      "business_sale": "Cession de l’entreprise",
+      "company_struck_off": "Radiation de l’entreprise"
+    },
     "pauseWatch": "Mettre la Watch en pause",
     "resumeWatch": "Reprendre la Watch",
     "deleteWatch": "Supprimer la Watch",
@@ -246,6 +308,16 @@
     "feedUrlHelper": "Facultatif. Utilisez ce champ uniquement pour surveiller un flux RSS ou Atom précis.",
     "feedUrlError": "Saisissez une URL de flux HTTP ou HTTPS valide sans identifiants.",
     "monitoringSourceUnsupported": "Je n’ai trouvé aucune source publique compatible pour cette Watch. Précisez votre demande ou collez une page publique proposant des mises à jour.",
+    "companySirenGuidance": "Saisissez un SIREN valide à 9 chiffres pour surveiller une entreprise française.",
+    "companyStatusChecking": "Vérification du statut officiel de l’entreprise…",
+    "companyReviewFound": "Surveillance d’entreprise",
+    "companyReviewTitle": "Watch d’entreprise",
+    "companyReviewTitleValue": "Entreprise SIREN {siren}",
+    "companyReviewWatchingForRequired": "À surveiller *",
+    "companyReviewSummary": "Surveillance des annonces officielles du BODACC pour le SIREN {siren}.",
+    "companyReviewEventsSummary": "Détecte notamment les changements de dirigeant, les modifications du capital, les transferts de siège, les dépôts des comptes, les procédures judiciaires et les radiations.",
+    "companyReviewSource": "Source officielle",
+    "companyReviewEdit": "Modifier la demande",
     "addNote": "+ Ajouter une note",
     "noteHeading": "Ajouter une note",
     "closeNote": "Fermer la note",

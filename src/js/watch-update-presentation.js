@@ -1,9 +1,39 @@
 import { getLatestUpdate, getWatchUpdates } from './watch-updates.js';
 
+const BODACC_BUSINESS_EVENT_TYPES = new Set([
+  'capital_increase',
+  'capital_reduction',
+  'director_change',
+  'registered_office_change',
+  'accounts_filed',
+  'company_created',
+  'company_dissolved',
+  'judicial_proceedings',
+  'judicial_liquidation',
+  'receivership',
+  'business_sale',
+  'company_struck_off',
+]);
+
+export const getBodaccBusinessEventTranslationKey = (update) => {
+  const monitoringResult = update?.rawMonitoringResult;
+  const eventType = monitoringResult?.eventType || update?.eventType;
+  const source = monitoringResult?.source || update?.sourceName || update?.source;
+  return source === 'BODACC' && BODACC_BUSINESS_EVENT_TYPES.has(eventType)
+    ? `detail.businessEvents.${eventType}`
+    : null;
+};
+
+export const getBodaccBusinessEventLabel = (update, translate = () => '') => {
+  const key = getBodaccBusinessEventTranslationKey(update);
+  return key ? translate(key) : '';
+};
+
 export const getCurrentSituationPresentation = (watch, {
   fallback = '',
   formatTimestamp = (value) => value || '',
   sanitizeUrl = () => '',
+  translateBusinessEvent = () => '',
 } = {}) => {
   const update = getLatestUpdate(watch);
   if (!update) {
@@ -17,9 +47,10 @@ export const getCurrentSituationPresentation = (watch, {
   }
 
   const summary = update.summary || update.sourceTitle || fallback;
-  const title = update.sourceTitle && update.sourceTitle !== summary
+  const businessEventLabel = getBodaccBusinessEventLabel(update, translateBusinessEvent);
+  const title = businessEventLabel || (update.sourceTitle && update.sourceTitle !== summary
     ? update.sourceTitle
-    : '';
+    : '');
   const metadata = [
     update.sourceName || update.sourceDomain,
     formatTimestamp(update.timestamp),

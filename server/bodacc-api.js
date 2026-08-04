@@ -1,4 +1,5 @@
 import he from 'he';
+import { fetchCompanyIdentity } from './company-directory-api.js';
 
 export const BODACC_API_ORIGIN = 'https://bodacc-datadila.opendatasoft.com';
 export const BODACC_DATASET = 'annonces-commerciales';
@@ -45,6 +46,17 @@ const isLuhnValid = (value) => {
   return sum % 10 === 0;
 };
 
+const getRecordSirens = (value) => {
+  const registryValues = Array.isArray(value) ? value : [value];
+  const sirens = registryValues.flatMap((registryValue) => (
+    typeof registryValue === 'string' || typeof registryValue === 'number'
+      ? String(registryValue).match(/\d(?:[\s\u00a0\u202f]*\d){8}/gu) || []
+      : []
+  )).map((candidate) => candidate.replace(/[\s\u00a0\u202f]/gu, ''))
+    .filter((candidate) => /^\d{9}$/.test(candidate) && isLuhnValid(candidate));
+  return [...new Set(sirens)];
+};
+
 export const normalizeSiren = (value) => {
   if (typeof value !== 'string' && typeof value !== 'number') {
     throw new BodaccError('INVALID_SIREN', 400, 'SIREN must contain exactly 9 digits.');
@@ -83,6 +95,82 @@ const parseNestedJson = (value) => {
 const firstText = (...values) => values
   .map((value) => cleanText(value, MAX_EXCERPT_LENGTH))
   .find(Boolean) || null;
+
+const normalizeClassificationText = (...values) => values
+  .map((value) => cleanText(value, MAX_EXCERPT_LENGTH))
+  .filter(Boolean)
+  .join(' ')
+  .normalize('NFKD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLocaleLowerCase()
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+export const classifyBodaccBusinessEvent = (record) => {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return 'unknown_change';
+
+  const judgement = parseNestedJson(record.jugement);
+  const act = parseNestedJson(record.acte);
+  const modification = parseNestedJson(record.modificationsgenerales);
+  const deposit = parseNestedJson(record.depot);
+  const radiation = parseNestedJson(record.radiationaurcs);
+  const family = normalizeClassificationText(record.familleavis, record.familleavis_lib);
+  const judgementNature = normalizeClassificationText(judgement?.nature);
+  const judgementComplement = normalizeClassificationText(judgement?.complementJugement);
+  const liquidationOpened = (
+    /\bjugement (?:d ouverture (?:d une procedure de |de )?|prononcant |de conversion en )liquidation judiciaire\b/u
+      .test(judgementNature)
+    || /\b(?:ouvre|ouverture de|prononce) (?:une procedure de |la )?liquidation judiciaire\b/u
+      .test(judgementComplement)
+  );
+  const receivershipOpened = (
+    /\bjugement d ouverture d une procedure de redressement judiciaire\b/u
+      .test(judgementNature)
+    || /\b(?:ouvre|ouverture d une procedure de|prononce l ouverture d une procedure de) redressement judiciaire\b/u
+      .test(judgementComplement)
+  );
+  const judicialProceedingsOpened = (
+    /\bjugement d ouverture d une procedure de sauvegarde\b/u.test(judgementNature)
+    || /\b(?:ouvre|ouverture d une procedure de) sauvegarde\b/u.test(judgementComplement)
+  );
+
+  if (liquidationOpened) return 'judicial_liquidation';
+  if (receivershipOpened) return 'receivership';
+  if (judicialProceedingsOpened) return 'judicial_proceedings';
+  if (deposit || /\b(?:dpc|depot des comptes)\b/u.test(family)) return 'accounts_filed';
+  if (radiation || /\bradiation(?:s)?\b/u.test(family)) return 'company_struck_off';
+  if (act?.vente || /\b(?:vente|ventes et cessions)\b/u.test(family)) return 'business_sale';
+  if (
+    act?.creation
+    || /\b(?:creation|immatriculation|immatriculations)\b/u.test(family)
+  ) return 'company_created';
+
+  const changeText = normalizeClassificationText(
+    modification?.descriptif,
+    act?.descriptif,
+  );
+  if (/\bdissolution\b/u.test(changeText)) return 'company_dissolved';
+
+  const candidates = new Set();
+  if (
+    /\baugmentation\b[^.]{0,100}\bcapital\b/u.test(changeText)
+    || /\bcapital\b[^.]{0,100}\baugmentation\b/u.test(changeText)
+  ) candidates.add('capital_increase');
+  if (
+    /\breduction\b[^.]{0,100}\bcapital\b/u.test(changeText)
+    || /\bcapital\b[^.]{0,100}\breduction\b/u.test(changeText)
+  ) candidates.add('capital_reduction');
+  if (/\b(?:administration|representant|dirigeant|gerant|president)\b/u.test(changeText)) {
+    candidates.add('director_change');
+  }
+  if (
+    /\btransfert\b[^.]{0,80}\bsiege\b/u.test(changeText)
+    || /\bsiege(?: social)?\b[^.]{0,80}\b(?:transfert|adresse|deplace)\b/u.test(changeText)
+  ) candidates.add('registered_office_change');
+
+  return candidates.size === 1 ? [...candidates][0] : 'unknown_change';
+};
 
 const getAnnouncementExcerpt = (record) => {
   const modification = parseNestedJson(record.modificationsgenerales);
@@ -138,6 +226,8 @@ export const normalizeBodaccAnnouncement = (record) => {
   const merchant = cleanText(record.commercant, MAX_TITLE_LENGTH);
   return {
     id,
+    sirens: getRecordSirens(record.registre),
+    eventType: classifyBodaccBusinessEvent(record),
     title: cleanText(merchant ? `${family} · ${merchant}` : family, MAX_TITLE_LENGTH),
     url: normalizeOfficialUrl(record.url_complete),
     publishedAt,
@@ -313,7 +403,19 @@ export const createCheckCompanyMiddleware = (options = {}) => (
 
     try {
       const body = await readJsonBody(request);
-      sendJson(response, 200, await fetchBodaccAnnouncements(body.siren, options));
+      const siren = normalizeSiren(body.siren);
+      const identityPromise = fetchCompanyIdentity(siren, {
+        fetchImpl: options.directoryFetchImpl || options.fetchImpl || fetch,
+        timeoutMs: options.directoryTimeoutMs,
+      }).catch(() => null);
+      const [bodacc, company] = await Promise.all([
+        fetchBodaccAnnouncements(siren, options),
+        identityPromise,
+      ]);
+      sendJson(response, 200, {
+        ...bodacc,
+        ...(company ? { company } : {}),
+      });
     } catch (cause) {
       const error = toBodaccError(cause);
       console.error(`[Check Company] ${error.code}: ${error.message}`);

@@ -14,6 +14,9 @@ import {
   getUnreadUpdates,
   migrateLegacyWatchUpdates,
 } from './watch-updates.js';
+import { normalizeCompanyName } from './company-watch-title.js';
+import { normalizeCompanyStatus } from './company-watch-status.js';
+import { normalizeAdministrativeStatus } from './company-administrative-status.js';
 
 export const WATCH_MODEL_VERSION = 10;
 
@@ -87,6 +90,16 @@ export const migrateWatchModel = (watch) => {
   if (!watch || typeof watch !== 'object') return { watch, migrated: false };
   const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
   const bodaccMonitoringSource = normalizeBodaccMonitoringSource(watch.monitoringSource);
+  const company = watch.inputType === 'company' && bodaccMonitoringSource
+    ? {
+      siren: bodaccMonitoringSource.siren,
+      name: normalizeCompanyName(watch.company?.name, bodaccMonitoringSource.siren),
+      administrativeStatus: normalizeAdministrativeStatus(
+        watch.company?.administrativeStatus,
+      ),
+      status: normalizeCompanyStatus(watch.company?.status),
+    }
+    : watch.company;
   const candidateUpdates = Array.isArray(watch.candidateUpdates)
     ? watch.candidateUpdates
     : Array.isArray(watch.monitoringUpdates) ? watch.monitoringUpdates : [];
@@ -256,6 +269,7 @@ export const migrateWatchModel = (watch) => {
     analysisDiagnosticId: typeof watch.analysisDiagnosticId === 'string'
       ? watch.analysisDiagnosticId
       : null,
+    ...(watch.inputType === 'company' ? { company } : {}),
     monitoringSource: bodaccMonitoringSource || (feedUrl
       ? {
         url: feedUrl,

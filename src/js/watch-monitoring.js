@@ -1,6 +1,9 @@
 import { getStoryProfileIdentifiers } from './story-profile.js';
 import { addUpdateToWatch, getUnreadUpdates } from './watch-updates.js';
 import { MONITORING_FAILURE_CODES } from './watch-monitoring-errors.js';
+import { getCompanyNameEnrichment } from './company-watch-title.js';
+import { deriveCompanyStatus } from './company-watch-status.js';
+import { normalizeCompanyIdentity } from './company-administrative-status.js';
 
 export const MAX_SNAPSHOT_ITEMS = 20;
 export const MAX_SEEN_ITEM_IDS = 200;
@@ -38,6 +41,10 @@ const normalizeItem = (item) => {
     source: nullableString(item.source),
     author: nullableString(item.author),
     excerpt: nullableString(item.excerpt),
+    eventType: nullableString(item.eventType),
+    sirens: Array.isArray(item.sirens)
+      ? [...new Set(item.sirens.filter((siren) => /^\d{9}$/.test(siren)))]
+      : [],
   };
 };
 
@@ -219,6 +226,40 @@ export const applyFeedCheckResult = (watch, response, {
     [...detectedUpdates, ...existingUpdates],
     MAX_MONITORING_UPDATES,
   );
+  const companyIdentity = trustedSourceType === 'bodacc'
+    ? normalizeCompanyIdentity(response.company, getValidatedBodaccSiren(watch.monitoringSource))
+    : null;
+  const enrichedCompanyName = trustedSourceType === 'bodacc'
+    ? companyIdentity?.officialName || getCompanyNameEnrichment(watch, items)
+    : null;
+  const companyStatus = trustedSourceType === 'bodacc'
+    ? deriveCompanyStatus(items, watch.company?.status)
+    : null;
+  const companyChanged = trustedSourceType === 'bodacc' && (
+    Boolean(enrichedCompanyName)
+    || watch.company?.status !== companyStatus
+    || (
+      companyIdentity
+      && watch.company?.administrativeStatus !== companyIdentity.administrativeStatus
+    )
+  );
+  const nextCompany = companyChanged
+    ? {
+      ...watch.company,
+      ...(enrichedCompanyName ? { name: enrichedCompanyName } : {}),
+      ...(companyIdentity ? {
+        administrativeStatus: companyIdentity.administrativeStatus,
+      } : {}),
+      status: companyStatus,
+    }
+    : watch.company;
+  const watchWithCompany = companyChanged
+    ? {
+      ...watch,
+      ...(enrichedCompanyName ? { title: enrichedCompanyName, titleKey: null } : {}),
+      company: nextCompany,
+    }
+    : watch;
   const watchWithUpdates = detectedUpdates.reduce((updatedWatch, detectedUpdate) => (
     addUpdateToWatch(updatedWatch, {
       id: detectedUpdate.id,
@@ -230,7 +271,7 @@ export const applyFeedCheckResult = (watch, response, {
       status: 'new',
       rawMonitoringResult: detectedUpdate,
     })
-  ), watch);
+  ), watchWithCompany);
   const seenMonitoringItemIds = [...new Set([
     ...currentIds,
     ...previouslySeen,
@@ -265,6 +306,10 @@ export const applyFeedCheckResult = (watch, response, {
     unseenItems,
     matchedItems: detectedUpdates,
     changes: {
+      ...(companyChanged ? {
+        ...(enrichedCompanyName ? { title: enrichedCompanyName, titleKey: null } : {}),
+        company: nextCompany,
+      } : {}),
       monitoringSnapshot: {
         checkedAt,
         source: response.source && typeof response.source === 'object'
@@ -386,7 +431,12 @@ export const requestCompanyCheck = async (siren, { fetchImpl = fetch } = {}) => 
   if (!result || !Array.isArray(result.items)) {
     throw new MonitoringCheckError('INVALID_RESPONSE', 'The monitoring response is invalid.');
   }
-  return result;
+  const { company: rawCompany, ...monitoringResult } = result;
+  const company = normalizeCompanyIdentity(rawCompany, siren);
+  return {
+    ...monitoringResult,
+    ...(company ? { company } : {}),
+  };
 };
 
 export const createWatchCheckController = ({

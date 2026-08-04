@@ -21,7 +21,7 @@ const createResponse = () => ({
   },
 });
 
-const callEndpoint = async ({ method = 'POST', body, fetchImpl }) => {
+const callEndpoint = async ({ method = 'POST', body, fetchImpl, directoryFetchImpl }) => {
   const request = { method, url: '/api/check-company', body };
   const response = createResponse();
   const originalError = console.error;
@@ -30,6 +30,7 @@ const callEndpoint = async ({ method = 'POST', body, fetchImpl }) => {
     await createCheckCompanyMiddleware({
       now: () => new Date('2026-08-04T08:00:00.000Z'),
       fetchImpl,
+      directoryFetchImpl,
     })(request, response);
   } finally {
     console.error = originalError;
@@ -51,6 +52,42 @@ test('POST /api/check-company returns the normalized connector response', async 
     checkedAt: '2026-08-04T08:00:00.000Z',
     items: [],
   });
+});
+
+test('POST /api/check-company adds optional official identity without changing BODACC fields', async () => {
+  const response = await callEndpoint({
+    body: { siren: VALID_SIREN },
+    fetchImpl: async () => new Response(JSON.stringify({ total_count: 0, results: [] })),
+    directoryFetchImpl: async () => new Response(JSON.stringify({
+      results: [{
+        siren: VALID_SIREN,
+        nom_complet: 'OFFICIAL COMPANY',
+        etat_administratif: 'A',
+      }],
+    })),
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body.company, {
+    siren: VALID_SIREN,
+    officialName: 'OFFICIAL COMPANY',
+    administrativeStatus: 'active',
+    rawStatus: 'A',
+    source: 'recherche-entreprises',
+  });
+  assert.deepEqual(response.body.items, []);
+});
+
+test('POST /api/check-company keeps BODACC available when identity lookup fails', async () => {
+  const response = await callEndpoint({
+    body: { siren: VALID_SIREN },
+    fetchImpl: async () => new Response(JSON.stringify({ total_count: 0, results: [] })),
+    directoryFetchImpl: async () => { throw new Error('directory unavailable'); },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body.items, []);
+  assert.equal('company' in response.body, false);
 });
 
 test('POST /api/check-company returns 400 for an invalid SIREN', async () => {
