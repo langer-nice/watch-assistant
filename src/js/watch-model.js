@@ -23,6 +23,22 @@ const TECHNICAL_ATTENTION_REASONS = new Set([
   'source-persistently-unavailable',
 ]);
 
+const normalizeBodaccMonitoringSource = (source) => (
+  source?.type === 'bodacc'
+  && source?.provider === 'dila'
+  && source?.discovery === 'official-company'
+  && typeof source?.siren === 'string'
+  && /^\d{9}$/.test(source.siren)
+    ? {
+      type: 'bodacc',
+      provider: 'dila',
+      siren: source.siren,
+      title: typeof source.title === 'string' ? source.title : 'BODACC',
+      discovery: 'official-company',
+    }
+    : null
+);
+
 export const getMonitoringHealthPresentation = (watch) => {
   if (watch?.monitoringStatus?.state === 'setup-required') {
     return { statusKey: 'setupRequired' };
@@ -70,6 +86,7 @@ const normalizeLastCheckAttempt = (attempt) => {
 export const migrateWatchModel = (watch) => {
   if (!watch || typeof watch !== 'object') return { watch, migrated: false };
   const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
+  const bodaccMonitoringSource = normalizeBodaccMonitoringSource(watch.monitoringSource);
   const candidateUpdates = Array.isArray(watch.candidateUpdates)
     ? watch.candidateUpdates
     : Array.isArray(watch.monitoringUpdates) ? watch.monitoringUpdates : [];
@@ -239,14 +256,14 @@ export const migrateWatchModel = (watch) => {
     analysisDiagnosticId: typeof watch.analysisDiagnosticId === 'string'
       ? watch.analysisDiagnosticId
       : null,
-    monitoringSource: feedUrl
+    monitoringSource: bodaccMonitoringSource || (feedUrl
       ? {
         url: feedUrl,
         type: watch.monitoringSource?.type || 'feed',
         title: watch.monitoringSource?.title || null,
         discovery: watch.monitoringSource?.discovery || 'manual',
       }
-      : null,
+      : null),
     feedUrl,
     storyProfile,
     ...(watch.inputType === 'url' ? {

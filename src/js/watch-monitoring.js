@@ -130,7 +130,28 @@ const isValidatedNewsSearchSource = (source) => {
   }
 };
 
-export const matchFeedItemToWatch = (item, watch) => {
+const getValidatedBodaccSiren = (source) => (
+  source?.type === 'bodacc'
+  && source?.provider === 'dila'
+  && source?.discovery === 'official-company'
+  && typeof source?.siren === 'string'
+  && /^\d{9}$/.test(source.siren)
+    ? source.siren
+    : null
+);
+
+export const matchFeedItemToWatch = (item, watch, { trustedSourceType = null } = {}) => {
+  const bodaccSiren = getValidatedBodaccSiren(watch?.monitoringSource);
+  if (trustedSourceType === 'bodacc' && bodaccSiren) {
+    return {
+      matched: true,
+      evidence: [{
+        field: 'monitoringSource',
+        strength: 'strong',
+        label: `BODACC SIREN ${bodaccSiren}`,
+      }],
+    };
+  }
   if (isValidatedNewsSearchSource(watch?.monitoringSource)) {
     return {
       matched: true,
@@ -151,7 +172,10 @@ export const getMonitoringUpdates = (watch) => (
     : []
 );
 
-export const applyFeedCheckResult = (watch, response, { now = () => new Date() } = {}) => {
+export const applyFeedCheckResult = (watch, response, {
+  now = () => new Date(),
+  trustedSourceType = null,
+} = {}) => {
   if (!watch || typeof watch !== 'object') {
     throw new MonitoringCheckError('WATCH_NOT_FOUND', 'The Watch could not be found.');
   }
@@ -177,7 +201,10 @@ export const applyFeedCheckResult = (watch, response, { now = () => new Date() }
     ? items.filter(({ id }) => !previouslySeen.has(id))
     : [];
   const matchedItems = unseenItems
-    .map((item) => ({ item, match: matchFeedItemToWatch(item, watch) }))
+    .map((item) => ({
+      item,
+      match: matchFeedItemToWatch(item, watch, { trustedSourceType }),
+    }))
     .filter(({ match }) => match.matched);
   const detectedUpdates = matchedItems.map(({ item, match }) => ({
     ...item,
@@ -324,10 +351,49 @@ export const requestFeedCheck = async (feedUrl, { fetchImpl = fetch } = {}) => {
   return result;
 };
 
+const COMPANY_FAILURE_CODES = new Set([
+  ...MONITORING_FAILURE_CODES,
+  'INVALID_SIREN',
+  'MALFORMED_RESPONSE',
+]);
+
+export const requestCompanyCheck = async (siren, { fetchImpl = fetch } = {}) => {
+  if (typeof siren !== 'string' || !/^\d{9}$/.test(siren)) {
+    throw new MonitoringCheckError(
+      'INVALID_MONITORING_SOURCE',
+      'This Watch needs a normalized 9-digit SIREN.',
+    );
+  }
+  let response;
+  try {
+    response = await fetchImpl('/api/check-company', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ siren }),
+    });
+  } catch {
+    throw new MonitoringCheckError('CHECK_FAILED', 'The Watch could not be checked.');
+  }
+  const result = typeof response?.json === 'function'
+    ? await response.json().catch(() => null)
+    : null;
+  if (!response?.ok) {
+    const code = COMPANY_FAILURE_CODES.has(result?.code)
+      ? result.code
+      : 'CHECK_FAILED';
+    throw new MonitoringCheckError(code, 'The Watch could not be checked.');
+  }
+  if (!result || !Array.isArray(result.items)) {
+    throw new MonitoringCheckError('INVALID_RESPONSE', 'The monitoring response is invalid.');
+  }
+  return result;
+};
+
 export const createWatchCheckController = ({
   getWatch,
   saveWatch,
   requestCheck = requestFeedCheck,
+  requestCompany = requestCompanyCheck,
   now = () => new Date(),
 }) => {
   const inFlight = new Map();
@@ -350,15 +416,29 @@ export const createWatchCheckController = ({
         if (!watch) {
           throw new MonitoringCheckError('WATCH_NOT_FOUND', 'The Watch could not be found.');
         }
-        const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
-        if (!feedUrl) {
-          throw new MonitoringCheckError(
-            'MISSING_FEED_URL',
-            'No monitoring source is configured for this Watch.',
-          );
+        let response;
+        let trustedSourceType = null;
+        if (watch.monitoringSource?.type === 'bodacc') {
+          const siren = getValidatedBodaccSiren(watch.monitoringSource);
+          if (!siren) {
+            throw new MonitoringCheckError(
+              'INVALID_MONITORING_SOURCE',
+              'The BODACC monitoring source is invalid.',
+            );
+          }
+          response = await requestCompany(siren);
+          trustedSourceType = 'bodacc';
+        } else {
+          const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
+          if (!feedUrl) {
+            throw new MonitoringCheckError(
+              'MISSING_FEED_URL',
+              'No monitoring source is configured for this Watch.',
+            );
+          }
+          response = await requestCheck(feedUrl);
         }
-        const response = await requestCheck(feedUrl);
-        const result = applyFeedCheckResult(watch, response, { now });
+        const result = applyFeedCheckResult(watch, response, { now, trustedSourceType });
         const updatedWatch = saveWatch(watchId, result.changes);
         if (import.meta.env?.DEV) {
           console.info('[Watch monitoring] Check completed', {

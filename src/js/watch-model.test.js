@@ -344,3 +344,26 @@ test('category and Story Profile migration is idempotent', () => {
   assert.deepEqual(second.watch, first);
   assert.equal(second.migrated, false);
 });
+
+test('preserves a validated BODACC monitoring source without changing the model version', () => {
+  const initial = {
+    id: 'bodacc-company',
+    inputType: 'company',
+    watchModelVersion: WATCH_MODEL_VERSION,
+    monitoringSource: {
+      type: 'bodacc',
+      provider: 'dila',
+      siren: '552005969',
+      title: 'BODACC',
+      discovery: 'official-company',
+    },
+  };
+  const first = migrateWatchModel(initial).watch;
+  const second = migrateWatchModel(first);
+
+  assert.equal(first.watchModelVersion, 10);
+  assert.deepEqual(first.monitoringSource, initial.monitoringSource);
+  assert.equal(first.feedUrl, null);
+  assert.deepEqual(second.watch, first);
+  assert.equal(second.migrated, false);
+});
