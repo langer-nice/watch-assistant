@@ -23,23 +23,21 @@ const contrast = (first, second) => {
     / (Math.min(firstLuminance, secondLuminance) + 0.05);
 };
 
-test('Updated uses a lighter primary-blue semantic fill rather than primary or green', async () => {
+test('Updated reuses the approved Home indicator blue without a new colour token', async () => {
   const [tokens, labels] = await readStyles();
   const updatedRule = labels.match(/\.status-label--updated\s*\{[\s\S]*?\}/)?.[0] || '';
 
-  assert.match(tokens, /--color-action:\s*var\(--color-ink-blue-600\)/);
-  assert.match(tokens, /--color-status-update-bg:\s*color-mix\(in srgb, var\(--color-action\) 96%, var\(--color-surface\)\)/);
+  assert.match(tokens, /--color-indicator-updated:\s*#2e7dd7/);
+  assert.match(tokens, /--color-status-update:\s*var\(--color-indicator-updated\)/);
+  assert.match(tokens, /--color-status-update-bg:\s*var\(--color-indicator-updated\)/);
   assert.match(tokens, /--color-status-update-text:\s*var\(--color-text-on-dark\)/);
-  assert.doesNotMatch(tokens, /--color-status-update-bg:\s*var\(--color-action\)/);
+  assert.doesNotMatch(tokens, /--color-status-(?:updated-blue|update-bright|bright-blue):/);
   assert.doesNotMatch(updatedRule, /success|green|indicator-unchanged/);
   assert.match(updatedRule, /background:\s*var\(--color-status-update-bg\)/);
 });
 
-test('both emphasized status treatments meet WCAG AA contrast', () => {
-  // #64788a is the rounded sRGB result of the 96% #5e7285 primary-blue mix on white.
-  assert.ok(contrast('ffffff', '64788a') >= 4.5);
+test('Needs attention retains its established WCAG AA contrast', () => {
   assert.ok(contrast('ffffff', '9f4f48') >= 4.5);
-  assert.notEqual('64788a', '5e7285');
 });
 
 test('Needs attention uses the existing strong red token with white text', async () => {
@@ -51,13 +49,24 @@ test('Needs attention uses the existing strong red token with white text', async
   assert.match(attentionRule, /background:\s*var\(--color-status-action\)/);
 });
 
-test('Home status scope and neutral All Watches treatment remain unchanged', async () => {
+test('Home and All Watches keep only meaningful dashboard status badges', async () => {
   const [, labels, navigation] = await readStyles();
   const homeRenderer = navigation.match(/const renderHomeWatchCards =[\s\S]*?const renderHomeBriefing =/)?.[0] || '';
   const allRenderer = navigation.match(/const renderWatchList = \(\) => \{[\s\S]*?const renderWatchDetail/)?.[0] || '';
 
   assert.match(homeRenderer, /const homeStatus = statusById\.get\(watch\.id\);[\s\S]*?if \(!homeStatus\) return ''/);
   assert.doesNotMatch(homeRenderer, /status-label--unchanged|data-home-watch-status="unchanged"/);
-  assert.match(allRenderer, /monitoringHealthStatus \|\| \(\['paused', 'completed'\]\.includes\(watch\.status\)[\s\S]*?: 'watching'\)/);
+  assert.match(allRenderer, /updatedIds\.has\(watch\.id\)[\s\S]*?\? 'updated'[\s\S]*?newIds\.has\(watch\.id\)[\s\S]*?\? 'new'/);
+  assert.doesNotMatch(allRenderer, /monitoringHealthStatus|statuses\.watching|renderCompanyStatusBadge/);
   assert.match(labels, /\.status-label--watching,[\s\S]*?border-color:\s*var\(--color-status-state-border\);[\s\S]*?background:\s*var\(--color-status-state-bg\)/);
+});
+
+test('New reuses the existing success badge while Updated remains blue', async () => {
+  const [tokens, labels, navigation] = await readStyles();
+  const statusRenderer = navigation.match(/const getSummaryCardStatus =[\s\S]*?const renderSummaryWatchCard/)?.[0] || '';
+
+  assert.match(statusRenderer, /status === 'new'[\s\S]*?modifier: 'stable'/);
+  assert.match(statusRenderer, /status === 'updated'[\s\S]*?modifier: 'updated'/);
+  assert.match(labels, /\.status-label--stable\s*\{[\s\S]*?background:\s*var\(--color-status-success\)/);
+  assert.match(tokens, /--color-status-update-bg:\s*var\(--color-indicator-updated\)/);
 });

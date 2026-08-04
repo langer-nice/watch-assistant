@@ -114,6 +114,10 @@
       "one": "updated",
       "other": "updated"
     },
+    "newLabel": {
+      "one": "new",
+      "other": "new"
+    },
     "unchangedLabel": {
       "one": "unchanged",
       "other": "unchanged"
@@ -128,7 +132,9 @@
     "sortUpdatedFirst": "Updated",
     "sortMostRecent": "Most recent",
     "sortOldestFirst": "Oldest first",
-    "allCaughtUp": "You’re all caught up. No Watches need your attention right now.",
+    "dashboardUpToDate": "✓ Everything is up to date.",
+    "dashboardNoNewUpdates": "No new updates since your last visit.",
+    "viewAllWatches": "View all Watches",
     "needsAttention": "needs your attention",
     "updatedCount": "updated",
     "unchanged": "unchanged",

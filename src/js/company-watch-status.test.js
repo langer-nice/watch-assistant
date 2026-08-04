@@ -84,7 +84,7 @@ test('Review warnings are limited to dissolved and struck-off companies', async 
   assert.equal(getCompanyStatusPresentation('active', translate).warningTitle, '');
 });
 
-test('Review, Home, All Watches and Watch Detail render the shared company status', async () => {
+test('Review and Watch Detail render company status without adding administrative-only dashboard badges', async () => {
   const [navigation, reviewHtml, detailHtml] = await Promise.all([
     read('./navigation.js'),
     read('../../new-watch.html'),
@@ -113,8 +113,8 @@ test('Review, Home, All Watches and Watch Detail render the shared company statu
   assert.match(review, /isTerminalCompanyStatus/);
   assert.match(initialBaseline, /await requestCompanyCheck\(monitoringSource\.siren\)/);
   assert.match(initialBaseline, /status: deriveCompanyStatus\(baseline\.items\)/);
-  assert.match(home, /renderCompanyStatusBadge\(watch\)/);
-  assert.match(allWatches, /renderCompanyStatusBadge\(watch\)/);
+  assert.doesNotMatch(home, /data-company-status|renderCompanyStatusBadge/);
+  assert.doesNotMatch(allWatches, /data-company-status|renderCompanyStatusBadge/);
   assert.match(detailHtml, /id="watchCompanyStatus"/);
   assert.match(detail, /getCompanyStatusPresentation\(watch\.company\?\.status, t\)/);
 });

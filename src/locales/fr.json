@@ -114,6 +114,10 @@
       "one": "mise à jour",
       "other": "mises à jour"
     },
+    "newLabel": {
+      "one": "nouvelle",
+      "other": "nouvelles"
+    },
     "unchangedLabel": {
       "one": "sans changement",
       "other": "sans changement"
@@ -128,7 +132,9 @@
     "sortUpdatedFirst": "Mises à jour",
     "sortMostRecent": "Plus récentes",
     "sortOldestFirst": "Plus anciennes",
-    "allCaughtUp": "Vous êtes à jour. Aucune Watch ne nécessite votre attention pour le moment.",
+    "dashboardUpToDate": "✓ Tout est à jour.",
+    "dashboardNoNewUpdates": "Aucune nouvelle mise à jour depuis votre dernière visite.",
+    "viewAllWatches": "Voir toutes les Watches",
     "needsAttention": "nécessite votre attention",
     "updatedCount": "mises à jour",
     "unchanged": "sans changement",

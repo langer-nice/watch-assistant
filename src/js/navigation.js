@@ -38,7 +38,10 @@ import {
   setHomeSortPreference,
   sortHomeWatches,
 } from './home-watch-order.js';
-import { navigateToHomeWatchStatus } from './home-summary-navigation.js';
+import {
+  getHomeStatusTargetId,
+  navigateToHomeWatchStatus,
+} from './home-summary-navigation.js';
 import {
   extractMonitoringConcepts,
   MONITORING_CONCEPTS_VERSION,
@@ -103,10 +106,7 @@ import {
   getStoryProfileIdentifiers,
   synchronizeStoryProfile,
 } from './story-profile.js';
-import {
-  getAnalysisProvenanceMessageKey,
-  getMonitoringHealthPresentation,
-} from './watch-model.js';
+import { getAnalysisProvenanceMessageKey } from './watch-model.js';
 import { renderWatchCardLink } from './watch-card-link.js';
 import {
   CURRENT_UPDATE_FRAGMENT,
@@ -437,10 +437,6 @@ const getHomeUpdateText = (watch) => {
     || latestUpdate?.summary
     || getLatestChange(watch)
     || (latestUpdate ? t('detail.untitledItem') : '');
-};
-
-const getMonitoringHealthStatus = (watch) => {
-  return getMonitoringHealthPresentation(watch)?.statusKey || null;
 };
 
 const getMonitoringSummary = (watch, title) => {
@@ -792,34 +788,6 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, optio
   };
 };
 
-const STATUS_LABEL_VARIANTS = {
-  attention: 'attention',
-  checking: 'checking',
-  completed: 'completed',
-  error: 'error',
-  monitoringUnavailable: 'watching',
-  new: 'updated',
-  paused: 'paused',
-  stable: 'stable',
-  setupRequired: 'watching',
-  updated: 'updated',
-  watching: 'watching',
-};
-
-const getStatusLabelVariant = (status) => STATUS_LABEL_VARIANTS[status] || 'checking';
-
-const renderCompanyStatusBadge = (watch, className = '') => {
-  if (watch?.inputType !== 'company') return '';
-  const presentation = getCompanyStatusPresentation(watch.company?.status, t);
-  if (presentation.status === 'unknown') return '';
-  const classes = [
-    className,
-    'status-label',
-    `status-label--${presentation.tone}`,
-  ].filter(Boolean).join(' ');
-  return `<span class="${escapeHtml(classes)}" data-company-status="${escapeHtml(presentation.status)}">${escapeHtml(presentation.label)}</span>`;
-};
-
 const getHomeReport = () => {
   const isDisplayableWatch = (watch) => (
     hasMeaningfulText(getWatchDisplayTitle(watch))
@@ -840,8 +808,8 @@ const getHomeReport = () => {
     statusById: briefing.statusById,
     attentionWatches,
     updatedWatches,
+    newlyCreatedWatches: briefing.newlyCreatedWatches,
     quietWatches,
-    unchangedCount: quietWatches.length,
     totalChecked: briefing.totalChecked,
   };
 };
@@ -866,8 +834,63 @@ const getHomeWatchTimestampText = (watch, latestUpdate) => {
   return watch.lastCheckedKey ? lastChecked : formatHomeWatchTimestamp(lastChecked);
 };
 
-const renderHomeWatchCards = (watches, statusById) => watches
-  .map((watch) => {
+const getSummaryCardStatus = (status) => {
+  if (status === 'attention') {
+    return { label: t('statuses.attention'), modifier: 'attention' };
+  }
+  if (status === 'updated') {
+    return { label: t('statuses.updated'), modifier: 'updated' };
+  }
+  if (status === 'new') {
+    return { label: t('home.newBadge'), modifier: 'stable' };
+  }
+  return null;
+};
+
+const renderSummaryWatchCard = ({
+  watch,
+  title: titleOverride = '',
+  status = null,
+  supportingText = '',
+  timestamp = '',
+  revealLatestUpdate = false,
+  articleId = '',
+  dataAttribute = '',
+} = {}) => {
+  const title = hasMeaningfulText(titleOverride) ? titleOverride : getWatchDisplayTitle(watch);
+  if (!hasMeaningfulText(title)) return '';
+  const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
+  const categoryModifier = watch.category || 'general';
+  const statusPresentation = getSummaryCardStatus(status);
+  const link = renderWatchCardLink({
+    watchId: watch.id,
+    className: 'briefing-item__link',
+    revealLatestUpdate,
+    content: `
+      <div class="briefing-item__header">
+        <div class="briefing-item__metadata">
+          <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
+          ${hasMeaningfulText(timestamp)
+    ? `<span class="briefing-item__time">${escapeHtml(timestamp)}</span>`
+    : ''}
+        </div>
+        ${statusPresentation ? `
+          <div class="briefing-item__statuses">
+            <span class="status-label status-label--${statusPresentation.modifier}">${escapeHtml(statusPresentation.label)}</span>
+          </div>
+        ` : ''}
+      </div>
+      <h2>${escapeHtml(title)}</h2>
+      ${hasMeaningfulText(supportingText) ? `<p>${escapeHtml(supportingText)}</p>` : ''}
+    `,
+  });
+  if (!link) return '';
+  return `<article class="briefing-item"${articleId ? ` id="${escapeHtml(articleId)}"` : ''}${dataAttribute}>${link}</article>`;
+};
+
+const renderHomeWatchCards = (watches, statusById) => {
+  const renderedStatusTargets = new Set();
+  return watches.map((watch) => {
     const title = getWatchDisplayTitle(watch);
     const latestUpdate = getLatestUpdate(watch);
     const latestChange = getHomeUpdateText(watch);
@@ -875,12 +898,9 @@ const renderHomeWatchCards = (watches, statusById) => watches
 
     const homeStatus = statusById.get(watch.id);
     if (!homeStatus) return '';
-    const needsAttention = homeStatus === 'attention';
-    const statusModifier = homeStatus;
-    const status = t(needsAttention ? 'statuses.attention' : 'statuses.updated');
-    const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
-    const categoryModifier = watch.category || 'general';
-    const latestChangeAt = getHomeWatchTimestampText(watch, latestUpdate);
+    const latestChangeAt = homeStatus === 'new'
+      ? formatHomeWatchTimestamp(watch.createdAt)
+      : getHomeWatchTimestampText(watch, latestUpdate);
     const supportingText = latestUpdate
       ? getBodaccBusinessEventLabel(latestUpdate, t)
         || latestUpdate.sourceTitle
@@ -888,62 +908,34 @@ const renderHomeWatchCards = (watches, statusById) => watches
         || t('detail.untitledItem')
       : latestChange || getMonitoringSummary(watch, title) || t('common.monitoringFallback');
 
-    const link = renderWatchCardLink({
-      watchId: watch.id,
-      className: 'briefing-item__link',
+    const statusTargetId = getHomeStatusTargetId(homeStatus);
+    const isFirstStatusWatch = statusTargetId && !renderedStatusTargets.has(homeStatus);
+    const articleId = isFirstStatusWatch ? statusTargetId : '';
+    const card = renderSummaryWatchCard({
+      watch,
+      status: homeStatus,
+      supportingText,
+      timestamp: latestChangeAt,
       revealLatestUpdate: homeStatus === 'updated',
-      content: `
-        <div class="briefing-item__header">
-          <div class="briefing-item__metadata">
-            <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
-            ${hasMeaningfulText(latestChangeAt)
-    ? `<span class="briefing-item__time">${escapeHtml(latestChangeAt)}</span>`
-    : ''}
-          </div>
-          <div class="briefing-item__statuses">
-            ${renderCompanyStatusBadge(watch)}
-            <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
-          </div>
-        </div>
-        <h2>${escapeHtml(title)}</h2>
-        <p>${escapeHtml(supportingText)}</p>
-      `,
+      articleId,
+      dataAttribute: ` data-home-watch-status="${escapeHtml(homeStatus)}"`,
     });
-    const articleId = `home-watch-${homeStatus}-${encodeURIComponent(String(watch.id))}`;
-    return link
-      ? `<article class="briefing-item" id="${escapeHtml(articleId)}" data-home-watch-status="${homeStatus}">${link}</article>`
-      : '';
-  })
-  .join('');
+    if (card && isFirstStatusWatch) renderedStatusTargets.add(homeStatus);
+    return card;
+  }).join('');
+};
 
 const renderHomeBriefing = () => {
   const list = document.querySelector('#homeBriefingList');
-  const sortControl = document.querySelector('#homeWatchSort');
-  const sortRow = document.querySelector('#homeWatchSortRow');
-  if (!list || !sortControl) return;
+  if (!list) return;
 
   const { watches, statusById } = getHomeReport();
-  const mode = getHomeSortPreference();
-  const orderedWatches = sortHomeWatches(watches, {
-    mode,
-    getStatus: (watch) => statusById.get(watch.id),
-  });
-  sortControl.value = mode;
-  if (sortRow) sortRow.hidden = watches.length === 0;
-  list.innerHTML = renderHomeWatchCards(orderedWatches, statusById);
+  list.innerHTML = renderHomeWatchCards(watches, statusById);
 };
 
 const initHomeWatchControls = () => {
-  const sortControl = document.querySelector('#homeWatchSort');
   const allWatchesSortControl = document.querySelector('#allWatchesSort');
   const statusOverview = document.querySelector('.briefing-summary__statuses');
-  if (sortControl && !sortControl.dataset.homeSortBound) {
-    sortControl.dataset.homeSortBound = 'true';
-    sortControl.addEventListener('change', () => {
-      setHomeSortPreference(sortControl.value);
-      renderHomeBriefing();
-    });
-  }
   if (allWatchesSortControl && !allWatchesSortControl.dataset.homeSortBound) {
     allWatchesSortControl.dataset.homeSortBound = 'true';
     allWatchesSortControl.addEventListener('change', () => {
@@ -986,11 +978,17 @@ const renderWatchList = () => {
     getMeaningfulUpdate: getHomeUpdateText,
     isDisplayableWatch: (watch) => hasMeaningfulText(getWatchDisplayTitle(watch)),
   });
+  const homeSelection = getHomeInboxSelection(watches, {
+    getMeaningfulUpdate: getHomeUpdateText,
+    isDisplayableWatch: (watch) => hasMeaningfulText(getWatchDisplayTitle(watch)),
+  });
   const attentionIds = new Set(canonicalGroups.attentionWatches.map(({ id }) => id));
   const updatedIds = new Set(canonicalGroups.updatedWatches.map(({ id }) => id));
+  const newIds = new Set(homeSelection.newlyCreatedWatches.map(({ id }) => id));
   const statusById = new Map([
     ...canonicalGroups.attentionWatches.map((watch) => [watch.id, 'attention']),
     ...canonicalGroups.updatedWatches.map((watch) => [watch.id, 'updated']),
+    ...homeSelection.newlyCreatedWatches.map((watch) => [watch.id, 'new']),
   ]);
   const mode = getHomeSortPreference();
   const orderedWatches = sortHomeWatches(watches, {
@@ -1015,25 +1013,13 @@ const renderWatchList = () => {
       const storedTitle = getWatchDisplayTitle(watch);
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
       const isPaused = watch.status === 'paused';
-      const monitoringHealthStatus = getMonitoringHealthStatus(watch);
       const status = attentionIds.has(watch.id)
         ? 'attention'
         : updatedIds.has(watch.id)
           ? 'updated'
-          : monitoringHealthStatus || (['paused', 'completed'].includes(watch.status)
-            ? watch.status
-            : 'watching');
-      const statusModifier = getStatusLabelVariant(status);
-      const statusText = status === 'attention'
-        ? t('watches.needsAttention')
-        : t(`statuses.${status}`);
-      const showMonitoringStatusBadge = !(
-        watch.inputType === 'company' && status === 'setupRequired'
-      );
-      const monitoringStatusBadge = showMonitoringStatusBadge
-        ? `<span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(statusText)}</span>`
-        : '';
-      const statusLabel = `<span class="watch-row__statuses">${renderCompanyStatusBadge(watch)}${monitoringStatusBadge}</span>`;
+          : newIds.has(watch.id)
+            ? 'new'
+            : null;
       const showCreationMetadata = group.type === 'last7Days';
       const creationMetadata = showCreationMetadata
         ? formatWatchCreationMetadata(getWatchCreationDate(watch), {
@@ -1041,26 +1027,22 @@ const renderWatchList = () => {
           language: getLanguage(),
         })
         : '';
+      const latestUpdate = getLatestUpdate(watch);
+      const cardTimestamp = creationMetadata || (status
+        ? getHomeWatchTimestampText(watch, latestUpdate)
+        : '');
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : updatedIds.has(watch.id)
           ? getHomeUpdateText(watch)
           : getMonitoringSummary(watch, title);
-      const card = renderWatchCardLink({
-        watchId: watch.id,
-        className: `watch-row${isPaused ? ' watch-row--paused' : ''}`,
+      const card = renderSummaryWatchCard({
+        watch,
+        title,
+        status,
+        supportingText: subtitle,
+        timestamp: cardTimestamp,
         revealLatestUpdate: updatedIds.has(watch.id),
-        content: `
-        <div class="watch-row__metadata">
-          <p class="watch-row__category">${escapeHtml(t(`categories.${watch.category}`))}</p>
-          ${statusLabel}
-        </div>
-        <div class="watch-row__content">
-          <h2>${escapeHtml(title)}</h2>
-          ${subtitle ? `<p class="watch-row__summary">${escapeHtml(subtitle)}</p>` : ''}
-          ${creationMetadata ? `<p class="watch-row__created">${escapeHtml(creationMetadata)}</p>` : ''}
-        </div>
-      `,
       });
       if (!card) return '';
       return watch.id === orderedSeparatorAfterWatchId
@@ -2002,6 +1984,9 @@ const renderHomeSummary = () => {
   const attentionLabel = document.querySelector('#homeAttentionLabel');
   const updatedCount = document.querySelector('#homeUpdatedCount');
   const updatedLabel = document.querySelector('#homeUpdatedLabel');
+  const newSummary = document.querySelector('#homeNewSummary');
+  const newCount = document.querySelector('#homeNewCount');
+  const newLabel = document.querySelector('#homeNewLabel');
 
   if (!confirmationBanner && !briefingDate) {
     return;
@@ -2070,7 +2055,8 @@ const renderHomeSummary = () => {
   const {
     attentionWatches,
     updatedWatches,
-    unchangedCount,
+    newlyCreatedWatches,
+    quietWatches,
     totalChecked,
   } = homeReport;
   const pluralKey = (key, count) => `${key}.${count === 1 ? 'one' : 'other'}`;
@@ -2099,14 +2085,20 @@ const renderHomeSummary = () => {
   if (updatedLabel) {
     updatedLabel.textContent = t(pluralKey('home.updatedLabel', updatedWatches.length));
   }
+  if (newSummary) newSummary.hidden = newlyCreatedWatches.length === 0;
+  if (newCount) newCount.textContent = String(newlyCreatedWatches.length);
+  if (newLabel) {
+    newLabel.textContent = t(pluralKey('home.newLabel', newlyCreatedWatches.length));
+  }
   if (everythingChecked) {
-    everythingChecked.textContent = t(pluralKey('home.everythingChecked', unchangedCount), {
-      count: unchangedCount,
+    everythingChecked.textContent = t(pluralKey('home.everythingChecked', quietWatches.length), {
+      count: quietWatches.length,
     });
   }
   [
     ['attention', attentionWatches.length, attentionLabel],
     ['updated', updatedWatches.length, updatedLabel],
+    ['new', newlyCreatedWatches.length, newLabel],
   ].forEach(([status, count, labelElement]) => {
     const trigger = document.querySelector(`[data-home-status-target="${status}"]`);
     if (!trigger) return;

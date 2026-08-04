@@ -9,9 +9,6 @@ test('unknown BODACC monitoring status is omitted while Current Situation remain
     read('./navigation.js'),
     read('../../watch-detail.html'),
   ]);
-  const badgeRenderer = navigation.match(
-    /const renderCompanyStatusBadge[\s\S]*?const getHomeReport/,
-  )?.[0] || '';
   const reviewRenderer = navigation.match(
     /const renderCompanyReviewStatus[\s\S]*?const renderReviewPresentation/,
   )?.[0] || '';
@@ -19,7 +16,6 @@ test('unknown BODACC monitoring status is omitted while Current Situation remain
     /const renderWatchDetail = \(\) => \{[\s\S]*?function scheduleFirstMonitoringPass/,
   )?.[0] || '';
 
-  assert.match(badgeRenderer, /presentation\.status === 'unknown'\) return ''/);
   assert.match(reviewRenderer, /hasMeaningfulMonitoringStatus = presentation\.status !== 'unknown'/);
   assert.match(detailRenderer, /companyStatusPresentation\.status !== 'unknown'/);
   assert.match(detailHtml, /id="current-situation"/);
@@ -46,17 +42,14 @@ test('administrative badges reuse the shared status-label styles without a Compa
   );
 });
 
-test('Company cards omit the misleading Monitoring setup badge', async () => {
+test('All Watch cards omit generic Monitoring and Monitoring setup badges', async () => {
   const navigation = await read('./navigation.js');
   const allWatches = navigation.match(
     /const renderWatchList = \(\) => \{[\s\S]*?const renderWatchDetail/,
   )?.[0] || '';
 
-  assert.match(
-    allWatches,
-    /watch\.inputType === 'company' && status === 'setupRequired'/,
-  );
-  assert.match(allWatches, /showMonitoringStatusBadge[\s\S]*?monitoringStatusBadge/);
+  assert.match(allWatches, /updatedIds\.has\(watch\.id\)[\s\S]*?\? 'updated'[\s\S]*?newIds\.has\(watch\.id\)[\s\S]*?\? 'new'/);
+  assert.doesNotMatch(allWatches, /setupRequired|monitoringStatusBadge|statuses\.watching/);
 });
 
 test('administrative status support copy is concise in English and French', async () => {

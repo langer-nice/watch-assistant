@@ -135,3 +135,7 @@
 .briefing-summary__status--update .briefing-summary__dot {
   color: var(--color-indicator-updated);
 }
+
+.briefing-summary__status--new .briefing-summary__dot {
+  color: var(--color-status-success);
+}

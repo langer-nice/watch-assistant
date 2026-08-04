@@ -1,5 +1,7 @@
 import { getLocalDateBoundaries, getWatchCreationDate } from './watch-dates.js';
-import { getLatestUpdate } from './watch-updates.js';
+import { getLatestUpdate, getUnreadUpdates } from './watch-updates.js';
+
+export const HOME_NEW_WATCH_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const getTimestamp = (...values) => {
   for (const value of values) {
@@ -231,19 +233,48 @@ export const getBriefingWatchGroups = (watches, {
 };
 
 export const getHomeInboxSelection = (watches, options = {}) => {
-  const briefing = getBriefingWatchGroups(watches, options);
-  const attentionIds = new Set(briefing.attentionWatches.map(({ id }) => id));
-  const updatedIds = new Set(briefing.updatedWatches.map(({ id }) => id));
-  const inboxIds = new Set([...attentionIds, ...updatedIds]);
+  const isDisplayableWatch = options.isDisplayableWatch || (() => true);
+  const eligibleWatches = watches.filter((watch) => (
+    watch.status !== 'completed' && isDisplayableWatch(watch)
+  ));
+  const briefing = getBriefingWatchGroups(eligibleWatches, options);
+  const now = options.now instanceof Date ? options.now : new Date(options.now || Date.now());
+  const nowTimestamp = now.getTime();
+  const attentionWatches = [...briefing.attentionWatches]
+    .sort(newestFirst(activityTimestamp));
+  const updatedWatches = briefing.updatedWatches
+    .filter((watch) => (
+      getUnreadUpdates(watch).length > 0
+      || (!Array.isArray(watch.updates) && ['new', 'updated'].includes(
+        watch.currentStatus || watch.status,
+      ))
+    ))
+    .sort(newestFirst(getLatestWatchUpdateTimestamp));
+  const newlyCreatedWatches = briefing.quietWatches
+    .filter((watch) => {
+      const createdAt = creationTimestamp(watch);
+      const age = nowTimestamp - createdAt;
+      return createdAt > 0 && age >= 0 && age < HOME_NEW_WATCH_WINDOW_MS;
+    })
+    .sort(newestFirst(creationTimestamp));
+  const attentionWatchIds = new Set(attentionWatches.map(({ id }) => id));
+  const newWatchIds = new Set(newlyCreatedWatches.map(({ id }) => id));
+  const updatedWatchIds = new Set(updatedWatches.map(({ id }) => id));
   return {
-    ...briefing,
-    watches: watches.filter((watch) => inboxIds.has(watch.id)),
-    totalChecked: briefing.attentionWatches.length
-      + briefing.updatedWatches.length
-      + briefing.quietWatches.length,
+    attentionWatches,
+    updatedWatches,
+    newlyCreatedWatches,
+    quietWatches: eligibleWatches.filter((watch) => (
+      !attentionWatchIds.has(watch.id)
+      && !updatedWatchIds.has(watch.id)
+      && !newWatchIds.has(watch.id)
+    )),
+    watches: [...attentionWatches, ...updatedWatches, ...newlyCreatedWatches],
+    totalChecked: eligibleWatches.length,
     statusById: new Map([
-      ...briefing.attentionWatches.map((watch) => [watch.id, 'attention']),
-      ...briefing.updatedWatches.map((watch) => [watch.id, 'updated']),
+      ...attentionWatches.map((watch) => [watch.id, 'attention']),
+      ...updatedWatches.map((watch) => [watch.id, 'updated']),
+      ...newlyCreatedWatches.map((watch) => [watch.id, 'new']),
     ]),
   };
 };
