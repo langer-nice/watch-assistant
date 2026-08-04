@@ -4,6 +4,7 @@ import { createUrlWatchMiddleware } from './server/url-watch-api.js';
 import { createRequestClarificationMiddleware } from './server/request-clarification-api.js';
 import { createCheckWatchMiddleware } from './server/check-watch-api.js';
 import { createMonitoringSourceMiddleware } from './server/monitoring-source-api.js';
+import { createCheckCompanyMiddleware } from './server/bodacc-api.js';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -17,6 +18,7 @@ export default defineConfig(({ mode }) => {
   });
   const checkWatchMiddleware = createCheckWatchMiddleware();
   const monitoringSourceMiddleware = createMonitoringSourceMiddleware();
+  const checkCompanyMiddleware = createCheckCompanyMiddleware();
   const urlWatchPlugin = {
     name: 'url-watch-prototype-api',
     configureServer(server) {
@@ -24,12 +26,14 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use(clarificationMiddleware);
       server.middlewares.use(checkWatchMiddleware);
       server.middlewares.use(monitoringSourceMiddleware);
+      server.middlewares.use(checkCompanyMiddleware);
     },
     configurePreviewServer(server) {
       server.middlewares.use(middleware);
       server.middlewares.use(clarificationMiddleware);
       server.middlewares.use(checkWatchMiddleware);
       server.middlewares.use(monitoringSourceMiddleware);
+      server.middlewares.use(checkCompanyMiddleware);
     },
   };
 
