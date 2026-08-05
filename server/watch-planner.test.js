@@ -63,11 +63,51 @@ test('plans a valid standalone SIREN identically to sentence-based Company reque
   }));
 });
 
+test('plans a company name plus SIREN without requiring a monitoring verb', async () => {
+  const requests = [
+    ['CEMEX GRANULATS 552005969', '552005969'],
+    ['PALAIS SEGURANE 905329314', '905329314'],
+    ['LPM MAX BAREL 905266524', '905266524'],
+    ['LE GARIBALDI 849703772', '849703772'],
+    ['Watch LE GARIBALDI 849703772', '849703772'],
+    ['Monitor PALAIS SEGURANE 905329314', '905329314'],
+    ['Surveille CEMEX GRANULATS 552005969', '552005969'],
+  ];
+
+  for (const [request, identifier] of requests) {
+    assert.deepEqual(await planWatch(request, { companyOnly: true }), {
+      strategy: 'official_company',
+      connector: 'bodacc',
+      country: 'FR',
+      identifier,
+      confidence: 1,
+      needsClarification: false,
+      clarificationQuestion: null,
+    });
+  }
+});
+
 test('does not plan invalid or random standalone numbers as French companies', async () => {
   for (const request of ['123456789', '905266525', '12345678', '1234567890']) {
     const plan = await planWatch(request, { companyOnly: true });
     assert.equal(plan.strategy, 'web_search');
     assert.equal(plan.connector, 'web_ai');
+  }
+});
+
+test('does not plan ambiguous identifiers or URL requests as French companies', async () => {
+  const requests = [
+    'Monitor company SIREN 552005969 and SIREN 732829320',
+    'Monitor SIRET 55200596900018',
+    'https://example.com/552005969',
+    'https://example.com/rss/552005969.xml',
+    'https://news.example.com/story/552005969',
+  ];
+
+  for (const request of requests) {
+    const plan = await planWatch(request, { companyOnly: true });
+    assert.notEqual(plan.strategy, 'official_company');
+    assert.notEqual(plan.connector, 'bodacc');
   }
 });
 

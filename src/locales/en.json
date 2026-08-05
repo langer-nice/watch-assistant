@@ -321,6 +321,7 @@
     "feedUrlError": "Enter a valid HTTP or HTTPS feed URL without credentials.",
     "monitoringSourceUnsupported": "I couldn’t find a supported public source for this Watch. Try a more specific request or paste a public webpage that offers updates.",
     "companySirenGuidance": "Enter a valid 9-digit SIREN to monitor a French company.",
+    "companyEditDifferentSiren": "This Watch follows a specific company. Create a new Company Watch to monitor a different SIREN.",
     "companyStatusChecking": "Checking the official company status…",
     "companyReviewFound": "Company monitoring",
     "companyReviewTitle": "Company Watch",

@@ -56,6 +56,24 @@ test('POST /api/plan-watch accepts a valid standalone SIREN', async () => {
   });
 });
 
+test('POST /api/plan-watch accepts company name plus SIREN without a verb', async () => {
+  const response = await callMiddleware({
+    url: '/api/plan-watch?scope=official_company',
+    body: JSON.stringify({ request: 'CEMEX GRANULATS 552005969' }),
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    strategy: 'official_company',
+    connector: 'bodacc',
+    country: 'FR',
+    identifier: '552005969',
+    confidence: 1,
+    needsClarification: false,
+    clarificationQuestion: null,
+  });
+});
+
 test('invalid JSON and unsupported methods still return the exact planner schema', async () => {
   const [invalidJson, wrongMethod] = await Promise.all([
     callMiddleware({ body: '{bad json' }),

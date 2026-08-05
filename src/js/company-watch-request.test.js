@@ -26,6 +26,26 @@ test('recognizes the reported English and French company-name requests', () => {
   }
 });
 
+test('recognizes a company name and valid SIREN without requiring a monitoring verb', () => {
+  const cases = [
+    ['CEMEX GRANULATS 552005969', '552005969', 'CEMEX GRANULATS'],
+    ['PALAIS SEGURANE 905329314', '905329314', 'PALAIS SEGURANE'],
+    ['LPM MAX BAREL 905266524', '905266524', 'LPM MAX BAREL'],
+    ['LE GARIBALDI 849703772', '849703772', 'LE GARIBALDI'],
+    ['Cemex Granulats 552005969', '552005969', 'Cemex Granulats'],
+  ];
+
+  for (const [request, siren, companyName] of cases) {
+    assert.deepEqual(parseCompanyWatchRequest(request), {
+      recognized: true,
+      valid: true,
+      siren,
+      companyName,
+      reason: null,
+    });
+  }
+});
+
 test('recognizes English and French company-monitoring requests with a valid SIREN', () => {
   for (const request of [
     `Monitor company SIREN ${SIREN}`,
@@ -53,11 +73,19 @@ test('normalizes spaces in a valid SIREN', () => {
 });
 
 test('recognizes a valid standalone SIREN without requiring UI-specific intent', () => {
-  for (const request of [SIREN, '552 005 969', 'Company 552005969']) {
+  for (const [request, expectedSiren] of [
+    [SIREN, SIREN],
+    ['552 005 969', SIREN],
+    ['Company 552005969', SIREN],
+    ['501570428', '501570428'],
+    ['501 570 428', '501570428'],
+    ['905266524', '905266524'],
+    [GARIBALDI_SIREN, GARIBALDI_SIREN],
+  ]) {
     assert.deepEqual(parseCompanyWatchRequest(request), {
       recognized: true,
       valid: true,
-      siren: SIREN,
+      siren: expectedSiren,
       companyName: null,
       reason: null,
     });
@@ -86,6 +114,8 @@ test('a URL containing nine digits remains outside the Company Watch flow', () =
   for (const request of [
     `Monitor https://example.com/${GARIBALDI_SIREN}`,
     `Surveille www.example.com/${GARIBALDI_SIREN}`,
+    `https://example.com/rss/${GARIBALDI_SIREN}.xml`,
+    `https://news.example.com/story/${GARIBALDI_SIREN}`,
   ]) {
     assert.equal(parseCompanyWatchRequest(request).recognized, false);
   }

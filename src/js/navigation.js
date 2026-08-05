@@ -88,6 +88,13 @@ import {
   extractCompanyNameFromRequest,
 } from './company-watch-request.js';
 import {
+  COMPANY_EDIT_PLAN_OUTCOMES,
+  createExistingCompanyEditAnalysis,
+  getCompanyEditPlanOutcome,
+  getPreservedCompanyEditChanges,
+  isSameCompanyEditAnalysis,
+} from './company-watch-edit.js';
+import {
   COMPANY_PLAN_ROUTES,
   getCompanyPlanRoute,
   requestWatchPlan,
@@ -2713,7 +2720,9 @@ export function initForm() {
       : originalKeywords;
     const keywordsChanged = JSON.stringify(keywordValues.keywords) !== JSON.stringify(originalKeywords)
       || JSON.stringify(keywordValues.selectedKeywords) !== JSON.stringify(originalSelectedKeywords);
-    const monitoringCriteriaChanged = requestChanged || categoryChanged || keywordsChanged;
+    const sameCompanyEdit = isSameCompanyEditAnalysis(editingWatch, urlAnalysis);
+    const monitoringCriteriaChanged = !sameCompanyEdit
+      && (requestChanged || categoryChanged || keywordsChanged);
     const feedInputUrl = normalizeFeedUrl(feedUrlInputEl?.value || '');
     const previousFeedUrl = normalizeFeedUrl(editingWatch.feedUrl || '');
     const manualFeedChanged = feedInputUrl !== previousFeedUrl;
@@ -2721,7 +2730,7 @@ export function initForm() {
     const feedUrl = manualFeedChanged
       ? feedInputUrl
       : discoveredFeedUrl || previousFeedUrl;
-    const feedUrlChanged = feedUrl !== previousFeedUrl;
+    const feedUrlChanged = !sameCompanyEdit && feedUrl !== previousFeedUrl;
     const monitoringSummary = requestChanged && !urlAnalysis
       ? await generateMonitoringSummary(request)
       : null;
@@ -2787,6 +2796,7 @@ export function initForm() {
             : urlAnalysis?.monitoringSource?.discovery || editingWatch.monitoringSource?.discovery || 'manual',
         }
         : null,
+      ...getPreservedCompanyEditChanges(editingWatch, urlAnalysis),
     };
 
     if (typeof createdAsWrittenAfterClarityWarning === 'boolean') {
@@ -3881,6 +3891,22 @@ export function initForm() {
 
     const companyPlanRoute = getCompanyPlanRoute(request, companyPlan);
     if (companyPlanRoute === COMPANY_PLAN_ROUTES.REVIEW) {
+      const companyEditOutcome = getCompanyEditPlanOutcome(editingWatch, companyPlan);
+      if (companyEditOutcome === COMPANY_EDIT_PLAN_OUTCOMES.DIFFERENT_COMPANY) {
+        if (watchError) watchError.textContent = t('newWatch.companyEditDifferentSiren');
+        input?.focus();
+        return;
+      }
+      if (companyEditOutcome === COMPANY_EDIT_PLAN_OUTCOMES.SAME_COMPANY) {
+        creationInProgress = true;
+        setCreationControlsDisabled(true);
+        await completeWatchUpdate(
+          request,
+          whyFollowing,
+          createExistingCompanyEditAnalysis(editingWatch),
+        );
+        return;
+      }
       await startCompanyReview(
         request,
         whyFollowing,

@@ -108,6 +108,10 @@ test('the Planner is the only route into Company review and remains before all o
 test('Planner migration preserves the exact Company pipeline inputs for all acceptance requests', async () => {
   const requests = [
     '905266524',
+    'CEMEX GRANULATS 552005969',
+    'PALAIS SEGURANE 905329314',
+    'LPM MAX BAREL 905266524',
+    `LE GARIBALDI ${GARIBALDI_SIREN}`,
     'Monitor company SIREN 905329314',
     `Monitor LE GARIBALDI ${GARIBALDI_SIREN}`,
     `Surveille l'entreprise LE GARIBALDI SIREN ${GARIBALDI_SIREN}`,

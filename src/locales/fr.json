@@ -321,6 +321,7 @@
     "feedUrlError": "Saisissez une URL de flux HTTP ou HTTPS valide sans identifiants.",
     "monitoringSourceUnsupported": "Je n’ai trouvé aucune source publique compatible pour cette Watch. Précisez votre demande ou collez une page publique proposant des mises à jour.",
     "companySirenGuidance": "Saisissez un SIREN valide à 9 chiffres pour surveiller une entreprise française.",
+    "companyEditDifferentSiren": "Cette Watch suit une entreprise précise. Créez une nouvelle Watch d’entreprise pour surveiller un autre SIREN.",
     "companyStatusChecking": "Vérification du statut officiel de l’entreprise…",
     "companyReviewFound": "Surveillance d’entreprise",
     "companyReviewTitle": "Watch d’entreprise",

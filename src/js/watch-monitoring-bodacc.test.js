@@ -9,6 +9,10 @@ import {
   requestCompanyCheck,
   requestFeedCheck,
 } from './watch-monitoring.js';
+import {
+  createExistingCompanyEditAnalysis,
+  getPreservedCompanyEditChanges,
+} from './company-watch-edit.js';
 
 const SIREN = '552005969';
 const CHECKED_AT = '2026-08-04T08:00:00.000Z';
@@ -142,6 +146,51 @@ test('BODACC activation creates a baseline and repeated checks add exactly one s
   assert.equal((await lifecycle.controller.check('company-watch')).outcome, 'no-new-items');
   assert.deepEqual(lifecycle.getWatch().updates.map(({ id }) => id), ['B']);
   assert.deepEqual(lifecycle.companyRequests, [SIREN, SIREN, SIREN, SIREN]);
+});
+
+test('Check Now still uses BODACC after a same-SIREN Company edit', async () => {
+  const beforeEdit = {
+    id: 'edited-company-watch',
+    inputType: 'company',
+    request: `Monitor company ${SIREN}`,
+    title: 'EXAMPLE COMPANY',
+    company: { siren: SIREN, name: 'EXAMPLE COMPANY', status: 'active' },
+    monitoringSource: BODACC_SOURCE,
+    monitoringSnapshot: { itemIds: ['A'], items: [bodaccItem('A')], checkedAt: CHECKED_AT },
+    seenMonitoringItemIds: ['A'],
+    updates: [],
+  };
+  const editedWatch = {
+    ...beforeEdit,
+    request: `Watch ${SIREN}`,
+    monitoringSource: null,
+    ...getPreservedCompanyEditChanges(
+      beforeEdit,
+      createExistingCompanyEditAnalysis(beforeEdit),
+    ),
+  };
+  const lifecycle = createCompanyController({
+    initialWatch: editedWatch,
+    responses: [
+      bodaccResponse(['A']),
+      bodaccResponse(['B', 'A'], '2026-08-04T09:00:00.000Z'),
+      bodaccResponse(['B', 'A'], '2026-08-04T10:00:00.000Z'),
+    ],
+  });
+
+  assert.equal(
+    (await lifecycle.controller.check('edited-company-watch')).outcome,
+    'no-new-items',
+  );
+  const result = await lifecycle.controller.check('edited-company-watch');
+  assert.equal(result.outcome, 'matching-items');
+  assert.deepEqual(lifecycle.getWatch().updates.map(({ id }) => id), ['B']);
+  assert.equal(
+    (await lifecycle.controller.check('edited-company-watch')).outcome,
+    'no-new-items',
+  );
+  assert.deepEqual(lifecycle.companyRequests, [SIREN, SIREN, SIREN]);
+  assert.deepEqual(lifecycle.getWatch().updates.map(({ id }) => id), ['B']);
 });
 
 test('an empty BODACC baseline detects the first later announcement', async () => {

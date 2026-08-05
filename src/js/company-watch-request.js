@@ -65,6 +65,23 @@ export const extractCompanyNameFromRequest = (request, siren) => {
     : candidate.slice(0, 200);
 };
 
+const isLikelyCompanyNameLookup = (request, siren) => {
+  const companyName = extractCompanyNameFromRequest(request, siren);
+  if (!companyName) return false;
+  const words = companyName.match(/[\p{L}\p{N}]+/gu) || [];
+  if (!words.length || words.length > 12) return false;
+
+  const hasLowerCase = (word) => /\p{Ll}/u.test(word);
+  const startsWithUpperCase = (word) => /^\p{Lu}/u.test(word);
+  const lowercaseJoiners = new Set(['and', 'de', 'des', 'du', 'et', 'of']);
+  if (words.length === 1) return !hasLowerCase(words[0]);
+  return words.every((word) => (
+    !hasLowerCase(word)
+    || startsWithUpperCase(word)
+    || lowercaseJoiners.has(normalizeIntentText(word))
+  ));
+};
+
 export const parseCompanyWatchRequest = (request) => {
   const intent = getCompanyIntent(request);
   if (intent.containsUrl) {
@@ -77,8 +94,12 @@ export const parseCompanyWatchRequest = (request) => {
   const standaloneSiren = sirenCandidates.length === 1
     && normalizeSiren(request) === sirenCandidates[0]
     && hasValidSiren;
+  const namedCompanyLookup = sirenCandidates.length === 1
+    && hasValidSiren
+    && isLikelyCompanyNameLookup(request, sirenCandidates[0]);
   const inferredCompanyMonitoring = intent.monitoring
     || standaloneSiren
+    || namedCompanyLookup
     || (intent.explicitCompany && hasValidSiren);
   if (!inferredCompanyMonitoring) {
     return { recognized: false, valid: false, siren: null, companyName: null, reason: null };
