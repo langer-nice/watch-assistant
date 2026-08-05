@@ -3,23 +3,25 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   createBodaccMonitoringSource,
+  extractCompanyNameFromRequest,
   parseCompanyWatchRequest,
 } from './company-watch-request.js';
 import { migrateWatchModel, WATCH_MODEL_VERSION } from './watch-model.js';
 import { requestCompanyCheck } from './watch-monitoring.js';
 import { getCompanyWatchTitle } from './company-watch-title.js';
+import { planWatch } from '../../server/watch-planner.js';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 const SIREN = '552005969';
 const GARIBALDI_SIREN = '849703772';
 
-test('the reported GARIBALDI request enters Company review and bypasses generic discovery', async () => {
+test('the reported GARIBALDI request enters Company review through the Planner', async () => {
   const navigation = await read('./navigation.js');
   const submitFlow = navigation.match(
     /form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/,
   )?.[0] || '';
   const companyBranch = submitFlow.slice(
-    submitFlow.indexOf('if (companyRequest.recognized)'),
+    submitFlow.indexOf('let companyPlan = null'),
     submitFlow.indexOf('if (isUrl(request))'),
   );
 
@@ -32,7 +34,7 @@ test('the reported GARIBALDI request enters Company review and bypasses generic 
   });
   assert.match(
     companyBranch,
-    /startCompanyReview\([\s\S]*?companyRequest\.siren,[\s\S]*?companyRequest\.companyName/,
+    /requestWatchPlan\(request\)[\s\S]*?getCompanyPlanRoute\(request, companyPlan\)[\s\S]*?COMPANY_PLAN_ROUTES\.REVIEW[\s\S]*?startCompanyReview\([\s\S]*?companyPlan\.identifier,[\s\S]*?extractCompanyNameFromRequest\(request, companyPlan\.identifier\)/,
   );
   assert.doesNotMatch(
     companyBranch,
@@ -76,23 +78,61 @@ test('Company Watch review is localized and identifies the SIREN and official BO
   assert.match(navigation, /reviewSource\.textContent = 'BODACC'/);
 });
 
-test('Company intent is handled before URL, clarification, OpenAI, or text-source discovery', async () => {
+test('the Planner is the only route into Company review and remains before all other routes', async () => {
   const navigation = await read('./navigation.js');
   const submitFlow = navigation.match(
     /form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/,
   )?.[0] || '';
-  const parseIndex = submitFlow.indexOf('parseCompanyWatchRequest(request)');
+  const plannerIndex = submitFlow.indexOf('requestWatchPlan(request)');
+  const reviewIndex = submitFlow.indexOf('startCompanyReview(');
+  const routeIndex = submitFlow.indexOf('getCompanyPlanRoute(request, companyPlan)');
   const urlIndex = submitFlow.indexOf('if (isUrl(request))');
   const clarificationIndex = submitFlow.indexOf('clarifyWatchRequest(request');
 
-  assert.ok(parseIndex >= 0 && parseIndex < urlIndex && urlIndex < clarificationIndex);
-  assert.match(submitFlow, /companyRequest\.recognized[\s\S]*?companySirenGuidance/);
-  assert.match(submitFlow, /companyRequest\.valid[\s\S]*?startCompanyReview/);
+  assert.ok(plannerIndex >= 0 && plannerIndex < reviewIndex);
+  assert.ok(plannerIndex < routeIndex && routeIndex < reviewIndex && reviewIndex < urlIndex);
+  assert.ok(urlIndex < clarificationIndex);
+  assert.equal((navigation.match(/await startCompanyReview\(/g) || []).length, 1);
+  assert.match(submitFlow, /COMPANY_PLAN_ROUTES\.REVIEW[\s\S]*?startCompanyReview/);
+  assert.doesNotMatch(
+    submitFlow.slice(reviewIndex + 'startCompanyReview('.length),
+    /parseCompanyWatchRequest\(request\)[\s\S]*?startCompanyReview/,
+  );
   const companyBranch = submitFlow.slice(
-    submitFlow.indexOf('if (companyRequest.recognized)'),
+    submitFlow.indexOf('let companyPlan = null'),
     submitFlow.indexOf('if (isUrl(request))'),
   );
   assert.doesNotMatch(companyBranch, /analyseUrl|clarifyWatchRequest|requestMonitoringSource/);
+});
+
+test('Planner migration preserves the exact Company pipeline inputs for all acceptance requests', async () => {
+  const requests = [
+    'Monitor company SIREN 905329314',
+    `Monitor LE GARIBALDI ${GARIBALDI_SIREN}`,
+    `Surveille l'entreprise LE GARIBALDI SIREN ${GARIBALDI_SIREN}`,
+  ];
+
+  for (const request of requests) {
+    const before = parseCompanyWatchRequest(request);
+    const plan = await planWatch(request, { companyOnly: true });
+    assert.equal(plan.strategy, 'official_company');
+    assert.equal(plan.connector, 'bodacc');
+    assert.equal(plan.country, 'FR');
+    assert.equal(plan.identifier, before.siren);
+    const after = {
+      recognized: plan.strategy === 'official_company' && plan.connector === 'bodacc',
+      valid: plan.confidence === 1,
+      siren: plan.identifier,
+      companyName: extractCompanyNameFromRequest(request, plan.identifier),
+      reason: null,
+    };
+
+    assert.deepEqual(after, before);
+    assert.deepEqual(
+      createBodaccMonitoringSource(after.siren),
+      createBodaccMonitoringSource(before.siren),
+    );
+  }
 });
 
 test('Company Watch creation carries the approved shape into the existing transactional lifecycle', async () => {

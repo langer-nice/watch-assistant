@@ -73,6 +73,16 @@ export const planWatch = async (request, options = {}) => {
     });
   }
 
+  if (options.companyOnly) {
+    return createPlannerDecision({
+      strategy: 'web_search',
+      connector: 'web_ai',
+      confidence: 0.5,
+      needsClarification: false,
+      clarificationQuestion: null,
+    });
+  }
+
   try {
     const discoverSource = options.discoverSource || discoverTextMonitoringSource;
     const result = await discoverSource({

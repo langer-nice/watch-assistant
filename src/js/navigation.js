@@ -85,8 +85,13 @@ import {
 } from './watch-source-discovery.js';
 import {
   createBodaccMonitoringSource,
-  parseCompanyWatchRequest,
+  extractCompanyNameFromRequest,
 } from './company-watch-request.js';
+import {
+  COMPANY_PLAN_ROUTES,
+  getCompanyPlanRoute,
+  requestWatchPlan,
+} from './watch-planner.js';
 import { getCompanyWatchTitle } from './company-watch-title.js';
 import { getCompanyReviewSummary } from './company-watch-review.js';
 import { getCompanyBodaccUrl } from './company-watch-source.js';
@@ -2290,6 +2295,7 @@ export function initForm() {
   let pendingWhyFollowing = '';
   let pendingAnalysis = null;
   let analysisInProgress = false;
+  let planningInProgress = false;
   let clarificationInProgress = false;
   let urlAnalysisProgressKey = null;
   let urlAnalysisController = null;
@@ -3827,6 +3833,7 @@ export function initForm() {
 
     if (
       analysisInProgress
+      || planningInProgress
       || clarificationInProgress
       || creationInProgress
       || form.classList.contains('is-reviewing')
@@ -3853,19 +3860,30 @@ export function initForm() {
 
     synchronizeInferredFields(request);
 
-    const companyRequest = parseCompanyWatchRequest(request);
-    if (companyRequest.recognized) {
-      if (!companyRequest.valid) {
-        if (watchError) watchError.textContent = t('newWatch.companySirenGuidance');
-        input?.focus();
-        return;
-      }
+    let companyPlan = null;
+    planningInProgress = true;
+    try {
+      companyPlan = await requestWatchPlan(request);
+    } catch {
+      // Existing non-Company routes remain available if the Planner is unavailable.
+    } finally {
+      planningInProgress = false;
+    }
+
+    const companyPlanRoute = getCompanyPlanRoute(request, companyPlan);
+    if (companyPlanRoute === COMPANY_PLAN_ROUTES.REVIEW) {
       await startCompanyReview(
         request,
         whyFollowing,
-        companyRequest.siren,
-        companyRequest.companyName,
+        companyPlan.identifier,
+        extractCompanyNameFromRequest(request, companyPlan.identifier),
       );
+      return;
+    }
+
+    if (companyPlanRoute === COMPANY_PLAN_ROUTES.GUIDANCE) {
+      if (watchError) watchError.textContent = t('newWatch.companySirenGuidance');
+      input?.focus();
       return;
     }
 

@@ -40,7 +40,9 @@ export const createPlanWatchMiddleware = (options = {}) => (
     }
     try {
       const body = await readJsonBody(request);
-      sendJson(response, 200, await planWatch(body.request, options));
+      const companyOnly = new URL(request.url || '/', 'http://localhost')
+        .searchParams.get('scope') === 'official_company';
+      sendJson(response, 200, await planWatch(body.request, { ...options, companyOnly }));
     } catch {
       sendJson(response, 400, createPlannerDecision({
         clarificationQuestion: 'Provide a valid JSON request describing what to monitor.',

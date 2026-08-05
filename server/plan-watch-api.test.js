@@ -3,10 +3,12 @@ import { Readable } from 'node:stream';
 import test from 'node:test';
 import { createPlanWatchMiddleware } from './plan-watch-api.js';
 
-const callMiddleware = async ({ method = 'POST', body = '{}', options = {} } = {}) => {
+const callMiddleware = async ({
+  method = 'POST', body = '{}', options = {}, url = '/api/plan-watch',
+} = {}) => {
   const request = Readable.from([body]);
   request.method = method;
-  request.url = '/api/plan-watch';
+  request.url = url;
   const response = {
     headers: {},
     setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
@@ -65,6 +67,27 @@ test('planner discovery failures are normalized instead of reaching the caller',
   const response = await callMiddleware({
     body: JSON.stringify({ request: 'Monitor energy news' }),
     options: { discoverSource: async () => { throw new Error('upstream detail'); } },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    strategy: 'web_search',
+    connector: 'web_ai',
+    country: null,
+    identifier: null,
+    confidence: 0.5,
+    needsClarification: false,
+    clarificationQuestion: null,
+  });
+});
+
+test('company migration scope does not run RSS discovery for non-Company requests', async () => {
+  const response = await callMiddleware({
+    url: '/api/plan-watch?scope=official_company',
+    body: JSON.stringify({ request: 'Monitor energy news' }),
+    options: {
+      discoverSource: async () => assert.fail('Company migration must not run RSS discovery.'),
+    },
   });
 
   assert.equal(response.statusCode, 200);

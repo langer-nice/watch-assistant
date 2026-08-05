@@ -118,7 +118,7 @@ test('every planning outcome has the same stable schema and numeric confidence',
   });
 });
 
-test('existing Company, RSS, URL, and Watch creation entry points remain unchanged', async () => {
+test('existing RSS, URL, and Watch creation implementations remain in place', async () => {
   const navigation = await readFile(new URL('../src/js/navigation.js', import.meta.url), 'utf8');
   const company = parseCompanyWatchRequest('Monitor company 905266524');
   const source = createBodaccMonitoringSource(company.siren);
@@ -133,9 +133,7 @@ test('existing Company, RSS, URL, and Watch creation entry points remain unchang
   assert.equal(source.siren, '905266524');
   assert.equal(feedUrl.pathname, '/rss/search');
   assert.equal(urlSource.url, 'https://example.com/feed.xml');
-  assert.doesNotMatch(navigation, /plan-watch|planWatch/);
-  assert.match(navigation, /parseCompanyWatchRequest\(request\)/);
+  assert.match(navigation, /requestWatchPlan\(request\)/);
   assert.match(navigation, /requestMonitoringSource\(selectedRequest/);
   assert.match(navigation, /resolveUrlMonitoringSource\(analysis/);
 });
-
