@@ -67,13 +67,22 @@ export const extractCompanyNameFromRequest = (request, siren) => {
 
 export const parseCompanyWatchRequest = (request) => {
   const intent = getCompanyIntent(request);
-  if (!intent.monitoring || intent.containsUrl) {
+  if (intent.containsUrl) {
     return { recognized: false, valid: false, siren: null, companyName: null, reason: null };
   }
 
   const numericGroups = extractNumericGroups(request);
   const sirenCandidates = [...new Set(numericGroups.filter((value) => /^\d{9}$/.test(value)))];
   const hasValidSiren = sirenCandidates.some(isValidSiren);
+  const standaloneSiren = sirenCandidates.length === 1
+    && normalizeSiren(request) === sirenCandidates[0]
+    && hasValidSiren;
+  const inferredCompanyMonitoring = intent.monitoring
+    || standaloneSiren
+    || (intent.explicitCompany && hasValidSiren);
+  if (!inferredCompanyMonitoring) {
+    return { recognized: false, valid: false, siren: null, companyName: null, reason: null };
+  }
   if (!intent.explicitCompany && !hasValidSiren) {
     return { recognized: false, valid: false, siren: null, companyName: null, reason: null };
   }

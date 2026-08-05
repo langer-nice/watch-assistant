@@ -38,6 +38,24 @@ test('POST /api/plan-watch returns the normalized planner response', async () =>
   assert.equal(response.headers['cache-control'], 'no-store');
 });
 
+test('POST /api/plan-watch accepts a valid standalone SIREN', async () => {
+  const response = await callMiddleware({
+    url: '/api/plan-watch?scope=official_company',
+    body: JSON.stringify({ request: '905266524' }),
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    strategy: 'official_company',
+    connector: 'bodacc',
+    country: 'FR',
+    identifier: '905266524',
+    confidence: 1,
+    needsClarification: false,
+    clarificationQuestion: null,
+  });
+});
+
 test('invalid JSON and unsupported methods still return the exact planner schema', async () => {
   const [invalidJson, wrongMethod] = await Promise.all([
     callMiddleware({ body: '{bad json' }),
@@ -101,4 +119,3 @@ test('company migration scope does not run RSS discovery for non-Company request
     clarificationQuestion: null,
   });
 });
-

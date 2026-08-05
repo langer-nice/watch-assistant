@@ -6,3 +6,5 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 coverage/
+docs/test-companies.md
+docs/use-cases.md

@@ -52,8 +52,20 @@ test('normalizes spaces in a valid SIREN', () => {
   }
 });
 
-test('a valid SIREN without clear company-monitoring intent stays in the normal Watch flow', () => {
-  for (const request of [SIREN, `Reference ${SIREN}`, `The number is ${SIREN}`]) {
+test('recognizes a valid standalone SIREN without requiring UI-specific intent', () => {
+  for (const request of [SIREN, '552 005 969', 'Company 552005969']) {
+    assert.deepEqual(parseCompanyWatchRequest(request), {
+      recognized: true,
+      valid: true,
+      siren: SIREN,
+      companyName: null,
+      reason: null,
+    });
+  }
+});
+
+test('a valid SIREN inside non-Company prose stays in the normal Watch flow', () => {
+  for (const request of [`Reference ${SIREN}`, `The number is ${SIREN}`]) {
     assert.deepEqual(parseCompanyWatchRequest(request), {
       recognized: false,
       valid: false,
@@ -61,6 +73,12 @@ test('a valid SIREN without clear company-monitoring intent stays in the normal 
       companyName: null,
       reason: null,
     });
+  }
+});
+
+test('does not recognize an invalid standalone number as a Company Watch', () => {
+  for (const request of ['123456789', '905266525', '12345678', '1234567890']) {
+    assert.equal(parseCompanyWatchRequest(request).recognized, false);
   }
 });
 

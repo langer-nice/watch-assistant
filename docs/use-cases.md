@@ -1,3 +1,6 @@
+# tests
+ - Bug : Create watch button not active without the word Watch in front
+
 # Use Cases
 
 This document captures real-world reasons people would use Watch Assistant.

@@ -41,6 +41,36 @@ test('plans a valid French company with the existing SIREN detection', async () 
   });
 });
 
+test('plans a valid standalone SIREN identically to sentence-based Company requests', async () => {
+  const requests = [
+    '905266524',
+    'Watch 905266524',
+    'Company 905266524',
+    'Monitor company 905266524',
+  ];
+  const plans = await Promise.all(requests.map((request) => planWatch(request, {
+    companyOnly: true,
+  })));
+
+  plans.forEach((plan) => assert.deepEqual(plan, {
+    strategy: 'official_company',
+    connector: 'bodacc',
+    country: 'FR',
+    identifier: '905266524',
+    confidence: 1,
+    needsClarification: false,
+    clarificationQuestion: null,
+  }));
+});
+
+test('does not plan invalid or random standalone numbers as French companies', async () => {
+  for (const request of ['123456789', '905266525', '12345678', '1234567890']) {
+    const plan = await planWatch(request, { companyOnly: true });
+    assert.equal(plan.strategy, 'web_search');
+    assert.equal(plan.connector, 'web_ai');
+  }
+});
+
 test('recognizes English and French Monaco company requests without implementing RCI', async () => {
   for (const request of ['Monitor Monaco company', 'Surveille société Monaco']) {
     assert.deepEqual(await planWatch(request), {
