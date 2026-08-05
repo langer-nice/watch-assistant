@@ -12,6 +12,7 @@
   },
   "companyStatus": {
     "monitoringHeading": "Monitoring status",
+    "detailMonitoringHeading": "BODACC monitoring",
     "labels": {
       "active": "Active",
       "judicial_proceedings": "Judicial proceedings",
@@ -47,6 +48,7 @@
   },
   "administrativeStatus": {
     "heading": "Current administrative status",
+    "detailHeading": "Official company status",
     "labels": {
       "active": "Active",
       "ceased": "Ceased"
@@ -54,6 +56,10 @@
     "descriptions": {
       "active": "Current official administrative status.",
       "ceased": "Current official administrative status."
+    },
+    "detailDescriptions": {
+      "active": "Official records indicate the company is currently active.",
+      "ceased": "Official records indicate the company has ceased activity."
     }
   },
   "languageSwitcher": {

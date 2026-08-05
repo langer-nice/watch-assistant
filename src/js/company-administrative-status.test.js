@@ -5,6 +5,7 @@ import {
   getAdministrativeStatusPresentation,
   normalizeAdministrativeStatus,
   normalizeCompanyIdentity,
+  shouldShowCompanyMonitoringStatus,
 } from './company-administrative-status.js';
 
 const SIREN = '905266524';
@@ -51,6 +52,14 @@ test('unknown administrative status is omitted from presentation in English and 
   }
 });
 
+test('Watch Detail hides duplicate or unknown monitoring status and shows meaningful differences', () => {
+  assert.equal(shouldShowCompanyMonitoringStatus('active', 'active'), false);
+  assert.equal(shouldShowCompanyMonitoringStatus('active', 'unknown'), false);
+  assert.equal(shouldShowCompanyMonitoringStatus('active', 'judicial_liquidation'), true);
+  assert.equal(shouldShowCompanyMonitoringStatus('ceased', 'ceased'), false);
+  assert.equal(shouldShowCompanyMonitoringStatus('unknown', 'active'), true);
+});
+
 test('Review and Watch Detail distinguish administrative status from BODACC monitoring status', async () => {
   const [navigation, reviewHtml, detailHtml] = await Promise.all([
     read('./navigation.js'),
@@ -75,15 +84,17 @@ test('Review and Watch Detail distinguish administrative status from BODACC moni
 
   assert.match(reviewHtml, /id="companyReviewAdministrativeStatus"/);
   assert.match(reviewHtml, /companyStatus\.monitoringHeading/);
+  assert.match(reviewHtml, /administrativeStatus\.heading/);
   assert.match(review, /getAdministrativeStatusPresentation/);
   assert.match(review, /administrativePresentation\.known/);
   assert.match(companyLookup, /name: baseline\.company\?\.officialName \|\| companyName/);
   assert.match(companyLookup, /baseline\.company\?\.administrativeStatus/);
   assert.match(detailHtml, /id="watchCompanyAdministrativeStatus"/);
-  assert.match(detailHtml, /administrativeStatus\.heading/);
-  assert.match(detailHtml, /companyStatus\.monitoringHeading/);
+  assert.match(detailHtml, /administrativeStatus\.detailHeading/);
+  assert.match(detailHtml, /companyStatus\.detailMonitoringHeading/);
   assert.match(detail, /getAdministrativeStatusPresentation/);
   assert.match(detail, /getCompanyStatusPresentation/);
+  assert.match(detail, /shouldShowCompanyMonitoringStatus/);
   assert.doesNotMatch(home, /getAdministrativeStatusPresentation|administrativeStatus/);
   assert.doesNotMatch(allWatches, /getAdministrativeStatusPresentation|administrativeStatus/);
 });

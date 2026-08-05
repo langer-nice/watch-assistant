@@ -1,3 +1,5 @@
+import { normalizeCompanyStatus } from './company-watch-status.js';
+
 const ADMINISTRATIVE_STATUS_VALUES = new Set(['active', 'ceased', 'unknown']);
 
 export const normalizeAdministrativeStatus = (value) => (
@@ -37,4 +39,13 @@ export const getAdministrativeStatusPresentation = (value, translate = () => '')
       : translate(`administrativeStatus.descriptions.${status}`),
     tone: status === 'active' ? 'stable' : 'error',
   };
+};
+
+export const shouldShowCompanyMonitoringStatus = (
+  administrativeStatus,
+  monitoringStatus,
+) => {
+  const normalizedMonitoringStatus = normalizeCompanyStatus(monitoringStatus);
+  if (normalizedMonitoringStatus === 'unknown') return false;
+  return normalizeAdministrativeStatus(administrativeStatus) !== normalizedMonitoringStatus;
 };

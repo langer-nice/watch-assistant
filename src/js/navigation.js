@@ -103,6 +103,7 @@ import {
 import {
   getAdministrativeStatusPresentation,
   normalizeAdministrativeStatus,
+  shouldShowCompanyMonitoringStatus,
 } from './company-administrative-status.js';
 import { waitForVisiblePaint } from './browser-paint.js';
 import { getMonitoringFailureMessageKey } from './watch-monitoring-errors.js';
@@ -1297,33 +1298,41 @@ const renderWatchDetail = () => {
   }
   if (companyAdministrativeStatusDescriptionEl) {
     companyAdministrativeStatusDescriptionEl.textContent = hasCompanyAdministrativeStatus
-      ? administrativeStatusPresentation.description
+      ? t(`administrativeStatus.detailDescriptions.${administrativeStatusPresentation.status}`)
+        || administrativeStatusPresentation.description
       : '';
   }
 
   const companyStatusPresentation = watch.inputType === 'company'
     ? getCompanyStatusPresentation(watch.company?.status, t)
     : null;
-  const hasCompanyStatus = Boolean(
-    companyStatusPresentation && companyStatusPresentation.status !== 'unknown',
+  const showCompanyMonitoringStatus = Boolean(
+    companyStatusPresentation
+    && shouldShowCompanyMonitoringStatus(
+      watch.company?.administrativeStatus,
+      watch.company?.status,
+    ),
   );
-  if (companyStatusEl) companyStatusEl.hidden = !hasCompanyStatus;
+  if (companyStatusEl) companyStatusEl.hidden = !showCompanyMonitoringStatus;
   if (companyStatusBadgeEl) {
-    companyStatusBadgeEl.textContent = hasCompanyStatus ? companyStatusPresentation.label : '';
-    companyStatusBadgeEl.className = hasCompanyStatus
+    companyStatusBadgeEl.textContent = showCompanyMonitoringStatus
+      ? companyStatusPresentation.label
+      : '';
+    companyStatusBadgeEl.className = showCompanyMonitoringStatus
       ? `status-label status-label--${companyStatusPresentation.tone}`
       : 'status-label';
   }
   if (companyStatusDescriptionEl) {
-    companyStatusDescriptionEl.textContent = hasCompanyStatus
+    companyStatusDescriptionEl.textContent = showCompanyMonitoringStatus
       ? companyStatusPresentation.description
       : '';
   }
   if (companyStatusFollowUpEl) {
-    companyStatusFollowUpEl.textContent = hasCompanyStatus
+    companyStatusFollowUpEl.textContent = showCompanyMonitoringStatus
       ? companyStatusPresentation.followUp
       : '';
-    companyStatusFollowUpEl.hidden = !hasCompanyStatus || !companyStatusPresentation.followUp;
+    companyStatusFollowUpEl.hidden = !showCompanyMonitoringStatus
+      || !companyStatusPresentation.followUp;
   }
 
   const storedCurrentSituation = localizeField(watch, 'currentSituation');
@@ -1369,7 +1378,7 @@ const renderWatchDetail = () => {
   if (primaryEl) {
     primaryEl.hidden = !(
       hasCompanyAdministrativeStatus
-      || hasCompanyStatus
+      || showCompanyMonitoringStatus
       || hasCurrentSituation
       || hasRecommendation
     );

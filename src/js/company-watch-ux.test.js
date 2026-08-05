@@ -17,7 +17,8 @@ test('unknown BODACC monitoring status is omitted while Current Situation remain
   )?.[0] || '';
 
   assert.match(reviewRenderer, /hasMeaningfulMonitoringStatus = presentation\.status !== 'unknown'/);
-  assert.match(detailRenderer, /companyStatusPresentation\.status !== 'unknown'/);
+  assert.match(detailRenderer, /shouldShowCompanyMonitoringStatus/);
+  assert.match(detailRenderer, /showCompanyMonitoringStatus/);
   assert.match(detailHtml, /id="current-situation"/);
   assert.match(detailRenderer, /const currentSituation = currentUpdate\.summary/);
   assert.match(detailRenderer, /hasCurrentSituation = setOptionalField/);
@@ -62,4 +63,12 @@ test('administrative status support copy is concise in English and French', asyn
   assert.equal(english.administrativeStatus.descriptions.ceased, 'Current official administrative status.');
   assert.equal(french.administrativeStatus.descriptions.active, 'Statut administratif officiel actuel.');
   assert.equal(french.administrativeStatus.descriptions.ceased, 'Statut administratif officiel actuel.');
+  assert.equal(english.administrativeStatus.detailHeading, 'Official company status');
+  assert.equal(english.companyStatus.detailMonitoringHeading, 'BODACC monitoring');
+  assert.equal(
+    english.administrativeStatus.detailDescriptions.active,
+    'Official records indicate the company is currently active.',
+  );
+  assert.equal(french.administrativeStatus.detailHeading, 'Statut officiel de l’entreprise');
+  assert.equal(french.companyStatus.detailMonitoringHeading, 'Surveillance BODACC');
 });
