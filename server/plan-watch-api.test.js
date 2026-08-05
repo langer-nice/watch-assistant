@@ -1,0 +1,81 @@
+import assert from 'node:assert/strict';
+import { Readable } from 'node:stream';
+import test from 'node:test';
+import { createPlanWatchMiddleware } from './plan-watch-api.js';
+
+const callMiddleware = async ({ method = 'POST', body = '{}', options = {} } = {}) => {
+  const request = Readable.from([body]);
+  request.method = method;
+  request.url = '/api/plan-watch';
+  const response = {
+    headers: {},
+    setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
+    end(value) { this.body = JSON.parse(value); },
+  };
+  await createPlanWatchMiddleware(options)(request, response, () => {
+    assert.fail('The planner endpoint should handle this request.');
+  });
+  return response;
+};
+
+test('POST /api/plan-watch returns the normalized planner response', async () => {
+  const response = await callMiddleware({
+    body: JSON.stringify({ request: 'Monitor company SIREN 905266524' }),
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    strategy: 'official_company',
+    connector: 'bodacc',
+    country: 'FR',
+    identifier: '905266524',
+    confidence: 1,
+    needsClarification: false,
+    clarificationQuestion: null,
+  });
+  assert.equal(response.headers['cache-control'], 'no-store');
+});
+
+test('invalid JSON and unsupported methods still return the exact planner schema', async () => {
+  const [invalidJson, wrongMethod] = await Promise.all([
+    callMiddleware({ body: '{bad json' }),
+    callMiddleware({ method: 'GET' }),
+  ]);
+  const keys = [
+    'strategy',
+    'connector',
+    'country',
+    'identifier',
+    'confidence',
+    'needsClarification',
+    'clarificationQuestion',
+  ];
+
+  assert.equal(invalidJson.statusCode, 400);
+  assert.equal(wrongMethod.statusCode, 405);
+  for (const response of [invalidJson, wrongMethod]) {
+    assert.deepEqual(Object.keys(response.body), keys);
+    assert.equal(response.body.strategy, 'unknown');
+    assert.equal(response.body.connector, null);
+    assert.equal(response.body.needsClarification, true);
+  }
+});
+
+test('planner discovery failures are normalized instead of reaching the caller', async () => {
+  const response = await callMiddleware({
+    body: JSON.stringify({ request: 'Monitor energy news' }),
+    options: { discoverSource: async () => { throw new Error('upstream detail'); } },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    strategy: 'web_search',
+    connector: 'web_ai',
+    country: null,
+    identifier: null,
+    confidence: 0.5,
+    needsClarification: false,
+    clarificationQuestion: null,
+  });
+});
+
