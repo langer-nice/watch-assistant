@@ -13,6 +13,7 @@ import {
 } from './watch-storage.js';
 import { getLanguage, t } from './i18n.js';
 import { analyseUrl } from './url-analysis.js';
+import { requiresNonArticleClarification } from './page-classification.js';
 import {
   CLARIFICATION_ACTIONS,
   clarifyWatchRequest,
@@ -97,6 +98,8 @@ import {
 import {
   COMPANY_PLAN_ROUTES,
   getCompanyPlanRoute,
+  getMediaStoryPlanRoute,
+  MEDIA_STORY_PLAN_ROUTES,
   requestWatchPlan,
 } from './watch-planner.js';
 import { getCompanyWatchTitle } from './company-watch-title.js';
@@ -119,7 +122,7 @@ import {
   getStoryProfileIdentifiers,
   synchronizeStoryProfile,
 } from './story-profile.js';
-import { getAnalysisProvenanceMessageKey } from './watch-model.js';
+import { isDistinctMonitoringScope } from './story-review.js';
 import { renderWatchCardLink } from './watch-card-link.js';
 import {
   CURRENT_UPDATE_FRAGMENT,
@@ -662,6 +665,7 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     }
     : null;
   const isUrlRequest = !isCompanyRequest && (Boolean(urlAnalysis) || isUrl(request));
+  const isStory = !isUrlRequest || urlAnalysis?.isStory !== false;
   const sourceName = isCompanyRequest
     ? companyMonitoringSource.title
     : getSourceText(urlAnalysis?.sourceName || urlAnalysis?.source);
@@ -680,18 +684,26 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     urlAnalysis?.storyProfile?.storySummary,
   ].filter(Boolean).join(' '));
   const category = normalizeWatchCategory(options.category, inferredCategory);
-  const keywords = Array.isArray(options.keywords)
-    ? options.keywords
-    : extractMonitoringConcepts([request, urlAnalysis?.title].filter(Boolean).join(' '));
-  const selectedKeywords = Array.isArray(options.selectedKeywords)
-    ? options.selectedKeywords
-    : keywords;
+  const keywords = isUrlRequest && !isStory
+    ? []
+    : Array.isArray(options.keywords)
+      ? options.keywords
+      : extractMonitoringConcepts([request, urlAnalysis?.title].filter(Boolean).join(' '));
+  const selectedKeywords = isUrlRequest && !isStory
+    ? []
+    : Array.isArray(options.selectedKeywords)
+      ? options.selectedKeywords
+      : keywords;
   const structuredCriteria = extractStructuredCriteria(request);
-  const storyFingerprint = Object.hasOwn(options, 'storyFingerprint')
-    ? options.storyFingerprint
-    : urlAnalysis?.storyFingerprint;
+  const storyFingerprint = isStory
+    ? Object.hasOwn(options, 'storyFingerprint')
+      ? options.storyFingerprint
+      : urlAnalysis?.storyFingerprint
+    : [];
   const sourceStoryProfile = urlAnalysis?.storyProfile || options.storyProfile || null;
-  const storyProfile = isUrlRequest
+  const storyProfile = isUrlRequest && !isStory
+    ? null
+    : isUrlRequest
     ? options.monitoringConceptsManuallyEdited === true && Array.isArray(storyFingerprint)
       ? synchronizeStoryProfile(
         sourceStoryProfile,
@@ -728,6 +740,10 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
       })
       : urlAnalysis?.title || createTitle(request),
     inputType: isCompanyRequest ? 'company' : isUrlRequest ? 'url' : 'text',
+    ...(isUrlRequest ? {
+      pageType: urlAnalysis?.pageType || null,
+      isStory,
+    } : {}),
     ...(isCompanyRequest ? { company } : {}),
     sourceName: sourceName || null,
     sourceTitle: sourceTitle || null,
@@ -744,6 +760,7 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
       ? storyFingerprint
       : null,
     storyProfile,
+    contentAccessLimited: urlAnalysis?.contentAccessLimited === true,
     sourcePublishedAt: urlAnalysis?.sourcePublishedAt || null,
     conceptSourceFields: Array.isArray(urlAnalysis?.conceptSourceFields)
       ? urlAnalysis.conceptSourceFields
@@ -758,7 +775,10 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
       || null,
     structuredCriteria,
     ...structuredCriteria,
-    monitoringSummary: urlAnalysis?.summary || options.monitoringSummary || null,
+    monitoringSummary: urlAnalysis?.monitoringScope
+      || urlAnalysis?.summary
+      || options.monitoringSummary
+      || null,
     monitoringSummaryKey: null,
     currentSituationKey: inferCurrentSituationKey(request, category),
   };
@@ -1148,7 +1168,8 @@ const renderWatchDetail = () => {
   const sourceLinkLabelEl = sourceLinkEl?.querySelector('[data-source-link-label]');
   const storySummaryEl = document.querySelector('#watchStorySummary');
   const storySummaryCopyEl = document.querySelector('#watchStorySummaryCopy');
-  const analysisProvenanceEl = document.querySelector('#watchAnalysisProvenance');
+  const monitoringScopeEl = document.querySelector('#watchMonitoringScope');
+  const monitoringScopeCopyEl = document.querySelector('#watchMonitoringScopeCopy');
   const storyConceptsEl = document.querySelector('#watchStoryConcepts');
   const storyConceptsListEl = document.querySelector('#watchStoryConceptsList');
   const storyConceptsEmptyEl = document.querySelector('#watchStoryConceptsEmpty');
@@ -1394,12 +1415,13 @@ const renderWatchDetail = () => {
   const storySummary = watch.storyProfile?.storySummary || '';
   if (storySummaryCopyEl) storySummaryCopyEl.textContent = storySummary;
   if (storySummaryEl) storySummaryEl.hidden = !storySummary;
-  if (analysisProvenanceEl) {
-    const messageKey = getAnalysisProvenanceMessageKey(watch);
-    const showsFallbackWarning = messageKey === 'detail.analysisProvenanceFallback';
-    analysisProvenanceEl.textContent = showsFallbackWarning ? t(messageKey) : '';
-    analysisProvenanceEl.hidden = !showsFallbackWarning;
-  }
+  const monitoringScope = watch.inputType === 'url'
+    && watch.isStory !== false
+    && isDistinctMonitoringScope(watch.monitoringSummary, storySummary, watch.title)
+    ? watch.monitoringSummary
+    : '';
+  if (monitoringScopeCopyEl) monitoringScopeCopyEl.textContent = monitoringScope;
+  if (monitoringScopeEl) monitoringScopeEl.hidden = !monitoringScope;
   const storyIdentifiers = getStoryProfileIdentifiers(watch.storyProfile);
   if (storyConceptsListEl) {
     storyConceptsListEl.innerHTML = storyIdentifiers.map(({ label, type }) => {
@@ -1430,7 +1452,9 @@ const renderWatchDetail = () => {
     storyConceptsEditEl.href = editWatchHref;
     storyConceptsEditEl.onclick = openExistingWatchEditor;
   }
-  if (storyConceptsEl) storyConceptsEl.hidden = watch.inputType !== 'url';
+  if (storyConceptsEl) {
+    storyConceptsEl.hidden = watch.inputType !== 'url' || watch.isStory === false;
+  }
 
   const companySiren = watch.inputType === 'company'
     && typeof watch.company?.siren === 'string'
@@ -1556,6 +1580,7 @@ const renderWatchDetail = () => {
       || hasRecommendation
       || hasOriginalSource
       || storySummary
+      || monitoringScope
       || storyIdentifiers.length
       || (hasLastChecked && !isPreparing)
     );
@@ -2256,6 +2281,8 @@ export function initForm() {
   const reviewTitle = document.querySelector('#urlReviewTitle');
   const reviewSummary = document.querySelector('#urlReviewSummary');
   const reviewSummaryError = document.querySelector('#urlReviewSummaryError');
+  const reviewMonitoringScopeField = document.querySelector('#urlReviewMonitoringScopeField');
+  const reviewMonitoringScope = document.querySelector('#urlReviewMonitoringScope');
   const reviewSource = document.querySelector('#urlReviewSource');
   const companyReviewAdministrativeStatus = document.querySelector('#companyReviewAdministrativeStatus');
   const companyReviewAdministrativeStatusBadge = document.querySelector('#companyReviewAdministrativeStatusBadge');
@@ -2322,12 +2349,14 @@ export function initForm() {
   let pendingClarificationSuggestion = '';
   let pendingClarificationType = CLARIFICATION_TYPES.CLEAR;
   let pendingClarificationHasSuggestion = false;
+  let pendingNonArticleAnalysis = null;
   const resizeFrames = new WeakMap();
   let noteCollapseTimer = null;
   let keywordRegenerationTimer = null;
   let keywordItems = [];
   let editingConceptIndex = null;
   let keywordsManuallyEdited = false;
+  let reviewEnhancementInProgress = false;
   let conceptRegenerationInProgress = false;
   let categorySource = editingWatch?.categorySource || 'inferred';
   let keywordSourceRequest = '';
@@ -2404,9 +2433,9 @@ export function initForm() {
   };
 
   const getKeywordValues = () => ({
-    keywords: keywordItems.map((item) => item.label),
-    selectedKeywords: keywordItems.map((item) => item.label),
-    storyFingerprint: keywordItems.map((item) => ({
+    keywords: pendingAnalysis?.isStory === false ? [] : keywordItems.map((item) => item.label),
+    selectedKeywords: pendingAnalysis?.isStory === false ? [] : keywordItems.map((item) => item.label),
+    storyFingerprint: pendingAnalysis?.isStory === false ? [] : keywordItems.map((item) => ({
       label: item.label,
       type: item.type || 'manual',
     })),
@@ -2777,6 +2806,7 @@ export function initForm() {
           ).some((concept) => normalizeComparableText(concept.label) === normalizeComparableText(label))),
         )
         : derivedData.storyProfile,
+      contentAccessLimited: derivedData.contentAccessLimited,
       conceptSourceFields: derivedData.conceptSourceFields,
       monitoringConceptsManuallyEdited: derivedData.monitoringConceptsManuallyEdited,
       sourcePublishedAt: derivedData.sourcePublishedAt,
@@ -2798,6 +2828,7 @@ export function initForm() {
         : null,
       ...getPreservedCompanyEditChanges(editingWatch, urlAnalysis),
     };
+    if (derivedData.isStory === false) changes.storyProfile = null;
 
     if (typeof createdAsWrittenAfterClarityWarning === 'boolean') {
       changes.createdAsWrittenAfterClarityWarning = createdAsWrittenAfterClarityWarning;
@@ -2996,7 +3027,9 @@ export function initForm() {
           : 'secondary',
       },
       [CLARIFICATION_ACTIONS.CREATE_AS_WRITTEN]: {
-        label: 'newWatch.clarificationCreateAsWritten',
+        label: pendingNonArticleAnalysis
+          ? 'newWatch.nonArticleClarificationCreate'
+          : 'newWatch.clarificationCreateAsWritten',
         modifier: 'secondary',
       },
     };
@@ -3012,7 +3045,12 @@ export function initForm() {
     });
   };
 
-  const showClarification = (original, result, whyFollowing) => {
+  const showClarification = (
+    original,
+    result,
+    whyFollowing,
+    { nonArticleAnalysis = null } = {},
+  ) => {
     const hasSuggestion = result.type === CLARIFICATION_TYPES.SUGGESTION
       && result.hasSuggestion === true
       && Boolean(result.suggestedRequest?.trim());
@@ -3026,6 +3064,12 @@ export function initForm() {
     pendingClarificationSuggestion = hasSuggestion ? result.suggestedRequest : '';
     pendingClarificationType = result.type;
     pendingClarificationHasSuggestion = hasSuggestion;
+    pendingNonArticleAnalysis = nonArticleAnalysis;
+    pendingAnalysis = nonArticleAnalysis;
+    if (nonArticleAnalysis) {
+      if (analysisSection) analysisSection.hidden = true;
+      if (processingState) processingState.hidden = true;
+    }
     if (clarificationOriginal) clarificationOriginal.textContent = original;
     if (clarificationSuggestion) {
       clarificationSuggestion.textContent = pendingClarificationSuggestion;
@@ -3056,7 +3100,8 @@ export function initForm() {
 
   const setReviewEditing = (editing) => {
     const isCompanyReview = pendingAnalysis?.inputType === 'company';
-    const effectiveEditing = isCompanyReview ? false : editing;
+    const isNonStoryPage = pendingAnalysis?.isStory === false;
+    const effectiveEditing = isCompanyReview || isNonStoryPage ? false : editing;
     review?.classList.toggle('is-editing', effectiveEditing);
     if (reviewTitle) {
       reviewTitle.readOnly = !effectiveEditing;
@@ -3071,6 +3116,7 @@ export function initForm() {
           : effectiveEditing ? 'newWatch.urlReviewDone' : 'newWatch.urlReviewEdit',
       );
     }
+    if (watchOptionsEl) watchOptionsEl.hidden = isNonStoryPage;
     resizeReviewSummary({ immediate: true });
     if (effectiveEditing) {
       reviewTitle?.focus();
@@ -3145,9 +3191,13 @@ export function initForm() {
 
   const renderReviewPresentation = (analysis) => {
     const isCompanyReview = analysis?.inputType === 'company';
+    const isNonStoryPage = analysis?.isStory === false;
+    const failed = analysis?.status !== 'success';
     setReviewTranslation(
       reviewHeading,
-      isCompanyReview ? 'newWatch.companyReviewFound' : 'newWatch.urlReviewFound',
+      isCompanyReview
+        ? 'newWatch.companyReviewFound'
+        : isNonStoryPage ? 'newWatch.webpageReviewFound' : 'newWatch.urlReviewFound',
     );
     setReviewTranslation(
       reviewTitleLabel,
@@ -3157,13 +3207,23 @@ export function initForm() {
       reviewSummaryLabel,
       isCompanyReview
         ? 'newWatch.companyReviewWatchingForRequired'
-        : 'newWatch.urlReviewWatchingForRequired',
+        : isNonStoryPage
+          ? 'newWatch.webpageReviewClassification'
+          : 'newWatch.urlReviewOverviewRequired',
     );
     setReviewTranslation(
       reviewSourceLabel,
       isCompanyReview ? 'newWatch.companyReviewSource' : 'newWatch.urlReviewSource',
     );
     renderCompanyReviewStatus(analysis);
+    if (reviewMonitoringScopeField) {
+      reviewMonitoringScopeField.hidden = failed || isCompanyReview || isNonStoryPage;
+    }
+    if (reviewMonitoringScope) {
+      reviewMonitoringScope.textContent = failed || isCompanyReview || isNonStoryPage
+        ? ''
+        : analysis?.monitoringScope || '';
+    }
     if (!isCompanyReview) return;
     const siren = analysis.company.siren;
     if (reviewTitle) reviewTitle.value = getWatchDisplayTitle(analysis);
@@ -3188,13 +3248,19 @@ export function initForm() {
 
   const showReview = (analysis) => {
     const failed = analysis?.status !== 'success';
-    trackProductEvent(
-      failed ? PRODUCT_EVENTS.URL_ANALYSIS_FAILED : PRODUCT_EVENTS.URL_ANALYSIS_SUCCEEDED,
-    );
-    trackProductEvent(PRODUCT_EVENTS.WATCH_REVIEW_DISPLAYED, {
-      analysis_result: failed ? 'failure' : 'success',
-    });
+    if (!reviewEnhancementInProgress) {
+      trackProductEvent(
+        failed ? PRODUCT_EVENTS.URL_ANALYSIS_FAILED : PRODUCT_EVENTS.URL_ANALYSIS_SUCCEEDED,
+      );
+      trackProductEvent(PRODUCT_EVENTS.WATCH_REVIEW_DISPLAYED, {
+        analysis_result: failed ? 'failure' : 'success',
+      });
+    }
     pendingAnalysis = analysis;
+    if (analysis?.isStory === false && hint) {
+      hint.textContent = '';
+      hint.hidden = true;
+    }
     renderReviewPresentation(analysis);
     form.classList.add('is-reviewing');
     if (analysisSection) {
@@ -3248,12 +3314,12 @@ export function initForm() {
       }
     }
     if (reviewEdit) {
-      reviewEdit.hidden = failed;
+      reviewEdit.hidden = failed || analysis?.isStory === false;
     }
     if (reviewCancel) reviewCancel.hidden = false;
     setReviewEditing(failed);
     validateReviewSummary();
-    if (!failed) review?.focus();
+    if (!failed && !reviewEnhancementInProgress) review?.focus();
   };
 
   const startCompanyReview = async (request, whyFollowing, siren, companyName = null) => {
@@ -3347,20 +3413,62 @@ export function initForm() {
     };
     showProgress();
 
+    let enhancement = null;
     try {
       // Yield once so the browser paints the disabled button and processing state.
       await new Promise((resolve) => window.requestAnimationFrame(resolve));
       const analysis = await analyseUrl(request, {
         onProgress: showProgress,
         signal: controller.signal,
+        progressive: true,
       });
+      enhancement = analysis.enhancement || null;
+      if (enhancement) {
+        void enhancement.finally(() => {
+          if (urlAnalysisController === controller) urlAnalysisController = null;
+        });
+      }
       if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
       const resolvedAnalysis = await resolveUrlMonitoringSource(analysis, {
         language: getLanguage(),
         signal: controller.signal,
       });
       if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
+      if (requiresNonArticleClarification(resolvedAnalysis.pageType)) {
+        showClarification(request, {
+          type: CLARIFICATION_TYPES.CLARIFICATION_REQUIRED,
+          needsClarification: true,
+          hasSuggestion: false,
+          suggestedRequest: '',
+          clarificationMessage: t('newWatch.nonArticleClarificationMessage'),
+        }, whyFollowing, { nonArticleAnalysis: resolvedAnalysis });
+        return;
+      }
       showReview(resolvedAnalysis);
+      if (enhancement) {
+        void enhancement.then((enhancedAnalysis) => {
+          if (
+            !enhancedAnalysis
+            || requestId !== urlAnalysisRequestId
+            || controller.signal.aborted
+            || pendingAnalysis !== resolvedAnalysis
+            || creationInProgress
+            || review?.classList.contains('is-editing')
+            || keywordsManuallyEdited
+          ) {
+            return;
+          }
+          reviewEnhancementInProgress = true;
+          try {
+            showReview({
+              ...enhancedAnalysis,
+              monitoringSource: resolvedAnalysis.monitoringSource,
+            });
+          } finally {
+            reviewEnhancementInProgress = false;
+          }
+        });
+      }
     } catch (error) {
       if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
       if (error instanceof SourceDiscoveryError) {
@@ -3381,7 +3489,7 @@ export function initForm() {
       if (requestId !== urlAnalysisRequestId) return;
       analysisInProgress = false;
       urlAnalysisProgressKey = null;
-      urlAnalysisController = null;
+      if (!enhancement && urlAnalysisController === controller) urlAnalysisController = null;
       form.classList.remove('is-analysing');
       setSubmitLabel();
     }
@@ -3402,6 +3510,7 @@ export function initForm() {
     pendingRequest = '';
     pendingWhyFollowing = '';
     pendingAnalysis = null;
+    pendingNonArticleAnalysis = null;
     creationInProgress = false;
     form.classList.remove('is-analysing', 'is-reviewing');
     if (analysisSection) analysisSection.hidden = true;
@@ -3423,6 +3532,8 @@ export function initForm() {
       reviewSummary.setAttribute('aria-invalid', 'false');
     }
     if (reviewSummaryError) reviewSummaryError.hidden = true;
+    if (reviewMonitoringScopeField) reviewMonitoringScopeField.hidden = true;
+    if (reviewMonitoringScope) reviewMonitoringScope.textContent = '';
     if (reviewSource) reviewSource.textContent = '';
     if (companyReviewAdministrativeStatus) companyReviewAdministrativeStatus.hidden = true;
     if (companyReviewStatus) companyReviewStatus.hidden = true;
@@ -3497,9 +3608,11 @@ export function initForm() {
         editingWatch,
         MONITORING_CONCEPTS_VERSION,
       );
-      const existingKeywords = visibleConcepts.length
-        ? visibleConcepts
-        : extractMonitoringConcepts(conceptSource);
+      const existingKeywords = editingWatch.isStory === false
+        ? []
+        : visibleConcepts.length
+          ? visibleConcepts
+          : extractMonitoringConcepts(conceptSource);
       if (headingEl) {
         headingEl.dataset.i18n = 'newWatch.editHeading';
         headingEl.textContent = t('newWatch.editHeading');
@@ -3519,7 +3632,7 @@ export function initForm() {
         reviewCreate.textContent = t('newWatch.urlReviewSave');
       }
       if (watchOptionsEl) {
-        watchOptionsEl.hidden = false;
+        watchOptionsEl.hidden = editingWatch.isStory === false;
       }
       if (input) {
         input.value = inputValue;
@@ -3554,8 +3667,11 @@ export function initForm() {
       pendingAnalysis = editingWatch.inputType === 'url'
         ? {
           status: 'success',
+          pageType: editingWatch.pageType || null,
+          isStory: editingWatch.isStory !== false,
           title: editingWatch.sourceTitle || editingWatch.title,
-          summary: editingWatch.monitoringSummary || '',
+          summary: editingWatch.storyProfile?.storySummary || editingWatch.monitoringSummary || '',
+          monitoringScope: editingWatch.monitoringSummary || '',
           source: editingWatch.sourceName || '',
           sourceName: editingWatch.sourceName || '',
           sourceTitle: editingWatch.sourceTitle || '',
@@ -3564,6 +3680,7 @@ export function initForm() {
           storyProfile: editingWatch.storyProfile || null,
           keywords: existingKeywords,
           conceptSourceFields: editingWatch.conceptSourceFields || null,
+          contentAccessLimited: editingWatch.contentAccessLimited === true,
           sourcePublishedAt: editingWatch.sourcePublishedAt || null,
           monitoringSource: editingWatch.monitoringSource || null,
         }
@@ -3879,19 +3996,19 @@ export function initForm() {
 
     synchronizeInferredFields(request);
 
-    let companyPlan = null;
+    let watchPlan = null;
     planningInProgress = true;
     try {
-      companyPlan = await requestWatchPlan(request);
+      watchPlan = await requestWatchPlan(request);
     } catch {
-      // Existing non-Company routes remain available if the Planner is unavailable.
+      // Unmigrated routes remain available; migrated route validators fail closed below.
     } finally {
       planningInProgress = false;
     }
 
-    const companyPlanRoute = getCompanyPlanRoute(request, companyPlan);
+    const companyPlanRoute = getCompanyPlanRoute(request, watchPlan);
     if (companyPlanRoute === COMPANY_PLAN_ROUTES.REVIEW) {
-      const companyEditOutcome = getCompanyEditPlanOutcome(editingWatch, companyPlan);
+      const companyEditOutcome = getCompanyEditPlanOutcome(editingWatch, watchPlan);
       if (companyEditOutcome === COMPANY_EDIT_PLAN_OUTCOMES.DIFFERENT_COMPANY) {
         if (watchError) watchError.textContent = t('newWatch.companyEditDifferentSiren');
         input?.focus();
@@ -3910,8 +4027,8 @@ export function initForm() {
       await startCompanyReview(
         request,
         whyFollowing,
-        companyPlan.identifier,
-        extractCompanyNameFromRequest(request, companyPlan.identifier),
+        watchPlan.identifier,
+        extractCompanyNameFromRequest(request, watchPlan.identifier),
       );
       return;
     }
@@ -3922,7 +4039,7 @@ export function initForm() {
       return;
     }
 
-    if (isUrl(request)) {
+    const continueExistingUrlWatchFlow = async () => {
       const originalUrl = editingWatch?.sourceUrl || editingWatch?.request || '';
       if (
         isEditMode
@@ -3934,6 +4051,21 @@ export function initForm() {
         return;
       }
       await startUrlAnalysis(request, whyFollowing);
+    };
+
+    const mediaStoryPlanRoute = getMediaStoryPlanRoute(request, watchPlan);
+    if (mediaStoryPlanRoute === MEDIA_STORY_PLAN_ROUTES.REVIEW) {
+      await continueExistingUrlWatchFlow();
+      return;
+    }
+    if (mediaStoryPlanRoute === MEDIA_STORY_PLAN_ROUTES.GUIDANCE) {
+      if (watchError) watchError.textContent = t('newWatch.mediaStoryPlanningUnavailable');
+      input?.focus();
+      return;
+    }
+
+    if (isUrl(request)) {
+      await continueExistingUrlWatchFlow();
       return;
     }
 
@@ -4011,6 +4143,38 @@ export function initForm() {
         || pendingClarificationHasSuggestion
         || !pendingClarificationOriginal.trim()
       ) return;
+      if (pendingNonArticleAnalysis) {
+        const analysis = pendingNonArticleAnalysis;
+        creationInProgress = true;
+        setCreationControlsDisabled(true);
+        const createOptions = getCreateOptions();
+        createOptions.monitoringSource = analysis.monitoringSource;
+        try {
+          if (isEditMode) {
+            await completeWatchUpdate(
+              pendingClarificationOriginal,
+              pendingClarificationWhyFollowing,
+              analysis,
+            );
+          } else {
+            await completeWatchCreation(createWatchObject(
+              pendingClarificationOriginal,
+              pendingClarificationWhyFollowing,
+              analysis,
+              createOptions,
+            ));
+          }
+        } catch (error) {
+          creationInProgress = false;
+          setCreationControlsDisabled(false);
+          if (watchError) {
+            const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
+            watchError.textContent = t(getMonitoringFailureMessageKey(code));
+          }
+          input?.focus();
+        }
+        return;
+      }
       await savePlainTextWatch(
         pendingClarificationOriginal,
         pendingClarificationWhyFollowing,
@@ -4024,6 +4188,8 @@ export function initForm() {
     }
 
     if (action !== CLARIFICATION_ACTIONS.EDIT_REQUEST) return;
+    pendingNonArticleAnalysis = null;
+    pendingAnalysis = null;
     form.classList.remove('is-clarifying');
     if (clarification) clarification.hidden = true;
     if (input) {
@@ -4073,6 +4239,14 @@ export function initForm() {
       summary: pendingAnalysis.inputType === 'company'
         ? pendingAnalysis.summary
         : reviewSummary.value.trim(),
+      storyProfile: pendingAnalysis.inputType === 'company'
+        ? pendingAnalysis.storyProfile
+        : pendingAnalysis.isStory === false
+          ? null
+          : {
+            ...pendingAnalysis.storyProfile,
+            storySummary: reviewSummary.value.trim(),
+          },
       source: getSourceText(pendingAnalysis?.sourceName || pendingAnalysis?.source) || null,
       sourceUrl: pendingAnalysis?.sourceUrl || pendingRequest,
     };
@@ -4113,7 +4287,10 @@ export function initForm() {
   });
 
   reviewCancel?.addEventListener('click', () => {
-    resetUrlFlow({ clearInput: true, trackCancellation: true });
+    resetUrlFlow({
+      clearInput: pendingAnalysis?.status === 'success',
+      trackCancellation: true,
+    });
   });
 
   analysisCancel?.addEventListener('click', () => {

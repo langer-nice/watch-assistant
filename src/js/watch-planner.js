@@ -1,8 +1,11 @@
 import { isValidSiren, parseCompanyWatchRequest } from './company-watch-request.js';
+import { normalizeMediaStoryUrl, parseMediaStoryRequest } from './media-story-request.js';
 
-const PLANNER_ENDPOINT = '/api/plan-watch?scope=official_company';
-const STRATEGIES = new Set(['official_company', 'structured_source', 'web_search', 'unknown']);
-const CONNECTORS = new Set(['bodacc', 'rss', 'web_ai', 'rci_monaco', null]);
+const PLANNER_ENDPOINT = '/api/plan-watch?scope=migrated_routes';
+const STRATEGIES = new Set([
+  'media_story', 'official_company', 'structured_source', 'web_search', 'unknown',
+]);
+const CONNECTORS = new Set(['bodacc', 'media_story', 'rss', 'web_ai', 'rci_monaco', null]);
 
 export class WatchPlannerError extends Error {
   constructor(code = 'PLANNER_UNAVAILABLE') {
@@ -77,4 +80,26 @@ export const getCompanyPlanRoute = (request, plan) => {
   if (isFrenchCompanyPlan(plan)) return COMPANY_PLAN_ROUTES.REVIEW;
   if (parseCompanyWatchRequest(request).recognized) return COMPANY_PLAN_ROUTES.GUIDANCE;
   return COMPANY_PLAN_ROUTES.CONTINUE;
+};
+
+export const MEDIA_STORY_PLAN_ROUTES = Object.freeze({
+  REVIEW: 'review',
+  GUIDANCE: 'guidance',
+  CONTINUE: 'continue',
+});
+
+export const isMediaStoryPlan = (request, plan) => {
+  const normalizedRequest = normalizeMediaStoryUrl(request);
+  return plan?.strategy === 'media_story'
+    && plan.connector === 'media_story'
+    && plan.country === null
+    && plan.identifier === normalizedRequest
+    && plan.confidence > 0
+    && plan.needsClarification === false;
+};
+
+export const getMediaStoryPlanRoute = (request, plan) => {
+  if (isMediaStoryPlan(request, plan)) return MEDIA_STORY_PLAN_ROUTES.REVIEW;
+  if (parseMediaStoryRequest(request).recognized) return MEDIA_STORY_PLAN_ROUTES.GUIDANCE;
+  return MEDIA_STORY_PLAN_ROUTES.CONTINUE;
 };

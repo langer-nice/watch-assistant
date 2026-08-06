@@ -74,6 +74,28 @@ test('POST /api/plan-watch accepts company name plus SIREN without a verb', asyn
   });
 });
 
+test('migrated route scope returns a Media Story decision without RSS discovery', async () => {
+  const request = 'https://www.bbc.com/news/articles/example';
+  const response = await callMiddleware({
+    url: '/api/plan-watch?scope=migrated_routes',
+    body: JSON.stringify({ request }),
+    options: {
+      discoverSource: async () => assert.fail('Media planning must not run RSS discovery.'),
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, {
+    strategy: 'media_story',
+    connector: 'media_story',
+    country: null,
+    identifier: request,
+    confidence: 0.9,
+    needsClarification: false,
+    clarificationQuestion: null,
+  });
+});
+
 test('invalid JSON and unsupported methods still return the exact planner schema', async () => {
   const [invalidJson, wrongMethod] = await Promise.all([
     callMiddleware({ body: '{bad json' }),

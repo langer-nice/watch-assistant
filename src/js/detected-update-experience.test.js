@@ -32,6 +32,9 @@ const baseWatch = {
     discovery: 'news-search',
     url: 'https://news.google.com/rss/search?q=Broad+Peak',
   },
+  storyProfile: {
+    concepts: [{ label: 'rescue operation', type: 'manual' }],
+  },
   updates: [],
 };
 

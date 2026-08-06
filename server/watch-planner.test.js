@@ -87,6 +87,67 @@ test('plans a company name plus SIREN without requiring a monitoring verb', asyn
   }
 });
 
+test('plans supported Media Story URLs without running source discovery', async () => {
+  const requests = [
+    'https://www.bbc.com/news/articles/example',
+    'https://edition.cnn.com/2026/08/06/world/example',
+    'https://www.reuters.com/world/europe/example-2026-08-06/',
+    'https://www.lemonde.fr/international/article/2026/08/06/example.html',
+    'https://www.franceinfo.fr/monde/example_1234567.html',
+  ];
+
+  for (const request of requests) {
+    assert.deepEqual(await planWatch(request, {
+      companyOnly: true,
+      includeMediaStory: true,
+      discoverSource: async () => assert.fail('Media planning must not run RSS discovery.'),
+    }), {
+      strategy: 'media_story',
+      connector: 'media_story',
+      country: null,
+      identifier: request,
+      confidence: 0.9,
+      needsClarification: false,
+      clarificationQuestion: null,
+    });
+  }
+});
+
+test('migration scope leaves RSS and generic URLs on the existing route', async () => {
+  for (const request of [
+    'https://www.bbc.com/rss/news.xml',
+    'https://example.com/article',
+  ]) {
+    assert.deepEqual(await planWatch(request, {
+      companyOnly: true,
+      includeMediaStory: true,
+      discoverSource: async () => assert.fail('Migration scope must not run RSS discovery.'),
+    }), {
+      strategy: 'web_search',
+      connector: 'web_ai',
+      country: null,
+      identifier: null,
+      confidence: 0.5,
+      needsClarification: false,
+      clarificationQuestion: null,
+    });
+  }
+});
+
+test('legacy Company-only Planner scope does not claim Media Story URLs', async () => {
+  assert.deepEqual(await planWatch('https://www.bbc.com/news/articles/example', {
+    companyOnly: true,
+  }), {
+    strategy: 'web_search',
+    connector: 'web_ai',
+    country: null,
+    identifier: null,
+    confidence: 0.5,
+    needsClarification: false,
+    clarificationQuestion: null,
+  });
+});
+
 test('does not plan invalid or random standalone numbers as French companies', async () => {
   for (const request of ['123456789', '905266525', '12345678', '1234567890']) {
     const plan = await planWatch(request, { companyOnly: true });
@@ -175,6 +236,7 @@ test('returns a complete unknown decision for empty and ambiguous company reques
 test('every planning outcome has the same stable schema and numeric confidence', async () => {
   const outcomes = await Promise.all([
     planWatch('Monitor company 905266524'),
+    planWatch('https://www.bbc.com/news/articles/example'),
     planWatch('Monitor Monaco company'),
     planWatch('Monitor energy news', { discoverSource: rssDiscovery }),
     planWatch('Monitor energy news', { discoverSource: noDiscovery }),

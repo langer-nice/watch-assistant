@@ -77,10 +77,7 @@ test('Story Summary uses the standard padded detail-card alignment at all breakp
   );
   assert.match(styles, /\.detail-card__take\s*\{[\s\S]*?padding:\s*var\(--space-lg\)/);
   assert.match(styles, /@media \(min-width: 36rem\)[\s\S]*?\.detail-card__primary,[\s\S]*?\.detail-card__take\s*\{[\s\S]*?padding-inline:\s*var\(--space-xl\)/);
-  assert.match(
-    html,
-    /id="watchStorySummary"[\s\S]*?id="watchAnalysisProvenance"[^>]*hidden/,
-  );
+  assert.doesNotMatch(html, /watchAnalysisProvenance|detail-analysis-provenance/);
 });
 
 test('Story Identifiers uses one full-width row per selected concept at every width', async () => {
@@ -162,17 +159,19 @@ test('URL creation synchronises a manually edited identifier set into the stored
   assert.match(derivation, /storyProfile,/);
 });
 
-test('Watch Detail hides successful AI provenance but presents fallback as a styled warning', async () => {
-  const [html, styles, navigation] = await Promise.all([
+test('Watch Detail never presents internal analysis provenance or fallback failures', async () => {
+  const [html, styles, navigation, english, french] = await Promise.all([
     readFile(new URL('../../watch-detail.html', import.meta.url), 'utf8'),
     readFile(new URL('../scss/pages/_watch-detail.scss', import.meta.url), 'utf8'),
     readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
+    readFile(new URL('../locales/en.json', import.meta.url), 'utf8'),
+    readFile(new URL('../locales/fr.json', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(html, /id="watchAnalysisProvenance" role="status" hidden/);
-  assert.match(navigation, /messageKey === 'detail\.analysisProvenanceFallback'/);
-  assert.doesNotMatch(navigation, /SHOW_ANALYSIS_PROVENANCE/);
-  assert.match(styles, /\.detail-card__take \.detail-analysis-provenance\s*\{[\s\S]*?background:\s*var\(--color-attention-tint\)/);
+  for (const source of [html, styles, navigation, english, french]) {
+    assert.doesNotMatch(source, /watchAnalysisProvenance|detail-analysis-provenance|analysisProvenanceFallback/);
+  }
+  assert.doesNotMatch(`${english}\n${french}`, /AI analysis was unavailable|limited fallback analysis|configuration missing|provider failure/i);
 });
 
 test('Watch Detail omits missing-feed technical copy without removing monitoring controls', async () => {

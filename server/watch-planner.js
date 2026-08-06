@@ -1,4 +1,5 @@
 import { parseCompanyWatchRequest } from '../src/js/company-watch-request.js';
+import { parseMediaStoryRequest } from '../src/js/media-story-request.js';
 import { discoverTextMonitoringSource } from './monitoring-source-api.js';
 
 const UNKNOWN_QUESTION = 'What would you like to monitor?';
@@ -71,6 +72,22 @@ export const planWatch = async (request, options = {}) => {
       clarificationQuestion: COMPANY_QUESTIONS[companyRequest.reason]
         || 'What is the valid 9-digit SIREN for this company?',
     });
+  }
+
+  const includeMediaStory = options.includeMediaStory === true
+    || (options.companyOnly !== true && options.includeMediaStory !== false);
+  if (includeMediaStory) {
+    const mediaStoryRequest = parseMediaStoryRequest(request);
+    if (mediaStoryRequest.recognized) {
+      return createPlannerDecision({
+        strategy: 'media_story',
+        connector: 'media_story',
+        identifier: mediaStoryRequest.url,
+        confidence: 0.9,
+        needsClarification: false,
+        clarificationQuestion: null,
+      });
+    }
   }
 
   if (options.companyOnly) {

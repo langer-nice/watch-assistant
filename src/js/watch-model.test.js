@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  getAnalysisProvenanceMessageKey,
   getMonitoringHealthPresentation,
   migrateWatchModel,
   WATCH_MODEL_VERSION,
 } from './watch-model.js';
 
-test('preserves analysis provenance and selects only the Preview diagnostic copy', () => {
+test('preserves analysis provenance only as internal diagnostic metadata', () => {
   const provenance = {
     analysisProvider: 'deterministic',
     analysisStatus: 'fallback',
@@ -21,11 +20,6 @@ test('preserves analysis provenance and selects only the Preview diagnostic copy
     Object.fromEntries(Object.keys(provenance).map((key) => [key, watch[key]])),
     provenance,
   );
-  assert.equal(getAnalysisProvenanceMessageKey(watch), 'detail.analysisProvenanceFallback');
-  assert.equal(getAnalysisProvenanceMessageKey({
-    analysisProvider: 'openai', analysisStatus: 'success',
-  }), 'detail.analysisProvenanceAi');
-  assert.equal(getAnalysisProvenanceMessageKey({}), null);
 });
 
 test('normalizes persisted check-attempt state without changing successful history', () => {
@@ -343,6 +337,84 @@ test('category and Story Profile migration is idempotent', () => {
   const second = migrateWatchModel(first);
   assert.deepEqual(second.watch, first);
   assert.equal(second.migrated, false);
+});
+
+test('a classified non-article webpage never receives a Story Profile during migration', () => {
+  const watch = migrateWatchModel({
+    id: 'bbc-homepage',
+    inputType: 'url',
+    pageType: 'homepage',
+    isStory: false,
+    analysisProvider: 'deterministic',
+    analysisStatus: 'classified',
+    sourceTitle: 'BBC - Home',
+    sourceUrl: 'https://www.bbc.com/',
+    storyFingerprint: [],
+    storyProfile: null,
+  }).watch;
+
+  assert.equal(watch.pageType, 'homepage');
+  assert.equal(watch.isStory, false);
+  assert.equal(watch.analysisStatus, 'classified');
+  assert.equal(watch.storyProfile, null);
+  assert.deepEqual(watch.storyFingerprint, []);
+  assert.deepEqual(watch.keywords, []);
+});
+
+test('preserves access-limited article metadata without changing its Story or monitoring state', () => {
+  const watch = migrateWatchModel({
+    id: 'access-limited-story',
+    inputType: 'url',
+    pageType: 'article',
+    isStory: true,
+    contentAccessLimited: true,
+    sourceTitle: 'Une boulangerie visée par une fermeture administrative à Nice',
+    storyFingerprint: [{ label: 'Fermeture administrative', type: 'event' }],
+    storyProfile: {
+      concepts: [{ label: 'Fermeture administrative', type: 'event' }],
+      storySummary: 'La boulangerie fait l’objet d’une fermeture administrative.',
+    },
+    monitoringSource: {
+      url: 'https://example.com/feed.xml', type: 'rss', discovery: 'automatic',
+    },
+  }).watch;
+
+  assert.equal(watch.contentAccessLimited, true);
+  assert.equal(watch.isStory, true);
+  assert.deepEqual(watch.storyFingerprint, [
+    { label: 'Fermeture administrative', type: 'event' },
+  ]);
+  assert.equal(watch.monitoringSource.url, 'https://example.com/feed.xml');
+});
+
+test('legacy publisher home, section and category URLs lose fabricated Story state', () => {
+  for (const [sourceUrl, pageType] of [
+    ['https://www.bbc.com/', 'homepage'],
+    ['https://www.bbc.com/news', 'news_section'],
+    ['https://www.bbc.com/sport', 'category_page'],
+  ]) {
+    const { watch } = migrateWatchModel({
+      id: `legacy-${pageType}`,
+      inputType: 'url',
+      sourceUrl,
+      sourceTitle: 'BBC page',
+      storyFingerprint: [{ label: 'Top Stories', type: 'event' }],
+      storyProfile: {
+        concepts: [{ label: 'Top Stories', type: 'event' }],
+        storySummary: 'Fabricated from page cards.',
+      },
+      keywords: ['Top Stories'],
+      selectedKeywords: ['Top Stories'],
+      updates: [],
+    });
+
+    assert.equal(watch.pageType, pageType);
+    assert.equal(watch.isStory, false);
+    assert.equal(watch.storyProfile, null);
+    assert.deepEqual(watch.storyFingerprint, []);
+    assert.deepEqual(watch.keywords, []);
+    assert.deepEqual(watch.selectedKeywords, []);
+  }
 });
 
 test('preserves a validated BODACC monitoring source without changing the model version', () => {

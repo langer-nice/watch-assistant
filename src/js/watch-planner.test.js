@@ -3,7 +3,10 @@ import test from 'node:test';
 import {
   COMPANY_PLAN_ROUTES,
   getCompanyPlanRoute,
+  getMediaStoryPlanRoute,
   isFrenchCompanyPlan,
+  isMediaStoryPlan,
+  MEDIA_STORY_PLAN_ROUTES,
   normalizeWatchPlan,
   requestWatchPlan,
   WatchPlannerError,
@@ -19,7 +22,7 @@ const frenchCompanyPlan = {
   clarificationQuestion: null,
 };
 
-test('requests the company-scoped Planner decision without changing the request', async () => {
+test('requests one migrated-route Planner decision without changing the request', async () => {
   const calls = [];
   const plan = await requestWatchPlan('Monitor company SIREN 905329314', {
     fetchImpl: async (path, options) => {
@@ -30,15 +33,64 @@ test('requests the company-scoped Planner decision without changing the request'
 
   assert.deepEqual(plan, frenchCompanyPlan);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].path, '/api/plan-watch?scope=official_company');
+  assert.equal(calls[0].path, '/api/plan-watch?scope=migrated_routes');
   assert.deepEqual(JSON.parse(calls[0].options.body), {
     request: 'Monitor company SIREN 905329314',
   });
   assert.equal(calls[0].options.method, 'POST');
 });
 
+test('only an exact Media Story decision enters the migrated media pipeline', () => {
+  const request = 'https://www.bbc.com/news/articles/example';
+  const plan = {
+    strategy: 'media_story',
+    connector: 'media_story',
+    country: null,
+    identifier: request,
+    confidence: 0.9,
+    needsClarification: false,
+    clarificationQuestion: null,
+  };
+
+  assert.equal(isMediaStoryPlan(request, plan), true);
+  assert.equal(getMediaStoryPlanRoute(request, plan), MEDIA_STORY_PLAN_ROUTES.REVIEW);
+  for (const forged of [
+    null,
+    { ...plan, connector: 'web_ai' },
+    { ...plan, identifier: 'https://www.bbc.com/news/articles/other' },
+    { ...plan, country: 'GB' },
+  ]) {
+    assert.equal(
+      getMediaStoryPlanRoute(request, forged),
+      MEDIA_STORY_PLAN_ROUTES.GUIDANCE,
+    );
+  }
+});
+
+test('RSS and generic URLs retain their existing non-media route', () => {
+  for (const request of [
+    'https://example.com/article',
+    'https://www.bbc.com/rss/news.xml',
+  ]) {
+    assert.equal(
+      getMediaStoryPlanRoute(request, null),
+      MEDIA_STORY_PLAN_ROUTES.CONTINUE,
+    );
+  }
+});
+
 test('accepts only a complete normalized Planner response', async () => {
   assert.deepEqual(normalizeWatchPlan(frenchCompanyPlan), frenchCompanyPlan);
+  const mediaPlan = {
+    strategy: 'media_story',
+    connector: 'media_story',
+    country: null,
+    identifier: 'https://www.bbc.com/news/articles/example',
+    confidence: 0.9,
+    needsClarification: false,
+    clarificationQuestion: null,
+  };
+  assert.deepEqual(normalizeWatchPlan(mediaPlan), mediaPlan);
   assert.equal(normalizeWatchPlan({ ...frenchCompanyPlan, connector: 'other' }), null);
   assert.equal(normalizeWatchPlan({ ...frenchCompanyPlan, identifier: 905329314 }), null);
   assert.equal(normalizeWatchPlan({ ...frenchCompanyPlan, confidence: Number.NaN }), null);

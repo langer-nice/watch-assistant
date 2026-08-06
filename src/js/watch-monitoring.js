@@ -123,20 +123,6 @@ export const matchFeedItemToStory = (item, storyProfile) => {
   };
 };
 
-const isValidatedNewsSearchSource = (source) => {
-  if (source?.discovery !== 'news-search') return false;
-  try {
-    const url = new URL(source.url);
-    return url.origin === 'https://news.google.com'
-      && !url.username
-      && !url.password
-      && url.pathname === '/rss/search'
-      && Boolean(url.searchParams.get('q'));
-  } catch {
-    return false;
-  }
-};
-
 const getValidatedBodaccSiren = (source) => (
   source?.type === 'bodacc'
   && source?.provider === 'dila'
@@ -156,16 +142,6 @@ export const matchFeedItemToWatch = (item, watch, { trustedSourceType = null } =
         field: 'monitoringSource',
         strength: 'strong',
         label: `BODACC SIREN ${bodaccSiren}`,
-      }],
-    };
-  }
-  if (isValidatedNewsSearchSource(watch?.monitoringSource)) {
-    return {
-      matched: true,
-      evidence: [{
-        field: 'monitoringSource',
-        strength: 'strong',
-        label: watch.request || watch.title || 'News search',
       }],
     };
   }

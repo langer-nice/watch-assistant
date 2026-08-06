@@ -17,6 +17,11 @@ import {
 import { normalizeCompanyName } from './company-watch-title.js';
 import { normalizeCompanyStatus } from './company-watch-status.js';
 import { normalizeAdministrativeStatus } from './company-administrative-status.js';
+import {
+  classifyPage,
+  isStoryPageType,
+  normalizePageType,
+} from './page-classification.js';
 
 export const WATCH_MODEL_VERSION = 10;
 
@@ -52,16 +57,6 @@ export const getMonitoringHealthPresentation = (watch) => {
   return null;
 };
 
-export const getAnalysisProvenanceMessageKey = (watch) => {
-  if (watch?.analysisProvider === 'openai' && watch?.analysisStatus === 'success') {
-    return 'detail.analysisProvenanceAi';
-  }
-  if (watch?.analysisProvider === 'deterministic' && watch?.analysisStatus === 'fallback') {
-    return 'detail.analysisProvenanceFallback';
-  }
-  return null;
-};
-
 const newestUpdateAt = (updates) => (Array.isArray(updates) ? updates : [])
   .map((item) => item?.detectedAt || item?.publishedAt)
   .filter((value) => value && !Number.isNaN(Date.parse(value)))
@@ -90,6 +85,16 @@ export const migrateWatchModel = (watch) => {
   if (!watch || typeof watch !== 'object') return { watch, migrated: false };
   const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
   const bodaccMonitoringSource = normalizeBodaccMonitoringSource(watch.monitoringSource);
+  const storedPageType = normalizePageType(watch.pageType);
+  const inferredPageType = watch.inputType === 'url'
+    ? storedPageType || classifyPage({ sourceUrl: watch.sourceUrl || watch.request })
+    : null;
+  const hasDeterministicNonStoryType = inferredPageType
+    && inferredPageType !== 'generic_webpage'
+    && !isStoryPageType(inferredPageType);
+  const isStory = watch.inputType === 'url'
+    ? !(watch.isStory === false || hasDeterministicNonStoryType)
+    : null;
   const company = watch.inputType === 'company' && bodaccMonitoringSource
     ? {
       siren: bodaccMonitoringSource.siren,
@@ -178,7 +183,7 @@ export const migrateWatchModel = (watch) => {
       selectionWasManuallyEdited
       || explicitlyManualLabels.has(label.toLocaleLowerCase())
     )), ...rejectedAutomaticLabels];
-  const storyProfile = watch.inputType === 'url'
+  const storyProfile = watch.inputType === 'url' && isStory
     ? createStoryProfile({
       storyFingerprint: migratedFingerprint,
       profile: {
@@ -195,7 +200,7 @@ export const migrateWatchModel = (watch) => {
       publishedAt: watch.storyProfile?.sourceArticle?.publishedAt || watch.sourcePublishedAt,
       extractedAt: watch.storyProfile?.extractedAt || watch.createdAt,
     })
-    : watch.storyProfile || null;
+    : watch.inputType === 'url' ? null : watch.storyProfile || null;
   const migratedLabels = storyProfile?.concepts?.map(({ label }) => label) || [];
   const missingSource = watch.inputType === 'url' && !feedUrl;
   const legacyTechnicalReason = [
@@ -258,7 +263,7 @@ export const migrateWatchModel = (watch) => {
     analysisProvider: ['openai', 'deterministic'].includes(watch.analysisProvider)
       ? watch.analysisProvider
       : null,
-    analysisStatus: ['success', 'fallback', 'failed'].includes(watch.analysisStatus)
+    analysisStatus: ['success', 'fallback', 'failed', 'classified'].includes(watch.analysisStatus)
       ? watch.analysisStatus
       : null,
     analysisModel: typeof watch.analysisModel === 'string' ? watch.analysisModel : null,
@@ -281,6 +286,9 @@ export const migrateWatchModel = (watch) => {
     feedUrl,
     storyProfile,
     ...(watch.inputType === 'url' ? {
+      pageType: inferredPageType,
+      isStory,
+      contentAccessLimited: watch.contentAccessLimited === true,
       storyFingerprint: storyProfile?.concepts || [],
       keywords: migratedLabels,
       selectedKeywords: migratedLabels,

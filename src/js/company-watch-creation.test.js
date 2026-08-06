@@ -21,7 +21,7 @@ test('the reported GARIBALDI request enters Company review through the Planner',
     /form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/,
   )?.[0] || '';
   const companyBranch = submitFlow.slice(
-    submitFlow.indexOf('let companyPlan = null'),
+    submitFlow.indexOf('let watchPlan = null'),
     submitFlow.indexOf('if (isUrl(request))'),
   );
 
@@ -34,7 +34,7 @@ test('the reported GARIBALDI request enters Company review through the Planner',
   });
   assert.match(
     companyBranch,
-    /requestWatchPlan\(request\)[\s\S]*?getCompanyPlanRoute\(request, companyPlan\)[\s\S]*?COMPANY_PLAN_ROUTES\.REVIEW[\s\S]*?startCompanyReview\([\s\S]*?companyPlan\.identifier,[\s\S]*?extractCompanyNameFromRequest\(request, companyPlan\.identifier\)/,
+    /requestWatchPlan\(request\)[\s\S]*?getCompanyPlanRoute\(request, watchPlan\)[\s\S]*?COMPANY_PLAN_ROUTES\.REVIEW[\s\S]*?startCompanyReview\([\s\S]*?watchPlan\.identifier,[\s\S]*?extractCompanyNameFromRequest\(request, watchPlan\.identifier\)/,
   );
   assert.doesNotMatch(
     companyBranch,
@@ -85,7 +85,7 @@ test('the Planner is the only route into Company review and remains before all o
   )?.[0] || '';
   const plannerIndex = submitFlow.indexOf('requestWatchPlan(request)');
   const reviewIndex = submitFlow.indexOf('startCompanyReview(');
-  const routeIndex = submitFlow.indexOf('getCompanyPlanRoute(request, companyPlan)');
+  const routeIndex = submitFlow.indexOf('getCompanyPlanRoute(request, watchPlan)');
   const urlIndex = submitFlow.indexOf('if (isUrl(request))');
   const clarificationIndex = submitFlow.indexOf('clarifyWatchRequest(request');
 
@@ -99,7 +99,7 @@ test('the Planner is the only route into Company review and remains before all o
     /parseCompanyWatchRequest\(request\)[\s\S]*?startCompanyReview/,
   );
   const companyBranch = submitFlow.slice(
-    submitFlow.indexOf('let companyPlan = null'),
+    submitFlow.indexOf('let watchPlan = null'),
     submitFlow.indexOf('if (isUrl(request))'),
   );
   assert.doesNotMatch(companyBranch, /analyseUrl|clarifyWatchRequest|requestMonitoringSource/);
@@ -224,7 +224,8 @@ test('Company review Edit preserves the request and Cancel creates nothing', asy
   assert.match(editFlow, /resetUrlFlow\(\{ clearInput: false \}\)/);
   assert.match(editFlow, /input\?\.focus\(\)/);
   assert.doesNotMatch(editFlow, /addWatch|completeWatchCreation/);
-  assert.match(cancelFlow, /resetUrlFlow\(\{ clearInput: true, trackCancellation: true \}\)/);
+  assert.match(cancelFlow, /clearInput: pendingAnalysis\?\.status === 'success'/);
+  assert.match(cancelFlow, /trackCancellation: true/);
   assert.doesNotMatch(cancelFlow, /addWatch|completeWatchCreation/);
 });
 

@@ -78,7 +78,29 @@ test('Edit preserves review values and Cancel exits through the validated reset 
 
   assert.match(editHandler, /setReviewEditing\(!review\?\.classList\.contains\('is-editing'\)\)/);
   assert.doesNotMatch(editHandler, /reviewTitle\.value|reviewSummary\.value|resetUrlFlow/);
-  assert.match(cancelHandler, /resetUrlFlow\(\{ clearInput: true, trackCancellation: true \}\)/);
+  assert.match(cancelHandler, /clearInput: pendingAnalysis\?\.status === 'success'/);
+  assert.match(cancelHandler, /trackCancellation: true/);
+});
+
+test('Media Story Edit and Save preserve overview, monitoring scope and identifiers', async () => {
+  const navigation = await read('./navigation.js');
+  const initialization = navigation.match(
+    /pendingAnalysis = editingWatch\.inputType === 'url'[\s\S]*?: null;/,
+  )?.[0] || '';
+  const createHandler = navigation.match(
+    /reviewCreate\?\.addEventListener\('click'[\s\S]*?reviewCancel\?\.addEventListener/,
+  )?.[0] || '';
+  const updateFlow = navigation.match(
+    /const completeWatchUpdate = async[\s\S]*?const getCreateOptions/,
+  )?.[0] || '';
+
+  assert.match(initialization, /summary: editingWatch\.storyProfile\?\.storySummary/);
+  assert.match(initialization, /monitoringScope: editingWatch\.monitoringSummary/);
+  assert.match(initialization, /storyFingerprint: editingWatch\.storyFingerprint/);
+  assert.match(createHandler, /storySummary: reviewSummary\.value\.trim\(\)/);
+  assert.match(updateFlow, /storyProfile: keywordsManuallyEdited[\s\S]*?: derivedData\.storyProfile/);
+  assert.match(updateFlow, /monitoringSummary: derivedData\.monitoringSummary/);
+  assert.match(updateFlow, /storyFingerprint: derivedData\.storyFingerprint/);
 });
 
 test('mobile confirmation actions remain clickable and width-safe at 500px and below', async () => {

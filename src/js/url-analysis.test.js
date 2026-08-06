@@ -319,6 +319,10 @@ test('successful perimenopause AI analysis survives client normalization without
     assert.equal(result.analysisStatus, 'success');
     assert.equal(result.analysisModel, 'gpt-5.6-luna');
     assert.equal(result.summary, summary);
+    assert.equal(
+      result.monitoringScope,
+      'Monitor evidence and advice about brain fog during perimenopause.',
+    );
     assert.deepEqual(result.storyProfile.primaryPeople, []);
     assert.deepEqual(result.storyProfile.distinctiveFacts, recommendations);
     assert.deepEqual(result.storyProfile.concepts, [
@@ -334,6 +338,267 @@ test('successful perimenopause AI analysis survives client normalization without
   }
 });
 
+test('progressive analysis returns local Review data without waiting for one in-flight AI request', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const requestBodies = [];
+  let releaseSuggestion;
+  const suggestionResponse = new Promise((resolve) => {
+    releaseSuggestion = () => resolve({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        watchTitle: 'Ukraine missile strike',
+        watchingFor: 'Monitor casualty updates, official announcements and air-defence support.',
+        description: 'Tracks significant follow-up reporting about the strike.',
+        storyFingerprint: [{ label: 'Kyiv', type: 'location' }],
+        storyProfile: {
+          primaryPeople: [], otherPeople: [], peopleRoles: [],
+          locations: ['Kyiv', 'Ukraine'], organizations: [],
+          eventTypes: ['Missile strike'], distinctiveFacts: [], aliases: [],
+          uncertaintyPhrases: [],
+          storySummary: 'A missile strike caused casualties in Ukraine as officials requested additional air-defence support.',
+        },
+        analysisProvider: 'openai',
+        analysisStatus: 'success',
+        analysisModel: 'gpt-5.6-luna',
+        fallbackReasonCode: null,
+        analyzedAt: '2026-08-05T12:00:00.000Z',
+        analysisDiagnosticId: 'diagnostic-progressive',
+      }),
+    });
+  });
+  globalThis.fetch = async (path, options) => {
+    calls.push(path);
+    requestBodies.push(JSON.parse(options.body));
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'Strike causes casualties as Ukraine requests interceptors',
+          description: 'A missile strike caused casualties in Ukraine.',
+          articleText: 'A missile strike caused casualties in Ukraine. Officials requested more interceptor systems.',
+          siteName: 'BBC News',
+          sourceUrl: 'https://www.bbc.com/news/articles/progressive-example',
+        }),
+      };
+    }
+    return suggestionResponse;
+  };
+
+  try {
+    const immediate = await analyseUrl(
+      'https://www.bbc.com/news/articles/progressive-example',
+      { progressive: true },
+    );
+
+    assert.equal(immediate.analysisProvider, 'deterministic');
+    assert.ok(immediate.summary);
+    assert.ok(immediate.monitoringScope);
+    assert.ok(immediate.enhancement instanceof Promise);
+    assert.deepEqual(calls, ['/api/page-title', '/api/watch-suggestion']);
+    assert.equal(
+      requestBodies[0].url,
+      'https://www.bbc.com/news/articles/progressive-example',
+    );
+    assert.equal(immediate.source, 'BBC News');
+    assert.equal(immediate.sourceUrl, 'https://www.bbc.com/news/articles/progressive-example');
+    assert.equal(Object.keys(immediate).includes('enhancement'), false);
+
+    releaseSuggestion();
+    const enhanced = await immediate.enhancement;
+    assert.equal(enhanced.analysisProvider, 'openai');
+    assert.equal(enhanced.analysisDiagnosticId, 'diagnostic-progressive');
+    assert.equal(
+      enhanced.summary,
+      'A missile strike caused casualties in Ukraine as officials requested additional air-defence support.',
+    );
+    assert.equal(
+      enhanced.monitoringScope,
+      'Monitor casualty updates, official announcements and air-defence support.',
+    );
+    assert.ok(enhanced.storyFingerprint.length > 1);
+    assert.deepEqual(calls, ['/api/page-title', '/api/watch-suggestion']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('page-title success plus watch-suggestion 503 keeps the valid local Review unchanged', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const calls = [];
+  console.warn = () => {};
+  globalThis.fetch = async (path) => {
+    calls.push(path);
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'Brain fog and four easy ways to help fix it',
+          description: 'BBC explains practical ways to manage brain fog.',
+          articleText: 'Brain fog can affect concentration. The article describes practical ways to manage it.',
+          siteName: 'BBC News',
+          sourceUrl: 'https://www.bbc.com/news/articles/c87ydw7xdxvo',
+          monitoringSource: {
+            url: 'https://feeds.example.com/bbc-story.xml',
+            type: 'rss',
+            title: 'BBC story monitoring',
+            discovery: 'automatic',
+          },
+        }),
+      };
+    }
+    return {
+      ok: false,
+      status: 503,
+      json: async () => ({
+        error: 'AI article analysis was unavailable.',
+        analysisProvider: 'openai',
+        analysisStatus: 'failed',
+        fallbackReasonCode: 'configuration_missing',
+      }),
+    };
+  };
+
+  try {
+    const localReview = await analyseUrl(
+      'https://www.bbc.com/news/articles/c87ydw7xdxvo',
+      { progressive: true },
+    );
+    const visibleReview = {
+      status: localReview.status,
+      title: localReview.title,
+      summary: localReview.summary,
+      monitoringScope: localReview.monitoringScope,
+      source: localReview.source,
+      sourceUrl: localReview.sourceUrl,
+    };
+
+    assert.equal(localReview.status, 'success');
+    assert.equal(localReview.title, 'Brain fog and four easy ways to help fix it');
+    assert.equal(localReview.source, 'BBC News');
+    assert.ok(localReview.summary);
+    assert.ok(localReview.monitoringScope);
+    assert.equal(await localReview.enhancement, null);
+    assert.deepEqual({
+      status: localReview.status,
+      title: localReview.title,
+      summary: localReview.summary,
+      monitoringScope: localReview.monitoringScope,
+      source: localReview.source,
+      sourceUrl: localReview.sourceUrl,
+    }, visibleReview);
+    assert.deepEqual(calls, ['/api/page-title', '/api/watch-suggestion']);
+  } finally {
+    console.warn = originalWarn;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('AI-unavailable political metadata produces a rich local Review without duplicate requests', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const calls = [];
+  console.warn = () => {};
+  globalThis.fetch = async (path) => {
+    calls.push(path);
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: "Abdul El-Sayed's victory sends tremors through Democratic Party",
+          description: 'The left-wing candidate won the Democratic nomination in Michigan and will contest the November election.',
+          articleText: "Abdul El-Sayed won the Democratic nomination in Michigan. His victory has consequences for the Democratic Party ahead of the November election.",
+          siteName: 'BBC News',
+          sourceUrl: 'https://www.bbc.com/news/articles/political-fallback',
+          monitoringSource: {
+            url: 'https://feeds.example.com/bbc-politics.xml',
+            type: 'rss',
+            title: 'BBC politics monitoring',
+            discovery: 'automatic',
+          },
+        }),
+      };
+    }
+    return {
+      ok: false,
+      status: 503,
+      json: async () => ({
+        error: 'AI article analysis was unavailable.',
+        analysisProvider: 'openai',
+        analysisStatus: 'failed',
+        fallbackReasonCode: 'configuration_missing',
+      }),
+    };
+  };
+
+  try {
+    const review = await analyseUrl(
+      'https://www.bbc.com/news/articles/political-fallback',
+      { progressive: true },
+    );
+    assert.equal(await review.enhancement, null);
+    assert.equal(review.status, 'success');
+    assert.match(review.summary, /Democratic nomination|November election/);
+    assert.deepEqual(review.storyFingerprint, [
+      { label: 'Abdul El-Sayed', type: 'person' },
+      { label: 'November election', type: 'event' },
+      { label: 'Democratic Party', type: 'organization' },
+      { label: 'Michigan', type: 'location' },
+      { label: 'Left-wing candidate', type: 'phenomenon' },
+    ]);
+    assert.match(review.monitoringScope, /Abdul El-Sayed/);
+    assert.match(review.monitoringScope, /Democratic Party/);
+    assert.match(review.monitoringScope, /November election/);
+    assert.match(review.monitoringScope, /election and campaign developments/);
+    assert.deepEqual(calls, ['/api/page-title', '/api/watch-suggestion']);
+  } finally {
+    console.warn = originalWarn;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a total BBC page failure preserves publisher and original URL without starting AI', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const calls = [];
+  console.warn = () => {};
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, body: JSON.parse(options.body) });
+    return {
+      ok: false,
+      status: 502,
+      json: async () => ({ error: 'The article could not be retrieved.' }),
+    };
+  };
+
+  const sourceUrl = 'https://www.bbc.com/news/articles/unavailable-example?edition=uk';
+  try {
+    await assert.rejects(
+      analyseUrl(sourceUrl, { progressive: true }),
+      (error) => {
+        assert.deepEqual(error.partialAnalysis, {
+          source: 'BBC News',
+          sourceName: 'BBC News',
+          sourceUrl,
+        });
+        return true;
+      },
+    );
+    assert.deepEqual(calls, [{
+      path: '/api/page-title',
+      body: { url: sourceUrl },
+    }]);
+  } finally {
+    console.warn = originalWarn;
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('client fallback records the safe server reason and diagnostic ID', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (path) => path === '/api/page-title'
@@ -344,6 +609,7 @@ test('client fallback records the safe server reason and diagnostic ID', async (
         title: 'Open water swimming is booming – but what are the health risks?',
         articleText: 'Open water swimming is growing in popularity while contaminated water creates health risks.',
         sourceUrl: 'https://example.com/story',
+        pageType: 'article',
       }),
     }
     : {
@@ -364,8 +630,573 @@ test('client fallback records the safe server reason and diagnostic ID', async (
     assert.equal(result.analysisModel, null);
     assert.equal(result.fallbackReasonCode, 'missing_api_key');
     assert.equal(result.analysisDiagnosticId, 'diagnostic-fallback');
+    assert.ok(result.monitoringScope);
+    assert.notEqual(result.monitoringScope, result.summary);
   } finally {
     console.warn = originalWarn;
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('homepage, section, category and search classifications stop before Story extraction', async () => {
+  const originalFetch = globalThis.fetch;
+  const pageTypes = new Map([
+    ['https://www.bbc.com/', ['homepage', 'BBC - Home']],
+    ['https://www.bbc.com/news', ['news_section', 'BBC News']],
+    ['https://www.bbc.com/sport', ['category_page', 'BBC Sport']],
+    ['https://www.bbc.com/search?q=Michigan', ['search_page', 'BBC Search']],
+    ['https://edition.cnn.com/', ['homepage', 'CNN']],
+    ['https://www.lemonde.fr/', ['homepage', 'Le Monde']],
+    ['https://www.franceinfo.fr/', ['homepage', 'France Info']],
+  ]);
+  const calls = [];
+  globalThis.fetch = async (path, options) => {
+    const body = JSON.parse(options.body);
+    calls.push({ path, body });
+    assert.equal(path, '/api/page-title');
+    const [pageType, title] = pageTypes.get(body.url);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        title,
+        description: 'A collection of unrelated headlines and navigation links.',
+        articleText: 'Save Football Daily Scottish. Yaroslavl. Markets. Weather. Culture.',
+        siteName: title,
+        sourceUrl: body.url,
+        pageType,
+      }),
+    };
+  };
+
+  try {
+    for (const [url, [pageType]] of pageTypes) {
+      const result = await analyseUrl(url, { progressive: true });
+      assert.equal(result.status, 'success');
+      assert.equal(result.pageType, pageType);
+      assert.equal(result.isStory, false);
+      assert.equal(result.storyProfile, null);
+      assert.deepEqual(result.storyFingerprint, []);
+      assert.deepEqual(result.keywords, []);
+      assert.equal(result.monitoringScope, '');
+      assert.equal('enhancement' in result, false);
+    }
+    assert.equal(calls.length, pageTypes.size);
+    assert.equal(calls.some(({ path }) => path === '/api/watch-suggestion'), false);
+    assert.equal(
+      (await analyseUrl('https://www.bbc.com/')).summary,
+      'This appears to be a news homepage rather than a single news story.',
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('classified BBC and Reuters articles retain Story analysis without duplicate requests', async () => {
+  const originalFetch = globalThis.fetch;
+  const articleUrls = [
+    'https://www.bbc.com/news/articles/cp309ng0xq1o',
+    'https://www.reuters.com/world/us/example-2026-08-06/',
+  ];
+  const calls = [];
+  globalThis.fetch = async (path, options) => {
+    const body = JSON.parse(options.body);
+    calls.push({ path, body });
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'Abdul El-Sayed wins a Democratic Senate primary',
+          description: 'The candidate won the Democratic nomination.',
+          articleText: 'Abdul El-Sayed won the Democratic nomination and will contest the Senate election.',
+          author: 'Example Reporter',
+          publishedAt: '2026-08-06T08:00:00Z',
+          siteName: body.url.includes('reuters.com') ? 'Reuters' : 'BBC News',
+          sourceUrl: body.url,
+          pageType: 'article',
+        }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        watchTitle: 'Abdul El-Sayed Senate primary victory',
+        watchingFor: 'Monitor significant developments in the Senate campaign.',
+        description: 'Tracks significant campaign developments.',
+        storyFingerprint: [{ label: 'Abdul El-Sayed', type: 'person' }],
+        storyProfile: {
+          primaryPeople: ['Abdul El-Sayed'], otherPeople: [], peopleRoles: [],
+          locations: [], organizations: ['Democratic Party'], eventTypes: ['Senate primary'],
+          distinctiveFacts: [], aliases: [], uncertaintyPhrases: [],
+          storySummary: 'Abdul El-Sayed won the Democratic nomination in a Senate primary.',
+        },
+        analysisProvider: 'openai',
+        analysisStatus: 'success',
+      }),
+    };
+  };
+
+  try {
+    for (const url of articleUrls) {
+      const result = await analyseUrl(url);
+      assert.equal(result.pageType, 'article');
+      assert.equal(result.isStory, true);
+      assert.deepEqual(result.storyFingerprint[0], {
+        label: 'Abdul El-Sayed',
+        type: 'person',
+      });
+      assert.ok(result.storyProfile);
+      assert.ok(result.monitoringScope);
+    }
+    assert.deepEqual(calls.map(({ path }) => path), [
+      '/api/page-title', '/api/watch-suggestion',
+      '/api/page-title', '/api/watch-suggestion',
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('BBC article evidence corrects weak AI entity types before Story Profile creation', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const url = 'https://www.bbc.com/news/articles/black-sea-campaign';
+  globalThis.fetch = async (path) => {
+    calls.push(path);
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: "In Odesa, no-one is safe from Russia's new Black Sea strike campaign",
+          description: 'Russian strikes on Odesa are targeting civilian infrastructure as the campaign against Ukraine expands.',
+          articleSubheading: 'Russian attacks are increasingly targeting Ukrainian ports.',
+          articleText: 'People in Odesa face repeated Russian strikes. Ukraine says Russia is expanding its Black Sea strike campaign against ports and civilian infrastructure. Yaroslav Petrenko described one damaged building.',
+          siteName: 'BBC News',
+          sourceUrl: url,
+          pageType: 'article',
+        }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        watchTitle: 'Black Sea strike campaign in Odesa',
+        watchingFor: 'Follow significant developments in the strike campaign.',
+        description: 'Tracks the continuing military campaign around Odesa.',
+        storyFingerprint: [
+          { label: 'Black Sea', type: 'person' },
+          { label: 'Yaroslav, Russia', type: 'location' },
+        ],
+        storyProfile: {
+          primaryPeople: ['Black Sea'], otherPeople: [], peopleRoles: [],
+          locations: ['Odesa'], organizations: ['Russia'], eventTypes: [],
+          distinctiveFacts: [], aliases: [], uncertaintyPhrases: [],
+          phenomena: [], conditions: [], symptoms: [],
+          storySummary: 'Russia is expanding a Black Sea strike campaign around Odesa.',
+        },
+        analysisProvider: 'openai',
+        analysisStatus: 'success',
+      }),
+    };
+  };
+
+  try {
+    const result = await analyseUrl(url);
+    const labels = result.storyFingerprint.map(({ label }) => label);
+    assert.ok(labels.includes('Black Sea strike campaign'));
+    assert.ok(labels.includes('Odesa'));
+    assert.ok(labels.includes('Russian strikes'));
+    assert.ok(labels.includes('Civilian infrastructure'));
+    assert.equal(result.storyFingerprint.some(({ label, type }) => (
+      label === 'Black Sea' && type === 'person'
+    )), false);
+    assert.equal(labels.some((label) => /Yaroslav/u.test(label)), false);
+    assert.deepEqual(result.storyProfile.concepts, result.storyFingerprint);
+    assert.deepEqual(calls, ['/api/page-title', '/api/watch-suggestion']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('BBC Cambridge article replaces malformed possessive identifiers with its Story Profile', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const url = 'https://www.bbc.com/news/articles/cambridge-plagiarism';
+  globalThis.fetch = async (path) => {
+    calls.push(path);
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'Cambridge professor at centre of plagiarism row resigns',
+          articleSubheading: 'Professor Jason Arday has left his post after an investigation.',
+          description: 'Jason Arday resigned from the University of Cambridge following plagiarism allegations raised by the Good Law Project.',
+          articleText: 'Professor Jason Arday has resigned from the University of Cambridge. The resignation follows a plagiarism investigation prompted by the Good Law Project. The university said it reviewed the allegations.',
+          siteName: 'BBC News', sourceUrl: url, pageType: 'article',
+        }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        watchTitle: 'Cambridge professor resigns after plagiarism row',
+        watchingFor: 'Follow the investigation and consequences of Jason Arday’s resignation.',
+        description: 'Tracks significant developments in the Cambridge plagiarism case.',
+        storyFingerprint: [
+          { label: "BBC's Today", type: 'person' },
+          { label: "Arday's", type: 'location' },
+        ],
+        storyProfile: {
+          primaryPeople: ['Jason Arday'], otherPeople: [], peopleRoles: [],
+          locations: [], organizations: ['University of Cambridge', 'Good Law Project'],
+          eventTypes: ['Plagiarism investigation', 'Resignation'],
+          distinctiveFacts: [], aliases: [], uncertaintyPhrases: [],
+          storySummary: 'Jason Arday resigned from the University of Cambridge following plagiarism allegations.',
+        },
+        analysisProvider: 'openai', analysisStatus: 'success',
+      }),
+    };
+  };
+
+  try {
+    const result = await analyseUrl(url);
+    assert.deepEqual(result.storyFingerprint, [
+      { label: 'Jason Arday resignation', type: 'event' },
+      { label: 'Jason Arday', type: 'person' },
+      { label: 'Plagiarism investigation', type: 'event' },
+      { label: 'University of Cambridge', type: 'organization' },
+      { label: 'Good Law Project', type: 'organization' },
+    ]);
+    assert.deepEqual(result.storyProfile.concepts, result.storyFingerprint);
+    assert.equal(JSON.stringify(result).includes("BBC's Today"), false);
+    assert.equal(JSON.stringify(result).includes("Arday's"), false);
+    assert.deepEqual(calls, ['/api/page-title', '/api/watch-suggestion']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('English UI analyses original French Le Monde evidence without challenge or stale text', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalDocument = globalThis.document;
+  const url = 'https://www.lemonde.fr/international/article/2026/08/06/en-russie-la-ou-poutine-passe-le-prix-de-l-essence-baisse_6739681_3210.html';
+  const articleText = 'À Iaroslavl, le prix de l’essence a baissé avant la visite de Vladimir Poutine.';
+  const requestBodies = [];
+  globalThis.document = { documentElement: { lang: 'en' } };
+  globalThis.fetch = async (path, options) => {
+    requestBodies.push({ path, body: JSON.parse(options.body) });
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'En Russie, là où Poutine passe, le prix de l’essence baisse',
+          description: 'Une enquête sur les déplacements de Vladimir Poutine et les prix à la pompe.',
+          articleText,
+          language: 'fr',
+          siteName: 'Le Monde',
+          sourceUrl: url,
+          canonicalUrl: url,
+          pageType: 'article',
+          conceptSourceFields: ['title', 'description', 'articleText'],
+        }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        watchTitle: 'En Russie, le prix de l’essence baisse sur le passage de Poutine',
+        watchingFor: 'Follow reporting about fuel-price changes linked to Vladimir Poutine’s regional visits.',
+        description: 'Tracks developments in the reported Russian fuel-price pattern.',
+        storyFingerprint: [
+          { label: 'Vladimir Poutine', type: 'person' },
+          { label: 'Prix de l’essence en Russie', type: 'phenomenon' },
+        ],
+        storyProfile: {
+          primaryPeople: ['Vladimir Poutine'], otherPeople: [], peopleRoles: [],
+          locations: ['Russie', 'Iaroslavl'], organizations: [], eventTypes: [],
+          distinctiveFacts: [], aliases: [], uncertaintyPhrases: [], works: [],
+          productsServices: [], events: [], relationships: [],
+          phenomena: ['Prix de l’essence en Russie'], conditions: [], symptoms: [],
+          storySummary: 'Le prix de l’essence a baissé dans des régions russes avant des visites de Vladimir Poutine.',
+        },
+        analysisProvider: 'openai',
+        analysisStatus: 'success',
+      }),
+    };
+  };
+
+  try {
+    const result = await analyseUrl(url);
+    const suggestionBody = requestBodies.find(({ path }) => path === '/api/watch-suggestion').body;
+    assert.equal(result.source, 'Le Monde');
+    assert.match(result.title, /Russie/u);
+    assert.match(result.summary, /Vladimir Poutine/u);
+    assert.match(result.monitoringScope, /Vladimir Poutine/u);
+    assert.deepEqual(result.storyFingerprint.map(({ label }) => label), [
+      'Vladimir Poutine', 'Prix de l’essence en Russie',
+    ]);
+    assert.equal(suggestionBody.title, 'En Russie, là où Poutine passe, le prix de l’essence baisse');
+    assert.equal(suggestionBody.articleText, articleText);
+    assert.doesNotMatch(JSON.stringify(result), /Client Challenge/);
+    assert.deepEqual(requestBodies.map(({ path }) => path), ['/api/page-title', '/api/watch-suggestion']);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+  }
+});
+
+test('access-limited French article keeps a clean local Review and accepts only supported concept proposals', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const requestBodies = [];
+  const url = 'https://www.nicematin.com/faits-divers/une-boulangerie-fermee-a-nice-123456';
+  globalThis.fetch = async (path, options) => {
+    calls.push(path);
+    requestBodies.push({ path, body: JSON.parse(options.body) });
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'Une boulangerie visée par une fermeture administrative à Nice',
+          articleSubheading: 'La police a contrôlé la boulangerie Azur.',
+          description: 'La boulangerie Azur fait l’objet d’une fermeture administrative.',
+          articleText: 'La boulangerie Azur, située à Nice, fait l’objet d’une fermeture administrative. La police a constaté plusieurs manquements.',
+          siteName: 'Nice-Matin', language: 'fr', pageType: 'article', sourceUrl: url,
+          publishedAt: '2026-08-06T08:00:00+02:00', contentAccessLimited: true,
+        }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        concepts: [
+          { label: 'Boulangerie Azur', type: 'organization', reason: 'Named business' },
+          { label: 'Fermeture administrative', type: 'event', reason: 'Central action' },
+          { label: 'Nice', type: 'location', reason: 'Stated location' },
+          { label: 'News', type: 'phenomenon', reason: 'Too generic' },
+          { label: 'Je m’abonne', type: 'phenomenon', reason: 'Access copy' },
+        ],
+        confidence: 0.86,
+        analysisProvider: 'openai', analysisStatus: 'success', analysisModel: 'gpt-5.6-luna',
+      }),
+    };
+  };
+
+  try {
+    const immediate = await analyseUrl(url, { progressive: true });
+    const enhanced = await immediate.enhancement;
+    const suggestionBody = requestBodies.find(({ path }) => path === '/api/watch-suggestion').body;
+
+    assert.equal(immediate.contentAccessLimited, true);
+    assert.equal(enhanced.contentAccessLimited, true);
+    assert.equal(enhanced.title, immediate.title);
+    assert.match(enhanced.summary, /boulangerie Azur|fermeture administrative/iu);
+    assert.doesNotMatch(JSON.stringify(enhanced), /Pourquoi s’abonner|Je m’abonne|publicité|connecte/iu);
+    assert.ok(enhanced.storyFingerprint.some(({ label }) => label === 'Boulangerie Azur'));
+    assert.ok(enhanced.storyFingerprint.some(({ label }) => label === 'Fermeture administrative'));
+    assert.ok(enhanced.storyFingerprint.some(({ label }) => label === 'Nice'));
+    assert.equal(enhanced.storyFingerprint.some(({ label }) => label === 'News'), false);
+    assert.equal(suggestionBody.author, undefined);
+    assert.equal(suggestionBody.publisher, 'Nice-Matin');
+    assert.equal(suggestionBody.language, 'fr');
+    assert.deepEqual(calls, ['/api/page-title', '/api/watch-suggestion']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('semantic concept proposal improves a lifestyle Story without replacing the deterministic Review', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const url = 'https://example.com/health/six-easy-swaps-ultra-processed-foods';
+  globalThis.fetch = async (path) => {
+    calls.push(path);
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'Six easy swaps to help you avoid ultra-processed foods',
+          description: 'Nutrition specialists explain dietary advice for healthy eating and public health.',
+          articleText: 'Ultra-processed foods are central to the nutrition guidance. The dietary advice recommends healthy eating patterns and discusses public health evidence.',
+          siteName: 'Example Health', language: 'en', pageType: 'article', sourceUrl: url,
+        }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        concepts: [
+          { label: 'Ultra-processed foods', type: 'phenomenon', reason: 'Central subject' },
+          { label: 'Nutrition', type: 'phenomenon', reason: 'Supported domain' },
+          { label: 'Dietary advice', type: 'phenomenon', reason: 'Future reporting scope' },
+          { label: 'Healthy eating', type: 'phenomenon', reason: 'Supported concept' },
+          { label: 'Health', type: 'phenomenon', reason: 'Too broad' },
+        ],
+        confidence: 0.9,
+        analysisProvider: 'openai', analysisStatus: 'success', analysisModel: 'gpt-5.6-luna',
+      }),
+    };
+  };
+
+  try {
+    const immediate = await analyseUrl(url, { progressive: true });
+    const enhanced = await immediate.enhancement;
+    const labels = enhanced.storyFingerprint.map(({ label }) => label);
+
+    assert.equal(enhanced.title, immediate.title);
+    assert.equal(enhanced.summary, immediate.summary);
+    assert.ok(labels.includes('Ultra-processed foods'));
+    assert.ok(labels.includes('Nutrition'));
+    assert.ok(labels.includes('Dietary advice'));
+    assert.equal(labels.includes('Health'), false);
+    assert.equal(labels.some((label) => /Six easy swaps|Avoid ultra-processed foods Six easy/iu.test(label)), false);
+    assert.deepEqual(calls, ['/api/page-title', '/api/watch-suggestion']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('low-quality concept proposals leave a stronger deterministic Story Profile unchanged', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const url = 'https://www.bbc.com/news/articles/black-sea-campaign';
+  globalThis.fetch = async (path) => {
+    calls.push(path);
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'Russian Black Sea strike campaign expands in Odesa',
+          description: 'Russian strikes targeted civilian infrastructure in Odesa, Ukraine.',
+          articleText: 'The Black Sea strike campaign expanded in Odesa. Russian strikes damaged civilian infrastructure in Ukraine.',
+          siteName: 'BBC News', language: 'en', pageType: 'article', sourceUrl: url,
+        }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        concepts: [
+          { label: 'News', type: 'phenomenon', reason: 'Generic category' },
+          { label: 'London', type: 'location', reason: 'Unsupported place' },
+        ],
+        confidence: 0.2,
+        analysisProvider: 'openai', analysisStatus: 'success', analysisModel: 'gpt-5.6-luna',
+      }),
+    };
+  };
+
+  try {
+    const immediate = await analyseUrl(url, { progressive: true });
+    const enhanced = await immediate.enhancement;
+
+    assert.deepEqual(enhanced.storyFingerprint, immediate.storyFingerprint);
+    assert.equal(enhanced.summary, immediate.summary);
+    assert.equal(enhanced.monitoringScope, immediate.monitoringScope);
+    assert.deepEqual(calls, ['/api/page-title', '/api/watch-suggestion']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a Le Monde access challenge cannot become the article title or an identifier', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalDocument = globalThis.document;
+  const calls = [];
+  const url = 'https://www.lemonde.fr/international/article/2026/08/06/en-russie-la-ou-poutine-passe-le-prix-de-l-essence-baisse_6739681_3210.html';
+  globalThis.document = { documentElement: { lang: 'en' } };
+  globalThis.fetch = async (path) => {
+    calls.push(path);
+    return path === '/api/page-title' ? {
+      ok: true, status: 200, json: async () => ({
+        title: 'En russie la ou poutine passe le prix de l’essence baisse',
+        description: '', articleText: '', language: '', siteName: 'Le Monde',
+        sourceUrl: url, pageType: 'article', contentAccessLimited: true,
+        titleSource: 'url_slug', conceptSourceFields: ['title'],
+      }),
+    } : {
+      ok: false, status: 503, json: async () => ({
+        error: 'AI article analysis was unavailable.',
+        fallbackReasonCode: 'configuration_missing',
+      }),
+    };
+  };
+
+  try {
+    const result = await analyseUrl(url);
+    assert.match(result.sourceTitle, /prix de l’essence/iu);
+    assert.match(result.summary, /prix de l’essence/iu);
+    assert.match(result.monitoringScope, /prix de l’essence/iu);
+    assert.deepEqual(result.storyFingerprint, [
+      { label: 'Prix de l’essence', type: 'event' },
+      { label: 'Russie', type: 'location' },
+    ]);
+    assert.doesNotMatch(JSON.stringify(result), /Client Challenge/);
+    assert.deepEqual(calls, ['/api/page-title']);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+  }
+});
+
+test('French UI preserves English BBC evidence and a later request cannot reuse stale Story data', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalDocument = globalThis.document;
+  const firstUrl = 'https://www.bbc.com/news/articles/first';
+  const secondUrl = 'https://www.bbc.com/news/articles/second';
+  let currentTitle = '';
+  globalThis.document = { documentElement: { lang: 'fr' } };
+  globalThis.fetch = async (path, options) => {
+    const body = JSON.parse(options.body);
+    if (path === '/api/page-title') {
+      currentTitle = body.url === firstUrl ? 'Aurora mission reaches Mars' : 'Ocean telescope begins survey';
+      return {
+        ok: true, status: 200, json: async () => ({
+          title: currentTitle,
+          description: `${currentTitle} is described in the supplied BBC report.`,
+          articleText: `${currentTitle}. Scientists published the first verified observations.`,
+          siteName: 'BBC News', sourceUrl: body.url, pageType: 'article',
+        }),
+      };
+    }
+    return {
+      ok: true, status: 200, json: async () => ({
+        watchTitle: currentTitle,
+        watchingFor: `Follow meaningful developments in ${currentTitle}.`,
+        description: `Tracks ${currentTitle}.`,
+        storyFingerprint: [{ label: currentTitle, type: 'event' }],
+        storyProfile: { storySummary: `${currentTitle} is the subject of the supplied report.` },
+        analysisProvider: 'openai', analysisStatus: 'success',
+      }),
+    };
+  };
+
+  try {
+    const first = await analyseUrl(firstUrl);
+    const second = await analyseUrl(secondUrl);
+    assert.equal(first.sourceTitle, 'Aurora mission reaches Mars');
+    assert.equal(second.sourceTitle, 'Ocean telescope begins survey');
+    assert.doesNotMatch(JSON.stringify(second), /Aurora mission/u);
+    assert.match(JSON.stringify(second), /Ocean telescope/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
   }
 });
