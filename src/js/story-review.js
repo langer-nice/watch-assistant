@@ -157,10 +157,11 @@ export const extractLocalStoryConcepts = (evidence, limit = 6) => (
 export const enrichStoryFingerprint = (
   storyFingerprint,
   profile,
-  { analysisProvider, evidence, limit = 6 } = {},
+  { analysisProvider, authoritative = false, evidence, limit = 6 } = {},
 ) => {
   const existing = normalizeAutomaticStoryFingerprint(storyFingerprint, limit);
   if (!['deterministic', 'openai'].includes(analysisProvider)) return existing;
+  if (analysisProvider === 'openai' && authoritative) return existing;
   const hasEvidence = Boolean(evidence?.title || evidence?.description || evidence?.articleText);
   const weak = existing.length < 2 || existing.every(({ type }) => type === 'location');
   if (!hasEvidence) {
@@ -204,21 +205,35 @@ export const enrichStoryFingerprint = (
 };
 
 const getScopeDimensions = (profile = {}, evidence = {}, language = 'en') => {
-  const source = comparable([
-    evidence.title,
-    evidence.overview,
-    evidence.articleText,
+  const profileEvidence = [
     ...(profile.eventTypes || []),
+    ...(profile.events || []),
     ...(profile.organizations || []),
     ...(profile.conditions || []),
     ...(profile.productsServices || []),
-  ].filter(Boolean).join(' '));
+    ...(profile.phenomena || []),
+    ...(profile.relationships || []),
+    ...(profile.symptoms || []),
+    ...(profile.works || []),
+  ].filter(Boolean);
+  const source = comparable((profileEvidence.length ? profileEvidence : [
+    evidence.title,
+    evidence.overview,
+    evidence.articleText,
+  ]).join(' '));
   const localized = (english, french) => (language === 'fr' ? french : english);
   if (/\b(?:election|campaign|candidate|parliament|senate|government|politic|vote)\b/.test(source)) {
     return [
       localized('election and campaign developments', 'les développements électoraux et de campagne'),
       localized('official decisions and statements', 'les décisions et déclarations officielles'),
       localized('significant political consequences', 'les conséquences politiques importantes'),
+    ];
+  }
+  if (/\b(?:assault|charge|charged|court|hearing|legal|proceedings|trial)\b/.test(source)) {
+    return [
+      localized('legal and court developments', 'les développements judiciaires'),
+      localized('official statements', 'les déclarations officielles'),
+      localized('material developments in the case', 'les développements importants de l’affaire'),
     ];
   }
   if (/\b(?:match|tournament|championship|league|team|player|sport|race|final)\b/.test(source)) {

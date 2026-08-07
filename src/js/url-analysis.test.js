@@ -1069,6 +1069,62 @@ test('semantic concept proposal improves a lifestyle Story without replacing the
   }
 });
 
+test('strong Ivan Toney AI concepts remain authoritative through the final Story Profile', async () => {
+  const originalFetch = globalThis.fetch;
+  const url = 'https://www.bbc.com/news/articles/cpw9nz7qwyqo';
+  globalThis.fetch = async (path) => {
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'Footballer Ivan Toney charged with assault at Soho nightclub',
+          description: 'Ivan Toney was charged with assault causing actual bodily harm after an incident at a Soho nightclub.',
+          articleText: [
+            'Ivan Toney has been charged with assault causing actual bodily harm after an incident at a nightclub in Soho.',
+            'He will appear at Westminster Magistrates Court for proceedings in the case.',
+            'The footballer previously played at the World Cup and in England’s final.',
+          ].join(' '),
+          siteName: 'BBC News', language: 'en', pageType: 'article', sourceUrl: url,
+        }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        concepts: [
+          { label: 'Ivan Toney assault charge', type: 'event', reason: 'Central reported charge' },
+          { label: 'Ivan Toney', type: 'person', reason: 'Named subject' },
+          { label: 'Soho nightclub assault case', type: 'event', reason: 'Central legal case' },
+        ],
+        confidence: 0.98,
+        analysisProvider: 'openai',
+        analysisStatus: 'success',
+        analysisModel: 'gpt-5.6-luna',
+      }),
+    };
+  };
+
+  try {
+    const result = await analyseUrl(url);
+    assert.deepEqual(result.storyFingerprint, [
+      { label: 'Ivan Toney assault charge', type: 'event' },
+      { label: 'Ivan Toney', type: 'person' },
+      { label: 'Soho nightclub assault case', type: 'event' },
+    ]);
+    assert.deepEqual(result.storyProfile.concepts, result.storyFingerprint);
+    assert.equal(result.storyProfile.primaryPeople[0], 'Ivan Toney');
+    assert.equal(result.storyFingerprint.some(({ label }) => label === 'World Cup'), false);
+    assert.equal(result.storyFingerprint.some(({ label }) => label === 'England’s final'), false);
+    assert.equal(result.storyFingerprint.some(({ label }) => label === 'Footballer Ivan Toney'), false);
+    assert.match(result.monitoringScope, /legal and court developments/i);
+    assert.doesNotMatch(result.monitoringScope, /competition|World Cup|tournament/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('low-quality concept proposals leave a stronger deterministic Story Profile unchanged', async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];

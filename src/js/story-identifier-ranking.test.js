@@ -1,9 +1,73 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { rankStoryIdentifiers } from './story-identifier-ranking.js';
+import { normalizeAutomaticStoryFingerprint } from './monitoring-concepts.js';
 import { matchFeedItemToStory } from './watch-monitoring.js';
 
 const labels = (concepts) => concepts.map(({ label }) => label);
+
+test('strong Ivan Toney AI events pass semantic evidence validation without deterministic padding', () => {
+  const rawConcepts = [
+    { label: 'Ivan Toney assault charge', type: 'event' },
+    { label: 'Ivan Toney', type: 'person' },
+    { label: 'Soho nightclub assault case', type: 'event' },
+  ];
+  const normalized = normalizeAutomaticStoryFingerprint(rawConcepts, 6);
+  const concepts = rankStoryIdentifiers({
+    selected: normalized,
+    evidence: {
+      title: 'Footballer Ivan Toney charged with assault at Soho nightclub',
+      description: 'Ivan Toney was charged with assault causing actual bodily harm after an incident at a Soho nightclub.',
+      articleText: 'Ivan Toney has been charged with assault after an incident at a Soho nightclub. He will appear in court. He previously played at the World Cup and in England’s final.',
+    },
+    limit: 6,
+    includeEvidenceCandidates: false,
+  });
+
+  assert.deepEqual(normalized, rawConcepts);
+  assert.deepEqual(new Set(labels(concepts)), new Set(labels(rawConcepts)));
+  assert.equal(concepts.some(({ label }) => label === 'World Cup'), false);
+  assert.equal(concepts.some(({ label }) => label === 'England’s final'), false);
+});
+
+test('role-prefixed person aliases collapse into the canonical selected person', () => {
+  const concepts = rankStoryIdentifiers({
+    selected: [
+      { label: 'Footballer Ivan Toney', type: 'person' },
+      { label: 'Ivan Toney', type: 'person' },
+    ],
+    evidence: {
+      title: 'Footballer Ivan Toney charged with assault',
+      articleText: 'Ivan Toney has been charged with assault.',
+    },
+    includeEvidenceCandidates: false,
+  });
+
+  assert.deepEqual(concepts, [{ label: 'Ivan Toney', type: 'person' }]);
+});
+
+test('Murkowski and Blanche semantic relationship and nomination concepts remain supported', () => {
+  const selected = [
+    {
+      label: 'Lisa Murkowski’s opposition to Todd Blanche’s attorney general nomination',
+      type: 'relationship',
+    },
+    { label: 'Todd Blanche’s nomination for US attorney general', type: 'event' },
+    { label: 'Politicisation of the US Justice Department', type: 'phenomenon' },
+  ];
+  const concepts = rankStoryIdentifiers({
+    selected,
+    evidence: {
+      title: 'Lisa Murkowski opposes Todd Blanche nomination for US attorney general',
+      description: 'Murkowski cited concerns about politicisation of the US Justice Department.',
+      articleText: 'Todd Blanche was nominated for US attorney general. Lisa Murkowski opposed the nomination and warned against politicisation of the US Justice Department.',
+    },
+    includeEvidenceCandidates: false,
+    limit: 5,
+  });
+
+  assert.deepEqual(new Set(labels(concepts)), new Set(labels(selected)));
+});
 
 test('BBC Cambridge plagiarism story rejects possessive fragments and ranks defining concepts', () => {
   const concepts = rankStoryIdentifiers({

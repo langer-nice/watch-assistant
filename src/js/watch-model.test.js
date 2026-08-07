@@ -22,6 +22,38 @@ test('preserves analysis provenance only as internal diagnostic metadata', () =>
   );
 });
 
+test('persists a validated authoritative Story Profile without restoring incidental concepts', () => {
+  const concepts = [
+    { label: 'Ivan Toney assault charge', type: 'event' },
+    { label: 'Ivan Toney', type: 'person' },
+    { label: 'Soho nightclub assault case', type: 'event' },
+  ];
+  const watch = migrateWatchModel({
+    id: 'ivan-toney-story',
+    inputType: 'url',
+    pageType: 'article',
+    isStory: true,
+    title: 'Footballer Ivan Toney charged with assault at Soho nightclub',
+    sourceTitle: 'Footballer Ivan Toney charged with assault at Soho nightclub',
+    sourceName: 'BBC News',
+    sourceUrl: 'https://www.bbc.com/news/articles/cpw9nz7qwyqo',
+    storyFingerprint: concepts,
+    storyProfile: {
+      concepts,
+      primaryPeople: ['Ivan Toney'],
+      eventTypes: ['Ivan Toney assault charge', 'Soho nightclub assault case'],
+      storySummary: 'Ivan Toney was charged with assault after an incident at a Soho nightclub.',
+    },
+    analysisProvider: 'openai',
+    analysisStatus: 'success',
+  }).watch;
+
+  assert.deepEqual(watch.storyProfile.concepts, concepts);
+  assert.deepEqual(watch.storyFingerprint, concepts);
+  assert.equal(watch.keywords.includes('World Cup'), false);
+  assert.equal(watch.keywords.includes('England’s final'), false);
+});
+
 test('normalizes persisted check-attempt state without changing successful history', () => {
   const lastChecked = '2026-07-27T10:00:00.000Z';
   const watch = migrateWatchModel({

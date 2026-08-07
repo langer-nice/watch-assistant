@@ -27,7 +27,7 @@ const EVENT_ENDING = /\b(?:administrative closure|attack|attacks|campaign|case|c
 const TOPIC_ENDING = /\b(?:air defence|civilian infrastructure|critical infrastructure|fuel prices?|inflation|missile defence|national security|public health|supply chain)$/iu;
 const BYLINE_CONTEXT = /\b(?:author|by|correspondent|journalist|photographer|reporter|reporting by|written by)\b/iu;
 const GENERIC_AUTHORITY = /^(?:court|government|ministry|parliament|police)$/iu;
-const ROLE_PREFIX = /^(?:(?:dr|mr|mrs|ms|professor|sir)\.?\s+)+/iu;
+const ROLE_PREFIX = /^(?:(?:dr|footballer|mr|mrs|ms|professor|sir)\.?\s+)+/iu;
 const GENERIC_MONITORING_CONCEPT = /^(?:business|entertainment|health|lifestyle|news|politics|science|sport|sports|technology|world)$/iu;
 const NON_EDITORIAL_ACCESS_CONCEPT = /(?:already (?:a )?subscriber|access all articles|become a member|continue reading|create (?:an )?account|full access|log ?in|sign ?in|subscribe|subscription|support (?:our )?journalism|unlimited access|unlock (?:this )?(?:article|story)|abonnez-vous|acc[ée]dez [àa] tous (?:les|nos) articles|d[ée]j[àa] abonn[ée]|devenez membre|je (?:me connecte|m['’]abonne)|pourquoi s['’]abonner|profitez de tous nos articles|r[ée]serv[ée] aux abonn[ée]s|regarder une publicit[ée]|soutenez (?:notre|nos) journaliste?s?)/iu;
 
@@ -159,6 +159,44 @@ const getEvidenceSource = (evidence) => [
   evidence.articleText,
 ].filter(Boolean).join('. ');
 
+const SEMANTIC_EVENT_TERMS = new Map([
+  ['case', ['case', 'court', 'hearing', 'proceedings', 'trial']],
+  ['charge', ['charge', 'charged', 'charges', 'charging']],
+  ['nomination', ['nominate', 'nominated', 'nomination']],
+  ['opposition', ['oppose', 'opposed', 'opposes', 'opposition']],
+  ['politicisation', ['politicisation', 'politicise', 'politicised', 'politicization', 'politicize', 'politicized']],
+  ['resignation', ['resign', 'resigned', 'resignation']],
+]);
+
+const SEMANTIC_LABEL_STOP_WORDS = new Set([
+  'a', 'an', 'and', 'at', 'de', 'des', 'du', 'for', 'in', 'of', 'on', 'the', 'to',
+]);
+
+const evidenceContainsTerm = (source, term) => {
+  const normalizedSource = normalize(source);
+  return (SEMANTIC_EVENT_TERMS.get(term) || [term]).some((variant) => (
+    new RegExp(`(?:^|\\s)${escapeRegExp(variant)}(?=\\s|$)`, 'u').test(normalizedSource)
+  ));
+};
+
+const hasSemanticSelectedEvidence = (candidate, evidence) => {
+  if (
+    candidate?.origin !== 'selected'
+    || !['event', 'phenomenon', 'relationship'].includes(candidate?.type)
+  ) return false;
+  const terms = normalize(candidate.label).split(' ').filter((term) => (
+    term.length > 1 && !SEMANTIC_LABEL_STOP_WORDS.has(term)
+  ));
+  if (terms.length < 2 || !terms.some((term) => SEMANTIC_EVENT_TERMS.has(term))) return false;
+  const centralEvidence = [
+    evidence.title,
+    evidence.subheading,
+    evidence.description,
+    evidence.opening,
+  ].filter(Boolean).join('. ');
+  return terms.every((term) => evidenceContainsTerm(centralEvidence, term));
+};
+
 const hasPersonEvidence = (candidate, evidence) => {
   const label = String(candidate.label || '').trim();
   if (countExactMentions(evidence.author, label)) return false;
@@ -219,6 +257,7 @@ export const hasPositiveIdentifierEvidence = (candidate, evidence = {}) => {
   if (typed.validatedByRule) return true;
   if (type === 'organization') return hasOrganizationEvidence(typed, evidence);
   if (type === 'location') return hasLocationEvidence(typed, evidence);
+  if (hasSemanticSelectedEvidence(typed, evidence)) return true;
   if (type === 'event') {
     return typed.origin === 'structure'
       || (EVENT_ENDING.test(typed.label) && countMentions(getEvidenceSource(evidence), typed.label) > 0);
@@ -325,10 +364,22 @@ const scoreCandidate = (candidate, evidence) => {
   const descriptionHits = countMentions(evidence.description, candidate.label);
   const openingHits = countMentions(evidence.opening, candidate.label);
   const bodyHits = countMentions(evidence.articleText, candidate.label);
-  const totalHits = titleHits + subheadingHits + descriptionHits + bodyHits
+  const semanticTitleHit = !titleHits
+    && hasSemanticSelectedEvidence(candidate, { ...evidence, subheading: '', description: '', opening: '' });
+  const semanticSubheadingHit = !subheadingHits
+    && hasSemanticSelectedEvidence(candidate, { ...evidence, title: '', description: '', opening: '' });
+  const semanticDescriptionHit = !descriptionHits
+    && hasSemanticSelectedEvidence(candidate, { ...evidence, title: '', subheading: '', opening: '' });
+  const semanticOpeningHit = !openingHits
+    && hasSemanticSelectedEvidence(candidate, { ...evidence, title: '', subheading: '', description: '' });
+  const semanticHits = Number(semanticTitleHit) + Number(semanticSubheadingHit)
+    + Number(semanticDescriptionHit) + Number(semanticOpeningHit);
+  const totalHits = titleHits + subheadingHits + descriptionHits + bodyHits + semanticHits
     || (candidate.structuralWeight ? 1 : 0);
   let score = (titleHits * 12) + (subheadingHits * 9) + (descriptionHits * 7)
     + (openingHits * 5) + Math.min(bodyHits, 3);
+  score += (Number(semanticTitleHit) * 12) + (Number(semanticSubheadingHit) * 9)
+    + (Number(semanticDescriptionHit) * 7) + (Number(semanticOpeningHit) * 5);
   score += candidate.structuralWeight || 0;
   if (candidate.origin === 'structure') score += 3;
   if (candidate.origin === 'selected') score += 6;
@@ -398,6 +449,7 @@ export const rankStoryIdentifiers = ({
   profileCandidates = [],
   evidence = {},
   limit = 5,
+  includeEvidenceCandidates = true,
 } = {}) => {
   const opening = sentences(evidence.articleText).slice(0, 3).join(' ');
   const normalizedEvidence = {
@@ -412,13 +464,15 @@ export const rankStoryIdentifiers = ({
       ...candidate,
       origin: candidate.origin || 'profile',
     })),
-    ...extractEventCompounds(normalizedEvidence.title, 12),
-    ...extractEventCompounds(normalizedEvidence.subheading, 9),
-    ...extractEventCompounds(normalizedEvidence.description, 7),
-    ...extractEventCompounds(opening, 5),
-    ...extractDefiningPeople(normalizedEvidence),
-    ...extractDefiningOrganizations(normalizedEvidence),
-    ...extractDefiningPlaces(normalizedEvidence),
+    ...(includeEvidenceCandidates ? [
+      ...extractEventCompounds(normalizedEvidence.title, 12),
+      ...extractEventCompounds(normalizedEvidence.subheading, 9),
+      ...extractEventCompounds(normalizedEvidence.description, 7),
+      ...extractEventCompounds(opening, 5),
+      ...extractDefiningPeople(normalizedEvidence),
+      ...extractDefiningOrganizations(normalizedEvidence),
+      ...extractDefiningPlaces(normalizedEvidence),
+    ] : []),
   ].flatMap((rawCandidate) => {
     const candidate = canonicalizeCandidate(rawCandidate);
     const type = correctType(candidate);

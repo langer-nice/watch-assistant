@@ -727,9 +727,23 @@ const mergeConceptProposal = (proposal, deterministicSuggestion, analysisPage) =
     selected: proposedConcepts,
     evidence: analysisPage,
     limit: 6,
+    includeEvidenceCandidates: false,
   });
+  const validatedKeys = new Set(validatedProposal.map(({ label, type }) => (
+    `${type}\u0000${label.toLocaleLowerCase()}`
+  )));
+  const authoritativeProposal = proposedConcepts.filter(({ label, type }) => (
+    validatedKeys.has(`${type}\u0000${label.toLocaleLowerCase()}`)
+  ));
   const useProposal = proposal.confidence >= 0.5 && validatedProposal.length > 0;
-  const storyFingerprint = useProposal
+  const strongProposal = proposal.analysisProvider === 'openai'
+    && proposal.analysisStatus === 'success'
+    && proposal.confidence >= 0.8
+    && validatedProposal.length === proposedConcepts.length
+    && validatedProposal.length > 0;
+  const storyFingerprint = strongProposal
+    ? normalizeAutomaticStoryFingerprint(authoritativeProposal, 5)
+    : useProposal
     ? rankStoryIdentifiers({
       selected: [
         ...(deterministicSuggestion.storyFingerprint || []),
@@ -740,9 +754,29 @@ const mergeConceptProposal = (proposal, deterministicSuggestion, analysisPage) =
       limit: 5,
     })
     : deterministicSuggestion.storyFingerprint || [];
+  const labelsByType = (type) => storyFingerprint
+    .filter((concept) => concept.type === type)
+    .map(({ label }) => label);
+  const storyProfile = strongProposal
+    ? {
+      ...(deterministicSuggestion.storyProfile || {}),
+      primaryPeople: labelsByType('person').slice(0, 1),
+      otherPeople: labelsByType('person').slice(1),
+      organizations: labelsByType('organization'),
+      locations: labelsByType('location'),
+      eventTypes: labelsByType('event'),
+      works: labelsByType('work'),
+      productsServices: labelsByType('product_service'),
+      relationships: labelsByType('relationship'),
+      phenomena: labelsByType('phenomenon'),
+      conditions: labelsByType('condition'),
+      symptoms: labelsByType('symptom'),
+    }
+    : deterministicSuggestion.storyProfile;
   return {
     ...deterministicSuggestion,
     storyFingerprint,
+    storyProfile,
     keywords: storyFingerprint.map(({ label }) => label),
     analysisProvider: useProposal ? 'openai' : 'deterministic',
     analysisStatus: useProposal ? 'success' : 'fallback',
@@ -752,6 +786,7 @@ const mergeConceptProposal = (proposal, deterministicSuggestion, analysisPage) =
     analysisDiagnosticId: proposal.analysisDiagnosticId || null,
     semanticConceptProposal: true,
     conceptProposalAccepted: useProposal,
+    strongConceptProposal: strongProposal,
     conceptProposalConfidence: proposal.confidence,
   };
 };
@@ -772,6 +807,7 @@ const createAnalysisResult = ({
     suggestion.storyProfile,
     {
       analysisProvider: suggestion.analysisProvider || 'openai',
+      authoritative: suggestion.strongConceptProposal === true,
       evidence: analysisPage,
       limit: 5,
     },
