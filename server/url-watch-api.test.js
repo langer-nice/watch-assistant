@@ -509,7 +509,7 @@ test('preserves real ampersands and decodes the extracted title only once', () =
 test('normalizes AI concepts into precise phrases without weak or contained terms', async () => {
   const fetchImpl = async (_url, options) => {
     const request = JSON.parse(options.body);
-    assert.match(request.instructions, /3–6 monitoring concepts/);
+    assert.match(request.instructions, /0–6 monitoring concepts/);
     assert.match(request.instructions, /Do not summarize the article/);
     assert.equal(request.text.format.schema.properties.concepts.maxItems, 6);
     assert.equal(request.text.format.schema.properties.concepts.minItems, 0);
@@ -594,6 +594,53 @@ test('normalizes AI concepts into precise phrases without weak or contained term
     ],
   );
   assert.deepEqual(suggestion.storyProfile.primaryPeople, ['Petr Novotny']);
+});
+
+test('concept prompt defines the Story Spine, optional distinctive context and headline coverage without padding', async () => {
+  let requestCount = 0;
+  const suggestion = await generateWatchSuggestion({
+    title: 'Six easy swaps to help you avoid ultra-processed foods',
+    description: 'Practical advice about reducing ultra-processed foods in everyday meals.',
+    articleText: 'Ultra-processed foods are the central subject of the article.',
+    apiKey: 'test-key',
+    model: 'test-model',
+    fetchImpl: async (_url, options) => {
+      requestCount += 1;
+      const request = JSON.parse(options.body);
+      const { instructions } = request;
+
+      assert.match(instructions, /STORY SPINE/);
+      assert.match(instructions, /smallest complementary set of concepts that preserves the identity/);
+      assert.match(instructions, /principal subject/);
+      assert.match(instructions, /defining development or issue/);
+      assert.match(instructions, /optional distinctive context/);
+      assert.match(instructions, /do not treat them as mandatory output slots/);
+      assert.match(instructions, /if removing it still identifies this particular story/);
+      assert.match(instructions, /Do not manufacture context/);
+      assert.match(instructions, /HEADLINE COVERAGE CHECK/);
+      assert.match(instructions, /add or revise at most one concept/);
+      assert.match(instructions, /Do not copy every headline term/);
+      assert.match(instructions, /Never pad the profile/);
+      assert.match(instructions, /A single strong topic concept can be sufficient/);
+      assert.match(instructions, /reason why each concept helps recognize future reporting/);
+      assert.equal(request.model, 'test-model');
+
+      return createOpenAiResponse({
+        concepts: [{
+          label: 'Ultra-processed foods',
+          type: 'phenomenon',
+          reason: 'The single central topic needed to recognize later reporting',
+        }],
+        confidence: 0.96,
+      });
+    },
+  });
+
+  assert.equal(requestCount, 1);
+  assert.deepEqual(suggestion.concepts.map(({ label, type }) => ({ label, type })), [
+    { label: 'Ultra-processed foods', type: 'phenomenon' },
+  ]);
+  assert.equal(suggestion.confidence, 0.96);
 });
 
 test('concept proposal input is cleaned and deterministic validation rejects generic, unsupported and access concepts', async () => {

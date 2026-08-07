@@ -4,6 +4,21 @@ import { rankStoryIdentifiers } from './story-identifier-ranking.js';
 
 const benchmark = [
   {
+    name: 'legal case — Ivan Toney Soho nightclub assault charge',
+    evidence: {
+      title: 'Footballer Ivan Toney charged with assault at Soho nightclub',
+      description: 'Ivan Toney was charged with assault causing actual bodily harm after an incident at a Soho nightclub.',
+      articleText: 'Ivan Toney has been charged with assault after an incident at a Soho nightclub. He will appear in court. He previously played at the World Cup and in England’s final.',
+    },
+    proposals: [
+      ['Ivan Toney assault charge', 'event'], ['Ivan Toney', 'person'],
+      ['Soho nightclub assault case', 'event'],
+    ],
+    expected: ['Ivan Toney assault charge', 'Ivan Toney', 'Soho nightclub assault case'],
+    rejected: ['World Cup', 'England’s final'],
+    includeEvidenceCandidates: false,
+  },
+  {
     name: 'politics — Abdul El-Sayed and the Michigan Senate primary',
     evidence: {
       title: 'Abdul El-Sayed wins Michigan Senate primary',
@@ -31,6 +46,25 @@ const benchmark = [
     expected: ['Jason Arday', 'University of Cambridge', 'Plagiarism investigation'],
   },
   {
+    name: 'politics — Murkowski opposition to the Blanche nomination',
+    evidence: {
+      title: 'Lisa Murkowski opposes Todd Blanche nomination for US attorney general',
+      description: 'Murkowski cited concerns about politicisation of the US Justice Department.',
+      articleText: 'Todd Blanche was nominated for US attorney general. Lisa Murkowski opposed the nomination and warned against politicisation of the US Justice Department.',
+    },
+    proposals: [
+      ['Lisa Murkowski’s opposition to Todd Blanche’s attorney general nomination', 'relationship'],
+      ['Todd Blanche’s nomination for US attorney general', 'event'],
+      ['Politicisation of the US Justice Department', 'phenomenon'],
+    ],
+    expected: [
+      'Lisa Murkowski’s opposition to Todd Blanche’s attorney general nomination',
+      'Todd Blanche’s nomination for US attorney general',
+      'Politicisation of the US Justice Department',
+    ],
+    includeEvidenceCandidates: false,
+  },
+  {
     name: 'conflict — Odesa and the Russian Black Sea strike campaign',
     evidence: {
       title: 'Russian Black Sea strike campaign expands in Odesa',
@@ -52,12 +86,55 @@ const benchmark = [
       articleText: 'Ultra-processed foods are the central nutrition subject. The dietary advice supports healthy eating and discusses public health evidence.',
     },
     proposals: [
-      ['Ultra-processed foods', 'phenomenon'], ['Nutrition', 'phenomenon'],
-      ['Dietary advice', 'phenomenon'], ['Healthy eating', 'phenomenon'],
-      ['Health', 'phenomenon'], ['Six easy swaps', 'event'],
+      ['Ultra-processed foods', 'phenomenon'],
     ],
-    expected: ['Ultra-processed foods', 'Nutrition', 'Dietary advice'],
+    expected: ['Ultra-processed foods'],
     rejected: ['Health', 'Six easy swaps'],
+    includeEvidenceCandidates: false,
+  },
+  {
+    name: 'profile — Carol Ruckdeschel conservation and distinctive island life',
+    evidence: {
+      title: 'The snake-wrangling 84-year-old who lives on a remote barrier island',
+      description: 'Naturalist Carol Ruckdeschel has lived off the land for 53 years while fighting to preserve Cumberland Island.',
+      articleText: 'Carol Ruckdeschel is known for her snake-wrangling naturalist island life on Cumberland Island. Cumberland Island conservation and development conflicts define her activism. She founded Wild Cumberland.',
+    },
+    proposals: [
+      ['Carol Ruckdeschel', 'person'],
+      ['Cumberland Island conservation and development conflicts', 'phenomenon'],
+      ['Snake-wrangling naturalist island life', 'phenomenon'],
+      ['Wild Cumberland', 'organization'],
+    ],
+    expected: [
+      'Carol Ruckdeschel',
+      'Cumberland Island conservation and development conflicts',
+    ],
+    semanticExpectations: [
+      {
+        description: 'distinctive naturalist, snake-wrangling or island-life context',
+        pattern: /(?:naturalist|snake|island life)/iu,
+      },
+    ],
+    includeEvidenceCandidates: false,
+  },
+  {
+    name: 'business and policy — RWE offshore wind agreement',
+    evidence: {
+      title: 'US strikes $1.2bn deal to pay German firm to halt offshore wind projects',
+      description: 'RWE agreed to relinquish US offshore wind leases under a deal with the Trump administration.',
+      articleText: 'RWE reached the RWE offshore wind lease agreement worth $1.2bn. The Trump administration offshore wind policy seeks to halt projects. US offshore wind project cancellations are expected.',
+    },
+    proposals: [
+      ['RWE offshore wind lease agreement', 'relationship'], ['RWE', 'organization'],
+      ['Trump administration offshore wind policy', 'relationship'],
+      ['US offshore wind project cancellations', 'phenomenon'],
+    ],
+    expected: [
+      'RWE', 'RWE offshore wind lease agreement',
+      'Trump administration offshore wind policy', 'US offshore wind project cancellations',
+    ],
+    rejected: ['Germany'],
+    includeEvidenceCandidates: false,
   },
   {
     name: 'business — merger and antitrust investigation',
@@ -124,9 +201,13 @@ for (const fixture of benchmark) {
       selected: fixture.proposals.map(([label, type]) => ({ label, type })),
       evidence: fixture.evidence,
       limit: 6,
+      includeEvidenceCandidates: fixture.includeEvidenceCandidates ?? true,
     });
     const labels = concepts.map(({ label }) => label);
     fixture.expected.forEach((label) => assert.ok(labels.includes(label), `${label}: ${labels.join(', ')}`));
     (fixture.rejected || []).forEach((label) => assert.equal(labels.includes(label), false));
+    (fixture.semanticExpectations || []).forEach(({ description, pattern }) => {
+      assert.ok(labels.some((label) => pattern.test(label)), `${description}: ${labels.join(', ')}`);
+    });
   });
 }
