@@ -4,6 +4,7 @@ import {
   CLARIFICATION_ACTIONS,
   CLARIFICATION_TYPES,
   clarifyWatchRequest,
+  createCapabilityLimitation,
   createLocalClarification,
   getClarificationActions,
   validateClarification,
@@ -37,7 +38,7 @@ test('classifies sdfqs as clarification required without a false suggestion', ()
   assert.equal(result.suggestedRequest, '');
   assert.equal(
     result.clarificationMessage,
-    'I’m not sure what “sdfqs” refers to. Add more detail, or create the Watch exactly as written.',
+    'What does “sdfqs” refer to: a person, organisation, place, or event?',
   );
   assert.deepEqual(getClarificationActions(result), [
     CLARIFICATION_ACTIONS.EDIT_REQUEST,
@@ -51,7 +52,7 @@ test('classifies Test as generic clarification required', () => {
   assert.equal(result.hasSuggestion, false);
   assert.equal(
     result.clarificationMessage,
-    'This request may be too broad to monitor reliably. Add more detail, or create the Watch exactly as written.',
+    'What specific person, organisation, place, or event should this Watch monitor?',
   );
   assert.deepEqual(getClarificationActions(result), [
     CLARIFICATION_ACTIONS.EDIT_REQUEST,
@@ -144,4 +145,49 @@ test('keeps Test in clarification-required state even if the service calls it cl
     if (originalWindow === undefined) delete globalThis.window;
     else globalThis.window = originalWindow;
   }
+});
+
+test('preserves one specific unresolved-field question and resolves after the field is supplied', () => {
+  const incomplete = 'Monitor the annual results announcement';
+  const result = validateClarification({
+    type: CLARIFICATION_TYPES.CLARIFICATION_REQUIRED,
+    clarificationMessage: 'Which company should I monitor?',
+    suggestedRequest: '',
+  }, incomplete);
+  assert.equal(result.clarificationMessage, 'Which company should I monitor?');
+
+  const complete = 'Monitor Apple annual results announcement in October 2026';
+  assert.equal(validateClarification({
+    type: CLARIFICATION_TYPES.CLEAR,
+    clarificationMessage: '',
+    suggestedRequest: complete,
+  }, complete).type, CLARIFICATION_TYPES.CLEAR);
+});
+
+test('replaces vague service clarification with a deterministic specific question', () => {
+  const result = validateClarification({
+    type: CLARIFICATION_TYPES.CLARIFICATION_REQUIRED,
+    clarificationMessage: 'This request is too broad. Add more detail.',
+    suggestedRequest: '',
+  }, 'Monitor something important');
+  assert.equal(
+    result.clarificationMessage,
+    'What specific person, organisation, place, or event should this Watch monitor?',
+  );
+  assert.doesNotMatch(result.clarificationMessage, /add more detail|too broad/i);
+});
+
+test('localizes deterministic clarification questions in French', () => {
+  assert.equal(
+    createLocalClarification('QSF', { language: 'fr' }).clarificationMessage,
+    'À quoi « QSF » fait-il référence : une personne, une organisation, un lieu ou un événement ?',
+  );
+});
+
+test('capability limitations preserve the request and only offer editing', () => {
+  const request = 'Monitor easyJet flights below €150';
+  const result = createCapabilityLimitation(request, 'Flight monitoring is unavailable.');
+  assert.equal(result.type, CLARIFICATION_TYPES.CAPABILITY_LIMITATION);
+  assert.equal(result.originalRequest, request);
+  assert.deepEqual(getClarificationActions(result), [CLARIFICATION_ACTIONS.EDIT_REQUEST]);
 });

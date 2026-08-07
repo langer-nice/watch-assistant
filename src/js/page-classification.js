@@ -55,6 +55,12 @@ const isKnownArticlePath = (url) => {
   return false;
 };
 
+const isKnownLivePath = (url) => {
+  const host = url.hostname.replace(/^www\./iu, '');
+  return /bbc\.(?:com|co\.uk)$/iu.test(host)
+    && /^\/news\/live\/[^/]+\/?$/iu.test(url.pathname);
+};
+
 export const isStoryPageType = (pageType) => (
   pageType === PAGE_TYPES.ARTICLE || pageType === PAGE_TYPES.LIVE_PAGE
 );
@@ -98,6 +104,7 @@ export const classifyPage = ({
   if (isSearchUrl(url)) return PAGE_TYPES.SEARCH_PAGE;
 
   const firstSegment = segments[0].toLocaleLowerCase();
+  if (isKnownLivePath(url)) return PAGE_TYPES.LIVE_PAGE;
   if (firstSegment === 'news' && segments.length <= 2 && !isKnownArticlePath(url)) {
     return PAGE_TYPES.NEWS_SECTION;
   }

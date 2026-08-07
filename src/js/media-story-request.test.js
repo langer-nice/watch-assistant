@@ -8,6 +8,7 @@ import {
 
 const supported = [
   ['https://www.bbc.com/news/articles/example', 'BBC News'],
+  ['https://www.bbc.com/news/live/cvgjnz67ymzt', 'BBC News'],
   ['https://edition.cnn.com/2026/08/06/world/example', 'CNN'],
   ['https://www.reuters.com/world/europe/example-2026-08-06/', 'Reuters'],
   ['https://www.lemonde.fr/international/article/2026/08/06/example.html', 'Le Monde'],

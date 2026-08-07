@@ -68,7 +68,7 @@ export const generateRequestClarification = async ({
         'Return resultType "suggestion" only when you can provide one complete, precise monitoring instruction that can be used directly as a Watch; leave clarificationMessage empty.',
         'A suggestion must state what to monitor and the expected change or event. It must never be a question or an instruction asking the user to clarify, specify, explain, or add details.',
         'Return resultType "clarification_required" when the request is too ambiguous or incoherent to produce a reliable Watch.',
-        'For clarification_required, leave suggestedRequest empty and provide a brief clarificationMessage that asks for the missing person, organisation, place or event and the change that matters.',
+        'For clarification_required, leave suggestedRequest empty and ask exactly one specific question about the unresolved field. Never say only add more detail, provide more information, or that the request is too broad.',
         'Clarify wording only. Preserve the user intent, named entities, and every explicit constraint.',
         'Never invent dates, locations, venues, tours, channels, thresholds, preferences, or other details.',
         'Do not broaden or narrow the requested event. The user will make the final choice.',

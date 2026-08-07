@@ -11,6 +11,7 @@ test('classifies publisher homepages, sections, categories, searches and article
   const cases = [
     ['https://www.bbc.com/', PAGE_TYPES.HOMEPAGE],
     ['https://www.bbc.com/news/articles/cp309ng0xq1o', PAGE_TYPES.ARTICLE],
+    ['https://www.bbc.com/news/live/cvgjnz67ymzt', PAGE_TYPES.LIVE_PAGE],
     ['https://www.bbc.com/news', PAGE_TYPES.NEWS_SECTION],
     ['https://www.bbc.com/sport', PAGE_TYPES.CATEGORY_PAGE],
     ['https://www.bbc.com/search?q=Michigan', PAGE_TYPES.SEARCH_PAGE],
@@ -55,6 +56,12 @@ test('uses structured article signals and keeps navigation-heavy pages outside S
   assert.equal(classifyPage({
     sourceUrl: 'https://news.example.com/live/election',
     jsonLdTypes: ['LiveBlogPosting'],
+  }), PAGE_TYPES.LIVE_PAGE);
+  assert.equal(classifyPage({
+    sourceUrl: 'https://www.bbc.com/news/live/cvgjnz67ymzt',
+    headlineCount: 20,
+    navigationLinkCount: 40,
+    articleBodyCount: 0,
   }), PAGE_TYPES.LIVE_PAGE);
   assert.equal(classifyPage({
     sourceUrl: 'https://news.example.com/topics/europe',

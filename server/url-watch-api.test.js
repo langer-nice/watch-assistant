@@ -412,6 +412,16 @@ test('extracts ordered distinct live entries from nested JSON-LD arrays and grap
   assert.equal(metadata.articleText.match(/Abdul Ballout/g)?.length, 1);
 });
 
+test('classifies a sparse BBC live path as live even when structured metadata is unavailable', () => {
+  const metadata = extractPageMetadata(
+    '<html><head><title>BBC Live coverage</title></head><body><nav><a href="/news">News</a></nav></body></html>',
+    'https://www.bbc.com/news/live/cvgjnz67ymzt',
+  );
+
+  assert.equal(metadata.pageType, 'live_page');
+  assert.equal(metadata.title, 'BBC Live coverage');
+});
+
 test('bounds long live coverage fairly so multiple entries contribute evidence', () => {
   const bodies = [
     `FIRST_ENTRY_EVIDENCE ${'alpha '.repeat(3000)}`,

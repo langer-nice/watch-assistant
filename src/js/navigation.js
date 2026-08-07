@@ -18,6 +18,7 @@ import {
   CLARIFICATION_ACTIONS,
   clarifyWatchRequest,
   CLARIFICATION_TYPES,
+  createCapabilityLimitation,
   getClarificationActions,
 } from './request-clarification.js';
 import {
@@ -99,8 +100,10 @@ import {
   COMPANY_PLAN_ROUTES,
   getCompanyPlanRoute,
   getMediaStoryPlanRoute,
+  getUnsupportedWatchCapability,
   MEDIA_STORY_PLAN_ROUTES,
   requestWatchPlan,
+  UNSUPPORTED_WATCH_CAPABILITIES,
 } from './watch-planner.js';
 import { getCompanyWatchTitle } from './company-watch-title.js';
 import { getCompanyReviewSummary } from './company-watch-review.js';
@@ -2298,6 +2301,8 @@ export function initForm() {
   const reviewEdit = document.querySelector('#urlReviewEdit');
   const reviewCancel = document.querySelector('#urlReviewCancel');
   const clarification = document.querySelector('#requestClarification');
+  const clarificationTitle = document.querySelector('#requestClarificationTitle');
+  const clarificationIntro = document.querySelector('#requestClarificationIntro');
   const clarificationOriginal = document.querySelector('#clarificationOriginal');
   const clarificationMessage = document.querySelector('#clarificationMessage');
   const clarificationWarning = document.querySelector('#clarificationWarning');
@@ -2972,8 +2977,14 @@ export function initForm() {
         creationInProgress = false;
         setCreationControlsDisabled(false);
         setSubmitLabel();
-        if (watchError) watchError.textContent = t('newWatch.monitoringSourceUnsupported');
-        input?.focus();
+        showClarification(
+          selectedRequest,
+          createCapabilityLimitation(
+            selectedRequest,
+            t('newWatch.monitoringCapabilityUnavailable'),
+          ),
+          whyFollowing,
+        );
         return;
       }
     }
@@ -2990,15 +3001,15 @@ export function initForm() {
     }
     try {
       await completeWatchCreation(watch);
-    } catch (error) {
+    } catch {
       creationInProgress = false;
       setCreationControlsDisabled(false);
       setSubmitLabel();
-      if (watchError) {
-        const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
-        watchError.textContent = t(getMonitoringFailureMessageKey(code));
-      }
-      input?.focus();
+      showClarification(
+        selectedRequest,
+        createCapabilityLimitation(selectedRequest, t('newWatch.watchCreationUnavailable')),
+        whyFollowing,
+      );
     }
   };
 
@@ -3022,7 +3033,10 @@ export function initForm() {
       },
       [CLARIFICATION_ACTIONS.EDIT_REQUEST]: {
         label: 'newWatch.clarificationEditRequest',
-        modifier: pendingClarificationType === CLARIFICATION_TYPES.CLARIFICATION_REQUIRED
+        modifier: [
+          CLARIFICATION_TYPES.CLARIFICATION_REQUIRED,
+          CLARIFICATION_TYPES.CAPABILITY_LIMITATION,
+        ].includes(pendingClarificationType)
           ? 'primary'
           : 'secondary',
       },
@@ -3051,6 +3065,7 @@ export function initForm() {
     whyFollowing,
     { nonArticleAnalysis = null } = {},
   ) => {
+    const isCapabilityLimitation = result.type === CLARIFICATION_TYPES.CAPABILITY_LIMITATION;
     const hasSuggestion = result.type === CLARIFICATION_TYPES.SUGGESTION
       && result.hasSuggestion === true
       && Boolean(result.suggestedRequest?.trim());
@@ -3066,6 +3081,21 @@ export function initForm() {
     pendingClarificationHasSuggestion = hasSuggestion;
     pendingNonArticleAnalysis = nonArticleAnalysis;
     pendingAnalysis = nonArticleAnalysis;
+    if (watchError) watchError.textContent = '';
+    if (clarificationTitle) {
+      const key = isCapabilityLimitation
+        ? 'newWatch.capabilityLimitationTitle'
+        : 'newWatch.clarificationTitle';
+      clarificationTitle.dataset.i18n = key;
+      clarificationTitle.textContent = t(key);
+    }
+    if (clarificationIntro) {
+      const key = isCapabilityLimitation
+        ? 'newWatch.capabilityLimitationIntro'
+        : 'newWatch.clarificationIntro';
+      clarificationIntro.dataset.i18n = key;
+      clarificationIntro.textContent = t(key);
+    }
     if (nonArticleAnalysis) {
       if (analysisSection) analysisSection.hidden = true;
       if (processingState) processingState.hidden = true;
@@ -3089,7 +3119,10 @@ export function initForm() {
     setCreationControlsDisabled(false);
     setSubmitLabel();
     clarification?.classList.toggle('request-clarification--suggestion', hasSuggestion);
-    clarification?.classList.toggle('request-clarification--needs-input', !hasSuggestion);
+    clarification?.classList.toggle(
+      'request-clarification--needs-input',
+      !hasSuggestion && !isCapabilityLimitation,
+    );
     form.classList.add('is-clarifying');
     refreshEditSaveState();
     if (clarification) {
@@ -4069,6 +4102,22 @@ export function initForm() {
       return;
     }
 
+    const unsupportedCapability = getUnsupportedWatchCapability(request, watchPlan);
+    if (
+      !isEditMode
+      && unsupportedCapability === UNSUPPORTED_WATCH_CAPABILITIES.FLIGHT_PRICE
+    ) {
+      showClarification(
+        originalRequest,
+        createCapabilityLimitation(
+          originalRequest,
+          t('newWatch.flightPriceMonitoringUnavailable', { request }),
+        ),
+        whyFollowing,
+      );
+      return;
+    }
+
     const storedRequest = isEditMode
       ? (localizeField(editingWatch, 'request') || '')
       : '';
@@ -4098,6 +4147,7 @@ export function initForm() {
   clarificationActions?.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-clarification-action]');
     if (!button || !clarificationActions.contains(button)) return;
+    if (creationInProgress) return;
     const action = button.dataset.clarificationAction;
 
     if (action === CLARIFICATION_ACTIONS.KEEP_ORIGINAL) {
@@ -4164,14 +4214,17 @@ export function initForm() {
               createOptions,
             ));
           }
-        } catch (error) {
+        } catch {
           creationInProgress = false;
           setCreationControlsDisabled(false);
-          if (watchError) {
-            const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
-            watchError.textContent = t(getMonitoringFailureMessageKey(code));
-          }
-          input?.focus();
+          showClarification(
+            pendingClarificationOriginal,
+            createCapabilityLimitation(
+              pendingClarificationOriginal,
+              t('newWatch.watchCreationUnavailable'),
+            ),
+            pendingClarificationWhyFollowing,
+          );
         }
         return;
       }

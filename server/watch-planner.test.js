@@ -90,6 +90,7 @@ test('plans a company name plus SIREN without requiring a monitoring verb', asyn
 test('plans supported Media Story URLs without running source discovery', async () => {
   const requests = [
     'https://www.bbc.com/news/articles/example',
+    'https://www.bbc.com/news/live/cvgjnz67ymzt',
     'https://edition.cnn.com/2026/08/06/world/example',
     'https://www.reuters.com/world/europe/example-2026-08-06/',
     'https://www.lemonde.fr/international/article/2026/08/06/example.html',

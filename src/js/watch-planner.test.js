@@ -4,11 +4,13 @@ import {
   COMPANY_PLAN_ROUTES,
   getCompanyPlanRoute,
   getMediaStoryPlanRoute,
+  getUnsupportedWatchCapability,
   isFrenchCompanyPlan,
   isMediaStoryPlan,
   MEDIA_STORY_PLAN_ROUTES,
   normalizeWatchPlan,
   requestWatchPlan,
+  UNSUPPORTED_WATCH_CAPABILITIES,
   WatchPlannerError,
 } from './watch-planner.js';
 
@@ -65,6 +67,33 @@ test('only an exact Media Story decision enters the migrated media pipeline', ()
       MEDIA_STORY_PLAN_ROUTES.GUIDANCE,
     );
   }
+});
+
+test('BBC Live uses the same exact Media Story route as standard articles', () => {
+  const request = 'https://www.bbc.com/news/live/cvgjnz67ymzt';
+  const plan = {
+    strategy: 'media_story', connector: 'media_story', country: null,
+    identifier: request, confidence: 0.9, needsClarification: false,
+    clarificationQuestion: null,
+  };
+  assert.equal(isMediaStoryPlan(request, plan), true);
+  assert.equal(getMediaStoryPlanRoute(request, plan), MEDIA_STORY_PLAN_ROUTES.REVIEW);
+});
+
+test('distinguishes complete flight-price requests as understood but unavailable', () => {
+  const plan = {
+    strategy: 'web_search', connector: 'web_ai', country: null, identifier: null,
+    confidence: 0.5, needsClarification: false, clarificationQuestion: null,
+  };
+  assert.equal(getUnsupportedWatchCapability(
+    'Monitor easyJet one-way flights from Nice to London in August 2026 under €150',
+    plan,
+  ), UNSUPPORTED_WATCH_CAPABILITIES.FLIGHT_PRICE);
+  assert.equal(getUnsupportedWatchCapability('Monitor easyJet cancellations', plan), null);
+  assert.equal(getUnsupportedWatchCapability('Monitor flights below €150', {
+    ...plan,
+    needsClarification: true,
+  }), null);
 });
 
 test('RSS and generic URLs retain their existing non-media route', () => {

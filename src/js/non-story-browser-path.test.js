@@ -175,6 +175,7 @@ test('classified non-article pages use the existing advisory clarification inste
     const createAnyway = elements.get('#clarificationActions').children[1];
     createAnyway.closest = () => createAnyway;
     await elements.get('#clarificationActions').dispatch('click', { target: createAnyway });
+    await elements.get('#clarificationActions').dispatch('click', { target: createAnyway });
     assert.equal(calls.filter((path) => path === '/api/page-title').length, 1);
     assert.equal(calls.filter((path) => path === '/api/monitoring-source').length, 1);
     assert.equal(calls.filter((path) => path === '/api/check-watch').length, 1);

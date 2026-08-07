@@ -4,6 +4,7 @@ export const CLARIFICATION_TYPES = Object.freeze({
   CLEAR: 'clear',
   SUGGESTION: 'suggestion',
   CLARIFICATION_REQUIRED: 'clarification_required',
+  CAPABILITY_LIMITATION: 'capability_limitation',
 });
 
 export const CLARIFICATION_ACTIONS = Object.freeze({
@@ -26,12 +27,18 @@ const getClarificationMessage = (request, language = 'en') => {
 
   if (language === 'fr') {
     return unidentifiedTerm
-      ? `Je ne sais pas exactement à quoi « ${term} » fait référence. Ajoutez des détails, ou créez la Watch exactement telle qu’elle est rédigée.`
-      : 'Cette demande est peut-être trop générale pour être surveillée de manière fiable. Ajoutez des détails, ou créez la Watch exactement telle qu’elle est rédigée.';
+      ? `À quoi « ${term} » fait-il référence : une personne, une organisation, un lieu ou un événement ?`
+      : 'Quelle personne, organisation, quel lieu ou quel événement précis cette Watch doit-elle surveiller ?';
   }
   return unidentifiedTerm
-    ? `I’m not sure what “${term}” refers to. Add more detail, or create the Watch exactly as written.`
-    : 'This request may be too broad to monitor reliably. Add more detail, or create the Watch exactly as written.';
+    ? `What does “${term}” refer to: a person, organisation, place, or event?`
+    : 'What specific person, organisation, place, or event should this Watch monitor?';
+};
+
+const isSpecificClarificationQuestion = (value) => {
+  const message = normalize(value);
+  return message.endsWith('?')
+    && !/(?:add|provide) (?:more )?(?:detail|information)|too broad|plus de d[ée]tails|trop g[ée]n[ée]rale?/iu.test(message);
 };
 
 const isUsableSuggestion = (suggestion, original) => {
@@ -66,13 +73,24 @@ const suggestionResult = (request, suggestedRequest) => ({
   originalRequest: request,
 });
 
-const clarificationRequiredResult = (request, language) => ({
+const clarificationRequiredResult = (request, language, clarificationMessage = '') => ({
   type: CLARIFICATION_TYPES.CLARIFICATION_REQUIRED,
   needsClarification: true,
   hasSuggestion: false,
   suggestedRequest: '',
-  clarificationMessage: getClarificationMessage(request, language),
+  clarificationMessage: isSpecificClarificationQuestion(clarificationMessage)
+    ? normalize(clarificationMessage)
+    : getClarificationMessage(request, language),
   originalRequest: request,
+});
+
+export const createCapabilityLimitation = (request, clarificationMessage) => ({
+  type: CLARIFICATION_TYPES.CAPABILITY_LIMITATION,
+  needsClarification: false,
+  hasSuggestion: false,
+  suggestedRequest: '',
+  clarificationMessage: normalize(clarificationMessage),
+  originalRequest: normalize(request),
 });
 
 export const getClarificationActions = (result) => {
@@ -93,6 +111,10 @@ export const getClarificationActions = (result) => {
       CLARIFICATION_ACTIONS.EDIT_REQUEST,
       CLARIFICATION_ACTIONS.CREATE_AS_WRITTEN,
     ];
+  }
+
+  if (result?.type === CLARIFICATION_TYPES.CAPABILITY_LIMITATION) {
+    return [CLARIFICATION_ACTIONS.EDIT_REQUEST];
   }
 
   return [];
@@ -145,7 +167,9 @@ const validateClarification = (result, original, { language = 'en' } = {}) => {
 
   const requiresInput = declaredType === CLARIFICATION_TYPES.CLARIFICATION_REQUIRED
     || (result?.needsClarification === true && !isUsableSuggestion(suggestedRequest, request));
-  if (requiresInput) return clarificationRequiredResult(request, language);
+  if (requiresInput) {
+    return clarificationRequiredResult(request, language, result?.clarificationMessage);
+  }
   return clearResult(request);
 };
 

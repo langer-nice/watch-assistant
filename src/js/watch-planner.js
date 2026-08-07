@@ -103,3 +103,22 @@ export const getMediaStoryPlanRoute = (request, plan) => {
   if (parseMediaStoryRequest(request).recognized) return MEDIA_STORY_PLAN_ROUTES.GUIDANCE;
   return MEDIA_STORY_PLAN_ROUTES.CONTINUE;
 };
+
+export const UNSUPPORTED_WATCH_CAPABILITIES = Object.freeze({
+  FLIGHT_PRICE: 'flight_price',
+});
+
+const FLIGHT_REQUEST = /\b(?:airfares?|flights?|billets?\s+d['’]avion|vols?)\b/iu;
+const PRICE_REQUEST = /(?:[€£$]|\b(?:below|cheap|costs?|fares?|less\s+than|price|prices|under|co[uû]ts?|moins\s+de|prix|tarifs?)\b)/iu;
+
+export const getUnsupportedWatchCapability = (request, plan) => {
+  const understoodByWebPlanning = plan?.strategy === 'web_search'
+    && plan.connector === 'web_ai'
+    && plan.needsClarification === false;
+  if (
+    understoodByWebPlanning
+    && FLIGHT_REQUEST.test(String(request || ''))
+    && PRICE_REQUEST.test(String(request || ''))
+  ) return UNSUPPORTED_WATCH_CAPABILITIES.FLIGHT_PRICE;
+  return null;
+};
