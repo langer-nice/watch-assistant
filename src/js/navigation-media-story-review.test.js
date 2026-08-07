@@ -275,3 +275,217 @@ test('browser form keeps the local Media Story Review when watch-suggestion retu
     }
   }
 });
+
+test('authoritative Ivan Toney concepts survive Review, creation, persistence and Edit rendering', async () => {
+  const originalGlobals = Object.fromEntries(
+    ['window', 'document', 'localStorage', 'sessionStorage', 'fetch', 'navigator']
+      .map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
+  );
+  const originalWarn = console.warn;
+  const originalError = console.error;
+  const sourceUrl = 'https://www.bbc.com/news/articles/cpw9nz7qwyqo';
+  const strongConcepts = [
+    { label: 'Ivan Toney assault charge', type: 'event' },
+    { label: 'Ivan Toney', type: 'person' },
+    { label: 'Soho nightclub assault case', type: 'event' },
+  ];
+  const storage = createStorage();
+  const elements = new Map();
+  const createFormElements = (inputValue = sourceUrl) => {
+    const form = createElement();
+    const input = createElement({ value: inputValue });
+    form.watchRequest = input;
+    form.whyFollowing = createElement();
+    elements.clear();
+    [
+      ['#newWatchForm', form],
+      ['#watchError', createElement()],
+      ['#newWatchSubmit', createElement()],
+      ['#newWatchSubmitLabel', createElement()],
+      ['#urlAnalysis', createElement({ hidden: true })],
+      ['#urlAnalysisProcessing', createElement({ hidden: true })],
+      ['#urlAnalysisMessage', createElement()],
+      ['#urlReview', createElement({ hidden: true })],
+      ['#urlReviewSuccess', createElement({ hidden: true })],
+      ['#urlReviewFailure', createElement({ hidden: true })],
+      ['#urlReviewHeading', createElement()],
+      ['#urlReviewTitleLabel', createElement()],
+      ['#urlReviewSummaryLabel', createElement()],
+      ['.url-review__source > span', createElement()],
+      ['#urlReviewTitle', createElement()],
+      ['#urlReviewSummary', createElement()],
+      ['#urlReviewSummaryError', createElement({ hidden: true })],
+      ['#urlReviewMonitoringScopeField', createElement({ hidden: true })],
+      ['#urlReviewMonitoringScope', createElement()],
+      ['#urlReviewSource', createElement()],
+      ['#urlReviewCreate', createElement()],
+      ['#urlReviewEdit', createElement()],
+      ['#urlReviewCancel', createElement()],
+      ['#watchKeywordChips', createElement({ innerHTML: '' })],
+      ['#watchKeywordInput', createElement()],
+      ['#watchKeywordAdd', createElement()],
+      ['#watchCategoryInput', createElement()],
+      ['#watchFeedUrlInput', createElement()],
+    ].forEach(([selector, element]) => elements.set(selector, element));
+    return form;
+  };
+  const form = createFormElements();
+  const windowStub = {
+    location: new URL('http://localhost/new-watch.html'),
+    localStorage: storage,
+    sessionStorage: storage,
+    parent: null,
+    innerHeight: 800,
+    history: { state: null, pushState() {}, replaceState() {} },
+    addEventListener() {},
+    dispatchEvent() {},
+    requestAnimationFrame(callback) {
+      callback();
+      return 1;
+    },
+    cancelAnimationFrame() {},
+    setTimeout,
+    clearTimeout,
+    getComputedStyle() {
+      return {
+        lineHeight: '20', fontSize: '16', paddingTop: '8', paddingBottom: '8',
+        borderTopWidth: '1', borderBottomWidth: '1', boxSizing: 'border-box',
+        minHeight: '48', maxHeight: '240',
+      };
+    },
+  };
+  windowStub.parent = windowStub;
+  const documentStub = {
+    documentElement: createElement({ lang: 'en' }),
+    body: createElement(),
+    activeElement: null,
+    querySelector: (selector) => elements.get(selector) || null,
+    querySelectorAll: () => [],
+    addEventListener() {},
+    createElement: () => createElement(),
+  };
+  const calls = [];
+  Object.defineProperties(globalThis, {
+    window: { configurable: true, writable: true, value: windowStub },
+    document: { configurable: true, writable: true, value: documentStub },
+    localStorage: { configurable: true, writable: true, value: storage },
+    sessionStorage: { configurable: true, writable: true, value: storage },
+    navigator: {
+      configurable: true,
+      writable: true,
+      value: { language: 'en', globalPrivacyControl: false, doNotTrack: '1' },
+    },
+    fetch: {
+      configurable: true,
+      writable: true,
+      value: async (path) => {
+        calls.push(path);
+        if (path.startsWith('/api/plan-watch')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              strategy: 'media_story', connector: 'media_story', country: null,
+              identifier: sourceUrl, confidence: 1, needsClarification: false,
+              clarificationQuestion: null,
+            }),
+          };
+        }
+        if (path === '/api/page-title') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              title: 'Footballer Ivan Toney charged with assault at Soho nightclub',
+              description: 'The footballer is accused after an incident in central London.',
+              articleText: [
+                'Ivan Toney has been charged with assault causing actual bodily harm.',
+                'The incident happened at a nightclub in Soho.',
+                'He previously played at the World Cup and in England’s final.',
+                'He will appear at Westminster Magistrates Court.',
+              ].join(' '),
+              siteName: 'BBC News', sourceUrl, pageType: 'article',
+            }),
+          };
+        }
+        if (path === '/api/watch-suggestion') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              concepts: strongConcepts.map((concept) => ({ ...concept, reason: 'Central story concept' })),
+              confidence: 0.98,
+              analysisProvider: 'openai',
+              analysisStatus: 'success',
+              analysisModel: 'gpt-5.6-luna',
+            }),
+          };
+        }
+        if (path === '/api/monitoring-source') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              monitoringSource: {
+                url: 'https://feeds.example.com/ivan-toney.xml',
+                type: 'rss', title: 'Story monitoring', discovery: 'automatic',
+              },
+            }),
+          };
+        }
+        if (path === '/api/check-watch') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ items: [], checkedAt: '2026-08-07T12:00:00.000Z' }),
+          };
+        }
+        throw new Error(`Unexpected request: ${path}`);
+      },
+    },
+  });
+  console.warn = () => {};
+  console.error = () => {};
+
+  try {
+    const { initForm } = await import(`./navigation.js?ivan-lifecycle=${Date.now()}`);
+    initForm();
+    await form.dispatch('submit');
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const reviewHtml = elements.get('#watchKeywordChips').innerHTML;
+    for (const { label } of strongConcepts) assert.match(reviewHtml, new RegExp(label));
+    assert.doesNotMatch(reviewHtml, /World Cup|England’s final|>Soho</u);
+    assert.match(elements.get('#urlReviewMonitoringScope').textContent, /legal and court/i);
+    assert.doesNotMatch(elements.get('#urlReviewMonitoringScope').textContent, /World Cup|competition/i);
+
+    await elements.get('#urlReviewCreate').dispatch('click');
+    const persistedWatches = JSON.parse(storage.getItem('watchAssistant.watches') || '[]');
+    assert.equal(persistedWatches.length, 1);
+    const persisted = persistedWatches[0];
+    assert.deepEqual(persisted.storyFingerprint, strongConcepts);
+    assert.deepEqual(persisted.storyProfile.concepts, strongConcepts);
+
+    const { migrateWatchModel } = await import('./watch-model.js');
+    const normalized = migrateWatchModel(persisted).watch;
+    assert.deepEqual(normalized.storyFingerprint, strongConcepts);
+    assert.deepEqual(normalized.storyProfile.concepts, strongConcepts);
+
+    const editForm = createFormElements(sourceUrl);
+    windowStub.location = new URL(`http://localhost/new-watch.html?edit=${persisted.id}`);
+    initForm();
+    const editHtml = elements.get('#watchKeywordChips').innerHTML;
+    for (const { label } of strongConcepts) assert.match(editHtml, new RegExp(label));
+    assert.doesNotMatch(editHtml, /World Cup|England’s final|>Soho</u);
+    assert.equal(editForm.watchRequest.value, sourceUrl);
+    assert.deepEqual(calls.filter((path) => path === '/api/watch-suggestion'), ['/api/watch-suggestion']);
+  } finally {
+    console.warn = originalWarn;
+    console.error = originalError;
+    for (const [key, descriptor] of Object.entries(originalGlobals)) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+    }
+  }
+});

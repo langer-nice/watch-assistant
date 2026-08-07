@@ -152,6 +152,34 @@ test('strong AI identifiers are not replaced or padded by local evidence', () =>
   }), strong);
 });
 
+test('authoritative AI profiles preserve semantic relationships and enforce only the maximum', () => {
+  const political = [
+    {
+      label: 'Lisa Murkowski’s opposition to Todd Blanche’s attorney general nomination',
+      type: 'relationship',
+    },
+    { label: 'Todd Blanche’s nomination for US attorney general', type: 'event' },
+    { label: 'Politicisation of the US Justice Department', type: 'phenomenon' },
+  ];
+  assert.deepEqual(enrichStoryFingerprint(political, {}, {
+    analysisProvider: 'openai',
+    authoritative: true,
+    evidence: {
+      articleText: 'Incidental background mentions should not pad the selected profile.',
+    },
+  }), political);
+
+  const sixUsefulConcepts = [
+    ...political,
+    { label: 'United States', type: 'location' },
+    { label: 'US Senate', type: 'organization' },
+    { label: 'Attorney general confirmation process', type: 'event' },
+  ];
+  assert.equal(enrichStoryFingerprint(sixUsefulConcepts, {}, {
+    analysisProvider: 'openai', authoritative: true, limit: 5,
+  }).length, 5);
+});
+
 test('local monitoring scope represents the political story instead of only its location', () => {
   const identifiers = enrichStoryFingerprint([
     { label: 'Michigan', type: 'location' },

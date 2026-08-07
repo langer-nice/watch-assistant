@@ -1,4 +1,7 @@
-import { normalizeAutomaticStoryFingerprint } from './monitoring-concepts.js';
+import {
+  AUTOMATIC_STORY_CONCEPT_TYPES,
+  normalizeAutomaticStoryFingerprint,
+} from './monitoring-concepts.js';
 
 const MONTHS = new Set([
   'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august',
@@ -149,6 +152,16 @@ const correctType = ({ label, type }) => {
 export const hasObviousIdentifierTypeConflict = (candidate) => {
   const corrected = correctType(candidate);
   return !corrected || corrected !== candidate?.type;
+};
+
+export const isSafeAutomaticStoryConcept = (candidate) => {
+  const normalized = canonicalizeCandidate(candidate);
+  return Boolean(
+    AUTOMATIC_STORY_CONCEPT_TYPES.includes(normalized?.type)
+    && !GENERIC_MONITORING_CONCEPT.test(normalized.label)
+    && !NON_EDITORIAL_ACCESS_CONCEPT.test(normalized.label)
+    && !hasObviousIdentifierTypeConflict(normalized)
+  );
 };
 
 const getEvidenceSource = (evidence) => [

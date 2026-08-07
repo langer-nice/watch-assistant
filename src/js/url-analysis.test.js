@@ -1079,11 +1079,12 @@ test('strong Ivan Toney AI concepts remain authoritative through the final Story
         status: 200,
         json: async () => ({
           title: 'Footballer Ivan Toney charged with assault at Soho nightclub',
-          description: 'Ivan Toney was charged with assault causing actual bodily harm after an incident at a Soho nightclub.',
+          description: 'The footballer is accused after an incident in central London.',
           articleText: [
-            'Ivan Toney has been charged with assault causing actual bodily harm after an incident at a nightclub in Soho.',
-            'He will appear at Westminster Magistrates Court for proceedings in the case.',
+            'Ivan Toney has been charged with assault causing actual bodily harm.',
+            'The incident happened at a nightclub in Soho.',
             'The footballer previously played at the World Cup and in England’s final.',
+            'He will appear at Westminster Magistrates Court.',
           ].join(' '),
           siteName: 'BBC News', language: 'en', pageType: 'article', sourceUrl: url,
         }),
@@ -1120,6 +1121,47 @@ test('strong Ivan Toney AI concepts remain authoritative through the final Story
     assert.equal(result.storyFingerprint.some(({ label }) => label === 'Footballer Ivan Toney'), false);
     assert.match(result.monitoringScope, /legal and court developments/i);
     assert.doesNotMatch(result.monitoringScope, /competition|World Cup|tournament/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('one authoritative ultra-processed-food concept remains sufficient without padding', async () => {
+  const originalFetch = globalThis.fetch;
+  const url = 'https://www.bbc.com/future/article/ultra-processed-foods';
+  globalThis.fetch = async (path) => {
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'Six easy swaps to help you avoid ultra-processed foods',
+          description: 'The article examines practical dietary changes and nutrition.',
+          articleText: 'Ultra-processed foods are the central subject. Nutrition and health are discussed as supporting context.',
+          siteName: 'BBC Future', language: 'en', pageType: 'article', sourceUrl: url,
+        }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        concepts: [
+          { label: 'Ultra-processed foods', type: 'phenomenon', reason: 'Central subject' },
+        ],
+        confidence: 0.96,
+        analysisProvider: 'openai', analysisStatus: 'success', analysisModel: 'gpt-5.6-luna',
+      }),
+    };
+  };
+
+  try {
+    const result = await analyseUrl(url);
+    assert.deepEqual(result.storyFingerprint, [
+      { label: 'Ultra-processed foods', type: 'phenomenon' },
+    ]);
+    assert.deepEqual(result.storyProfile.concepts, result.storyFingerprint);
+    assert.equal(result.storyFingerprint.some(({ label }) => /^(?:Food|Health|Nutrition)$/u.test(label)), false);
   } finally {
     globalThis.fetch = originalFetch;
   }

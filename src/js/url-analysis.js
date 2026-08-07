@@ -17,7 +17,10 @@ import {
   createStoryOverview,
   enrichStoryFingerprint,
 } from './story-review.js';
-import { rankStoryIdentifiers } from './story-identifier-ranking.js';
+import {
+  isSafeAutomaticStoryConcept,
+  rankStoryIdentifiers,
+} from './story-identifier-ranking.js';
 
 const getPublisher = (url) => {
   const knownPublisher = getMediaStoryPublisher(url.href);
@@ -729,20 +732,18 @@ const mergeConceptProposal = (proposal, deterministicSuggestion, analysisPage) =
     limit: 6,
     includeEvidenceCandidates: false,
   });
-  const validatedKeys = new Set(validatedProposal.map(({ label, type }) => (
-    `${type}\u0000${label.toLocaleLowerCase()}`
-  )));
-  const authoritativeProposal = proposedConcepts.filter(({ label, type }) => (
-    validatedKeys.has(`${type}\u0000${label.toLocaleLowerCase()}`)
-  ));
   const useProposal = proposal.confidence >= 0.5 && validatedProposal.length > 0;
+  // A successful concept response has already passed the server's deterministic trusted-evidence
+  // validation. Repeat only client-safe shape/type checks here; applying the stricter local ranker
+  // again would downgrade semantic compounds that the API has already validated against the full
+  // article body.
   const strongProposal = proposal.analysisProvider === 'openai'
     && proposal.analysisStatus === 'success'
     && proposal.confidence >= 0.8
-    && validatedProposal.length === proposedConcepts.length
-    && validatedProposal.length > 0;
+    && proposedConcepts.every(isSafeAutomaticStoryConcept)
+    && proposedConcepts.length > 0;
   const storyFingerprint = strongProposal
-    ? normalizeAutomaticStoryFingerprint(authoritativeProposal, 5)
+    ? normalizeAutomaticStoryFingerprint(proposedConcepts, 5)
     : useProposal
     ? rankStoryIdentifiers({
       selected: [
@@ -773,19 +774,20 @@ const mergeConceptProposal = (proposal, deterministicSuggestion, analysisPage) =
       symptoms: labelsByType('symptom'),
     }
     : deterministicSuggestion.storyProfile;
+  const acceptedProposal = strongProposal || useProposal;
   return {
     ...deterministicSuggestion,
     storyFingerprint,
     storyProfile,
     keywords: storyFingerprint.map(({ label }) => label),
-    analysisProvider: useProposal ? 'openai' : 'deterministic',
-    analysisStatus: useProposal ? 'success' : 'fallback',
+    analysisProvider: acceptedProposal ? 'openai' : 'deterministic',
+    analysisStatus: acceptedProposal ? 'success' : 'fallback',
     analysisModel: proposal.analysisModel || null,
     fallbackReasonCode: null,
     analyzedAt: proposal.analyzedAt || new Date().toISOString(),
     analysisDiagnosticId: proposal.analysisDiagnosticId || null,
     semanticConceptProposal: true,
-    conceptProposalAccepted: useProposal,
+    conceptProposalAccepted: acceptedProposal,
     strongConceptProposal: strongProposal,
     conceptProposalConfidence: proposal.confidence,
   };

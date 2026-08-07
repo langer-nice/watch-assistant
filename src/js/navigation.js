@@ -3757,7 +3757,7 @@ export function initForm() {
 
   const regenerateLegacyUrlConcepts = async () => {
     if (!isEditMode || editingWatch.inputType !== 'url') return;
-    const forceRegeneration = import.meta.env.DEV
+    const forceRegeneration = import.meta.env?.DEV
       && formParams.get('forceConceptRegeneration') === '1';
     if (!shouldRegenerateStoryFingerprint(
       editingWatch,
@@ -3773,7 +3773,7 @@ export function initForm() {
 
     const sourceUrl = editingWatch.sourceUrl || editingWatch.request;
     if (!isUrl(sourceUrl)) return;
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV) {
       console.info(
         `[Story Fingerprint] ${forceRegeneration ? 'Forced' : 'Legacy'} regeneration for Watch ${editingWatch.id}`,
       );
