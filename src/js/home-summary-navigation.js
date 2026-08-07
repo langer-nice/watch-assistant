@@ -1,8 +1,14 @@
-const HOME_STATUSES = new Set(['attention', 'updated']);
+const HOME_STATUS_TARGET_IDS = Object.freeze({
+  attention: 'home-needs-attention',
+  updated: 'home-updated',
+  new: 'home-new',
+});
+
+export const getHomeStatusTargetId = (status) => HOME_STATUS_TARGET_IDS[status] || null;
 
 export const getFirstRenderedHomeWatch = (root, status) => (
-  HOME_STATUSES.has(status)
-    ? root?.querySelector?.(`[data-home-watch-status="${status}"]`) || null
+  getHomeStatusTargetId(status)
+    ? root?.querySelector?.(`#${getHomeStatusTargetId(status)}[data-home-watch-status="${status}"]`) || null
     : null
 );
 

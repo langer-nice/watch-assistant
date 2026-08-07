@@ -32,6 +32,9 @@ const baseWatch = {
     discovery: 'news-search',
     url: 'https://news.google.com/rss/search?q=Broad+Peak',
   },
+  storyProfile: {
+    concepts: [{ label: 'rescue operation', type: 'manual' }],
+  },
   updates: [],
 };
 
@@ -179,13 +182,14 @@ test('renderers use Updated badges, semantic update destinations, and the shared
     readFile(new URL('../locales/fr.json', import.meta.url), 'utf8'),
   ]);
   const homeRenderer = navigation.match(/const renderHomeWatchCards =[\s\S]*?const renderHomeBriefing/)?.[0] || '';
+  const sharedRenderer = navigation.match(/const getSummaryCardStatus =[\s\S]*?const renderHomeWatchCards/)?.[0] || '';
   const allRenderer = navigation.match(/const renderWatchList =[\s\S]*?const renderWatchDetail/)?.[0] || '';
   const detailRenderer = navigation.match(/const renderWatchDetail = \(\) => \{[\s\S]*?function scheduleFirstMonitoringPass/)?.[0] || '';
 
-  assert.match(homeRenderer, /statuses\.updated/);
+  assert.match(sharedRenderer, /statuses\.updated/);
   assert.doesNotMatch(homeRenderer, /statuses\.new/);
   assert.match(allRenderer, /\? 'updated'/);
-  assert.doesNotMatch(allRenderer, /\? 'new'/);
+  assert.match(allRenderer, /newIds\.has\(watch\.id\)[\s\S]*?\? 'new'/);
   assert.match(allRenderer, /sortHomeWatches\(watches/);
   assert.match(allRenderer, /getStatus: \(watch\) => statusById\.get\(watch\.id\) \|\| 'unchanged'/);
   assert.match(watchesHtml, /id="allWatchesSort"[\s\S]*?needs-attention-first[\s\S]*?updated-first[\s\S]*?most-recent[\s\S]*?oldest-first/);

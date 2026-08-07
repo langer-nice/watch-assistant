@@ -49,6 +49,22 @@ export const requestMonitoringSource = async (
   return monitoringSource;
 };
 
+const URL_DISCOVERY_LANGUAGES = ['en', 'fr'];
+
+const requestUrlMonitoringSource = async (request, options = {}) => {
+  const { language: _interfaceLanguage, ...requestOptions } = options;
+  let lastError = null;
+  for (const language of URL_DISCOVERY_LANGUAGES) {
+    try {
+      return await requestMonitoringSource(request, { ...requestOptions, language });
+    } catch (error) {
+      if (!(error instanceof SourceDiscoveryError)) throw error;
+      lastError = error;
+    }
+  }
+  throw lastError || new SourceDiscoveryError();
+};
+
 export const resolveUrlMonitoringSource = async (
   analysis,
   options = {},
@@ -62,6 +78,6 @@ export const resolveUrlMonitoringSource = async (
     .map((value) => value.trim())
     .join(' ');
   if (!request) throw new SourceDiscoveryError('NO_COMPATIBLE_SOURCE');
-  const monitoringSource = await requestMonitoringSource(request, options);
+  const monitoringSource = await requestUrlMonitoringSource(request, options);
   return { ...analysis, monitoringSource };
 };

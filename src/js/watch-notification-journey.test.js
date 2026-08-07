@@ -4,14 +4,15 @@ import test from 'node:test';
 
 test('Home and All Watches derive Updated presentation from persisted Updates', async () => {
   const source = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
+  const sharedRenderer = source.match(/const getSummaryCardStatus =[\s\S]*?const renderHomeWatchCards/)?.[0] || '';
   const homeRenderer = source.match(/const renderHomeWatchCards =[\s\S]*?const renderHomeBriefing/)?.[0] || '';
   const listRenderer = source.match(/const renderWatchList =[\s\S]*?const renderWatchDetail/)?.[0] || '';
 
   assert.match(homeRenderer, /getLatestUpdate\(watch\)/);
-  assert.match(homeRenderer, /statuses\.updated/);
+  assert.match(sharedRenderer, /statuses\.updated/);
   assert.doesNotMatch(homeRenderer, /statuses\.new/);
   assert.match(listRenderer, /updatedIds\.has\(watch\.id\)[\s\S]*?\? 'updated'/);
-  assert.doesNotMatch(listRenderer, /\? 'new'/);
+  assert.match(listRenderer, /newIds\.has\(watch\.id\)[\s\S]*?\? 'new'/);
 });
 
 test('Detail renders persisted history before marking only displayed unread Updates read', async () => {
@@ -45,6 +46,6 @@ test('notification journey keeps validated separators and responsive detail styl
   assert.match(navigation, /getUpdatedSeparatorWatchId\(/);
   assert.match(detailStyles, /@media \(min-width:/);
   assert.match(detailStyles, /\.monitoring-updates > ul/);
-  assert.match(cardTest, /Home preserves the validated separator/);
+  assert.match(cardTest, /Home keeps fixed priority/);
   assert.match(cardTest, /All Watches renders at most one canonical Home-style update separator/);
 });

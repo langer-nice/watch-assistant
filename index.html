@@ -48,6 +48,12 @@
                   <span><strong id="homeUpdatedCount"></strong> <span id="homeUpdatedLabel"></span></span>
                 </button>
               </li>
+              <li id="homeNewSummary" hidden>
+                <button class="briefing-summary__status briefing-summary__status--new" type="button" data-home-status-target="new">
+                  <span class="briefing-summary__dot" aria-hidden="true"></span>
+                  <span><strong id="homeNewCount"></strong> <span id="homeNewLabel"></span></span>
+                </button>
+              </li>
             </ul>
           </div>
         </section>
@@ -70,19 +76,12 @@
         </section>
 
         <section class="home-empty-state home-empty-state--caught-up" id="homeCaughtUpState" aria-live="polite" hidden>
-          <p data-i18n="home.allCaughtUp"></p>
+          <h1 data-i18n="home.dashboardUpToDate"></h1>
+          <p data-i18n="home.dashboardNoNewUpdates"></p>
+          <a class="editorial-link" href="watches.html" data-i18n="home.viewAllWatches"></a>
         </section>
 
         <section class="briefing-feed" id="homeBriefingFeed" aria-label="Briefing items" data-i18n-aria-label="home.briefingItemsLabel">
-          <div class="home-watch-sort" id="homeWatchSortRow">
-            <label for="homeWatchSort" data-i18n="home.sortBy"></label>
-            <select id="homeWatchSort">
-              <option value="needs-attention-first" data-i18n="home.sortAttentionFirst"></option>
-              <option value="updated-first" data-i18n="home.sortUpdatedFirst"></option>
-              <option value="most-recent" data-i18n="home.sortMostRecent"></option>
-              <option value="oldest-first" data-i18n="home.sortOldestFirst"></option>
-            </select>
-          </div>
           <div id="homeBriefingList"></div>
 
           <section class="all-quiet" id="homeAllQuiet" aria-labelledby="allQuietTitle" hidden>

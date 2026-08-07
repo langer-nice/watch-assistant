@@ -115,6 +115,84 @@ test('BBC News analysis receives one validated source before the successful revi
   assert.match(analysis.monitoringSource.url, /^https:\/\/news\.google\.com\/rss\/search/);
 });
 
+test('URL source acceptance is independent of English or French interface language', async () => {
+  const cases = [
+    {
+      articleLanguage: 'en',
+      sourceTitle: 'English-language article',
+      matchingDiscoveryLanguage: 'en',
+    },
+    {
+      articleLanguage: 'fr',
+      sourceTitle: 'Article en français',
+      matchingDiscoveryLanguage: 'fr',
+    },
+  ];
+
+  for (const interfaceLanguage of ['en', 'fr']) {
+    for (const fixture of cases) {
+      const requestedLanguages = [];
+      const analysis = await resolveUrlMonitoringSource({
+        status: 'success',
+        sourceTitle: fixture.sourceTitle,
+        source: 'Fixture News',
+        sourceUrl: `https://example.com/${fixture.articleLanguage}/article`,
+        monitoringSource: null,
+      }, {
+        language: interfaceLanguage,
+        fetchImpl: async (_path, options) => {
+          const { language } = JSON.parse(options.body);
+          requestedLanguages.push(language);
+          if (language !== fixture.matchingDiscoveryLanguage) {
+            return new Response(JSON.stringify({ code: 'NO_COMPATIBLE_SOURCE' }), {
+              status: 422,
+            });
+          }
+          return new Response(JSON.stringify({
+            monitoringSource: {
+              url: `https://news.google.com/rss/search?q=${fixture.articleLanguage}-article`,
+              type: 'rss',
+              title: `${fixture.sourceTitle} - Google News`,
+              discovery: 'news-search',
+            },
+          }), { status: 200 });
+        },
+      });
+
+      assert.equal(analysis.monitoringSource.discovery, 'news-search');
+      assert.deepEqual(
+        requestedLanguages,
+        fixture.matchingDiscoveryLanguage === 'en' ? ['en'] : ['en', 'fr'],
+        `${interfaceLanguage} UI must use locale-independent discovery for ${fixture.articleLanguage}`,
+      );
+    }
+  }
+});
+
+test('invalid and unsupported URL source data remains rejected in both interface languages', async () => {
+  for (const language of ['en', 'fr']) {
+    await assert.rejects(resolveUrlMonitoringSource({
+      sourceTitle: '',
+      source: '',
+      sourceUrl: 'not a URL',
+    }, { language }), (error) => error.code === 'NO_COMPATIBLE_SOURCE');
+
+    let requests = 0;
+    await assert.rejects(resolveUrlMonitoringSource({
+      sourceTitle: 'Unsupported article',
+      source: 'Fixture News',
+      sourceUrl: 'https://example.com/unsupported',
+    }, {
+      language,
+      fetchImpl: async () => {
+        requests += 1;
+        return new Response(JSON.stringify({ code: 'NO_COMPATIBLE_SOURCE' }), { status: 422 });
+      },
+    }), (error) => error.code === 'NO_COMPATIBLE_SOURCE');
+    assert.equal(requests, 2);
+  }
+});
+
 test('aborted URL source discovery does not become an unsupported-source failure', async () => {
   const abortError = new DOMException('The operation was aborted.', 'AbortError');
   await assert.rejects(resolveUrlMonitoringSource({

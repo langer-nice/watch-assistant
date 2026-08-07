@@ -46,8 +46,17 @@
   background: var(--color-status-action-bg);
 }
 
-.status-label--completed,
-.status-label--stable {
+.status-label--company-warning {
+  color: #8a5700;
+  background: color-mix(in srgb, #d9901a 16%, var(--color-surface));
+}
+
+.status-label--completed {
   color: var(--color-status-success);
   background: var(--color-status-success-bg);
+}
+
+.status-label--stable {
+  color: var(--color-text-on-dark);
+  background: var(--color-status-success);
 }

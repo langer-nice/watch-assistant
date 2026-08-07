@@ -8,6 +8,7 @@ import {
   extractFeedCandidates,
   extractPageMetadata,
   extractPageTitle,
+  fetchPageMetadata,
   generateWatchSuggestion,
   MAX_ARTICLE_TEXT_LENGTH,
 } from './url-watch-api.js';
@@ -156,6 +157,223 @@ test('extracts the strongest available source fields from the Guardian article s
   assert.equal(metadata.articleBodyCount, 1);
   assert.equal(metadata.includedArticleBodyCount, 1);
   assert.equal(metadata.sourceUrl, guardianUrl);
+  assert.equal(metadata.pageType, 'article');
+});
+
+test('extracts layered BBC metadata without requiring JSON-LD articleBody', () => {
+  const sourceUrl = 'https://www.bbc.com/news/articles/c87ydw7xdxvo';
+  const metadata = extractPageMetadata(`<html><head>
+    <title>HTML title fallback</title>
+    <meta name="description" content="HTML description fallback.">
+    <meta name="twitter:title" content="Twitter title fallback">
+    <meta name="twitter:description" content="Twitter description fallback.">
+    <meta property="og:title" content="Brain fog and four easy ways to help fix it">
+    <meta property="og:description" content="BBC explains practical ways to manage brain fog.">
+    <link rel="canonical" href="/news/articles/c87ydw7xdxvo">
+    <script type="application/ld+json">${JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'NewsArticle',
+      headline: 'JSON-LD headline fallback',
+      description: 'JSON-LD description fallback.',
+      publisher: { '@type': 'NewsMediaOrganization', name: 'BBC News' },
+      datePublished: '2025-09-14T00:00:00.000Z',
+    })}</script>
+  </head><body><main>JavaScript shell without an article element.</main></body></html>`, sourceUrl);
+
+  assert.equal(metadata.title, 'JSON-LD headline fallback');
+  assert.equal(metadata.description, 'BBC explains practical ways to manage brain fog.');
+  assert.equal(metadata.siteName, 'BBC News');
+  assert.equal(metadata.publishedAt, '2025-09-14T00:00:00.000Z');
+  assert.equal(metadata.canonicalUrl, sourceUrl);
+  assert.equal(metadata.sourceUrl, sourceUrl);
+  assert.equal(metadata.extractionMethod, 'metadata_only');
+  assert.equal(metadata.pageType, 'article');
+});
+
+test('classifies a navigation-heavy BBC homepage before its article-card text can become a Story', () => {
+  const metadata = extractPageMetadata(`<html><head>
+    <title>BBC - Home</title>
+    <meta property="og:title" content="BBC - Home">
+    <meta property="og:site_name" content="BBC">
+  </head><body>
+    <nav>${Array.from({ length: 10 }, (_, index) => `<a href="/section-${index}">Section ${index}</a>`).join('')}</nav>
+    <h1>Top stories</h1><h2>Football Daily</h2><h2>World news</h2><h2>Travel</h2>
+    <article>Save Football Daily Scottish coverage and unrelated navigation.</article>
+    <article>Reporting from Yaroslavl appears in a separate homepage card.</article>
+  </body></html>`, 'https://www.bbc.com/');
+
+  assert.equal(metadata.pageType, 'homepage');
+  assert.equal(metadata.articleBodyCount, 0);
+  assert.equal(metadata.articleText, '');
+});
+
+test('uses JSON-LD before HTML metadata and recognizes BBC from the URL as a last resort', () => {
+  const jsonLd = extractPageMetadata(`<html><head>
+    <title>HTML title fallback</title>
+    <meta name="description" content="HTML description fallback.">
+    <script type="application/ld+json">${JSON.stringify({
+      '@type': 'NewsArticle',
+      headline: 'JSON-LD headline',
+      description: 'JSON-LD description.',
+      publisher: { name: 'BBC News' },
+    })}</script>
+  </head></html>`, 'https://www.bbc.com/news/articles/json-ld');
+  assert.equal(jsonLd.title, 'JSON-LD headline');
+  assert.equal(jsonLd.description, 'JSON-LD description.');
+  assert.equal(jsonLd.siteName, 'BBC News');
+
+  const titleOnly = extractPageMetadata(
+    '<html><head><title>BBC title-only report</title></head></html>',
+    'https://www.bbc.com/sport/articles/title-only',
+  );
+  assert.equal(titleOnly.title, 'BBC title-only report');
+  assert.equal(titleOnly.description, '');
+  assert.equal(titleOnly.siteName, 'BBC News');
+});
+
+test('uses only editorial article evidence and excludes related-content modules', () => {
+  const metadata = extractPageMetadata(`<html lang="en"><head>
+    <meta property="og:title" content="Open Graph fallback title">
+    <meta name="description" content="The verified article description.">
+    <script type="application/ld+json">${JSON.stringify({
+      '@type': 'NewsArticle',
+      headline: 'Verified JSON-LD headline',
+      articleBody: 'The verified article body concerns the Aurora research mission.',
+    })}</script>
+  </head><body>
+    <article><h1>Unrelated rendered headline</h1><p>Rendered duplicate.</p></article>
+    <aside aria-label="Most Read"><article>Celebrity Quiz</article></aside>
+    <section class="related-stories"><article>Apple Crisp</article></section>
+  </body></html>`, 'https://www.bbc.com/news/articles/verified');
+
+  assert.equal(metadata.title, 'Verified JSON-LD headline');
+  assert.equal(metadata.description, 'The verified article description.');
+  assert.equal(metadata.articleText, 'The verified article body concerns the Aurora research mission.');
+  assert.equal(metadata.language, 'en');
+  assert.deepEqual(metadata.jsonLdTypes, ['NewsArticle']);
+  assert.doesNotMatch(JSON.stringify(metadata), /Celebrity Quiz|Apple Crisp/);
+});
+
+test('selects the primary HTML article and removes recommendations nested inside it', () => {
+  const metadata = extractPageMetadata(`<html><head>
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Primary investigation">
+  </head><body>
+    <article class="story-body">
+      <h1>Primary investigation</h1>
+      <p>The investigation follows the Atlas programme and its scientific findings.</p>
+      <p>Researchers published evidence from the mission.</p>
+      <section class="more-on-this-topic"><h2>More on this topic</h2><p>Celebrity Quiz</p></section>
+    </article>
+    <article class="recommended-card"><h2>Apple Crisp</h2></article>
+  </body></html>`, 'https://example.com/reports/atlas');
+
+  assert.match(metadata.articleText, /Atlas programme/);
+  assert.doesNotMatch(metadata.articleText, /Celebrity Quiz|Apple Crisp|More on this topic/);
+  assert.equal(metadata.articleBodyCount, 1);
+});
+
+test('replaces a publisher access challenge with article URL evidence', () => {
+  const url = 'https://www.lemonde.fr/international/article/2026/08/06/en-russie-la-ou-poutine-passe-le-prix-de-l-essence-baisse_6739681_3210.html';
+  const metadata = extractPageMetadata('<html lang="en"><head><title>Client Challenge</title></head></html>', url);
+
+  assert.equal(metadata.pageType, 'article');
+  assert.equal(metadata.contentAccessLimited, true);
+  assert.equal(metadata.titleSource, 'url_slug');
+  assert.match(metadata.title, /^En russie la ou poutine passe le prix de l’essence baisse$/iu);
+  assert.doesNotMatch(JSON.stringify(metadata), /Client Challenge/);
+  assert.equal(metadata.description, '');
+  assert.equal(metadata.articleText, '');
+  assert.equal(metadata.language, '');
+});
+
+test('preserves French article metadata and passes only its articleBody to analysis', () => {
+  const url = 'https://www.lemonde.fr/international/article/2026/08/06/article_6739681_3210.html';
+  const metadata = extractPageMetadata(`<html lang="fr"><head>
+    <meta property="og:title" content="Titre Open Graph de secours">
+    <meta property="og:description" content="Le prix de l’essence baisse dans les régions visitées par le président russe.">
+    <link rel="canonical" href="${url}">
+    <script type="application/ld+json">${JSON.stringify({
+      '@type': 'NewsArticle',
+      headline: 'En Russie, là où Poutine passe, le prix de l’essence baisse',
+      description: 'Une enquête sur les déplacements de Vladimir Poutine et les prix à la pompe.',
+      datePublished: '2026-08-06T06:00:00+02:00',
+      author: { name: 'Marie Dupont' },
+      publisher: { name: 'Le Monde' },
+      articleBody: 'À Iaroslavl, le prix de l’essence a baissé avant la visite de Vladimir Poutine. L’évolution contraste avec la hausse observée ailleurs en Russie.',
+    })}</script>
+  </head><body><article>Texte rendu.<aside>Most Read</aside></article></body></html>`, url);
+
+  assert.equal(metadata.title, 'En Russie, là où Poutine passe, le prix de l’essence baisse');
+  assert.equal(metadata.language, 'fr');
+  assert.equal(metadata.siteName, 'Le Monde');
+  assert.equal(metadata.canonicalUrl, url);
+  assert.match(metadata.articleText, /À Iaroslavl/);
+  assert.doesNotMatch(metadata.articleText, /Texte rendu|Most Read/);
+  assert.equal(metadata.extractionMethod, 'json_ld_article_body');
+});
+
+test('keeps visible Nice-Matin-like article evidence while removing access and subscription UI', () => {
+  const url = 'https://www.nicematin.com/faits-divers/une-boulangerie-fermee-a-nice-123456';
+  const metadata = extractPageMetadata(`<html lang="fr"><head>
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Une boulangerie visée par une fermeture administrative à Nice">
+    <meta property="og:description" content="La police a constaté plusieurs manquements dans la boulangerie Azur.">
+    <meta property="article:published_time" content="2026-08-06T08:00:00+02:00">
+    <link rel="canonical" href="${url}">
+  </head><body><article>
+    <h1>Une boulangerie visée par une fermeture administrative à Nice</h1>
+    <p>La boulangerie Azur, située à Nice, fait l’objet d’une fermeture administrative.</p>
+    <p>La police a constaté plusieurs manquements lors d’un contrôle.</p>
+    <section class="subscription-overlay">
+      <h2>Pourquoi s’abonner ?</h2><p>Profitez de tous nos articles.</p>
+      <button>Je m’abonne</button><button>Je me connecte</button>
+      <button>Regarder une publicité</button>
+    </section>
+    <aside class="journalist-subscription-card">Soutenez notre journaliste en devenant membre.</aside>
+  </article></body></html>`, url);
+
+  assert.equal(metadata.pageType, 'article');
+  assert.equal(metadata.contentAccessLimited, true);
+  assert.equal(metadata.title, 'Une boulangerie visée par une fermeture administrative à Nice');
+  assert.match(metadata.articleText, /boulangerie Azur/iu);
+  assert.match(metadata.articleText, /fermeture administrative/iu);
+  assert.match(metadata.articleText, /police/iu);
+  assert.doesNotMatch(
+    JSON.stringify(metadata),
+    /Pourquoi s’abonner|Je m’abonne|Je me connecte|Regarder une publicité|devenant membre/iu,
+  );
+});
+
+test('page retrieval preserves the requested BBC URL while recording a validated redirect target', async () => {
+  const requestedUrl = 'https://www.bbc.com/news/c87ydw7xdxvo?edition=uk';
+  const resolvedUrl = 'https://www.bbc.com/news/articles/c87ydw7xdxvo?edition=uk';
+  const validated = [];
+  const requested = [];
+  const responses = [
+    new Response('', { status: 302, headers: { location: resolvedUrl } }),
+    new Response('<html><head><meta property="og:title" content="Redirected BBC report"></head></html>', {
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    }),
+  ];
+  const result = await fetchPageMetadata(requestedUrl, async (url) => {
+    requested.push(url.href);
+    return responses.shift();
+  }, {
+    validateUrl: async (url) => {
+      const normalized = new URL(url);
+      validated.push(normalized.href);
+      return normalized;
+    },
+  });
+
+  assert.deepEqual(validated, [requestedUrl, resolvedUrl]);
+  assert.deepEqual(requested, [requestedUrl, resolvedUrl]);
+  assert.equal(result.title, 'Redirected BBC report');
+  assert.equal(result.siteName, 'BBC News');
+  assert.equal(result.sourceUrl, requestedUrl);
+  assert.equal(result.resolvedUrl, resolvedUrl);
 });
 
 test('extracts ordered distinct live entries from nested JSON-LD arrays and graphs', () => {
@@ -238,7 +456,7 @@ test('uses HTML articles only when structured article content is unavailable', (
   assert.equal(metadata.articleText, 'Structured article body.');
 });
 
-test('falls back to multiple distinct HTML article blocks when JSON-LD is unusable', () => {
+test('uses only the strongest HTML article block when JSON-LD is unusable', () => {
   const metadata = extractPageMetadata(`<html><head><title>HTML live page</title></head><body>
     <script type="application/ld+json">{ broken </script>
     <article><p>First HTML update.</p></article>
@@ -246,9 +464,9 @@ test('falls back to multiple distinct HTML article blocks when JSON-LD is unusab
     <article><p> First HTML update. </p></article>
   </body></html>`);
 
-  assert.equal(metadata.articleBodyCount, 2);
-  assert.equal(metadata.includedArticleBodyCount, 2);
-  assert.equal(metadata.articleText, 'First HTML update.\n\nSecond HTML update.');
+  assert.equal(metadata.articleBodyCount, 1);
+  assert.equal(metadata.includedArticleBodyCount, 1);
+  assert.equal(metadata.articleText, 'Second HTML update.');
 });
 
 test('decodes named HTML entities in an Open Graph title', () => {
@@ -281,20 +499,20 @@ test('preserves real ampersands and decodes the extracted title only once', () =
 test('normalizes AI concepts into precise phrases without weak or contained terms', async () => {
   const fetchImpl = async (_url, options) => {
     const request = JSON.parse(options.body);
-    assert.match(request.instructions, /zero to five identifiers/);
-    assert.match(request.instructions, /general advice, list items, lifestyle recommendations/);
-    assert.equal(request.text.format.schema.properties.storyFingerprint.maxItems, 5);
-    assert.equal(request.text.format.schema.properties.storyFingerprint.minItems, 0);
+    assert.match(request.instructions, /3–6 monitoring concepts/);
+    assert.match(request.instructions, /Do not summarize the article/);
+    assert.equal(request.text.format.schema.properties.concepts.maxItems, 6);
+    assert.equal(request.text.format.schema.properties.concepts.minItems, 0);
     assert.ok(
-      request.text.format.schema.properties.storyFingerprint.items.properties.type.enum
+      request.text.format.schema.properties.concepts.items.properties.type.enum
         .includes('condition'),
     );
     assert.ok(
-      request.text.format.schema.properties.storyFingerprint.items.properties.type.enum
+      request.text.format.schema.properties.concepts.items.properties.type.enum
         .includes('product_service'),
     );
     assert.equal(
-      request.text.format.schema.properties.storyFingerprint.items.properties.type.enum
+      request.text.format.schema.properties.concepts.items.properties.type.enum
         .includes('supporting'),
       false,
     );
@@ -368,6 +586,50 @@ test('normalizes AI concepts into precise phrases without weak or contained term
   assert.deepEqual(suggestion.storyProfile.primaryPeople, ['Petr Novotny']);
 });
 
+test('concept proposal input is cleaned and deterministic validation rejects generic, unsupported and access concepts', async () => {
+  let suppliedSource;
+  const result = await generateWatchSuggestion({
+    title: 'Une boulangerie visée par une fermeture administrative à Nice',
+    subtitle: 'La police a contrôlé la boulangerie Azur.',
+    description: 'La boulangerie Azur fait l’objet d’une fermeture administrative.',
+    articleText: [
+      'La boulangerie Azur, située à Nice, fait l’objet d’une fermeture administrative.',
+      'Pourquoi s’abonner ? Je m’abonne. Regarder une publicité. Je me connecte.',
+    ].join('\n\n'),
+    publisher: 'Nice-Matin',
+    publishedAt: '2026-08-06T08:00:00+02:00',
+    language: 'fr',
+    deterministicCandidates: [{ label: 'Fermeture administrative', type: 'event' }],
+    apiKey: 'test-key',
+    model: 'test-model',
+    fetchImpl: async (_url, options) => {
+      const request = JSON.parse(options.body);
+      suppliedSource = JSON.parse(request.input);
+      assert.match(request.instructions, /concept selection only/iu);
+      assert.doesNotMatch(request.instructions, /build one structured story profile/iu);
+      return createOpenAiResponse({
+        concepts: [
+          { label: 'Boulangerie Azur', type: 'organization', reason: 'The business named throughout the supplied evidence' },
+          { label: 'Fermeture administrative', type: 'event', reason: 'The central administrative action' },
+          { label: 'Nice', type: 'location', reason: 'The stated location' },
+          { label: 'News', type: 'phenomenon', reason: 'A broad category' },
+          { label: 'Pourquoi s’abonner', type: 'phenomenon', reason: 'Access copy' },
+          { label: 'Marseille', type: 'location', reason: 'Not supported' },
+        ],
+        confidence: 0.86,
+      });
+    },
+  });
+
+  assert.doesNotMatch(JSON.stringify(suppliedSource), /Pourquoi s’abonner|Je m’abonne|publicité|connecte/iu);
+  assert.deepEqual(result.concepts.map(({ label, type }) => ({ label, type })), [
+    { label: 'Boulangerie Azur', type: 'organization' },
+    { label: 'Fermeture administrative', type: 'event' },
+    { label: 'Nice', type: 'location' },
+  ]);
+  assert.equal(result.confidence, 0.86);
+});
+
 test('the Odyssey contract favors a named work plus one concise non-overlapping event', async () => {
   const odysseySuggestion = {
     watchTitle: 'Leaked copies of The Odyssey circulate on X',
@@ -398,9 +660,9 @@ test('the Odyssey contract favors a named work plus one concise non-overlapping 
     model: 'test-model',
     fetchImpl: async (_url, options) => {
       const request = JSON.parse(options.body);
-      assert.match(request.instructions, /canonical named entities and short reusable event/);
-      assert.match(request.instructions, /do not repeat the named entity/);
-      assert.ok(request.text.format.schema.properties.storyFingerprint.items.properties.type.enum.includes('work'));
+      assert.match(request.instructions, /smallest complementary set/);
+      assert.match(request.instructions, /concept selection only/);
+      assert.ok(request.text.format.schema.properties.concepts.items.properties.type.enum.includes('work'));
       return createOpenAiResponse(odysseySuggestion);
     },
   });
@@ -850,8 +1112,8 @@ test('accepts empty optional categories and Unicode punctuation in a valid struc
     title: unicodeSuggestion.watchTitle, apiKey: 'test-key', model: 'test-model',
     fetchImpl: async (_url, options) => {
       const request = JSON.parse(options.body);
-      assert.equal(request.max_output_tokens, 1200);
-      assert.ok(request.text.format.schema.properties.storyProfile.properties.works);
+      assert.equal(request.max_output_tokens, 600);
+      assert.ok(request.text.format.schema.properties.concepts.items.properties.reason);
       return createOpenAiResponse(unicodeSuggestion);
     },
   });

@@ -521,29 +521,125 @@ test('unseen unrelated publications are counted but never stored as Watch update
   });
 });
 
-test('a validated query-scoped source treats its returned feed items as matching evidence', () => {
+test('a validated query-scoped source delegates every candidate to Story Profile matching', () => {
   const watch = {
     id: 'query-watch',
-    request: 'US–Iran strikes BBC News',
+    request: 'https://www.bbc.com/news/articles/story',
     monitoringSource: {
-      url: 'https://news.google.com/rss/search?q=US-Iran',
+      url: 'https://news.google.com/rss/search?q=Abdul+El-Sayed',
       type: 'rss',
       discovery: 'news-search',
     },
+    storyProfile: {
+      concepts: [
+        { label: 'Abdul El-Sayed', type: 'person' },
+        { label: 'Democratic Party', type: 'organization' },
+        { label: 'Senate race', type: 'event' },
+      ],
+    },
     monitoringSnapshot: { itemIds: ['existing'] },
   };
-  const match = matchFeedItemToWatch(item('new-result', 'A new report from BBC News'), watch);
-  assert.equal(match.matched, true);
-  assert.deepEqual(match.evidence, [{
-    field: 'monitoringSource',
-    strength: 'strong',
-    label: watch.request,
-  }]);
+  const politicalArticle = {
+    ...item('political', 'Abdul El-Sayed wins the Democratic Senate primary'),
+    source: 'BBC',
+  };
+  const unrelatedBbcArticle = {
+    ...item('recipe', "Yvonne's Apple Crisp"),
+    source: 'BBC',
+    excerpt: 'A simple baked apple dessert recipe.',
+  };
+  const unrelatedNewsCordArticle = {
+    ...item('markets', 'European markets close higher after technology rally'),
+    source: 'NewsCord',
+    excerpt: 'Investors assessed earnings from technology companies.',
+  };
 
-  const result = applyFeedCheckResult(watch, response(['new-result', 'existing']));
+  for (const candidate of [politicalArticle, unrelatedBbcArticle, unrelatedNewsCordArticle]) {
+    assert.deepEqual(
+      matchFeedItemToWatch(candidate, watch),
+      matchFeedItemToStory(candidate, watch.storyProfile),
+    );
+  }
+  assert.deepEqual(matchFeedItemToWatch(politicalArticle, watch), {
+    matched: true,
+    evidence: [{
+      field: 'people',
+      strength: 'strong',
+      label: 'Abdul El-Sayed',
+    }],
+  });
+  assert.deepEqual(matchFeedItemToWatch(unrelatedBbcArticle, watch), {
+    matched: false,
+    evidence: [],
+  });
+  assert.deepEqual(matchFeedItemToWatch(unrelatedNewsCordArticle, watch), {
+    matched: false,
+    evidence: [],
+  });
+
+  const result = applyFeedCheckResult(watch, {
+    ...response([]),
+    items: [politicalArticle, unrelatedBbcArticle, unrelatedNewsCordArticle, item('existing')],
+  });
   assert.equal(result.outcome, 'matching-items');
-  assert.equal(result.changes.updates.length, 1);
-  assert.equal(result.changes.updates[0].status, 'new');
+  assert.deepEqual(result.newItems.map(({ id }) => id), ['political', 'recipe', 'markets']);
+  assert.deepEqual(result.matchedItems.map(({ id }) => id), ['political']);
+  assert.deepEqual(result.changes.updates.map(({ id, status }) => ({ id, status })), [
+    { id: 'political', status: 'new' },
+  ]);
+  assert.deepEqual(result.changes.monitoringSnapshot.itemIds, [
+    'political', 'recipe', 'markets', 'existing',
+  ]);
+
+  const repeated = applyFeedCheckResult(
+    { ...watch, ...result.changes },
+    {
+      ...response([], '2026-07-26T13:00:00.000Z'),
+      items: [politicalArticle, unrelatedBbcArticle, unrelatedNewsCordArticle, item('existing')],
+    },
+  );
+  assert.equal(repeated.outcome, 'no-new-items');
+  assert.deepEqual(repeated.changes.updates.map(({ id }) => id), ['political']);
+});
+
+test('Check Now fetches a Google News source once and persists only a Story match', async () => {
+  let watch = {
+    id: 'query-check-watch',
+    monitoringSource: {
+      url: 'https://news.google.com/rss/search?q=Abdul+El-Sayed',
+      type: 'rss',
+      discovery: 'news-search',
+    },
+    storyProfile: {
+      concepts: [{ label: 'Abdul El-Sayed', type: 'person' }],
+    },
+    monitoringSnapshot: { itemIds: ['existing'] },
+  };
+  let requestCount = 0;
+  const controller = createWatchCheckController({
+    getWatch: () => watch,
+    saveWatch: (_watchId, changes) => {
+      watch = { ...watch, ...changes };
+      return watch;
+    },
+    requestCheck: async () => {
+      requestCount += 1;
+      return {
+        ...response([]),
+        items: [
+          { ...item('match', 'Abdul El-Sayed wins Senate primary'), source: 'BBC' },
+          { ...item('unrelated', 'Help with back pain'), source: 'BBC' },
+          item('existing'),
+        ],
+      };
+    },
+  });
+
+  const result = await controller.check(watch.id);
+  assert.equal(requestCount, 1);
+  assert.deepEqual(result.matchedItems.map(({ id }) => id), ['match']);
+  assert.deepEqual(watch.updates.map(({ id }) => id), ['match']);
+  assert.deepEqual(watch.monitoringSnapshot.itemIds, ['match', 'unrelated', 'existing']);
 });
 
 test('a malformed or forged query-scoped source cannot bypass Story Profile matching', () => {

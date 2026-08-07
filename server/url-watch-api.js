@@ -7,8 +7,11 @@ import {
 } from '../src/js/monitoring-concepts.js';
 import {
   cleanArticleContentForAnalysis,
+  isAccessInterfaceText,
   sanitizeMalformedCurrencyText,
 } from '../src/js/article-content.js';
+import { getMediaStoryPublisher } from '../src/js/media-story-request.js';
+import { classifyPage } from '../src/js/page-classification.js';
 import { cleanStorySummaryText } from '../src/js/story-profile.js';
 
 const MAX_REQUEST_BYTES = 32 * 1024;
@@ -55,69 +58,28 @@ const validatePageUrl = async (value) => {
   }
 };
 
-const WATCH_SUGGESTION_SCHEMA = {
+const STORY_CONCEPT_PROPOSAL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    watchTitle: { type: 'string', minLength: 1, maxLength: 100 },
-    watchingFor: { type: 'string', minLength: 1, maxLength: 300 },
-    storyFingerprint: {
+    concepts: {
       type: 'array',
       minItems: 0,
-      maxItems: 5,
+      maxItems: 6,
       items: {
         type: 'object',
         additionalProperties: false,
         properties: {
           label: { type: 'string', minLength: 1, maxLength: 160 },
           type: { type: 'string', enum: AUTOMATIC_STORY_CONCEPT_TYPES },
+          reason: { type: 'string', minLength: 1, maxLength: 180 },
         },
-        required: ['label', 'type'],
+        required: ['label', 'type', 'reason'],
       },
     },
-    storyProfile: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        primaryPeople: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 80 } },
-        otherPeople: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 80 } },
-        peopleRoles: {
-          type: 'array',
-          maxItems: 6,
-          items: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              name: { type: 'string', minLength: 1, maxLength: 80 },
-              role: { type: 'string', minLength: 1, maxLength: 100 },
-            },
-            required: ['name', 'role'],
-          },
-        },
-        locations: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 100 } },
-        organizations: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 100 } },
-        eventTypes: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
-        distinctiveFacts: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 180 } },
-        aliases: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 100 } },
-        uncertaintyPhrases: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 240 } },
-        works: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
-        productsServices: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
-        events: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
-        relationships: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 140 } },
-        phenomena: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
-        conditions: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
-        symptoms: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 100 } },
-        storySummary: { type: 'string', minLength: 20, maxLength: 360 },
-      },
-      required: [
-        'primaryPeople', 'otherPeople', 'peopleRoles', 'locations', 'organizations', 'eventTypes',
-        'distinctiveFacts', 'aliases', 'uncertaintyPhrases', 'works', 'productsServices', 'events',
-        'relationships', 'phenomena', 'conditions', 'symptoms', 'storySummary',
-      ],
-    },
-    description: { type: 'string', minLength: 1, maxLength: 300 },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
   },
-  required: ['watchTitle', 'watchingFor', 'storyFingerprint', 'storyProfile', 'description'],
+  required: ['concepts', 'confidence'],
 };
 
 const cleanTitle = (value) => he
@@ -213,31 +175,40 @@ const isArticleLikeEntity = (value) => {
     || declaredTypes.some((type) => /(?:Article|Posting)$/i.test(type.trim()));
 };
 
-const collectJsonLdArticles = (value, articles = []) => {
+const collectJsonLdEntities = (value, entities = []) => {
   if (Array.isArray(value)) {
-    value.forEach((item) => collectJsonLdArticles(item, articles));
-    return articles;
+    value.forEach((item) => collectJsonLdEntities(item, entities));
+    return entities;
   }
-  if (!value || typeof value !== 'object') return articles;
-  if (typeof value.articleBody === 'string' && isArticleLikeEntity(value)) {
-    articles.push(value);
-  }
-  Object.values(value).forEach((item) => collectJsonLdArticles(item, articles));
-  return articles;
+  if (!value || typeof value !== 'object') return entities;
+  entities.push(value);
+  Object.values(value).forEach((item) => collectJsonLdEntities(item, entities));
+  return entities;
 };
 
-const getJsonLdArticles = (html) => (
+const getJsonLdEntities = (html) => (
   [...String(html).matchAll(
     /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script\s*>/gi,
   )]
     .flatMap((match) => {
       try {
-        return collectJsonLdArticles(JSON.parse(match[1]));
+        return collectJsonLdEntities(JSON.parse(match[1]));
       } catch {
         return [];
       }
     })
 );
+
+const getJsonLdArticles = (entities) => entities.filter((value) => (
+  typeof value?.articleBody === 'string' && isArticleLikeEntity(value)
+));
+
+const getNamedJsonLdValue = (value) => {
+  const values = Array.isArray(value) ? value : [value];
+  return values.map((item) => (
+    typeof item === 'string' ? item : item?.name
+  )).find((item) => typeof item === 'string' && item.trim()) || '';
+};
 
 const normalizedBodyKey = (value) => value
   .normalize('NFKC')
@@ -248,7 +219,7 @@ const normalizedBodyKey = (value) => value
 const getDistinctArticleBodies = (articles) => {
   const seen = new Set();
   return articles
-    .map((article) => cleanPageText(article?.articleBody))
+    .map((article) => cleanArticleContentForAnalysis(cleanPageText(article?.articleBody)))
     .filter((body) => {
       const key = normalizedBodyKey(body);
       if (!key || seen.has(key)) return false;
@@ -257,10 +228,74 @@ const getDistinctArticleBodies = (articles) => {
     });
 };
 
-const getHtmlArticleBodies = (html) => getDistinctArticleBodies(
-  [...String(html).matchAll(/<article\b[^>]*>([\s\S]*?)<\/article\s*>/gi)]
-    .map((match) => ({ articleBody: match[1] })),
-);
+const ACCESS_MODULE_MARKER = /(?:access[-_\s]?(?:gate|limit|overlay|wall)|ad(?:vertising)?[-_\s]?(?:gate|unlock)|consent[-_\s]?(?:banner|dialog|overlay|wall)|login[-_\s]?(?:gate|prompt|wall)|member(?:ship)?[-_\s]?(?:card|gate|prompt|wall)|metered|paywall|premium[-_\s]?(?:content|gate)|reg(?:ister|istration|wall)|sign[-_\s]?in|subscri(?:be|ber|ption))/iu;
+const NON_ARTICLE_MODULE_MARKER = /(?:related|recommend|most[-_\s]?read|more[-_\s]?on|promo|navigation|footer|sidebar|card|rail)/iu;
+const ACCESS_LIMITED_CONTENT_PATTERN = /(?:already (?:a )?subscriber|access all articles|become a member|continue reading|create (?:an )?account|full access|log ?in to continue|sign ?in to continue|subscribe to continue|subscription required|support (?:our )?journalism|unlimited access|unlock (?:this )?(?:article|story)|why subscribe|abonnez-vous|acc[ée]dez [àa] tous (?:les|nos) articles|d[ée]j[àa] abonn[ée]|devenez membre|je (?:me connecte|m['’]abonne)|pourquoi s['’]abonner|profitez de tous nos articles|r[ée]serv[ée] aux abonn[ée]s|regarder une publicit[ée]|soutenez (?:notre|nos) journaliste?s?)/iu;
+
+const hasAccessLimitedContent = (html) => {
+  const source = String(html || '');
+  const structuralSignal = [...source.matchAll(/<(?:aside|dialog|div|form|section)\b([^>]*)>/giu)]
+    .some((match) => ACCESS_MODULE_MARKER.test(match[1]));
+  return structuralSignal || ACCESS_LIMITED_CONTENT_PATTERN.test(cleanPageText(source));
+};
+
+const stripNonArticleModules = (html) => {
+  let result = String(html || '');
+  for (let pass = 0; pass < 3; pass += 1) {
+    result = result
+      .replace(/<(?:aside|footer|nav)\b[^>]*>[\s\S]*?<\/(?:aside|footer|nav)\s*>/giu, ' ')
+      .replace(
+        /<(button|dialog|form)\b[^>]*>[\s\S]*?<\/\1\s*>/giu,
+        (match) => (ACCESS_MODULE_MARKER.test(match) || isAccessInterfaceText(cleanPageText(match)) ? ' ' : match),
+      )
+      .replace(
+        /<(div|section)\b([^>]*(?:class|id|aria-label|data-component)\s*=\s*["'][^"']*(?:related|recommend|most[-_\s]?read|more[-_\s]?on|promo|navigation|footer|sidebar|card|rail|access[-_\s]?(?:gate|limit|overlay|wall)|ad(?:vertising)?[-_\s]?(?:gate|unlock)|consent|login|member(?:ship)?|metered|paywall|premium|reg(?:ister|istration|wall)|sign[-_\s]?in|subscri(?:be|ber|ption))[^"']*["'][^>]*)>[\s\S]*?<\/\1\s*>/giu,
+        ' ',
+      );
+  }
+  return result;
+};
+
+const getHtmlArticleBodies = (html) => {
+  const candidates = [...String(html).matchAll(/<article\b([^>]*)>([\s\S]*?)<\/article\s*>/giu)]
+    .filter((match) => !NON_ARTICLE_MODULE_MARKER.test(match[1]))
+    .map((match, index) => {
+      const cleanedMarkup = stripNonArticleModules(match[2]);
+      const articleBody = cleanArticleContentForAnalysis(cleanPageText(cleanedMarkup));
+      const paragraphCount = (cleanedMarkup.match(/<p\b/giu) || []).length;
+      const hasHeadline = /<h1\b/iu.test(cleanedMarkup);
+      return {
+        articleBody,
+        index,
+        score: articleBody.length + (paragraphCount * 80) + (hasHeadline ? 10_000 : 0),
+      };
+    })
+    .filter(({ articleBody }) => articleBody)
+    .sort((first, second) => second.score - first.score || first.index - second.index);
+  return getDistinctArticleBodies(candidates.slice(0, 1));
+};
+
+const getFirstElementText = (html, tagNames) => {
+  const pattern = new RegExp(`<(${tagNames.join('|')})\\b[^>]*>([\\s\\S]*?)<\\/\\1\\s*>`, 'iu');
+  return cleanPageText(String(html || '').match(pattern)?.[2]);
+};
+
+const ACCESS_CHALLENGE_TITLE = /^(?:client challenge|access denied|access restricted|acc[eè]s restreint(?:\s*-.*)?|just a moment|security check)$/iu;
+
+const titleFromArticleUrl = (sourceUrl) => {
+  try {
+    const slug = decodeURIComponent(new URL(sourceUrl).pathname.split('/').filter(Boolean).at(-1) || '')
+      .replace(/_\d+(?:_\d+)?(?:\.html)?$/u, '')
+      .replace(/\.html$/iu, '')
+      .replace(/[-_]+/gu, ' ')
+      .replace(/\b([ld])\s+([aeiouyàâäéèêëîïôöùûüÿœ])/giu, '$1’$2')
+      .replace(/\s+/gu, ' ')
+      .trim();
+    return slug ? `${slug.charAt(0).toLocaleUpperCase()}${slug.slice(1)}` : '';
+  } catch {
+    return '';
+  }
+};
 
 const selectEvenlySpacedBodies = (bodies, limit) => {
   if (bodies.length <= limit) return bodies;
@@ -326,37 +361,111 @@ export const extractPageMetadata = (html, sourceUrl = '') => {
   const head = html.slice(0, headEnd >= 0 ? headEnd : MAX_PAGE_BYTES);
   const metaTags = head.match(/<meta\b[^>]*>/gi) || [];
   const metadata = metaTags.map(getTagAttributes);
-  const findMetaContent = (names) => metadata.find((attributes) => (
-    names.includes((attributes.property || attributes.name || '').toLowerCase())
+  const findMetaContent = (names) => names.map((name) => metadata.find((attributes) => (
+    (attributes.property || attributes.name || '').toLowerCase() === name
     && attributes.content
-  ))?.content;
-  const openGraphTitle = findMetaContent(['og:title', 'twitter:title']);
-  const description = cleanPageText(findMetaContent([
-    'og:description',
-    'description',
-    'twitter:description',
-  ]));
+  ))?.content).find(Boolean) || '';
+  const openGraphTitle = findMetaContent(['og:title']);
+  const openGraphType = cleanPageText(findMetaContent(['og:type']));
+  const twitterTitle = findMetaContent(['twitter:title']);
+  const cleanMetadataEvidence = (value) => {
+    const cleaned = cleanArticleContentForAnalysis(cleanPageText(value));
+    return isAccessInterfaceText(cleaned) ? '' : cleaned;
+  };
+  const openGraphDescription = cleanMetadataEvidence(findMetaContent(['og:description']));
+  const twitterDescription = cleanMetadataEvidence(findMetaContent(['twitter:description']));
+  const htmlDescription = cleanMetadataEvidence(findMetaContent(['description']));
   const metadataAuthor = cleanPageText(findMetaContent(['author', 'article:author']));
-  const siteName = cleanPageText(findMetaContent(['og:site_name', 'application-name']));
+  const openGraphSiteName = cleanPageText(findMetaContent(['og:site_name']));
+  const applicationName = cleanPageText(findMetaContent(['application-name']));
   const publishedAt = cleanPageText(findMetaContent([
     'article:published_time',
     'datepublished',
     'date',
   ]));
   const htmlTitle = head.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i)?.[1];
-  const jsonLdArticles = getJsonLdArticles(html);
+  const documentLanguage = cleanPageText(
+    getTagAttributes(String(html).match(/<html\b[^>]*>/iu)?.[0] || '').lang,
+  );
+  const jsonLdEntities = getJsonLdEntities(html);
+  const jsonLdTypes = [...new Set(jsonLdEntities.flatMap((entity) => (
+    Array.isArray(entity?.['@type']) ? entity['@type'] : [entity?.['@type']]
+  )).filter((type) => typeof type === 'string' && type.trim()))];
+  const jsonLdArticles = getJsonLdArticles(jsonLdEntities);
   const jsonLdBodies = getDistinctArticleBodies(jsonLdArticles);
-  const articleBodies = jsonLdBodies.length ? jsonLdBodies : getHtmlArticleBodies(html);
+  const preliminaryPageType = classifyPage({ sourceUrl, openGraphType, jsonLdTypes });
+  const skipArticleExtraction = [
+    'homepage', 'news_section', 'category_page', 'search_page', 'rss_feed',
+  ].includes(preliminaryPageType);
+  const articleBodies = skipArticleExtraction
+    ? []
+    : jsonLdBodies.length ? jsonLdBodies : getHtmlArticleBodies(html);
   const { articleText, includedArticleBodyCount } = createBoundedArticleText(articleBodies);
-  const jsonLdArticle = jsonLdArticles[0] || null;
-  const title = cleanTitle(openGraphTitle || htmlTitle || jsonLdArticle?.headline);
-  const structuredAuthor = cleanPageText(jsonLdArticle?.author?.name);
+  const jsonLdArticle = jsonLdEntities.find((value) => (
+    isArticleLikeEntity(value)
+    && [value?.headline, value?.description, value?.publisher, value?.datePublished]
+      .some(Boolean)
+  )) || jsonLdArticles[0] || null;
+  const articleHeadline = cleanTitle(getFirstElementText(html, ['h1']));
+  const articleSubheading = cleanMetadataEvidence(
+    getFirstElementText(html, ['h2']) || findMetaContent(['article:subheading']),
+  );
+  const extractedTitle = cleanTitle(
+    jsonLdArticle?.headline || openGraphTitle || twitterTitle || articleHeadline || htmlTitle,
+  );
+  const accessChallenge = ACCESS_CHALLENGE_TITLE.test(extractedTitle)
+    && !openGraphTitle
+    && !jsonLdArticle
+    && !articleBodies.length;
+  const contentAccessLimited = accessChallenge || hasAccessLimitedContent(html);
+  const title = accessChallenge ? titleFromArticleUrl(sourceUrl) : extractedTitle;
+  const structuredAuthor = cleanPageText(getNamedJsonLdValue(jsonLdArticle?.author));
   const author = [metadataAuthor, structuredAuthor]
     .find((value) => value && !/^https?:\/\//i.test(value)) || '';
+  const canonicalHref = (head.match(/<link\b[^>]*>/gi) || [])
+    .map(getTagAttributes)
+    .find((attributes) => (
+      (attributes.rel || '').toLowerCase().split(/\s+/).includes('canonical')
+      && attributes.href
+    ))?.href;
+  const canonicalUrl = (() => {
+    try {
+      if (!canonicalHref) return '';
+      const value = new URL(canonicalHref, sourceUrl || undefined);
+      return ['http:', 'https:'].includes(value.protocol) ? value.href : '';
+    } catch {
+      return '';
+    }
+  })();
+  const jsonLdPublisher = cleanPageText(getNamedJsonLdValue(jsonLdArticle?.publisher));
+  const urlPublisher = getMediaStoryPublisher(sourceUrl) || '';
+  const headlineCount = (String(html).match(/<h[12]\b/giu) || []).length;
+  const navigationLinkCount = [...String(html).matchAll(/<nav\b[^>]*>([\s\S]*?)<\/nav\s*>/giu)]
+    .reduce((count, match) => count + (match[1].match(/<a\b/giu) || []).length, 0);
+  const pageType = classifyPage({
+    sourceUrl,
+    canonicalUrl,
+    openGraphType,
+    jsonLdTypes,
+    publishedAt: publishedAt || cleanPageText(jsonLdArticle?.datePublished),
+    author,
+    articleText,
+    articleBodyCount: articleBodies.length,
+    headlineCount,
+    navigationLinkCount,
+  });
 
   return {
     title,
-    description: description || cleanPageText(jsonLdArticle?.description),
+    description: cleanPageText(
+      openGraphDescription
+      || twitterDescription
+      || cleanMetadataEvidence(jsonLdArticle?.description)
+      || htmlDescription
+      || articleSubheading,
+    ),
+    articleHeadline,
+    articleSubheading,
     articleText,
     articleBodyCount: articleBodies.length,
     includedArticleBodyCount,
@@ -364,9 +473,22 @@ export const extractPageMetadata = (html, sourceUrl = '') => {
       ? 'json_ld_article_body'
       : articleBodies.length ? 'html_article_element' : 'metadata_only',
     author,
-    siteName: siteName || cleanPageText(jsonLdArticle?.publisher?.name),
+    siteName: openGraphSiteName || jsonLdPublisher || applicationName || urlPublisher,
     publishedAt: publishedAt || cleanPageText(jsonLdArticle?.datePublished),
     sourceUrl,
+    canonicalUrl,
+    pageType,
+    language: accessChallenge ? '' : documentLanguage,
+    contentAccessLimited,
+    titleSource: accessChallenge ? 'url_slug' : jsonLdArticle?.headline
+      ? 'json_ld_headline'
+      : openGraphTitle ? 'open_graph_title'
+        : twitterTitle ? 'twitter_title'
+          : articleHeadline ? 'article_headline' : 'html_title',
+    openGraphType,
+    jsonLdTypes,
+    headlineCount,
+    navigationLinkCount,
   };
 };
 
@@ -389,8 +511,13 @@ const readPageHtml = async (response) => {
   return html;
 };
 
-export const fetchPageMetadata = async (input, fetchImpl = fetch) => {
-  let url = await validatePageUrl(input);
+export const fetchPageMetadata = async (
+  input,
+  fetchImpl = fetch,
+  { validateUrl = validatePageUrl } = {},
+) => {
+  let url = await validateUrl(input);
+  const requestedUrl = url.href;
 
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
     const response = await fetchImpl(url, {
@@ -408,7 +535,7 @@ export const fetchPageMetadata = async (input, fetchImpl = fetch) => {
         throw new Error('The page redirected too many times.');
       }
       await response.body?.cancel();
-      url = await validatePageUrl(new URL(location, url).href);
+      url = await validateUrl(new URL(location, url).href);
       continue;
     }
 
@@ -423,6 +550,8 @@ export const fetchPageMetadata = async (input, fetchImpl = fetch) => {
     if (!metadata.title) throw new Error('No page title was found.');
     return {
       ...metadata,
+      sourceUrl: requestedUrl,
+      resolvedUrl: url.href,
       monitoringSource: await discoverMonitoringSource(html, url.href),
     };
   }
@@ -612,11 +741,96 @@ const validateSuggestion = (suggestion) => {
   };
 };
 
+const GENERIC_MONITORING_CONCEPT = /^(?:business|entertainment|health|lifestyle|news|politics|science|sport|sports|technology|world)$/iu;
+const CONCEPT_CONNECTOR = /^(?:a|an|and|at|de|des|du|en|et|for|from|in|la|le|les|of|on|the|to)$/iu;
+
+const hasTrustedConceptSupport = (label, source) => {
+  const labelTokens = getComparableTokens(label).filter((token) => (
+    token.length > 2 && !CONCEPT_CONNECTOR.test(token)
+  ));
+  if (!labelTokens.length) return false;
+  const sourceTokens = new Set(getComparableTokens([
+    source.title,
+    source.subtitle,
+    source.description,
+    source.articleText,
+  ].filter(Boolean).join(' ')));
+  const supportedCount = labelTokens.filter((token) => sourceTokens.has(token)).length;
+  return supportedCount === labelTokens.length
+    || (labelTokens.length >= 3 && supportedCount / labelTokens.length >= 0.75);
+};
+
+const validateConceptProposal = (proposal, source) => {
+  if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)) {
+    throw createValidationError(
+      'provider_schema_invalid', 'structured_schema', '$', 'object_required',
+      'The structured concept proposal must be an object.',
+    );
+  }
+  if (!Array.isArray(proposal.concepts)) {
+    throw createValidationError(
+      'provider_schema_invalid', 'structured_schema', 'concepts', 'array_required',
+      'The monitoring concepts must be an array.',
+    );
+  }
+  if (proposal.concepts.length > 6) {
+    throw createValidationError(
+      'provider_schema_invalid', 'structured_schema', 'concepts', 'maximum_items',
+      'The concept proposal exceeded six items.',
+    );
+  }
+  if (!Number.isFinite(proposal.confidence) || proposal.confidence < 0 || proposal.confidence > 1) {
+    throw createValidationError(
+      'provider_schema_invalid', 'structured_schema', 'confidence', 'range',
+      'The proposal confidence must be between zero and one.',
+    );
+  }
+  const invalidIndex = proposal.concepts.findIndex((concept) => (
+    !concept
+    || typeof concept.label !== 'string'
+    || !concept.label.trim()
+    || concept.label.length > 160
+    || !AUTOMATIC_STORY_CONCEPT_TYPES.includes(concept.type)
+    || typeof concept.reason !== 'string'
+    || !concept.reason.trim()
+    || concept.reason.length > 180
+  ));
+  if (invalidIndex >= 0) {
+    throw createValidationError(
+      'provider_schema_invalid', 'structured_schema', `concepts[${invalidIndex}]`,
+      'concept_shape_invalid', 'A monitoring concept had an invalid label, type or reason.',
+    );
+  }
+  const eligible = proposal.concepts.filter(({ label }) => {
+    const cleaned = String(label).replace(/\s+/gu, ' ').trim();
+    return !GENERIC_MONITORING_CONCEPT.test(cleaned)
+      && !isAccessInterfaceText(cleaned)
+      && !ACCESS_LIMITED_CONTENT_PATTERN.test(cleaned)
+      && hasTrustedConceptSupport(cleaned, source);
+  });
+  const normalized = normalizeAutomaticStoryFingerprint(eligible, 6);
+  const concepts = normalized.map((concept) => ({
+    ...concept,
+    reason: eligible.find((candidate) => (
+      candidate.type === concept.type && hasSameNormalizedLabel(candidate.label, concept.label)
+    ))?.reason.trim() || 'Supported by the supplied article evidence',
+  }));
+  return {
+    concepts,
+    confidence: proposal.confidence,
+  };
+};
+
 export const generateWatchSuggestion = async ({
   title,
+  subtitle = '',
   description = '',
   articleText = '',
   author = '',
+  publisher = '',
+  publishedAt = '',
+  language = '',
+  deterministicCandidates = [],
   slug = '',
   apiKey,
   model,
@@ -635,23 +849,20 @@ export const generateWatchSuggestion = async ({
     throw new ArticleAnalysisError('configuration_missing', 503);
   }
 
-  const source = {
+  const source = Object.fromEntries(Object.entries({
     title: String(title || '').trim(),
+    subtitle: String(subtitle || '').trim(),
     description: String(description || '').trim(),
     articleText: cleanArticleContentForAnalysis(articleText),
     author: String(author || '').trim(),
+    publisher: String(publisher || '').trim(),
+    publishedAt: String(publishedAt || '').trim(),
+    language: String(language || '').trim(),
+    deterministicCandidates: normalizeAutomaticStoryFingerprint(deterministicCandidates, 6)
+      .map(({ label, type }) => `${label} (${type})`)
+      .join('; '),
     slug: String(slug || '').trim(),
-  };
-  const sourceFields = Object.entries(source)
-    .filter(([, value]) => value)
-    .map(([field]) => field);
-  if (process.env.NODE_ENV !== 'production') {
-    console.info(`[Story Fingerprint] AI source fields: ${sourceFields.join(', ') || 'none'}`);
-    if (!source.description && !source.articleText) {
-      console.info('[Story Fingerprint] Limited source: using title/slug only.');
-    }
-  }
-
+  }).filter(([, value]) => value));
   const executeAttempt = async (attemptSignal) => {
   let response;
   try {
@@ -664,30 +875,25 @@ export const generateWatchSuggestion = async ({
       body: JSON.stringify({
         model,
         store: false,
-        instructions: `Read and understand the complete cleaned article content. Build one structured story profile, a concise Watch title, a natural one-sentence monitoring instruction named watchingFor, and a short explanation of no more than two sentences.
+        instructions: `Propose 3–6 monitoring concepts that would best help determine whether a future article concerns this same story or subject. Return fewer, including zero, when the evidence cannot support reliable concepts.
 
-storyProfile.storySummary explains the article naturally to a human. It must identify the central subject or phenomenon, explain what the article reports, include decisive supported context, and preserve important uncertainty or attribution. It must not merely copy, segment, or lightly reword the headline.
-Every storyProfile.storySummary must end with complete prose and terminal punctuation. Never end it with a clipped clause, dangling conjunction, or partial token.
+This is concept selection only. Do not summarize the article, rewrite its title, create keywords, or list every named entity. Each concept must be concise, independently understandable, central to the supplied evidence, and useful in later coverage. Prefer the smallest complementary set of canonical people, organizations, locations, events, works, products, conditions, phenomena or relationships that defines the monitored subject.
 
-storyFingerprint is the separate, complete list of monitoring identifiers used to recognize future reporting about the same story. Select the smallest sufficient set: zero to five identifiers, normally 2 to 5 for a strong result, and fewer whenever fewer are reliable. Return them strongest first. Rank specificity and future matching value above general relevance. Before retaining an identifier, ask whether a future article containing it would be credible evidence that the article concerns the same monitored subject. Each identifier must be central, concise, independently understandable, and likely to appear or have a close semantic equivalent in later relevant coverage. Favor canonical named entities and short reusable event or relationship labels over descriptive phrases that read like miniature summaries. When two identifiers work as a pair, do not repeat the named entity inside a second long identifier. For example, for an unauthorized copy of a named work circulating on a platform, prefer the complementary pair "The Odyssey" (work) and "Unauthorized release on X" (event) over "Universal Studios takedown of leaked film posts" and "Unauthorized copy of The Odyssey on X". Use the most accurate available type, including work, product_service, condition, symptom, phenomenon or relationship. Use product_service for a named product, platform or service such as Amazon Luna or Google Stadia only when the supplied context supports that classification and the entity is central. A company remains an organization. Generic fact, supporting and manual are not permitted automatic identifier types.
+Choose the expected abstraction level. Preserve specific story-defining concepts such as a named person plus their election, a university plagiarism investigation and resignation, a named strike campaign, a particular merger or tournament, or a supported health subject such as ultra-processed foods and dietary advice. Reject isolated title fragments, list-item wording, generic categories such as News, Health or Politics, incidental deep-body mentions, quoted experts, bylines, publishers, and concepts that merely repeat one sentence.
 
-Do not put general advice, list items, lifestyle recommendations, supporting examples, background details, generic themes, consequences, explanatory prose, uncertainty prose, or generic synthesized phrases in storyFingerprint. Put those values only in distinctiveFacts or uncertaintyPhrases when they remain useful context, and never duplicate them into storyFingerprint. Do not include quoted experts or organizations merely cited as sources. primaryPeople means people the story is genuinely centered on; quoted experts belong only in otherPeople. primaryPeople and organizations may be empty when none is central. Do not include byline authors, photographers, image or agency credits, publishers, captions, interface text, or related-content modules. Do not return headline fragments, incomplete phrases, entire sentences, or redundant parent and child concepts. For a health advice article about brain fog during perimenopause, select "Brain fog" and "Perimenopause" while keeping coping recommendations such as breaks, reminders and lifestyle routines only in distinctiveFacts. Prefer either "Brain fog during perimenopause" or the complementary pair "Brain fog" and "Perimenopause", not all three. Preserve a decisive relationship as one coherent identifier when separating it would lose meaning, such as an agreement being conditional on another action.
+Every concept must be directly supported by the supplied trusted article evidence. Never use navigation, related-story cards, recommendations, Most Read modules, paywall or subscription text, login or registration prompts, advertising unlock copy, consent overlays, footers, or promotional content. The supplied deterministicCandidates are hints only and may be rejected or improved.
 
-Populate storyProfile independently from the monitoring identifiers. primaryPeople, otherPeople, peopleRoles, locations, organizations, eventTypes, works, productsServices, events, relationships, phenomena, conditions and symptoms describe supported article entities and context; use empty arrays when a category is absent. distinctiveFacts contains useful supporting details, including recommendations when relevant to the human explanation. uncertaintyPhrases contains attribution and uncertainty prose. These supporting profile fields are not monitoring identifiers unless the same concise concept is deliberately selected in storyFingerprint because it is essential for future matching.
-
-Preserve complete organization and location names. Use "City, Country" only when that relationship is explicit in the supplied text. Preserve qualifiers such as alleged, suspected, reported, accused, possible, or wanted in storySummary, distinctiveFacts and uncertaintyPhrases. Never convert an allegation, official assessment, suspected motive, reported link, or conditional political relationship into a confirmed fact. A publisher or media provider is not an organization in the story.
-
-Use source fields in this order: title, description, articleText, then slug only as a fallback. The author field is source attribution, not evidence that the author is a story subject. Base every field only on supplied source content. Never invent a person, organization, location, event, relationship or detail.`,
+Use only the existing type enum. A company is an organization; a named product or service is product_service; a central subject without a narrower compatible type may be phenomenon. Explain briefly in reason which supplied evidence makes each concept central. Confidence describes the proposal as a whole. Do not invent facts or translate proper names.`,
       input: JSON.stringify(source),
       reasoning: { effort: 'low' },
-      max_output_tokens: 1200,
+      max_output_tokens: 600,
       text: {
         verbosity: 'low',
         format: {
           type: 'json_schema',
-          name: 'watch_suggestion',
+          name: 'story_concept_proposal',
           strict: true,
-          schema: WATCH_SUGGESTION_SCHEMA,
+          schema: STORY_CONCEPT_PROPOSAL_SCHEMA,
         },
       },
       }),
@@ -737,12 +943,9 @@ Use source fields in this order: title, description, articleText, then slug only
     throw new ArticleAnalysisError('provider_json_invalid');
   }
   onDiagnostic?.({ stage: 'parsed', value: parsed });
-  let validated;
-  try {
-    validated = validateSuggestion(parsed);
-  } catch (error) {
-    throw error;
-  }
+  const validated = Array.isArray(parsed?.concepts)
+    ? validateConceptProposal(parsed, source)
+    : validateSuggestion(parsed);
   onDiagnostic?.({ stage: 'validated', value: validated });
   return {
     ...validated,
@@ -847,9 +1050,6 @@ export const createUrlWatchMiddleware = ({
         const metadata = await fetchPageMetadata(url.href);
         const sourceFields = ['title', 'description', 'articleText', 'author']
           .filter((field) => metadata[field]);
-        if (process.env.NODE_ENV !== 'production') {
-          console.info(`[Story Fingerprint] Retrieved source fields: ${sourceFields.join(', ')}`);
-        }
         sendJson(response, 200, { ...metadata, conceptSourceFields: sourceFields });
         return;
       }
@@ -869,9 +1069,14 @@ export const createUrlWatchMiddleware = ({
       });
       const suggestion = await generateWatchSuggestion({
         title,
+        subtitle: body.subtitle,
         description: body.description,
         articleText: body.articleText,
         author: body.author,
+        publisher: body.publisher,
+        publishedAt: body.publishedAt,
+        language: body.language,
+        deterministicCandidates: body.deterministicCandidates,
         slug: body.slug,
         apiKey,
         model,

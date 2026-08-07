@@ -38,3 +38,18 @@ test('removes corrupted currency figures without changing valid financial format
     'The distributor reported earnings of an unspecified amount.',
   );
 });
+
+test('removes access, subscription and advertising prompts while preserving editorial evidence', () => {
+  const cleaned = cleanArticleContentForAnalysis([
+    'La boulangerie Azur fait l’objet d’une fermeture administrative à Nice.',
+    'Pourquoi s’abonner ? Je m’abonne. Je me connecte. Regarder une publicité.',
+    'La police a constaté plusieurs manquements lors du contrôle.',
+    'Profitez de tous nos articles.',
+    'Subscribe to continue. Already a subscriber? Sign in.',
+  ].join('\n\n'));
+
+  assert.equal(cleaned, [
+    'La boulangerie Azur fait l’objet d’une fermeture administrative à Nice.',
+    'La police a constaté plusieurs manquements lors du contrôle.',
+  ].join('\n\n'));
+});

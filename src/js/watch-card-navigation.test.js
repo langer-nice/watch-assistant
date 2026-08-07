@@ -53,16 +53,19 @@ const activateNativeLink = (markup, { key = null } = {}) => {
 
 test('Home and All Watches render native full-card links wired into the real renderers', async () => {
   const source = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
+  const sharedRenderer = source.match(/const renderSummaryWatchCard =[\s\S]*?const renderHomeWatchCards =/)?.[0] || '';
   const homeRenderer = source.match(/const renderHomeWatchCards =[\s\S]*?const renderHomeBriefing =/)?.[0] || '';
   const listRenderer = source.match(/const renderWatchCards =[\s\S]*?list\.innerHTML =/)?.[0] || '';
 
-  for (const renderer of [homeRenderer, listRenderer]) {
-    assert.match(renderer, /renderWatchCardLink\(\{[\s\S]*?watchId: watch\.id/);
+  assert.match(sharedRenderer, /renderWatchCardLink\(\{[\s\S]*?watchId: watch\.id/);
+  for (const renderer of [sharedRenderer, homeRenderer, listRenderer]) {
     assert.doesNotMatch(renderer, /tabindex="-1"|aria-disabled="true"|<button/i);
   }
+  assert.match(homeRenderer, /renderSummaryWatchCard\(\{/);
+  assert.match(listRenderer, /renderSummaryWatchCard\(\{/);
 
   const homeMarkup = renderedCard(watches[0]);
-  const allMarkup = renderedCard(watches[1], 'watch-row');
+  const allMarkup = renderedCard(watches[1]);
   for (const [markup, watch] of [[homeMarkup, watches[0]], [allMarkup, watches[1]]]) {
     assert.match(markup, /^<a\b/);
     assert.equal(getAttribute(markup, 'data-watch-id'), watch.id);
@@ -140,18 +143,15 @@ test('All Watches renders at most one canonical Home-style update separator per 
   assert.match(allQuietStyles, /\.all-quiet::before,\s*\.watch-list__update-separator\s*\{[\s\S]*?height:\s*2px;[\s\S]*?margin-bottom:\s*var\(--space-xl\);[\s\S]*?background:\s*var\(--color-border-strong\)/);
 });
 
-test('Home preserves the validated separator in the globally sorted Watch list', async () => {
-  const [html, navigation, itemStyles, homeStyles, allQuietStyles] = await Promise.all([
+test('Home keeps fixed priority and Everything else links to the complete Watch list', async () => {
+  const [html, navigation, itemStyles] = await Promise.all([
     readFile(new URL('../../index.html', import.meta.url), 'utf8'),
     readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
     readFile(new URL('../scss/components/_briefing-item.scss', import.meta.url), 'utf8'),
-    readFile(new URL('../scss/pages/_home.scss', import.meta.url), 'utf8'),
-    readFile(new URL('../scss/components/_all-quiet.scss', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(html, /id="homeWatchSort"[\s\S]*?id="homeBriefingList"[\s\S]*?id="homeAllQuiet"[\s\S]*?href="watches\.html"/);
-  assert.match(navigation, /list\.innerHTML = renderHomeWatchCards\(orderedWatches, statusById\)/);
+  assert.match(html, /id="homeCaughtUpState"[\s\S]*?href="watches\.html"[\s\S]*?id="homeBriefingList"[\s\S]*?id="homeAllQuiet"[\s\S]*?href="watches\.html"/);
+  assert.doesNotMatch(html, /id="homeWatchSort"/);
+  assert.match(navigation, /list\.innerHTML = renderHomeWatchCards\(watches, statusById\)/);
   assert.match(itemStyles, /\.briefing-item \+ \.briefing-item\s*\{[\s\S]*?border-top:\s*1px solid var\(--color-divider\)/);
-  assert.match(homeStyles, /\.home-watch-sort\s*\{[\s\S]*?border-bottom:\s*1px solid var\(--color-divider\)/);
-  assert.match(allQuietStyles, /\.all-quiet::before,[\s\S]*?height:\s*2px;[\s\S]*?background:\s*var\(--color-border-strong\)/);
 });

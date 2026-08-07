@@ -14,6 +14,14 @@ import {
   getUnreadUpdates,
   migrateLegacyWatchUpdates,
 } from './watch-updates.js';
+import { normalizeCompanyName } from './company-watch-title.js';
+import { normalizeCompanyStatus } from './company-watch-status.js';
+import { normalizeAdministrativeStatus } from './company-administrative-status.js';
+import {
+  classifyPage,
+  isStoryPageType,
+  normalizePageType,
+} from './page-classification.js';
 
 export const WATCH_MODEL_VERSION = 10;
 
@@ -23,22 +31,28 @@ const TECHNICAL_ATTENTION_REASONS = new Set([
   'source-persistently-unavailable',
 ]);
 
+const normalizeBodaccMonitoringSource = (source) => (
+  source?.type === 'bodacc'
+  && source?.provider === 'dila'
+  && source?.discovery === 'official-company'
+  && typeof source?.siren === 'string'
+  && /^\d{9}$/.test(source.siren)
+    ? {
+      type: 'bodacc',
+      provider: 'dila',
+      siren: source.siren,
+      title: typeof source.title === 'string' ? source.title : 'BODACC',
+      discovery: 'official-company',
+    }
+    : null
+);
+
 export const getMonitoringHealthPresentation = (watch) => {
   if (watch?.monitoringStatus?.state === 'setup-required') {
     return { statusKey: 'setupRequired' };
   }
   if (watch?.monitoringStatus?.state === 'unavailable') {
     return { statusKey: 'monitoringUnavailable', detailMessageKey: 'detail.monitoringUnavailable' };
-  }
-  return null;
-};
-
-export const getAnalysisProvenanceMessageKey = (watch) => {
-  if (watch?.analysisProvider === 'openai' && watch?.analysisStatus === 'success') {
-    return 'detail.analysisProvenanceAi';
-  }
-  if (watch?.analysisProvider === 'deterministic' && watch?.analysisStatus === 'fallback') {
-    return 'detail.analysisProvenanceFallback';
   }
   return null;
 };
@@ -70,6 +84,27 @@ const normalizeLastCheckAttempt = (attempt) => {
 export const migrateWatchModel = (watch) => {
   if (!watch || typeof watch !== 'object') return { watch, migrated: false };
   const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
+  const bodaccMonitoringSource = normalizeBodaccMonitoringSource(watch.monitoringSource);
+  const storedPageType = normalizePageType(watch.pageType);
+  const inferredPageType = watch.inputType === 'url'
+    ? storedPageType || classifyPage({ sourceUrl: watch.sourceUrl || watch.request })
+    : null;
+  const hasDeterministicNonStoryType = inferredPageType
+    && inferredPageType !== 'generic_webpage'
+    && !isStoryPageType(inferredPageType);
+  const isStory = watch.inputType === 'url'
+    ? !(watch.isStory === false || hasDeterministicNonStoryType)
+    : null;
+  const company = watch.inputType === 'company' && bodaccMonitoringSource
+    ? {
+      siren: bodaccMonitoringSource.siren,
+      name: normalizeCompanyName(watch.company?.name, bodaccMonitoringSource.siren),
+      administrativeStatus: normalizeAdministrativeStatus(
+        watch.company?.administrativeStatus,
+      ),
+      status: normalizeCompanyStatus(watch.company?.status),
+    }
+    : watch.company;
   const candidateUpdates = Array.isArray(watch.candidateUpdates)
     ? watch.candidateUpdates
     : Array.isArray(watch.monitoringUpdates) ? watch.monitoringUpdates : [];
@@ -148,7 +183,7 @@ export const migrateWatchModel = (watch) => {
       selectionWasManuallyEdited
       || explicitlyManualLabels.has(label.toLocaleLowerCase())
     )), ...rejectedAutomaticLabels];
-  const storyProfile = watch.inputType === 'url'
+  const storyProfile = watch.inputType === 'url' && isStory
     ? createStoryProfile({
       storyFingerprint: migratedFingerprint,
       profile: {
@@ -165,7 +200,7 @@ export const migrateWatchModel = (watch) => {
       publishedAt: watch.storyProfile?.sourceArticle?.publishedAt || watch.sourcePublishedAt,
       extractedAt: watch.storyProfile?.extractedAt || watch.createdAt,
     })
-    : watch.storyProfile || null;
+    : watch.inputType === 'url' ? null : watch.storyProfile || null;
   const migratedLabels = storyProfile?.concepts?.map(({ label }) => label) || [];
   const missingSource = watch.inputType === 'url' && !feedUrl;
   const legacyTechnicalReason = [
@@ -228,7 +263,7 @@ export const migrateWatchModel = (watch) => {
     analysisProvider: ['openai', 'deterministic'].includes(watch.analysisProvider)
       ? watch.analysisProvider
       : null,
-    analysisStatus: ['success', 'fallback', 'failed'].includes(watch.analysisStatus)
+    analysisStatus: ['success', 'fallback', 'failed', 'classified'].includes(watch.analysisStatus)
       ? watch.analysisStatus
       : null,
     analysisModel: typeof watch.analysisModel === 'string' ? watch.analysisModel : null,
@@ -239,17 +274,21 @@ export const migrateWatchModel = (watch) => {
     analysisDiagnosticId: typeof watch.analysisDiagnosticId === 'string'
       ? watch.analysisDiagnosticId
       : null,
-    monitoringSource: feedUrl
+    ...(watch.inputType === 'company' ? { company } : {}),
+    monitoringSource: bodaccMonitoringSource || (feedUrl
       ? {
         url: feedUrl,
         type: watch.monitoringSource?.type || 'feed',
         title: watch.monitoringSource?.title || null,
         discovery: watch.monitoringSource?.discovery || 'manual',
       }
-      : null,
+      : null),
     feedUrl,
     storyProfile,
     ...(watch.inputType === 'url' ? {
+      pageType: inferredPageType,
+      isStory,
+      contentAccessLimited: watch.contentAccessLimited === true,
       storyFingerprint: storyProfile?.concepts || [],
       keywords: migratedLabels,
       selectedKeywords: migratedLabels,

@@ -3,7 +3,27 @@
     padding-top: var(--space-md);
   }
 
-  .watch-list {
+  > .watch-list {
+    display: block;
+    margin-top: var(--space-md);
+  }
+
+  .watch-list .watch-list {
+    display: block;
+    margin-top: 0;
+  }
+
+  .briefing-item {
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  .briefing-item + .briefing-item {
+    border-top: 0;
+  }
+
+  .watch-list__group + .watch-list__group,
+  .briefing-item + .watch-list__group,
+  .watch-list__update-separator + .watch-list__group {
     margin-top: var(--space-md);
   }
 }

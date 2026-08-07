@@ -202,7 +202,7 @@
             <div class="url-review" id="urlReview" tabindex="-1" hidden>
               <div class="url-review__success" id="urlReviewSuccess">
                 <span aria-hidden="true">✓</span>
-                <h2 data-i18n="newWatch.urlReviewFound"></h2>
+                <h2 id="urlReviewHeading" data-i18n="newWatch.urlReviewFound"></h2>
               </div>
               <div class="url-review__failure" id="urlReviewFailure" hidden>
                 <h2 data-i18n="newWatch.urlReviewFailed"></h2>
@@ -210,13 +210,33 @@
               </div>
 
               <div class="url-review__field">
-                <label for="urlReviewTitle" data-i18n="newWatch.urlReviewTitle"></label>
+                <label id="urlReviewTitleLabel" for="urlReviewTitle" data-i18n="newWatch.urlReviewTitle"></label>
                 <input id="urlReviewTitle" type="text" required disabled />
               </div>
               <div class="url-review__field">
-                <label for="urlReviewSummary" data-i18n="newWatch.urlReviewWatchingForRequired"></label>
+                <label id="urlReviewSummaryLabel" for="urlReviewSummary" data-i18n="newWatch.urlReviewOverviewRequired"></label>
                 <textarea id="urlReviewSummary" rows="3" required aria-describedby="urlReviewSummaryError" disabled></textarea>
-                <p class="url-review__field-error" id="urlReviewSummaryError" data-i18n="newWatch.urlReviewWatchingForError" hidden></p>
+                <p class="url-review__field-error" id="urlReviewSummaryError" data-i18n="newWatch.urlReviewOverviewError" hidden></p>
+              </div>
+              <div class="url-review__field" id="urlReviewMonitoringScopeField" hidden>
+                <span class="url-review__field-label" data-i18n="newWatch.urlReviewMonitoringScope"></span>
+                <p class="url-review__field-copy" id="urlReviewMonitoringScope"></p>
+              </div>
+              <div class="url-review__company-status" id="companyReviewAdministrativeStatus" hidden>
+                <span data-i18n="administrativeStatus.heading"></span>
+                <strong class="status-label" id="companyReviewAdministrativeStatusBadge"></strong>
+                <p id="companyReviewAdministrativeStatusDescription"></p>
+              </div>
+              <div class="url-review__company-status" id="companyReviewStatus" hidden>
+                <span data-i18n="companyStatus.monitoringHeading"></span>
+                <strong class="status-label" id="companyReviewStatusBadge"></strong>
+                <p id="companyReviewStatusDescription"></p>
+                <p id="companyReviewStatusFollowUp" hidden></p>
+                <div class="url-review__company-warning" id="companyReviewWarning" role="status" hidden>
+                  <strong id="companyReviewWarningTitle"></strong>
+                  <p id="companyReviewWarningCopy"></p>
+                  <p data-i18n="companyStatus.reviewQuestion"></p>
+                </div>
               </div>
               <div class="url-review__source">
                 <span data-i18n="newWatch.urlReviewSource"></span>

@@ -10,6 +10,58 @@
     "justNow": "À l’instant",
     "monitoringFallback": "Surveillance des mises à jour importantes."
   },
+  "companyStatus": {
+    "monitoringHeading": "Statut de surveillance",
+    "detailMonitoringHeading": "Surveillance BODACC",
+    "labels": {
+      "active": "Active",
+      "judicial_proceedings": "Procédure judiciaire",
+      "receivership": "Redressement judiciaire",
+      "judicial_liquidation": "Liquidation judiciaire",
+      "dissolved": "Dissoute",
+      "struck_off": "Radiée",
+      "unknown": "Inconnu"
+    },
+    "descriptions": {
+      "active": "Les publications officielles indiquent que l’entreprise est actuellement active.",
+      "judicial_proceedings": "L’entreprise fait actuellement l’objet d’une procédure judiciaire.",
+      "receivership": "L’entreprise est actuellement en redressement judiciaire.",
+      "judicial_liquidation": "L’entreprise fait actuellement l’objet d’une liquidation judiciaire.",
+      "dissolved": "Les publications officielles indiquent que cette entreprise a déjà été dissoute.",
+      "struck_off": "Les publications officielles indiquent que cette entreprise a été radiée du registre.",
+      "unknown": "Le statut officiel n’a pas pu être déterminé."
+    },
+    "followUps": {
+      "active": "",
+      "judicial_proceedings": "Les prochaines publications officielles peuvent concerner la procédure en cours.",
+      "receivership": "Les prochaines publications officielles peuvent concerner la procédure en cours.",
+      "judicial_liquidation": "Les prochaines publications officielles peuvent concerner la procédure en cours.",
+      "dissolved": "Les prochaines publications officielles du BODACC peuvent être rares.",
+      "struck_off": "Les prochaines publications officielles peuvent être limitées.",
+      "unknown": ""
+    },
+    "reviewWarnings": {
+      "dissolved": "Cette entreprise est déjà dissoute.",
+      "struck_off": "Cette entreprise est déjà radiée."
+    },
+    "reviewQuestion": "Créer la Watch malgré tout ?"
+  },
+  "administrativeStatus": {
+    "heading": "Statut administratif actuel",
+    "detailHeading": "Statut officiel de l’entreprise",
+    "labels": {
+      "active": "Active",
+      "ceased": "Cessée"
+    },
+    "descriptions": {
+      "active": "Statut administratif officiel actuel.",
+      "ceased": "Statut administratif officiel actuel."
+    },
+    "detailDescriptions": {
+      "active": "Les registres officiels indiquent que l’entreprise est actuellement active.",
+      "ceased": "Les registres officiels indiquent que l’entreprise a cessé son activité."
+    }
+  },
   "languageSwitcher": {
     "label": "Langue",
     "englishName": "English",
@@ -68,6 +120,10 @@
       "one": "mise à jour",
       "other": "mises à jour"
     },
+    "newLabel": {
+      "one": "nouvelle",
+      "other": "nouvelles"
+    },
     "unchangedLabel": {
       "one": "sans changement",
       "other": "sans changement"
@@ -82,7 +138,9 @@
     "sortUpdatedFirst": "Mises à jour",
     "sortMostRecent": "Plus récentes",
     "sortOldestFirst": "Plus anciennes",
-    "allCaughtUp": "Vous êtes à jour. Aucune Watch ne nécessite votre attention pour le moment.",
+    "dashboardUpToDate": "✓ Tout est à jour.",
+    "dashboardNoNewUpdates": "Aucune nouvelle mise à jour depuis votre dernière visite.",
+    "viewAllWatches": "Voir toutes les Watches",
     "needsAttention": "nécessite votre attention",
     "updatedCount": "mises à jour",
     "unchanged": "sans changement",
@@ -140,8 +198,8 @@
     "clarityWarningCopy": "Cette Watch a été créée telle quelle, car la demande n’a pas pu être interprétée avec suffisamment de confiance. Les résultats peuvent être incomplets ou non pertinents.",
     "whatIKnow": "Ce que je sais",
     "storySummary": "Résumé de l’actualité",
-    "analysisProvenanceAi": "Analyse IA",
-    "analysisProvenanceFallback": "Analyse de secours limitée — l’analyse IA était indisponible, cette Watch a donc utilisé une analyse locale limitée.",
+    "storyOverview": "Aperçu de l’actualité",
+    "monitoringScope": "Périmètre de surveillance",
     "storyConcepts": "Repères de l’actualité",
     "storyConceptsHelper": "Concepts essentiels utilisés pour reconnaître les prochains articles sur cette actualité.",
     "storyConceptsEmpty": "Aucun repère fiable n’a été sélectionné.",
@@ -150,7 +208,9 @@
     "currentSituation": "Situation actuelle",
     "recommendation": "Recommandation",
     "source": "Source",
+    "companySiren": "SIREN {siren}",
     "openOriginalArticle": "Ouvrir l’article original",
+    "viewOfficialBodaccPublications": "Voir les publications officielles du BODACC",
     "openArticle": "Ouvrir l’article",
     "whyToday": "Pourquoi aujourd’hui",
     "watchFacts": "Informations sur la Watch",
@@ -194,6 +254,20 @@
     "updateHistory": "Historique des mises à jour",
     "updateDetected": "Mise à jour détectée",
     "untitledItem": "Élément sans titre",
+    "businessEvents": {
+      "capital_increase": "Augmentation du capital",
+      "capital_reduction": "Réduction du capital",
+      "director_change": "Changement de dirigeant",
+      "registered_office_change": "Transfert du siège social",
+      "accounts_filed": "Dépôt des comptes",
+      "company_created": "Création de l’entreprise",
+      "company_dissolved": "Dissolution de l’entreprise",
+      "judicial_proceedings": "Ouverture d’une procédure judiciaire",
+      "judicial_liquidation": "Ouverture d’une liquidation judiciaire",
+      "receivership": "Ouverture d’un redressement judiciaire",
+      "business_sale": "Cession de l’entreprise",
+      "company_struck_off": "Radiation de l’entreprise"
+    },
     "pauseWatch": "Mettre la Watch en pause",
     "resumeWatch": "Reprendre la Watch",
     "deleteWatch": "Supprimer la Watch",
@@ -246,6 +320,18 @@
     "feedUrlHelper": "Facultatif. Utilisez ce champ uniquement pour surveiller un flux RSS ou Atom précis.",
     "feedUrlError": "Saisissez une URL de flux HTTP ou HTTPS valide sans identifiants.",
     "monitoringSourceUnsupported": "Je n’ai trouvé aucune source publique compatible pour cette Watch. Précisez votre demande ou collez une page publique proposant des mises à jour.",
+    "mediaStoryPlanningUnavailable": "Je n’ai pas pu confirmer cet article de presse. Veuillez réessayer.",
+    "companySirenGuidance": "Saisissez un SIREN valide à 9 chiffres pour surveiller une entreprise française.",
+    "companyEditDifferentSiren": "Cette Watch suit une entreprise précise. Créez une nouvelle Watch d’entreprise pour surveiller un autre SIREN.",
+    "companyStatusChecking": "Vérification du statut officiel de l’entreprise…",
+    "companyReviewFound": "Surveillance d’entreprise",
+    "companyReviewTitle": "Watch d’entreprise",
+    "companyReviewTitleValue": "Entreprise SIREN {siren}",
+    "companyReviewWatchingForRequired": "À surveiller *",
+    "companyReviewSummary": "Surveillance des annonces officielles du BODACC pour le SIREN {siren}.",
+    "companyReviewEventsSummary": "Détecte notamment les changements de dirigeant, les modifications du capital, les transferts de siège, les dépôts des comptes, les procédures judiciaires et les radiations.",
+    "companyReviewSource": "Source officielle",
+    "companyReviewEdit": "Modifier la demande",
     "addNote": "+ Ajouter une note",
     "noteHeading": "Ajouter une note",
     "closeNote": "Fermer la note",
@@ -261,17 +347,22 @@
     "discardChanges": "Abandonner",
     "urlShortcut": "Ou collez une URL pour suivre un sujet",
     "urlHelp": "Partagez directement un article ou une page depuis une autre application.",
-    "urlDetected": "URL détectée — cette page peut être suivie comme un sujet.",
+    "urlDetected": "URL détectée — vérification du type de page.",
     "urlProcessingFetchingTitle": "Récupération du titre de la page...",
     "urlProcessingGeneratingWatch": "Génération de votre Watch...",
     "urlProcessingButton": "Analyse de l’article…",
     "urlReviewFound": "Voici l’article que vous êtes sur le point de surveiller",
+    "webpageReviewFound": "Cette page n’est pas un article d’actualité unique",
+    "webpageReviewClassification": "Classification de la page *",
     "urlReviewFailed": "Je n’ai pas pu comprendre cette page.",
-    "urlReviewHelp": "Aidez-moi en modifiant les informations ci-dessous.",
+    "urlReviewHelp": "Les informations de l’article n’ont pas pu être récupérées. Votre URL est conservée pour réessayer, ou vous pouvez compléter les informations ci-dessous.",
     "urlReviewTitle": "Titre",
     "urlReviewWatchingFor": "À surveiller",
     "urlReviewWatchingForRequired": "À surveiller *",
     "urlReviewWatchingForError": "Décrivez ce que vous souhaitez que nous surveillions.",
+    "urlReviewOverviewRequired": "Aperçu de l’actualité *",
+    "urlReviewOverviewError": "Ajoutez un aperçu concis de l’actualité.",
+    "urlReviewMonitoringScope": "Périmètre de surveillance",
     "urlReviewSource": "Source",
     "urlReviewCreate": "Créer la Watch",
     "urlReviewSave": "Enregistrer",
@@ -289,6 +380,8 @@
     "clarificationEdit": "Modifier",
     "clarificationEditRequest": "Modifier ma demande",
     "clarificationCreateAsWritten": "Créer la Watch telle quelle",
+    "nonArticleClarificationCreate": "Créer la Watch quand même",
+    "nonArticleClarificationMessage": "Cette page semble être une page d’accueil ou une rubrique d’actualités plutôt qu’un article unique.\n\nSurveiller cette page peut générer un très grand nombre de mises à jour sans rapport entre elles, car son contenu change continuellement.\n\nPour une surveillance plus pertinente, choisissez :\n• un article précis\n• un sujet plus précis.",
     "clarificationWarning": "Les résultats peuvent être incomplets ou non pertinents si cette Watch est créée telle quelle.",
     "clarificationDone": "Terminer",
     "examplesTitle": "Par exemple",

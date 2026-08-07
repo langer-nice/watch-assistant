@@ -5,20 +5,23 @@ import {
 } from './monitoring-concepts.js';
 import { cleanArticleContentForAnalysis } from './article-content.js';
 import { createStoryProfile } from './story-profile.js';
-
-const PUBLISHERS = [
-  { host: /(^|\.)bbc\.(com|co\.uk)$/i, source: 'BBC News' },
-  { host: /(^|\.)theguardian\.com$/i, source: 'The Guardian' },
-  { host: /(^|\.)nytimes\.com$/i, source: 'The New York Times' },
-  { host: /(^|\.)reuters\.com$/i, source: 'Reuters' },
-  { host: /(^|\.)cnn\.com$/i, source: 'CNN' },
-];
+import { getMediaStoryPublisher } from './media-story-request.js';
+import {
+  classifyPage,
+  getNonStoryPageExplanation,
+  isStoryPageType,
+  normalizePageType,
+} from './page-classification.js';
+import {
+  createMonitoringScope,
+  createStoryOverview,
+  enrichStoryFingerprint,
+} from './story-review.js';
+import { rankStoryIdentifiers } from './story-identifier-ranking.js';
 
 const getPublisher = (url) => {
-  const knownPublisher = PUBLISHERS.find(({ host }) => host.test(url.hostname));
-  if (knownPublisher) {
-    return knownPublisher.source;
-  }
+  const knownPublisher = getMediaStoryPublisher(url.href);
+  if (knownPublisher) return knownPublisher;
 
   const hostname = url.hostname.replace(/^www\./i, '');
   const publisher = hostname.split('.').at(-2) || hostname;
@@ -53,19 +56,46 @@ const requestJson = async (path, body, signal) => {
 };
 
 const assertStructuredSuggestion = (suggestion) => {
+  const isConceptProposal = Array.isArray(suggestion?.concepts)
+    && Number.isFinite(suggestion?.confidence);
   if (
     !suggestion
-    || typeof suggestion.watchTitle !== 'string'
-    || !suggestion.watchTitle.trim()
-    || (!Array.isArray(suggestion.storyFingerprint) && !Array.isArray(suggestion.keywords))
-    || !suggestion.storyProfile
-    || typeof suggestion.storyProfile !== 'object'
+    || (!isConceptProposal && (
+      typeof suggestion.watchTitle !== 'string'
+      || !suggestion.watchTitle.trim()
+      || (!Array.isArray(suggestion.storyFingerprint) && !Array.isArray(suggestion.keywords))
+      || !suggestion.storyProfile
+      || typeof suggestion.storyProfile !== 'object'
+    ))
   ) {
     const error = new Error('The analysis endpoint returned an invalid structured result.');
     error.code = 'provider_response_invalid';
     throw error;
   }
   return suggestion;
+};
+
+const normalizePageMetadata = (page, { source, sourceUrl }) => {
+  const title = typeof page?.title === 'string' ? page.title.trim() : '';
+  if (!title) {
+    const error = new Error('The page did not provide usable article metadata.');
+    error.code = 'article_metadata_unavailable';
+    throw error;
+  }
+  return {
+    ...page,
+    title,
+    description: typeof page.description === 'string' && page.description.trim()
+      ? page.description.trim()
+      : typeof page.articleSubheading === 'string' ? page.articleSubheading.trim() : '',
+    articleText: typeof page.articleText === 'string' ? page.articleText : '',
+    siteName: typeof page.siteName === 'string' && page.siteName.trim()
+      ? page.siteName.trim()
+      : source,
+    sourceUrl: typeof page.sourceUrl === 'string' && page.sourceUrl.trim()
+      ? page.sourceUrl.trim()
+      : sourceUrl,
+  };
 };
 
 const trimTerminalPunctuation = (value) => value.replace(/[.!?]+$/g, '').trim();
@@ -600,7 +630,54 @@ export const createSourceDerivedFallback = (page, sourceUrl = '', {
     cloudGamingPhenomenon && { label: cloudGamingPhenomenon, type: 'phenomenon', rule: 'cloud_gaming_context' },
     ...distinctiveRisks.map((label) => ({ label, type: 'condition', rule: 'distinctive_risk_list' })),
   ].filter(Boolean);
-  const storyFingerprint = normalizeAutomaticStoryFingerprint(fallbackCandidates, 5);
+  if (!fallbackCandidates.length && analysisPage.contentAccessLimited === true) {
+    titleConcepts.slice(0, 5).forEach((label) => fallbackCandidates.push({
+      label,
+      type: 'event',
+      rule: 'article_title_concept',
+    }));
+  }
+  const fallbackProfile = {
+    primaryPeople: supportedPerson ? [supportedPerson] : [],
+    otherPeople: people.secondary,
+    peopleRoles: people.roles,
+    locations: supportedLocation ? [supportedLocation] : [],
+    organizations: organizationConnection?.name ? [organizationConnection.name] : [],
+    eventTypes: primaryEvent ? [primaryEvent] : [],
+    distinctiveFacts,
+    aliases: organizationConnection?.aliases || [],
+    uncertaintyPhrases,
+  };
+  const storyFingerprint = enrichStoryFingerprint(
+    normalizeAutomaticStoryFingerprint(fallbackCandidates, 5),
+    fallbackProfile,
+    {
+      analysisProvider: 'deterministic',
+      evidence: analysisPage,
+      limit: 5,
+    },
+  );
+  const fingerprintLabels = (type) => storyFingerprint
+    .filter((concept) => concept.type === type)
+    .map(({ label }) => label);
+  const enrichedFallbackProfile = {
+    ...fallbackProfile,
+    primaryPeople: supportedPerson
+      ? fallbackProfile.primaryPeople
+      : fingerprintLabels('person').slice(0, 1),
+    otherPeople: supportedPerson
+      ? fallbackProfile.otherPeople
+      : fingerprintLabels('person').slice(1),
+    organizations: [
+      ...fallbackProfile.organizations,
+      ...fingerprintLabels('organization'),
+    ],
+    eventTypes: [
+      ...fallbackProfile.eventTypes,
+      ...fingerprintLabels('event'),
+    ],
+    phenomena: fingerprintLabels('phenomenon'),
+  };
   diagnosticCollector?.({
     candidates: fallbackCandidates.map(({ label, type, rule }) => ({ label, type, rule })),
     normalizedFingerprint: storyFingerprint,
@@ -622,15 +699,7 @@ export const createSourceDerivedFallback = (page, sourceUrl = '', {
       storyFingerprint,
       profile: {
         storySummary,
-        primaryPeople: supportedPerson ? [supportedPerson] : [],
-        otherPeople: people.secondary,
-        peopleRoles: people.roles,
-        locations: supportedLocation ? [supportedLocation] : [],
-        organizations: organizationConnection?.name ? [organizationConnection.name] : [],
-        eventTypes: primaryEvent ? [primaryEvent] : [],
-        distinctiveFacts,
-        aliases: organizationConnection?.aliases || [],
-        uncertaintyPhrases,
+        ...enrichedFallbackProfile,
       },
       articleText: analysisPage.articleText,
       sourcePublication,
@@ -651,53 +720,61 @@ export const createTitleDerivedFallback = (pageTitle) => {
   return createSourceDerivedFallback({ title: pageTitle });
 };
 
-/**
- * Stable integration boundary for URL analysis.
- *
- * Fetches available page metadata and article text, then sends only retrieved source content.
- */
-export const analyseUrl = async (input, { onProgress, signal } = {}) => {
-  const sourceUrl = input.trim();
-  const url = new URL(/^https?:\/\//i.test(sourceUrl) ? sourceUrl : `https://${sourceUrl}`);
-  const source = getPublisher(url);
-  onProgress?.('fetching-title');
-  const page = await requestJson('/api/page-title', { url: url.href }, signal);
-  const analysisPage = {
-    ...page,
-    articleText: cleanArticleContentForAnalysis(page.articleText),
+const mergeConceptProposal = (proposal, deterministicSuggestion, analysisPage) => {
+  if (!Array.isArray(proposal?.concepts)) return proposal;
+  const proposedConcepts = normalizeAutomaticStoryFingerprint(proposal.concepts, 6);
+  const validatedProposal = rankStoryIdentifiers({
+    selected: proposedConcepts,
+    evidence: analysisPage,
+    limit: 6,
+  });
+  const useProposal = proposal.confidence >= 0.5 && validatedProposal.length > 0;
+  const storyFingerprint = useProposal
+    ? rankStoryIdentifiers({
+      selected: [
+        ...(deterministicSuggestion.storyFingerprint || []),
+        ...validatedProposal,
+      ],
+      profileCandidates: deterministicSuggestion.storyProfile?.concepts || [],
+      evidence: analysisPage,
+      limit: 5,
+    })
+    : deterministicSuggestion.storyFingerprint || [];
+  return {
+    ...deterministicSuggestion,
+    storyFingerprint,
+    keywords: storyFingerprint.map(({ label }) => label),
+    analysisProvider: useProposal ? 'openai' : 'deterministic',
+    analysisStatus: useProposal ? 'success' : 'fallback',
+    analysisModel: proposal.analysisModel || null,
+    fallbackReasonCode: null,
+    analyzedAt: proposal.analyzedAt || new Date().toISOString(),
+    analysisDiagnosticId: proposal.analysisDiagnosticId || null,
+    semanticConceptProposal: true,
+    conceptProposalAccepted: useProposal,
+    conceptProposalConfidence: proposal.confidence,
   };
-  const conceptSourceFields = Array.isArray(page.conceptSourceFields)
-    ? page.conceptSourceFields
-    : ['title', 'description', 'articleText', 'author'].filter((field) => page[field]);
-  if (import.meta.env?.DEV) {
-    console.info(
-      `[Story Fingerprint] Retrieved source fields: ${conceptSourceFields.join(', ') || 'slug only'}`,
-    );
-    if (!page.description && !page.articleText) {
-      console.info('[Story Fingerprint] Limited source: using title/slug only.');
-    }
-  }
-  onProgress?.('generating-watch');
-  let suggestion;
-  try {
-    suggestion = assertStructuredSuggestion(await requestJson('/api/watch-suggestion', {
-      title: analysisPage.title,
-      description: analysisPage.description,
-      articleText: analysisPage.articleText,
-      author: analysisPage.author,
-      slug: getUrlSlug(url),
-    }, signal));
-  } catch (error) {
-    if (error.name === 'AbortError') throw error;
-    console.warn('AI Watch generation failed; using the real page title fallback.', error);
-    suggestion = createSourceDerivedFallback(analysisPage, url.href, {
-      fallbackReasonCode: error.code || 'internal_error',
-      analysisDiagnosticId: error.analysisDiagnosticId || null,
-    });
-  }
-  const storyFingerprint = normalizeAutomaticStoryFingerprint(
+};
+
+const createAnalysisResult = ({
+  suggestion,
+  analysisPage,
+  url,
+  source,
+  conceptSourceFields,
+}) => {
+  const normalizedStoryFingerprint = normalizeAutomaticStoryFingerprint(
     suggestion.storyFingerprint || [],
     5,
+  );
+  const storyFingerprint = enrichStoryFingerprint(
+    normalizedStoryFingerprint,
+    suggestion.storyProfile,
+    {
+      analysisProvider: suggestion.analysisProvider || 'openai',
+      evidence: analysisPage,
+      limit: 5,
+    },
   );
   let storyProfile = createStoryProfile({
     storyFingerprint,
@@ -709,20 +786,45 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
     publishedAt: analysisPage.publishedAt,
   });
   const profileKeywords = storyProfile.concepts.map(({ label }) => label);
+  const language = globalThis.document?.documentElement?.lang === 'fr' ? 'fr' : 'en';
+  const storyOverview = createStoryOverview({
+    storySummary: storyProfile.storySummary,
+    title: analysisPage.title,
+    description: analysisPage.description,
+    articleText: analysisPage.articleText,
+    language,
+  });
+  storyProfile = { ...storyProfile, storySummary: storyOverview };
+  const monitoringScope = createMonitoringScope({
+    watchingFor: suggestion.analysisProvider === 'deterministic'
+      || suggestion.semanticConceptProposal
+      ? ''
+      : suggestion.watchingFor,
+    profile: storyProfile,
+    storyFingerprint: storyProfile.concepts,
+    title: analysisPage.title,
+    overview: storyOverview,
+    articleText: analysisPage.articleText,
+    language,
+  });
 
   return {
     status: 'success',
+    pageType: analysisPage.pageType,
+    isStory: true,
     title: suggestion.watchTitle,
-    summary: storyProfile.storySummary || suggestion.watchingFor || suggestion.description,
+    summary: storyOverview,
+    monitoringScope,
     description: suggestion.description,
     keywords: profileKeywords,
     storyFingerprint: storyProfile.concepts,
     storyProfile,
     source,
-    sourceTitle: page.title,
-    sourceUrl: page.sourceUrl || url.href,
+    sourceTitle: analysisPage.title,
+    sourceUrl: analysisPage.sourceUrl || url.href,
     sourcePublishedAt: storyProfile.sourceArticle.publishedAt,
-    monitoringSource: page.monitoringSource || null,
+    monitoringSource: analysisPage.monitoringSource || null,
+    contentAccessLimited: analysisPage.contentAccessLimited === true,
     conceptSourceFields,
     analysisProvider: suggestion.analysisProvider || 'openai',
     analysisStatus: suggestion.analysisStatus || 'success',
@@ -731,4 +833,149 @@ export const analyseUrl = async (input, { onProgress, signal } = {}) => {
     analyzedAt: suggestion.analyzedAt || new Date().toISOString(),
     analysisDiagnosticId: suggestion.analysisDiagnosticId || null,
   };
+};
+
+const createNonStoryAnalysisResult = ({ analysisPage, source, url }) => {
+  const language = globalThis.document?.documentElement?.lang === 'fr' ? 'fr' : 'en';
+  return {
+    status: 'success',
+    pageType: analysisPage.pageType,
+    isStory: false,
+    title: analysisPage.title,
+    summary: getNonStoryPageExplanation(analysisPage.pageType, language),
+    monitoringScope: '',
+    description: '',
+    keywords: [],
+    storyFingerprint: [],
+    storyProfile: null,
+    source,
+    sourceTitle: analysisPage.title,
+    sourceUrl: analysisPage.sourceUrl || url.href,
+    sourcePublishedAt: null,
+    monitoringSource: analysisPage.monitoringSource || null,
+    conceptSourceFields: [],
+    analysisProvider: 'deterministic',
+    analysisStatus: 'classified',
+    analysisModel: null,
+    fallbackReasonCode: null,
+    analyzedAt: new Date().toISOString(),
+    analysisDiagnosticId: null,
+  };
+};
+
+const createSuggestionFallback = (error, analysisPage, url) => {
+  if (error?.name !== 'AbortError') {
+    console.warn('AI Watch generation failed; using the real page title fallback.', error);
+  }
+  return createSourceDerivedFallback(analysisPage, url.href, {
+    fallbackReasonCode: error?.code || 'internal_error',
+    analysisDiagnosticId: error?.analysisDiagnosticId || null,
+  });
+};
+
+const skipFailedSuggestionEnhancement = (error) => {
+  if (error?.name !== 'AbortError') {
+    console.warn('AI Watch enhancement failed; keeping the local article Review.', error);
+  }
+  return null;
+};
+
+/**
+ * Stable integration boundary for URL analysis.
+ *
+ * Fetches available page metadata and article text, then optionally lets the caller present local
+ * analysis while the same AI request continues as a non-blocking enhancement.
+ */
+export const analyseUrl = async (input, {
+  onProgress,
+  signal,
+  progressive = false,
+} = {}) => {
+  const sourceUrl = input.trim();
+  const url = new URL(/^https?:\/\//i.test(sourceUrl) ? sourceUrl : `https://${sourceUrl}`);
+  const requestedUrl = /^https?:\/\//i.test(sourceUrl) ? sourceUrl : url.href;
+  const source = getPublisher(url);
+  onProgress?.('fetching-title');
+  let page;
+  try {
+    page = normalizePageMetadata(
+      await requestJson('/api/page-title', { url: requestedUrl }, signal),
+      { source, sourceUrl: requestedUrl },
+    );
+  } catch (error) {
+    if (error?.name !== 'AbortError') {
+      error.partialAnalysis = {
+        source,
+        sourceName: source,
+        sourceUrl: requestedUrl,
+      };
+    }
+    throw error;
+  }
+  const pageType = normalizePageType(page.pageType) || classifyPage({
+    ...page,
+    sourceUrl: page.sourceUrl || requestedUrl,
+  });
+  const analysisPage = {
+    ...page,
+    pageType,
+    articleText: cleanArticleContentForAnalysis(page.articleText),
+  };
+  if (!isStoryPageType(pageType)) {
+    return createNonStoryAnalysisResult({ analysisPage, source, url });
+  }
+  const conceptSourceFields = Array.isArray(page.conceptSourceFields)
+    ? page.conceptSourceFields
+    : ['title', 'description', 'articleText', 'author'].filter((field) => page[field]);
+  onProgress?.('generating-watch');
+  const deterministicSuggestion = createSourceDerivedFallback(analysisPage, url.href, {
+    fallbackReasonCode: 'analysis_pending',
+  });
+  const toAnalysis = (suggestion) => createAnalysisResult({
+    suggestion: mergeConceptProposal(suggestion, deterministicSuggestion, analysisPage),
+    analysisPage,
+    url,
+    source,
+    conceptSourceFields,
+  });
+  const hasUsableSemanticEvidence = Boolean(
+    analysisPage.description || analysisPage.articleSubheading || analysisPage.articleText,
+  );
+  if (analysisPage.contentAccessLimited && !hasUsableSemanticEvidence) {
+    return toAnalysis(deterministicSuggestion);
+  }
+
+  const requestSuggestion = () => requestJson('/api/watch-suggestion', {
+    title: analysisPage.title,
+    subtitle: analysisPage.articleSubheading,
+    description: analysisPage.description,
+    articleText: analysisPage.articleText,
+    publisher: analysisPage.siteName,
+    publishedAt: analysisPage.publishedAt,
+    language: analysisPage.language,
+    deterministicCandidates: deterministicSuggestion.storyFingerprint,
+    slug: getUrlSlug(url),
+  }, signal)
+    .then(assertStructuredSuggestion);
+
+  if (progressive) {
+    const immediateAnalysis = toAnalysis(deterministicSuggestion);
+    const enhancement = requestSuggestion()
+      .then(toAnalysis)
+      .catch(skipFailedSuggestionEnhancement);
+    Object.defineProperty(immediateAnalysis, 'enhancement', {
+      configurable: false,
+      enumerable: false,
+      value: enhancement,
+      writable: false,
+    });
+    return immediateAnalysis;
+  }
+
+  try {
+    return toAnalysis(await requestSuggestion());
+  } catch (error) {
+    if (error?.name === 'AbortError') throw error;
+    return toAnalysis(createSuggestionFallback(error, analysisPage, url));
+  }
 };

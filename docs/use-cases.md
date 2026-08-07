@@ -1,3 +1,8 @@
+# tests
+ - Bug : Create watch button not active without the word Watch in front
+ - Fix : Enleve les deux status badges pour le details page
+ - Changes ne sont pas poussés
+
 # Use Cases
 
 This document captures real-world reasons people would use Watch Assistant.

@@ -98,16 +98,6 @@ body.is-watch-edit-open {
   margin-left: 0;
 }
 
-.detail-card__take .detail-analysis-provenance {
-  margin-top: var(--space-sm);
-  padding: var(--space-sm);
-  color: var(--color-text-secondary);
-  background: var(--color-attention-tint);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  line-height: 1.45;
-}
-
 .detail-current-update {
   min-width: 0;
   scroll-margin-top: calc(var(--app-header-height) + var(--space-lg));

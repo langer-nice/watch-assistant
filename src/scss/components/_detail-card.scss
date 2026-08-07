@@ -33,6 +33,16 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.detail-company-status {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-xs);
+}
+
+.detail-company-status[hidden] {
+  display: none;
+}
+
 .detail-card__source {
   display: grid;
   gap: var(--space-xs);

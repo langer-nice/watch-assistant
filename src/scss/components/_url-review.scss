@@ -135,12 +135,53 @@
 }
 
 .url-review__field label,
-.url-review__source > span {
+.url-review__field-label,
+.url-review__source > span,
+.url-review__company-status > span {
   color: var(--color-text-subtle);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+.url-review__field-copy {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.url-review__company-status {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-xs);
+  margin-top: var(--space-lg);
+}
+
+.url-review__company-status[hidden],
+.url-review__company-warning[hidden] {
+  display: none;
+}
+
+.url-review__company-status p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.url-review__company-warning {
+  display: grid;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+  padding-left: var(--space-sm);
+  border-left: 2px solid var(--color-status-action);
+}
+
+.url-review__company-warning strong {
+  color: var(--color-status-action);
+  font-size: var(--font-size-sm);
 }
 
 .url-review__field input,

@@ -13,6 +13,7 @@ import {
 } from './watch-storage.js';
 import { getLanguage, t } from './i18n.js';
 import { analyseUrl } from './url-analysis.js';
+import { requiresNonArticleClarification } from './page-classification.js';
 import {
   CLARIFICATION_ACTIONS,
   clarifyWatchRequest,
@@ -38,7 +39,10 @@ import {
   setHomeSortPreference,
   sortHomeWatches,
 } from './home-watch-order.js';
-import { navigateToHomeWatchStatus } from './home-summary-navigation.js';
+import {
+  getHomeStatusTargetId,
+  navigateToHomeWatchStatus,
+} from './home-summary-navigation.js';
 import {
   extractMonitoringConcepts,
   MONITORING_CONCEPTS_VERSION,
@@ -73,12 +77,44 @@ import {
   getMonitoringUpdates,
   MonitoringCheckError,
   normalizeFeedUrl,
+  requestCompanyCheck,
 } from './watch-monitoring.js';
 import {
   requestMonitoringSource,
   resolveUrlMonitoringSource,
   SourceDiscoveryError,
 } from './watch-source-discovery.js';
+import {
+  createBodaccMonitoringSource,
+  extractCompanyNameFromRequest,
+} from './company-watch-request.js';
+import {
+  COMPANY_EDIT_PLAN_OUTCOMES,
+  createExistingCompanyEditAnalysis,
+  getCompanyEditPlanOutcome,
+  getPreservedCompanyEditChanges,
+  isSameCompanyEditAnalysis,
+} from './company-watch-edit.js';
+import {
+  COMPANY_PLAN_ROUTES,
+  getCompanyPlanRoute,
+  getMediaStoryPlanRoute,
+  MEDIA_STORY_PLAN_ROUTES,
+  requestWatchPlan,
+} from './watch-planner.js';
+import { getCompanyWatchTitle } from './company-watch-title.js';
+import { getCompanyReviewSummary } from './company-watch-review.js';
+import { getCompanyBodaccUrl } from './company-watch-source.js';
+import {
+  deriveCompanyStatus,
+  getCompanyStatusPresentation,
+  isTerminalCompanyStatus,
+} from './company-watch-status.js';
+import {
+  getAdministrativeStatusPresentation,
+  normalizeAdministrativeStatus,
+  shouldShowCompanyMonitoringStatus,
+} from './company-administrative-status.js';
 import { waitForVisiblePaint } from './browser-paint.js';
 import { getMonitoringFailureMessageKey } from './watch-monitoring-errors.js';
 import {
@@ -86,10 +122,7 @@ import {
   getStoryProfileIdentifiers,
   synchronizeStoryProfile,
 } from './story-profile.js';
-import {
-  getAnalysisProvenanceMessageKey,
-  getMonitoringHealthPresentation,
-} from './watch-model.js';
+import { isDistinctMonitoringScope } from './story-review.js';
 import { renderWatchCardLink } from './watch-card-link.js';
 import {
   CURRENT_UPDATE_FRAGMENT,
@@ -108,6 +141,7 @@ import {
 } from './watch-updates.js';
 import { getWatchTimelineEvents } from './watch-timeline.js';
 import {
+  getBodaccBusinessEventLabel,
   getCurrentSituationPresentation,
   getLatestCheckUpdates,
 } from './watch-update-presentation.js';
@@ -384,6 +418,11 @@ const isDistinctMeaningfulText = (value, comparison = '') => (
   && value.trim().toLocaleLowerCase() !== comparison.trim().toLocaleLowerCase()
 );
 
+const getWatchDisplayTitle = (watch) => getCompanyWatchTitle(watch, {
+  storedTitle: localizeField(watch, 'title'),
+  formatFallback: (siren) => t('newWatch.companyReviewTitleValue', { siren }),
+});
+
 const normalizeComparableText = (value = '') => String(value)
   .normalize('NFKC')
   .toLocaleLowerCase()
@@ -409,14 +448,11 @@ const getLatestChange = (watch) => {
 
 const getHomeUpdateText = (watch) => {
   const latestUpdate = getLatestUpdate(watch);
-  return latestUpdate?.sourceTitle
+  return getBodaccBusinessEventLabel(latestUpdate, t)
+    || latestUpdate?.sourceTitle
     || latestUpdate?.summary
     || getLatestChange(watch)
     || (latestUpdate ? t('detail.untitledItem') : '');
-};
-
-const getMonitoringHealthStatus = (watch) => {
-  return getMonitoringHealthPresentation(watch)?.statusKey || null;
 };
 
 const getMonitoringSummary = (watch, title) => {
@@ -611,12 +647,36 @@ const extractStructuredCriteria = (request) => {
 };
 
 const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
-  const isUrlRequest = Boolean(urlAnalysis) || isUrl(request);
-  const sourceName = getSourceText(urlAnalysis?.sourceName || urlAnalysis?.source);
-  const sourceTitle = getSourceText(urlAnalysis?.sourceTitle || urlAnalysis?.title);
-  const sourceUrl = typeof urlAnalysis?.sourceUrl === 'string'
-    ? urlAnalysis.sourceUrl.trim()
-    : isUrlRequest ? request.trim() : '';
+  const companyMonitoringSource = urlAnalysis?.inputType === 'company'
+    ? createBodaccMonitoringSource(urlAnalysis?.company?.siren)
+    : null;
+  const isCompanyRequest = Boolean(companyMonitoringSource);
+  const company = isCompanyRequest
+    ? {
+      siren: companyMonitoringSource.siren,
+      name: urlAnalysis?.company?.name || null,
+      administrativeStatus: normalizeAdministrativeStatus(
+        urlAnalysis?.company?.administrativeStatus,
+      ),
+      status: deriveCompanyStatus(
+        urlAnalysis?.baseline?.items,
+        urlAnalysis?.company?.status,
+      ),
+    }
+    : null;
+  const isUrlRequest = !isCompanyRequest && (Boolean(urlAnalysis) || isUrl(request));
+  const isStory = !isUrlRequest || urlAnalysis?.isStory !== false;
+  const sourceName = isCompanyRequest
+    ? companyMonitoringSource.title
+    : getSourceText(urlAnalysis?.sourceName || urlAnalysis?.source);
+  const sourceTitle = isCompanyRequest
+    ? null
+    : getSourceText(urlAnalysis?.sourceTitle || urlAnalysis?.title);
+  const sourceUrl = isCompanyRequest
+    ? ''
+    : typeof urlAnalysis?.sourceUrl === 'string'
+      ? urlAnalysis.sourceUrl.trim()
+      : isUrlRequest ? request.trim() : '';
   const inferredCategory = inferWatchCategory([
     request,
     urlAnalysis?.title,
@@ -624,18 +684,26 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     urlAnalysis?.storyProfile?.storySummary,
   ].filter(Boolean).join(' '));
   const category = normalizeWatchCategory(options.category, inferredCategory);
-  const keywords = Array.isArray(options.keywords)
-    ? options.keywords
-    : extractMonitoringConcepts([request, urlAnalysis?.title].filter(Boolean).join(' '));
-  const selectedKeywords = Array.isArray(options.selectedKeywords)
-    ? options.selectedKeywords
-    : keywords;
+  const keywords = isUrlRequest && !isStory
+    ? []
+    : Array.isArray(options.keywords)
+      ? options.keywords
+      : extractMonitoringConcepts([request, urlAnalysis?.title].filter(Boolean).join(' '));
+  const selectedKeywords = isUrlRequest && !isStory
+    ? []
+    : Array.isArray(options.selectedKeywords)
+      ? options.selectedKeywords
+      : keywords;
   const structuredCriteria = extractStructuredCriteria(request);
-  const storyFingerprint = Object.hasOwn(options, 'storyFingerprint')
-    ? options.storyFingerprint
-    : urlAnalysis?.storyFingerprint;
+  const storyFingerprint = isStory
+    ? Object.hasOwn(options, 'storyFingerprint')
+      ? options.storyFingerprint
+      : urlAnalysis?.storyFingerprint
+    : [];
   const sourceStoryProfile = urlAnalysis?.storyProfile || options.storyProfile || null;
-  const storyProfile = isUrlRequest
+  const storyProfile = isUrlRequest && !isStory
+    ? null
+    : isUrlRequest
     ? options.monitoringConceptsManuallyEdited === true && Array.isArray(storyFingerprint)
       ? synchronizeStoryProfile(
         sourceStoryProfile,
@@ -656,17 +724,27 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     options.feedUrl || options.monitoringSource?.url || urlAnalysis?.monitoringSource?.url || '',
   );
   const automaticMonitoringSource = options.monitoringSource || urlAnalysis?.monitoringSource;
-  const monitoringSource = monitoringUrl
+  const monitoringSource = companyMonitoringSource || (monitoringUrl
     ? {
       url: monitoringUrl,
       type: automaticMonitoringSource?.type || 'feed',
       title: automaticMonitoringSource?.title || null,
       discovery: options.feedUrl ? 'manual' : automaticMonitoringSource?.discovery || 'manual',
     }
-    : null;
+    : null);
   return {
-    title: urlAnalysis?.title || createTitle(request),
-    inputType: isUrlRequest ? 'url' : 'text',
+    title: isCompanyRequest
+      ? getCompanyWatchTitle({ inputType: 'company', company }, {
+        storedTitle: urlAnalysis?.title,
+        formatFallback: (siren) => t('newWatch.companyReviewTitleValue', { siren }),
+      })
+      : urlAnalysis?.title || createTitle(request),
+    inputType: isCompanyRequest ? 'company' : isUrlRequest ? 'url' : 'text',
+    ...(isUrlRequest ? {
+      pageType: urlAnalysis?.pageType || null,
+      isStory,
+    } : {}),
+    ...(isCompanyRequest ? { company } : {}),
     sourceName: sourceName || null,
     sourceTitle: sourceTitle || null,
     sourceUrl: sourceUrl || null,
@@ -682,6 +760,7 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
       ? storyFingerprint
       : null,
     storyProfile,
+    contentAccessLimited: urlAnalysis?.contentAccessLimited === true,
     sourcePublishedAt: urlAnalysis?.sourcePublishedAt || null,
     conceptSourceFields: Array.isArray(urlAnalysis?.conceptSourceFields)
       ? urlAnalysis.conceptSourceFields
@@ -696,7 +775,10 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
       || null,
     structuredCriteria,
     ...structuredCriteria,
-    monitoringSummary: urlAnalysis?.summary || options.monitoringSummary || null,
+    monitoringSummary: urlAnalysis?.monitoringScope
+      || urlAnalysis?.summary
+      || options.monitoringSummary
+      || null,
     monitoringSummaryKey: null,
     currentSituationKey: inferCurrentSituationKey(request, category),
   };
@@ -739,25 +821,9 @@ const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, optio
   };
 };
 
-const STATUS_LABEL_VARIANTS = {
-  attention: 'attention',
-  checking: 'checking',
-  completed: 'completed',
-  error: 'error',
-  monitoringUnavailable: 'watching',
-  new: 'updated',
-  paused: 'paused',
-  stable: 'stable',
-  setupRequired: 'watching',
-  updated: 'updated',
-  watching: 'watching',
-};
-
-const getStatusLabelVariant = (status) => STATUS_LABEL_VARIANTS[status] || 'checking';
-
 const getHomeReport = () => {
   const isDisplayableWatch = (watch) => (
-    hasMeaningfulText(localizeField(watch, 'title'))
+    hasMeaningfulText(getWatchDisplayTitle(watch))
   );
   const watches = getWatches().filter((watch) => (
     watch.status !== 'completed' && isDisplayableWatch(watch)
@@ -775,8 +841,8 @@ const getHomeReport = () => {
     statusById: briefing.statusById,
     attentionWatches,
     updatedWatches,
+    newlyCreatedWatches: briefing.newlyCreatedWatches,
     quietWatches,
-    unchangedCount: quietWatches.length,
     totalChecked: briefing.totalChecked,
   };
 };
@@ -801,80 +867,108 @@ const getHomeWatchTimestampText = (watch, latestUpdate) => {
   return watch.lastCheckedKey ? lastChecked : formatHomeWatchTimestamp(lastChecked);
 };
 
-const renderHomeWatchCards = (watches, statusById) => watches
-  .map((watch) => {
-    const title = localizeField(watch, 'title');
+const getSummaryCardStatus = (status) => {
+  if (status === 'attention') {
+    return { label: t('statuses.attention'), modifier: 'attention' };
+  }
+  if (status === 'updated') {
+    return { label: t('statuses.updated'), modifier: 'updated' };
+  }
+  if (status === 'new') {
+    return { label: t('home.newBadge'), modifier: 'stable' };
+  }
+  return null;
+};
+
+const renderSummaryWatchCard = ({
+  watch,
+  title: titleOverride = '',
+  status = null,
+  supportingText = '',
+  timestamp = '',
+  revealLatestUpdate = false,
+  articleId = '',
+  dataAttribute = '',
+} = {}) => {
+  const title = hasMeaningfulText(titleOverride) ? titleOverride : getWatchDisplayTitle(watch);
+  if (!hasMeaningfulText(title)) return '';
+  const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
+  const categoryModifier = watch.category || 'general';
+  const statusPresentation = getSummaryCardStatus(status);
+  const link = renderWatchCardLink({
+    watchId: watch.id,
+    className: 'briefing-item__link',
+    revealLatestUpdate,
+    content: `
+      <div class="briefing-item__header">
+        <div class="briefing-item__metadata">
+          <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
+          ${hasMeaningfulText(timestamp)
+    ? `<span class="briefing-item__time">${escapeHtml(timestamp)}</span>`
+    : ''}
+        </div>
+        ${statusPresentation ? `
+          <div class="briefing-item__statuses">
+            <span class="status-label status-label--${statusPresentation.modifier}">${escapeHtml(statusPresentation.label)}</span>
+          </div>
+        ` : ''}
+      </div>
+      <h2>${escapeHtml(title)}</h2>
+      ${hasMeaningfulText(supportingText) ? `<p>${escapeHtml(supportingText)}</p>` : ''}
+    `,
+  });
+  if (!link) return '';
+  return `<article class="briefing-item"${articleId ? ` id="${escapeHtml(articleId)}"` : ''}${dataAttribute}>${link}</article>`;
+};
+
+const renderHomeWatchCards = (watches, statusById) => {
+  const renderedStatusTargets = new Set();
+  return watches.map((watch) => {
+    const title = getWatchDisplayTitle(watch);
     const latestUpdate = getLatestUpdate(watch);
     const latestChange = getHomeUpdateText(watch);
     if (!hasMeaningfulText(title)) return '';
 
     const homeStatus = statusById.get(watch.id);
     if (!homeStatus) return '';
-    const needsAttention = homeStatus === 'attention';
-    const statusModifier = homeStatus;
-    const status = t(needsAttention ? 'statuses.attention' : 'statuses.updated');
-    const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
-    const categoryModifier = watch.category || 'general';
-    const latestChangeAt = getHomeWatchTimestampText(watch, latestUpdate);
+    const latestChangeAt = homeStatus === 'new'
+      ? formatHomeWatchTimestamp(watch.createdAt)
+      : getHomeWatchTimestampText(watch, latestUpdate);
     const supportingText = latestUpdate
-      ? latestUpdate.sourceTitle || latestUpdate.summary || t('detail.untitledItem')
+      ? getBodaccBusinessEventLabel(latestUpdate, t)
+        || latestUpdate.sourceTitle
+        || latestUpdate.summary
+        || t('detail.untitledItem')
       : latestChange || getMonitoringSummary(watch, title) || t('common.monitoringFallback');
 
-    const link = renderWatchCardLink({
-      watchId: watch.id,
-      className: 'briefing-item__link',
+    const statusTargetId = getHomeStatusTargetId(homeStatus);
+    const isFirstStatusWatch = statusTargetId && !renderedStatusTargets.has(homeStatus);
+    const articleId = isFirstStatusWatch ? statusTargetId : '';
+    const card = renderSummaryWatchCard({
+      watch,
+      status: homeStatus,
+      supportingText,
+      timestamp: latestChangeAt,
       revealLatestUpdate: homeStatus === 'updated',
-      content: `
-        <div class="briefing-item__header">
-          <div class="briefing-item__metadata">
-            <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
-            ${hasMeaningfulText(latestChangeAt)
-    ? `<span class="briefing-item__time">${escapeHtml(latestChangeAt)}</span>`
-    : ''}
-          </div>
-          <div class="briefing-item__statuses">
-            <span class="status-label status-label--${statusModifier}">${escapeHtml(status)}</span>
-          </div>
-        </div>
-        <h2>${escapeHtml(title)}</h2>
-        <p>${escapeHtml(supportingText)}</p>
-      `,
+      articleId,
+      dataAttribute: ` data-home-watch-status="${escapeHtml(homeStatus)}"`,
     });
-    const articleId = `home-watch-${homeStatus}-${encodeURIComponent(String(watch.id))}`;
-    return link
-      ? `<article class="briefing-item" id="${escapeHtml(articleId)}" data-home-watch-status="${homeStatus}">${link}</article>`
-      : '';
-  })
-  .join('');
+    if (card && isFirstStatusWatch) renderedStatusTargets.add(homeStatus);
+    return card;
+  }).join('');
+};
 
 const renderHomeBriefing = () => {
   const list = document.querySelector('#homeBriefingList');
-  const sortControl = document.querySelector('#homeWatchSort');
-  const sortRow = document.querySelector('#homeWatchSortRow');
-  if (!list || !sortControl) return;
+  if (!list) return;
 
   const { watches, statusById } = getHomeReport();
-  const mode = getHomeSortPreference();
-  const orderedWatches = sortHomeWatches(watches, {
-    mode,
-    getStatus: (watch) => statusById.get(watch.id),
-  });
-  sortControl.value = mode;
-  if (sortRow) sortRow.hidden = watches.length === 0;
-  list.innerHTML = renderHomeWatchCards(orderedWatches, statusById);
+  list.innerHTML = renderHomeWatchCards(watches, statusById);
 };
 
 const initHomeWatchControls = () => {
-  const sortControl = document.querySelector('#homeWatchSort');
   const allWatchesSortControl = document.querySelector('#allWatchesSort');
   const statusOverview = document.querySelector('.briefing-summary__statuses');
-  if (sortControl && !sortControl.dataset.homeSortBound) {
-    sortControl.dataset.homeSortBound = 'true';
-    sortControl.addEventListener('change', () => {
-      setHomeSortPreference(sortControl.value);
-      renderHomeBriefing();
-    });
-  }
   if (allWatchesSortControl && !allWatchesSortControl.dataset.homeSortBound) {
     allWatchesSortControl.dataset.homeSortBound = 'true';
     allWatchesSortControl.addEventListener('change', () => {
@@ -910,18 +1004,24 @@ const renderWatchList = () => {
 
   const groups = groupWatches(watches, {
     getMeaningfulUpdate: getHomeUpdateText,
-    isDisplayableWatch: (watch) => hasMeaningfulText(localizeField(watch, 'title')),
+    isDisplayableWatch: (watch) => hasMeaningfulText(getWatchDisplayTitle(watch)),
     language: getLanguage(),
   });
   const canonicalGroups = getBriefingWatchGroups(watches, {
     getMeaningfulUpdate: getHomeUpdateText,
-    isDisplayableWatch: (watch) => hasMeaningfulText(localizeField(watch, 'title')),
+    isDisplayableWatch: (watch) => hasMeaningfulText(getWatchDisplayTitle(watch)),
+  });
+  const homeSelection = getHomeInboxSelection(watches, {
+    getMeaningfulUpdate: getHomeUpdateText,
+    isDisplayableWatch: (watch) => hasMeaningfulText(getWatchDisplayTitle(watch)),
   });
   const attentionIds = new Set(canonicalGroups.attentionWatches.map(({ id }) => id));
   const updatedIds = new Set(canonicalGroups.updatedWatches.map(({ id }) => id));
+  const newIds = new Set(homeSelection.newlyCreatedWatches.map(({ id }) => id));
   const statusById = new Map([
     ...canonicalGroups.attentionWatches.map((watch) => [watch.id, 'attention']),
     ...canonicalGroups.updatedWatches.map((watch) => [watch.id, 'updated']),
+    ...homeSelection.newlyCreatedWatches.map((watch) => [watch.id, 'new']),
   ]);
   const mode = getHomeSortPreference();
   const orderedWatches = sortHomeWatches(watches, {
@@ -943,22 +1043,16 @@ const renderWatchList = () => {
 
   const renderWatchCards = (group) => group.watches
     .map((watch) => {
-      const storedTitle = localizeField(watch, 'title');
+      const storedTitle = getWatchDisplayTitle(watch);
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
       const isPaused = watch.status === 'paused';
-      const monitoringHealthStatus = getMonitoringHealthStatus(watch);
       const status = attentionIds.has(watch.id)
         ? 'attention'
         : updatedIds.has(watch.id)
           ? 'updated'
-          : monitoringHealthStatus || (['paused', 'completed'].includes(watch.status)
-            ? watch.status
-            : 'watching');
-      const statusModifier = getStatusLabelVariant(status);
-      const statusText = status === 'attention'
-        ? t('watches.needsAttention')
-        : t(`statuses.${status}`);
-      const statusLabel = `<span class="watch-row__statuses"><span class="watch-row__status status-label status-label--${statusModifier}">${escapeHtml(statusText)}</span></span>`;
+          : newIds.has(watch.id)
+            ? 'new'
+            : null;
       const showCreationMetadata = group.type === 'last7Days';
       const creationMetadata = showCreationMetadata
         ? formatWatchCreationMetadata(getWatchCreationDate(watch), {
@@ -966,26 +1060,22 @@ const renderWatchList = () => {
           language: getLanguage(),
         })
         : '';
+      const latestUpdate = getLatestUpdate(watch);
+      const cardTimestamp = creationMetadata || (status
+        ? getHomeWatchTimestampText(watch, latestUpdate)
+        : '');
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : updatedIds.has(watch.id)
           ? getHomeUpdateText(watch)
           : getMonitoringSummary(watch, title);
-      const card = renderWatchCardLink({
-        watchId: watch.id,
-        className: `watch-row${isPaused ? ' watch-row--paused' : ''}`,
+      const card = renderSummaryWatchCard({
+        watch,
+        title,
+        status,
+        supportingText: subtitle,
+        timestamp: cardTimestamp,
         revealLatestUpdate: updatedIds.has(watch.id),
-        content: `
-        <div class="watch-row__metadata">
-          <p class="watch-row__category">${escapeHtml(t(`categories.${watch.category}`))}</p>
-          ${statusLabel}
-        </div>
-        <div class="watch-row__content">
-          <h2>${escapeHtml(title)}</h2>
-          ${subtitle ? `<p class="watch-row__summary">${escapeHtml(subtitle)}</p>` : ''}
-          ${creationMetadata ? `<p class="watch-row__created">${escapeHtml(creationMetadata)}</p>` : ''}
-        </div>
-      `,
       });
       if (!card) return '';
       return watch.id === orderedSeparatorAfterWatchId
@@ -1059,6 +1149,13 @@ const renderWatchDetail = () => {
   const primaryEl = document.querySelector('#watchPrimary');
   const currentSituationEl = document.querySelector('#watchCurrentSituation');
   const currentSituationContainerEl = document.querySelector('#current-situation');
+  const companyAdministrativeStatusEl = document.querySelector('#watchCompanyAdministrativeStatus');
+  const companyAdministrativeStatusBadgeEl = document.querySelector('#watchCompanyAdministrativeStatusBadge');
+  const companyAdministrativeStatusDescriptionEl = document.querySelector('#watchCompanyAdministrativeStatusDescription');
+  const companyStatusEl = document.querySelector('#watchCompanyStatus');
+  const companyStatusBadgeEl = document.querySelector('#watchCompanyStatusBadge');
+  const companyStatusDescriptionEl = document.querySelector('#watchCompanyStatusDescription');
+  const companyStatusFollowUpEl = document.querySelector('#watchCompanyStatusFollowUp');
   const currentUpdateTitleEl = document.querySelector('#watchCurrentUpdateTitle');
   const currentUpdateMetadataEl = document.querySelector('#watchCurrentUpdateMetadata');
   const currentUpdateLinkEl = document.querySelector('#watchCurrentUpdateLink');
@@ -1068,9 +1165,11 @@ const renderWatchDetail = () => {
   const sourceNameEl = document.querySelector('#watchSourceName');
   const sourceTitleEl = document.querySelector('#watchSourceTitle');
   const sourceLinkEl = document.querySelector('#watchSourceLink');
+  const sourceLinkLabelEl = sourceLinkEl?.querySelector('[data-source-link-label]');
   const storySummaryEl = document.querySelector('#watchStorySummary');
   const storySummaryCopyEl = document.querySelector('#watchStorySummaryCopy');
-  const analysisProvenanceEl = document.querySelector('#watchAnalysisProvenance');
+  const monitoringScopeEl = document.querySelector('#watchMonitoringScope');
+  const monitoringScopeCopyEl = document.querySelector('#watchMonitoringScopeCopy');
   const storyConceptsEl = document.querySelector('#watchStoryConcepts');
   const storyConceptsListEl = document.querySelector('#watchStoryConceptsList');
   const storyConceptsEmptyEl = document.querySelector('#watchStoryConceptsEmpty');
@@ -1160,7 +1259,7 @@ const renderWatchDetail = () => {
   );
 
   const request = localizeField(watch, 'request');
-  titleEl.textContent = localizeField(watch, 'title') || t('detail.title');
+  titleEl.textContent = getWatchDisplayTitle(watch) || t('detail.title');
   const editWatchHref = `new-watch.html?edit=${encodeURIComponent(watch.id)}`;
   const openExistingWatchEditor = (event) => {
     event.preventDefault();
@@ -1210,6 +1309,60 @@ const renderWatchDetail = () => {
     target.scrollIntoView({ block: 'start' });
   };
 
+  const administrativeStatusPresentation = watch.inputType === 'company'
+    ? getAdministrativeStatusPresentation(watch.company?.administrativeStatus, t)
+    : null;
+  const hasCompanyAdministrativeStatus = Boolean(administrativeStatusPresentation?.known);
+  if (companyAdministrativeStatusEl) {
+    companyAdministrativeStatusEl.hidden = !hasCompanyAdministrativeStatus;
+  }
+  if (companyAdministrativeStatusBadgeEl) {
+    companyAdministrativeStatusBadgeEl.textContent = hasCompanyAdministrativeStatus
+      ? administrativeStatusPresentation.label
+      : '';
+    companyAdministrativeStatusBadgeEl.className = hasCompanyAdministrativeStatus
+      ? `status-label status-label--${administrativeStatusPresentation.tone}`
+      : 'status-label';
+  }
+  if (companyAdministrativeStatusDescriptionEl) {
+    companyAdministrativeStatusDescriptionEl.textContent = hasCompanyAdministrativeStatus
+      ? t(`administrativeStatus.detailDescriptions.${administrativeStatusPresentation.status}`)
+        || administrativeStatusPresentation.description
+      : '';
+  }
+
+  const companyStatusPresentation = watch.inputType === 'company'
+    ? getCompanyStatusPresentation(watch.company?.status, t)
+    : null;
+  const showCompanyMonitoringStatus = Boolean(
+    companyStatusPresentation
+    && shouldShowCompanyMonitoringStatus(
+      watch.company?.administrativeStatus,
+      watch.company?.status,
+    ),
+  );
+  if (companyStatusEl) companyStatusEl.hidden = !showCompanyMonitoringStatus;
+  if (companyStatusBadgeEl) {
+    companyStatusBadgeEl.textContent = showCompanyMonitoringStatus
+      ? companyStatusPresentation.label
+      : '';
+    companyStatusBadgeEl.className = showCompanyMonitoringStatus
+      ? `status-label status-label--${companyStatusPresentation.tone}`
+      : 'status-label';
+  }
+  if (companyStatusDescriptionEl) {
+    companyStatusDescriptionEl.textContent = showCompanyMonitoringStatus
+      ? companyStatusPresentation.description
+      : '';
+  }
+  if (companyStatusFollowUpEl) {
+    companyStatusFollowUpEl.textContent = showCompanyMonitoringStatus
+      ? companyStatusPresentation.followUp
+      : '';
+    companyStatusFollowUpEl.hidden = !showCompanyMonitoringStatus
+      || !companyStatusPresentation.followUp;
+  }
+
   const storedCurrentSituation = localizeField(watch, 'currentSituation');
   const pendingSituation = isDistinctMeaningfulText(storedCurrentSituation, request || '')
     ? storedCurrentSituation
@@ -1218,6 +1371,7 @@ const renderWatchDetail = () => {
     fallback: pendingSituation,
     formatTimestamp: formatMonitoringTimestamp,
     sanitizeUrl: getSafeExternalUrl,
+    translateBusinessEvent: t,
   });
   const latestMeaningfulUpdate = currentUpdate.update;
   const currentSituation = currentUpdate.summary;
@@ -1250,18 +1404,24 @@ const renderWatchDetail = () => {
     localizeField(watch, 'recommendation'),
   );
   if (primaryEl) {
-    primaryEl.hidden = !(hasCurrentSituation || hasRecommendation);
+    primaryEl.hidden = !(
+      hasCompanyAdministrativeStatus
+      || showCompanyMonitoringStatus
+      || hasCurrentSituation
+      || hasRecommendation
+    );
   }
 
   const storySummary = watch.storyProfile?.storySummary || '';
   if (storySummaryCopyEl) storySummaryCopyEl.textContent = storySummary;
   if (storySummaryEl) storySummaryEl.hidden = !storySummary;
-  if (analysisProvenanceEl) {
-    const messageKey = getAnalysisProvenanceMessageKey(watch);
-    const showsFallbackWarning = messageKey === 'detail.analysisProvenanceFallback';
-    analysisProvenanceEl.textContent = showsFallbackWarning ? t(messageKey) : '';
-    analysisProvenanceEl.hidden = !showsFallbackWarning;
-  }
+  const monitoringScope = watch.inputType === 'url'
+    && watch.isStory !== false
+    && isDistinctMonitoringScope(watch.monitoringSummary, storySummary, watch.title)
+    ? watch.monitoringSummary
+    : '';
+  if (monitoringScopeCopyEl) monitoringScopeCopyEl.textContent = monitoringScope;
+  if (monitoringScopeEl) monitoringScopeEl.hidden = !monitoringScope;
   const storyIdentifiers = getStoryProfileIdentifiers(watch.storyProfile);
   if (storyConceptsListEl) {
     storyConceptsListEl.innerHTML = storyIdentifiers.map(({ label, type }) => {
@@ -1292,17 +1452,34 @@ const renderWatchDetail = () => {
     storyConceptsEditEl.href = editWatchHref;
     storyConceptsEditEl.onclick = openExistingWatchEditor;
   }
-  if (storyConceptsEl) storyConceptsEl.hidden = watch.inputType !== 'url';
+  if (storyConceptsEl) {
+    storyConceptsEl.hidden = watch.inputType !== 'url' || watch.isStory === false;
+  }
 
+  const companySiren = watch.inputType === 'company'
+    && typeof watch.company?.siren === 'string'
+    && /^\d{9}$/.test(watch.company.siren)
+    ? watch.company.siren
+    : null;
   const storedSourceName = localizeField(watch, 'sourceName');
   const storedSourceTitle = localizeField(watch, 'sourceTitle');
-  const sourceName = getSourceText(storedSourceName);
-  const sourceTitle = getSourceText(storedSourceTitle);
+  const sourceName = companySiren
+    ? watch.monitoringSource?.title || 'BODACC'
+    : getSourceText(storedSourceName);
+  const sourceTitle = companySiren
+    ? t('detail.companySiren', { siren: companySiren })
+    : getSourceText(storedSourceTitle);
   const storedSourceUrl = typeof watch.sourceUrl === 'string' ? watch.sourceUrl.trim() : '';
   const safeSourceUrl = getSafeExternalUrl(storedSourceUrl);
-  const hasOriginalSource = watch.inputType === 'url'
-    && Boolean(sourceName || sourceTitle || safeSourceUrl);
-  const hasSourceLink = hasOriginalSource && Boolean(safeSourceUrl);
+  const companySourceUrl = companySiren ? getCompanyBodaccUrl(watch) : null;
+  const sourceLinkUrl = companySourceUrl || safeSourceUrl;
+  const sourceLinkLabelKey = companySiren
+    ? 'detail.viewOfficialBodaccPublications'
+    : 'detail.openOriginalArticle';
+  const hasOriginalSource = companySiren
+    ? Boolean(sourceName && sourceTitle)
+    : watch.inputType === 'url' && Boolean(sourceName || sourceTitle || safeSourceUrl);
+  const hasSourceLink = hasOriginalSource && Boolean(sourceLinkUrl);
   if (sourceNameEl) {
     sourceNameEl.textContent = hasOriginalSource ? sourceName : '';
     sourceNameEl.hidden = !hasOriginalSource || !sourceName;
@@ -1313,12 +1490,16 @@ const renderWatchDetail = () => {
   }
   if (sourceLinkEl) {
     if (hasSourceLink) {
-      sourceLinkEl.href = safeSourceUrl;
-      sourceLinkEl.setAttribute('aria-label', t('detail.openOriginalArticle'));
+      sourceLinkEl.href = sourceLinkUrl;
+      sourceLinkEl.setAttribute('aria-label', t(sourceLinkLabelKey));
     } else {
       sourceLinkEl.removeAttribute('href');
     }
     sourceLinkEl.hidden = !hasSourceLink;
+  }
+  if (sourceLinkLabelEl) {
+    sourceLinkLabelEl.dataset.i18n = sourceLinkLabelKey;
+    sourceLinkLabelEl.textContent = t(sourceLinkLabelKey);
   }
   if (originalSourceEl) {
     originalSourceEl.hidden = !hasOriginalSource;
@@ -1399,6 +1580,7 @@ const renderWatchDetail = () => {
       || hasRecommendation
       || hasOriginalSource
       || storySummary
+      || monitoringScope
       || storyIdentifiers.length
       || (hasLastChecked && !isPreparing)
     );
@@ -1419,7 +1601,10 @@ const renderWatchDetail = () => {
       const label = item.type === 'created'
         ? t('watchData.created')
         : item.type === 'update'
-          ? item.source.sourceTitle || item.source.summary || t('detail.updateDetected')
+          ? getBodaccBusinessEventLabel(item.source, t)
+            || item.source.sourceTitle
+            || item.source.summary
+            || t('detail.updateDetected')
           : localizeListItem(item.source);
       if (!label) {
         return null;
@@ -1845,6 +2030,9 @@ const renderHomeSummary = () => {
   const attentionLabel = document.querySelector('#homeAttentionLabel');
   const updatedCount = document.querySelector('#homeUpdatedCount');
   const updatedLabel = document.querySelector('#homeUpdatedLabel');
+  const newSummary = document.querySelector('#homeNewSummary');
+  const newCount = document.querySelector('#homeNewCount');
+  const newLabel = document.querySelector('#homeNewLabel');
 
   if (!confirmationBanner && !briefingDate) {
     return;
@@ -1913,7 +2101,8 @@ const renderHomeSummary = () => {
   const {
     attentionWatches,
     updatedWatches,
-    unchangedCount,
+    newlyCreatedWatches,
+    quietWatches,
     totalChecked,
   } = homeReport;
   const pluralKey = (key, count) => `${key}.${count === 1 ? 'one' : 'other'}`;
@@ -1942,14 +2131,20 @@ const renderHomeSummary = () => {
   if (updatedLabel) {
     updatedLabel.textContent = t(pluralKey('home.updatedLabel', updatedWatches.length));
   }
+  if (newSummary) newSummary.hidden = newlyCreatedWatches.length === 0;
+  if (newCount) newCount.textContent = String(newlyCreatedWatches.length);
+  if (newLabel) {
+    newLabel.textContent = t(pluralKey('home.newLabel', newlyCreatedWatches.length));
+  }
   if (everythingChecked) {
-    everythingChecked.textContent = t(pluralKey('home.everythingChecked', unchangedCount), {
-      count: unchangedCount,
+    everythingChecked.textContent = t(pluralKey('home.everythingChecked', quietWatches.length), {
+      count: quietWatches.length,
     });
   }
   [
     ['attention', attentionWatches.length, attentionLabel],
     ['updated', updatedWatches.length, updatedLabel],
+    ['new', newlyCreatedWatches.length, newLabel],
   ].forEach(([status, count, labelElement]) => {
     const trigger = document.querySelector(`[data-home-status-target="${status}"]`);
     if (!trigger) return;
@@ -2079,10 +2274,26 @@ export function initForm() {
   const review = document.querySelector('#urlReview');
   const reviewSuccess = document.querySelector('#urlReviewSuccess');
   const reviewFailure = document.querySelector('#urlReviewFailure');
+  const reviewHeading = document.querySelector('#urlReviewHeading');
+  const reviewTitleLabel = document.querySelector('#urlReviewTitleLabel');
+  const reviewSummaryLabel = document.querySelector('#urlReviewSummaryLabel');
+  const reviewSourceLabel = document.querySelector('.url-review__source > span');
   const reviewTitle = document.querySelector('#urlReviewTitle');
   const reviewSummary = document.querySelector('#urlReviewSummary');
   const reviewSummaryError = document.querySelector('#urlReviewSummaryError');
+  const reviewMonitoringScopeField = document.querySelector('#urlReviewMonitoringScopeField');
+  const reviewMonitoringScope = document.querySelector('#urlReviewMonitoringScope');
   const reviewSource = document.querySelector('#urlReviewSource');
+  const companyReviewAdministrativeStatus = document.querySelector('#companyReviewAdministrativeStatus');
+  const companyReviewAdministrativeStatusBadge = document.querySelector('#companyReviewAdministrativeStatusBadge');
+  const companyReviewAdministrativeStatusDescription = document.querySelector('#companyReviewAdministrativeStatusDescription');
+  const companyReviewStatus = document.querySelector('#companyReviewStatus');
+  const companyReviewStatusBadge = document.querySelector('#companyReviewStatusBadge');
+  const companyReviewStatusDescription = document.querySelector('#companyReviewStatusDescription');
+  const companyReviewStatusFollowUp = document.querySelector('#companyReviewStatusFollowUp');
+  const companyReviewWarning = document.querySelector('#companyReviewWarning');
+  const companyReviewWarningTitle = document.querySelector('#companyReviewWarningTitle');
+  const companyReviewWarningCopy = document.querySelector('#companyReviewWarningCopy');
   const reviewCreate = document.querySelector('#urlReviewCreate');
   const reviewEdit = document.querySelector('#urlReviewEdit');
   const reviewCancel = document.querySelector('#urlReviewCancel');
@@ -2127,6 +2338,7 @@ export function initForm() {
   let pendingWhyFollowing = '';
   let pendingAnalysis = null;
   let analysisInProgress = false;
+  let planningInProgress = false;
   let clarificationInProgress = false;
   let urlAnalysisProgressKey = null;
   let urlAnalysisController = null;
@@ -2137,12 +2349,14 @@ export function initForm() {
   let pendingClarificationSuggestion = '';
   let pendingClarificationType = CLARIFICATION_TYPES.CLEAR;
   let pendingClarificationHasSuggestion = false;
+  let pendingNonArticleAnalysis = null;
   const resizeFrames = new WeakMap();
   let noteCollapseTimer = null;
   let keywordRegenerationTimer = null;
   let keywordItems = [];
   let editingConceptIndex = null;
   let keywordsManuallyEdited = false;
+  let reviewEnhancementInProgress = false;
   let conceptRegenerationInProgress = false;
   let categorySource = editingWatch?.categorySource || 'inferred';
   let keywordSourceRequest = '';
@@ -2219,9 +2433,9 @@ export function initForm() {
   };
 
   const getKeywordValues = () => ({
-    keywords: keywordItems.map((item) => item.label),
-    selectedKeywords: keywordItems.map((item) => item.label),
-    storyFingerprint: keywordItems.map((item) => ({
+    keywords: pendingAnalysis?.isStory === false ? [] : keywordItems.map((item) => item.label),
+    selectedKeywords: pendingAnalysis?.isStory === false ? [] : keywordItems.map((item) => item.label),
+    storyFingerprint: pendingAnalysis?.isStory === false ? [] : keywordItems.map((item) => ({
       label: item.label,
       type: item.type || 'manual',
     })),
@@ -2462,7 +2676,7 @@ export function initForm() {
       throw error;
     }
     trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, {
-      input_type: watch.inputType === 'url' ? 'url' : 'text',
+      input_type: ['url', 'company'].includes(watch.inputType) ? watch.inputType : 'text',
     });
     sessionStorage.removeItem('watchAssistant.newWatchId');
     if (isOnboardingFirstWatch()) {
@@ -2535,7 +2749,9 @@ export function initForm() {
       : originalKeywords;
     const keywordsChanged = JSON.stringify(keywordValues.keywords) !== JSON.stringify(originalKeywords)
       || JSON.stringify(keywordValues.selectedKeywords) !== JSON.stringify(originalSelectedKeywords);
-    const monitoringCriteriaChanged = requestChanged || categoryChanged || keywordsChanged;
+    const sameCompanyEdit = isSameCompanyEditAnalysis(editingWatch, urlAnalysis);
+    const monitoringCriteriaChanged = !sameCompanyEdit
+      && (requestChanged || categoryChanged || keywordsChanged);
     const feedInputUrl = normalizeFeedUrl(feedUrlInputEl?.value || '');
     const previousFeedUrl = normalizeFeedUrl(editingWatch.feedUrl || '');
     const manualFeedChanged = feedInputUrl !== previousFeedUrl;
@@ -2543,7 +2759,7 @@ export function initForm() {
     const feedUrl = manualFeedChanged
       ? feedInputUrl
       : discoveredFeedUrl || previousFeedUrl;
-    const feedUrlChanged = feedUrl !== previousFeedUrl;
+    const feedUrlChanged = !sameCompanyEdit && feedUrl !== previousFeedUrl;
     const monitoringSummary = requestChanged && !urlAnalysis
       ? await generateMonitoringSummary(request)
       : null;
@@ -2590,6 +2806,7 @@ export function initForm() {
           ).some((concept) => normalizeComparableText(concept.label) === normalizeComparableText(label))),
         )
         : derivedData.storyProfile,
+      contentAccessLimited: derivedData.contentAccessLimited,
       conceptSourceFields: derivedData.conceptSourceFields,
       monitoringConceptsManuallyEdited: derivedData.monitoringConceptsManuallyEdited,
       sourcePublishedAt: derivedData.sourcePublishedAt,
@@ -2609,7 +2826,9 @@ export function initForm() {
             : urlAnalysis?.monitoringSource?.discovery || editingWatch.monitoringSource?.discovery || 'manual',
         }
         : null,
+      ...getPreservedCompanyEditChanges(editingWatch, urlAnalysis),
     };
+    if (derivedData.isStory === false) changes.storyProfile = null;
 
     if (typeof createdAsWrittenAfterClarityWarning === 'boolean') {
       changes.createdAsWrittenAfterClarityWarning = createdAsWrittenAfterClarityWarning;
@@ -2808,7 +3027,9 @@ export function initForm() {
           : 'secondary',
       },
       [CLARIFICATION_ACTIONS.CREATE_AS_WRITTEN]: {
-        label: 'newWatch.clarificationCreateAsWritten',
+        label: pendingNonArticleAnalysis
+          ? 'newWatch.nonArticleClarificationCreate'
+          : 'newWatch.clarificationCreateAsWritten',
         modifier: 'secondary',
       },
     };
@@ -2824,7 +3045,12 @@ export function initForm() {
     });
   };
 
-  const showClarification = (original, result, whyFollowing) => {
+  const showClarification = (
+    original,
+    result,
+    whyFollowing,
+    { nonArticleAnalysis = null } = {},
+  ) => {
     const hasSuggestion = result.type === CLARIFICATION_TYPES.SUGGESTION
       && result.hasSuggestion === true
       && Boolean(result.suggestedRequest?.trim());
@@ -2838,6 +3064,12 @@ export function initForm() {
     pendingClarificationSuggestion = hasSuggestion ? result.suggestedRequest : '';
     pendingClarificationType = result.type;
     pendingClarificationHasSuggestion = hasSuggestion;
+    pendingNonArticleAnalysis = nonArticleAnalysis;
+    pendingAnalysis = nonArticleAnalysis;
+    if (nonArticleAnalysis) {
+      if (analysisSection) analysisSection.hidden = true;
+      if (processingState) processingState.hidden = true;
+    }
     if (clarificationOriginal) clarificationOriginal.textContent = original;
     if (clarificationSuggestion) {
       clarificationSuggestion.textContent = pendingClarificationSuggestion;
@@ -2867,20 +3099,136 @@ export function initForm() {
   };
 
   const setReviewEditing = (editing) => {
-    review?.classList.toggle('is-editing', editing);
+    const isCompanyReview = pendingAnalysis?.inputType === 'company';
+    const isNonStoryPage = pendingAnalysis?.isStory === false;
+    const effectiveEditing = isCompanyReview || isNonStoryPage ? false : editing;
+    review?.classList.toggle('is-editing', effectiveEditing);
     if (reviewTitle) {
-      reviewTitle.readOnly = !editing;
+      reviewTitle.readOnly = !effectiveEditing;
     }
     if (reviewSummary) {
-      reviewSummary.readOnly = !editing;
+      reviewSummary.readOnly = !effectiveEditing;
     }
     if (reviewEdit) {
-      reviewEdit.textContent = t(editing ? 'newWatch.urlReviewDone' : 'newWatch.urlReviewEdit');
+      reviewEdit.textContent = t(
+        isCompanyReview
+          ? 'newWatch.companyReviewEdit'
+          : effectiveEditing ? 'newWatch.urlReviewDone' : 'newWatch.urlReviewEdit',
+      );
     }
+    if (watchOptionsEl) watchOptionsEl.hidden = isNonStoryPage;
     resizeReviewSummary({ immediate: true });
-    if (editing) {
+    if (effectiveEditing) {
       reviewTitle?.focus();
     }
+  };
+
+  const setReviewTranslation = (element, key) => {
+    if (!element) return;
+    element.dataset.i18n = key;
+    element.textContent = t(key);
+  };
+
+  const renderCompanyReviewStatus = (analysis) => {
+    const isCompanyReview = analysis?.inputType === 'company';
+    const administrativePresentation = getAdministrativeStatusPresentation(
+      analysis?.company?.administrativeStatus,
+      t,
+    );
+    const showAdministrativeStatus = isCompanyReview && administrativePresentation.known;
+    if (companyReviewAdministrativeStatus) {
+      companyReviewAdministrativeStatus.hidden = !showAdministrativeStatus;
+    }
+    if (companyReviewAdministrativeStatusBadge) {
+      companyReviewAdministrativeStatusBadge.textContent = showAdministrativeStatus
+        ? administrativePresentation.label
+        : '';
+      companyReviewAdministrativeStatusBadge.className = showAdministrativeStatus
+        ? `status-label status-label--${administrativePresentation.tone}`
+        : 'status-label';
+    }
+    if (companyReviewAdministrativeStatusDescription) {
+      companyReviewAdministrativeStatusDescription.textContent = showAdministrativeStatus
+        ? administrativePresentation.description
+        : '';
+    }
+    if (!isCompanyReview) {
+      if (companyReviewStatus) companyReviewStatus.hidden = true;
+      if (companyReviewWarning) companyReviewWarning.hidden = true;
+      return;
+    }
+    const presentation = getCompanyStatusPresentation(analysis.company?.status, t);
+    const hasMeaningfulMonitoringStatus = presentation.status !== 'unknown';
+    if (companyReviewStatus) {
+      companyReviewStatus.hidden = !hasMeaningfulMonitoringStatus;
+    }
+    const terminal = isTerminalCompanyStatus(presentation.status);
+    if (companyReviewStatusBadge) {
+      companyReviewStatusBadge.textContent = hasMeaningfulMonitoringStatus
+        ? presentation.label
+        : '';
+      companyReviewStatusBadge.className = hasMeaningfulMonitoringStatus
+        ? `status-label status-label--${presentation.tone}`
+        : 'status-label';
+    }
+    if (companyReviewStatusDescription) {
+      companyReviewStatusDescription.textContent = hasMeaningfulMonitoringStatus
+        ? presentation.description
+        : '';
+    }
+    if (companyReviewStatusFollowUp) {
+      companyReviewStatusFollowUp.textContent = terminal ? '' : presentation.followUp;
+      companyReviewStatusFollowUp.hidden = terminal || !presentation.followUp;
+    }
+    if (companyReviewWarning) companyReviewWarning.hidden = !terminal;
+    if (companyReviewWarningTitle) {
+      companyReviewWarningTitle.textContent = terminal ? presentation.warningTitle : '';
+    }
+    if (companyReviewWarningCopy) {
+      companyReviewWarningCopy.textContent = terminal ? presentation.followUp : '';
+    }
+  };
+
+  const renderReviewPresentation = (analysis) => {
+    const isCompanyReview = analysis?.inputType === 'company';
+    const isNonStoryPage = analysis?.isStory === false;
+    const failed = analysis?.status !== 'success';
+    setReviewTranslation(
+      reviewHeading,
+      isCompanyReview
+        ? 'newWatch.companyReviewFound'
+        : isNonStoryPage ? 'newWatch.webpageReviewFound' : 'newWatch.urlReviewFound',
+    );
+    setReviewTranslation(
+      reviewTitleLabel,
+      isCompanyReview ? 'newWatch.companyReviewTitle' : 'newWatch.urlReviewTitle',
+    );
+    setReviewTranslation(
+      reviewSummaryLabel,
+      isCompanyReview
+        ? 'newWatch.companyReviewWatchingForRequired'
+        : isNonStoryPage
+          ? 'newWatch.webpageReviewClassification'
+          : 'newWatch.urlReviewOverviewRequired',
+    );
+    setReviewTranslation(
+      reviewSourceLabel,
+      isCompanyReview ? 'newWatch.companyReviewSource' : 'newWatch.urlReviewSource',
+    );
+    renderCompanyReviewStatus(analysis);
+    if (reviewMonitoringScopeField) {
+      reviewMonitoringScopeField.hidden = failed || isCompanyReview || isNonStoryPage;
+    }
+    if (reviewMonitoringScope) {
+      reviewMonitoringScope.textContent = failed || isCompanyReview || isNonStoryPage
+        ? ''
+        : analysis?.monitoringScope || '';
+    }
+    if (!isCompanyReview) return;
+    const siren = analysis.company.siren;
+    if (reviewTitle) reviewTitle.value = getWatchDisplayTitle(analysis);
+    if (reviewSummary) reviewSummary.value = getCompanyReviewSummary(siren, t);
+    if (reviewSource) reviewSource.textContent = 'BODACC';
   };
 
   const validateReviewSummary = ({ focus = false } = {}) => {
@@ -2900,13 +3248,20 @@ export function initForm() {
 
   const showReview = (analysis) => {
     const failed = analysis?.status !== 'success';
-    trackProductEvent(
-      failed ? PRODUCT_EVENTS.URL_ANALYSIS_FAILED : PRODUCT_EVENTS.URL_ANALYSIS_SUCCEEDED,
-    );
-    trackProductEvent(PRODUCT_EVENTS.WATCH_REVIEW_DISPLAYED, {
-      analysis_result: failed ? 'failure' : 'success',
-    });
+    if (!reviewEnhancementInProgress) {
+      trackProductEvent(
+        failed ? PRODUCT_EVENTS.URL_ANALYSIS_FAILED : PRODUCT_EVENTS.URL_ANALYSIS_SUCCEEDED,
+      );
+      trackProductEvent(PRODUCT_EVENTS.WATCH_REVIEW_DISPLAYED, {
+        analysis_result: failed ? 'failure' : 'success',
+      });
+    }
     pendingAnalysis = analysis;
+    if (analysis?.isStory === false && hint) {
+      hint.textContent = '';
+      hint.hidden = true;
+    }
+    renderReviewPresentation(analysis);
     form.classList.add('is-reviewing');
     if (analysisSection) {
       analysisSection.hidden = false;
@@ -2930,9 +3285,13 @@ export function initForm() {
     if (reviewSummary) {
       reviewSummary.disabled = false;
       reviewSummary.value = analysis?.summary || '';
+      if (analysis?.inputType === 'company') {
+        reviewSummary.value = getCompanyReviewSummary(analysis.company.siren, t);
+      }
     }
     if (reviewSource) {
       reviewSource.textContent = analysis?.source || t('newWatch.urlReviewUnknownSource');
+      if (analysis?.inputType === 'company') reviewSource.textContent = 'BODACC';
     }
     if (!failed && Array.isArray(analysis?.keywords)) {
       keywordItems = (analysis.storyFingerprint || analysis.keywords.map((label) => ({
@@ -2955,12 +3314,73 @@ export function initForm() {
       }
     }
     if (reviewEdit) {
-      reviewEdit.hidden = failed;
+      reviewEdit.hidden = failed || analysis?.isStory === false;
     }
     if (reviewCancel) reviewCancel.hidden = false;
     setReviewEditing(failed);
     validateReviewSummary();
-    if (!failed) review?.focus();
+    if (!failed && !reviewEnhancementInProgress) review?.focus();
+  };
+
+  const startCompanyReview = async (request, whyFollowing, siren, companyName = null) => {
+    const monitoringSource = createBodaccMonitoringSource(siren);
+    if (!monitoringSource) return false;
+    const requestId = urlAnalysisRequestId + 1;
+    urlAnalysisRequestId = requestId;
+    analysisInProgress = true;
+    pendingRequest = request;
+    pendingWhyFollowing = whyFollowing;
+    pendingAnalysis = null;
+    form.classList.add('is-analysing');
+    setCreationControlsDisabled(true);
+    setSubmitLabel('newWatch.companyStatusChecking');
+    if (analysisSection) analysisSection.hidden = false;
+    if (processingState) processingState.hidden = false;
+    if (processingMessage) processingMessage.textContent = t('newWatch.companyStatusChecking');
+    if (review) review.hidden = true;
+
+    try {
+      const baseline = await requestCompanyCheck(monitoringSource.siren);
+      if (requestId !== urlAnalysisRequestId) return true;
+      const company = {
+        siren: monitoringSource.siren,
+        name: baseline.company?.officialName || companyName,
+        administrativeStatus: normalizeAdministrativeStatus(
+          baseline.company?.administrativeStatus,
+        ),
+        status: deriveCompanyStatus(baseline.items),
+      };
+      const title = getCompanyWatchTitle({ inputType: 'company', company }, {
+        formatFallback: (value) => t('newWatch.companyReviewTitleValue', { siren: value }),
+      });
+      showReview({
+        status: 'success',
+        inputType: 'company',
+        company,
+        monitoringSource,
+        baseline,
+        title,
+        summary: t('newWatch.companyReviewSummary', { siren: monitoringSource.siren }),
+        source: 'BODACC',
+        keywords: [],
+        storyFingerprint: [],
+      });
+    } catch (error) {
+      if (requestId !== urlAnalysisRequestId) return true;
+      resetUrlFlow({ clearInput: false });
+      if (watchError) {
+        const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
+        watchError.textContent = t(getMonitoringFailureMessageKey(code));
+      }
+    } finally {
+      if (requestId === urlAnalysisRequestId) {
+        analysisInProgress = false;
+        form.classList.remove('is-analysing');
+        setCreationControlsDisabled(false);
+        setSubmitLabel();
+      }
+    }
+    return true;
   };
 
   const startUrlAnalysis = async (request, whyFollowing) => {
@@ -2993,20 +3413,62 @@ export function initForm() {
     };
     showProgress();
 
+    let enhancement = null;
     try {
       // Yield once so the browser paints the disabled button and processing state.
       await new Promise((resolve) => window.requestAnimationFrame(resolve));
       const analysis = await analyseUrl(request, {
         onProgress: showProgress,
         signal: controller.signal,
+        progressive: true,
       });
+      enhancement = analysis.enhancement || null;
+      if (enhancement) {
+        void enhancement.finally(() => {
+          if (urlAnalysisController === controller) urlAnalysisController = null;
+        });
+      }
       if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
       const resolvedAnalysis = await resolveUrlMonitoringSource(analysis, {
         language: getLanguage(),
         signal: controller.signal,
       });
       if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
+      if (requiresNonArticleClarification(resolvedAnalysis.pageType)) {
+        showClarification(request, {
+          type: CLARIFICATION_TYPES.CLARIFICATION_REQUIRED,
+          needsClarification: true,
+          hasSuggestion: false,
+          suggestedRequest: '',
+          clarificationMessage: t('newWatch.nonArticleClarificationMessage'),
+        }, whyFollowing, { nonArticleAnalysis: resolvedAnalysis });
+        return;
+      }
       showReview(resolvedAnalysis);
+      if (enhancement) {
+        void enhancement.then((enhancedAnalysis) => {
+          if (
+            !enhancedAnalysis
+            || requestId !== urlAnalysisRequestId
+            || controller.signal.aborted
+            || pendingAnalysis !== resolvedAnalysis
+            || creationInProgress
+            || review?.classList.contains('is-editing')
+            || keywordsManuallyEdited
+          ) {
+            return;
+          }
+          reviewEnhancementInProgress = true;
+          try {
+            showReview({
+              ...enhancedAnalysis,
+              monitoringSource: resolvedAnalysis.monitoringSource,
+            });
+          } finally {
+            reviewEnhancementInProgress = false;
+          }
+        });
+      }
     } catch (error) {
       if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
       if (error instanceof SourceDiscoveryError) {
@@ -3027,7 +3489,7 @@ export function initForm() {
       if (requestId !== urlAnalysisRequestId) return;
       analysisInProgress = false;
       urlAnalysisProgressKey = null;
-      urlAnalysisController = null;
+      if (!enhancement && urlAnalysisController === controller) urlAnalysisController = null;
       form.classList.remove('is-analysing');
       setSubmitLabel();
     }
@@ -3048,6 +3510,7 @@ export function initForm() {
     pendingRequest = '';
     pendingWhyFollowing = '';
     pendingAnalysis = null;
+    pendingNonArticleAnalysis = null;
     creationInProgress = false;
     form.classList.remove('is-analysing', 'is-reviewing');
     if (analysisSection) analysisSection.hidden = true;
@@ -3069,7 +3532,12 @@ export function initForm() {
       reviewSummary.setAttribute('aria-invalid', 'false');
     }
     if (reviewSummaryError) reviewSummaryError.hidden = true;
+    if (reviewMonitoringScopeField) reviewMonitoringScopeField.hidden = true;
+    if (reviewMonitoringScope) reviewMonitoringScope.textContent = '';
     if (reviewSource) reviewSource.textContent = '';
+    if (companyReviewAdministrativeStatus) companyReviewAdministrativeStatus.hidden = true;
+    if (companyReviewStatus) companyReviewStatus.hidden = true;
+    if (companyReviewWarning) companyReviewWarning.hidden = true;
     if (watchError) watchError.textContent = '';
     if (hint) {
       hint.textContent = '';
@@ -3140,9 +3608,11 @@ export function initForm() {
         editingWatch,
         MONITORING_CONCEPTS_VERSION,
       );
-      const existingKeywords = visibleConcepts.length
-        ? visibleConcepts
-        : extractMonitoringConcepts(conceptSource);
+      const existingKeywords = editingWatch.isStory === false
+        ? []
+        : visibleConcepts.length
+          ? visibleConcepts
+          : extractMonitoringConcepts(conceptSource);
       if (headingEl) {
         headingEl.dataset.i18n = 'newWatch.editHeading';
         headingEl.textContent = t('newWatch.editHeading');
@@ -3162,7 +3632,7 @@ export function initForm() {
         reviewCreate.textContent = t('newWatch.urlReviewSave');
       }
       if (watchOptionsEl) {
-        watchOptionsEl.hidden = false;
+        watchOptionsEl.hidden = editingWatch.isStory === false;
       }
       if (input) {
         input.value = inputValue;
@@ -3197,8 +3667,11 @@ export function initForm() {
       pendingAnalysis = editingWatch.inputType === 'url'
         ? {
           status: 'success',
+          pageType: editingWatch.pageType || null,
+          isStory: editingWatch.isStory !== false,
           title: editingWatch.sourceTitle || editingWatch.title,
-          summary: editingWatch.monitoringSummary || '',
+          summary: editingWatch.storyProfile?.storySummary || editingWatch.monitoringSummary || '',
+          monitoringScope: editingWatch.monitoringSummary || '',
           source: editingWatch.sourceName || '',
           sourceName: editingWatch.sourceName || '',
           sourceTitle: editingWatch.sourceTitle || '',
@@ -3207,6 +3680,7 @@ export function initForm() {
           storyProfile: editingWatch.storyProfile || null,
           keywords: existingKeywords,
           conceptSourceFields: editingWatch.conceptSourceFields || null,
+          contentAccessLimited: editingWatch.contentAccessLimited === true,
           sourcePublishedAt: editingWatch.sourcePublishedAt || null,
           monitoringSource: editingWatch.monitoringSource || null,
         }
@@ -3495,6 +3969,7 @@ export function initForm() {
 
     if (
       analysisInProgress
+      || planningInProgress
       || clarificationInProgress
       || creationInProgress
       || form.classList.contains('is-reviewing')
@@ -3521,7 +3996,50 @@ export function initForm() {
 
     synchronizeInferredFields(request);
 
-    if (isUrl(request)) {
+    let watchPlan = null;
+    planningInProgress = true;
+    try {
+      watchPlan = await requestWatchPlan(request);
+    } catch {
+      // Unmigrated routes remain available; migrated route validators fail closed below.
+    } finally {
+      planningInProgress = false;
+    }
+
+    const companyPlanRoute = getCompanyPlanRoute(request, watchPlan);
+    if (companyPlanRoute === COMPANY_PLAN_ROUTES.REVIEW) {
+      const companyEditOutcome = getCompanyEditPlanOutcome(editingWatch, watchPlan);
+      if (companyEditOutcome === COMPANY_EDIT_PLAN_OUTCOMES.DIFFERENT_COMPANY) {
+        if (watchError) watchError.textContent = t('newWatch.companyEditDifferentSiren');
+        input?.focus();
+        return;
+      }
+      if (companyEditOutcome === COMPANY_EDIT_PLAN_OUTCOMES.SAME_COMPANY) {
+        creationInProgress = true;
+        setCreationControlsDisabled(true);
+        await completeWatchUpdate(
+          request,
+          whyFollowing,
+          createExistingCompanyEditAnalysis(editingWatch),
+        );
+        return;
+      }
+      await startCompanyReview(
+        request,
+        whyFollowing,
+        watchPlan.identifier,
+        extractCompanyNameFromRequest(request, watchPlan.identifier),
+      );
+      return;
+    }
+
+    if (companyPlanRoute === COMPANY_PLAN_ROUTES.GUIDANCE) {
+      if (watchError) watchError.textContent = t('newWatch.companySirenGuidance');
+      input?.focus();
+      return;
+    }
+
+    const continueExistingUrlWatchFlow = async () => {
       const originalUrl = editingWatch?.sourceUrl || editingWatch?.request || '';
       if (
         isEditMode
@@ -3533,6 +4051,21 @@ export function initForm() {
         return;
       }
       await startUrlAnalysis(request, whyFollowing);
+    };
+
+    const mediaStoryPlanRoute = getMediaStoryPlanRoute(request, watchPlan);
+    if (mediaStoryPlanRoute === MEDIA_STORY_PLAN_ROUTES.REVIEW) {
+      await continueExistingUrlWatchFlow();
+      return;
+    }
+    if (mediaStoryPlanRoute === MEDIA_STORY_PLAN_ROUTES.GUIDANCE) {
+      if (watchError) watchError.textContent = t('newWatch.mediaStoryPlanningUnavailable');
+      input?.focus();
+      return;
+    }
+
+    if (isUrl(request)) {
+      await continueExistingUrlWatchFlow();
       return;
     }
 
@@ -3610,6 +4143,38 @@ export function initForm() {
         || pendingClarificationHasSuggestion
         || !pendingClarificationOriginal.trim()
       ) return;
+      if (pendingNonArticleAnalysis) {
+        const analysis = pendingNonArticleAnalysis;
+        creationInProgress = true;
+        setCreationControlsDisabled(true);
+        const createOptions = getCreateOptions();
+        createOptions.monitoringSource = analysis.monitoringSource;
+        try {
+          if (isEditMode) {
+            await completeWatchUpdate(
+              pendingClarificationOriginal,
+              pendingClarificationWhyFollowing,
+              analysis,
+            );
+          } else {
+            await completeWatchCreation(createWatchObject(
+              pendingClarificationOriginal,
+              pendingClarificationWhyFollowing,
+              analysis,
+              createOptions,
+            ));
+          }
+        } catch (error) {
+          creationInProgress = false;
+          setCreationControlsDisabled(false);
+          if (watchError) {
+            const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
+            watchError.textContent = t(getMonitoringFailureMessageKey(code));
+          }
+          input?.focus();
+        }
+        return;
+      }
       await savePlainTextWatch(
         pendingClarificationOriginal,
         pendingClarificationWhyFollowing,
@@ -3623,6 +4188,8 @@ export function initForm() {
     }
 
     if (action !== CLARIFICATION_ACTIONS.EDIT_REQUEST) return;
+    pendingNonArticleAnalysis = null;
+    pendingAnalysis = null;
     form.classList.remove('is-clarifying');
     if (clarification) clarification.hidden = true;
     if (input) {
@@ -3635,7 +4202,15 @@ export function initForm() {
     refreshEditSaveState();
   });
 
+  const restoreCompanyRequestForEditing = () => {
+    resetUrlFlow({ clearInput: false });
+    updateComposer();
+    resizeInput({ immediate: true });
+    input?.focus();
+  };
+
   reviewEdit?.addEventListener('click', () => {
+    if (pendingAnalysis?.inputType === 'company') return restoreCompanyRequestForEditing();
     setReviewEditing(!review?.classList.contains('is-editing'));
   });
 
@@ -3661,11 +4236,25 @@ export function initForm() {
       ...pendingAnalysis,
       status: 'success',
       title: reviewTitle.value.trim(),
-      summary: reviewSummary.value.trim(),
+      summary: pendingAnalysis.inputType === 'company'
+        ? pendingAnalysis.summary
+        : reviewSummary.value.trim(),
+      storyProfile: pendingAnalysis.inputType === 'company'
+        ? pendingAnalysis.storyProfile
+        : pendingAnalysis.isStory === false
+          ? null
+          : {
+            ...pendingAnalysis.storyProfile,
+            storySummary: reviewSummary.value.trim(),
+          },
       source: getSourceText(pendingAnalysis?.sourceName || pendingAnalysis?.source) || null,
       sourceUrl: pendingAnalysis?.sourceUrl || pendingRequest,
     };
     const createOptions = getCreateOptions();
+    if (analysis.inputType === 'company') {
+      createOptions.feedUrl = null;
+      createOptions.monitoringSource = analysis.monitoringSource;
+    }
     if (!isEditMode && !createOptions.feedUrl && !analysis.monitoringSource) {
       resetUrlFlow({ clearInput: false });
       if (watchError) watchError.textContent = t('newWatch.monitoringSourceUnsupported');
@@ -3698,7 +4287,10 @@ export function initForm() {
   });
 
   reviewCancel?.addEventListener('click', () => {
-    resetUrlFlow({ clearInput: true, trackCancellation: true });
+    resetUrlFlow({
+      clearInput: pendingAnalysis?.status === 'success',
+      trackCancellation: true,
+    });
   });
 
   analysisCancel?.addEventListener('click', () => {
@@ -3847,6 +4439,10 @@ export function initForm() {
     }
     if (review?.classList.contains('is-editing') && reviewEdit && !reviewEdit.hidden) {
       reviewEdit.textContent = t('newWatch.urlReviewDone');
+    }
+    if (pendingAnalysis?.inputType === 'company') {
+      renderReviewPresentation(pendingAnalysis);
+      setReviewEditing(false);
     }
     renderKeywords();
     if (!clarification?.hidden) renderClarificationActions();
