@@ -562,11 +562,18 @@ test('a validated query-scoped source delegates every candidate to Story Profile
   }
   assert.deepEqual(matchFeedItemToWatch(politicalArticle, watch), {
     matched: true,
-    evidence: [{
-      field: 'people',
-      strength: 'strong',
-      label: 'Abdul El-Sayed',
-    }],
+    evidence: [
+      {
+        field: 'people',
+        strength: 'strong',
+        label: 'Abdul El-Sayed',
+      },
+      {
+        field: 'eventTypes',
+        strength: 'context',
+        label: 'Senate race',
+      },
+    ],
   });
   assert.deepEqual(matchFeedItemToWatch(unrelatedBbcArticle, watch), {
     matched: false,

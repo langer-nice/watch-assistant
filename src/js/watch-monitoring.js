@@ -75,11 +75,126 @@ const containsPhrase = (text, phrase) => {
   return normalizedPhrase && ` ${text} `.includes(` ${normalizedPhrase} `);
 };
 
+const MORPHOLOGY_FAMILIES = new Map(Object.entries({
+  charged: 'charge',
+  charges: 'charge',
+  charging: 'charge',
+  canceled: 'cancel',
+  cancelled: 'cancel',
+  canceling: 'cancel',
+  cancelling: 'cancel',
+  cancellation: 'cancel',
+  cancellations: 'cancel',
+  conserved: 'conserve',
+  conserving: 'conserve',
+  conservation: 'conserve',
+  developed: 'develop',
+  developing: 'develop',
+  development: 'develop',
+  developments: 'develop',
+  nominated: 'nominate',
+  nominates: 'nominate',
+  nominating: 'nominate',
+  nomination: 'nominate',
+  nominations: 'nominate',
+  opposed: 'oppose',
+  opposes: 'oppose',
+  opposing: 'oppose',
+  opposition: 'oppose',
+  politicisation: 'politicise',
+  politicization: 'politicise',
+  resigned: 'resign',
+  resigning: 'resign',
+  resignation: 'resign',
+  resignations: 'resign',
+}));
+
+const canonicalMatchToken = (token) => {
+  const mapped = MORPHOLOGY_FAMILIES.get(token);
+  if (mapped) return mapped;
+  if (token.length > 5 && token.endsWith('ies')) return `${token.slice(0, -3)}y`;
+  if (token.length > 4 && token.endsWith('s') && !/(?:ss|us|is)$/u.test(token)) {
+    return token.slice(0, -1);
+  }
+  return token;
+};
+
+const canonicalMatchText = (value) => normalizeMatchText(value)
+  .split(' ')
+  .filter(Boolean)
+  .map(canonicalMatchToken)
+  .join(' ');
+
+const containsCanonicalPhrase = (text, phrase) => {
+  const normalizedPhrase = canonicalMatchText(phrase);
+  return normalizedPhrase && ` ${text} `.includes(` ${normalizedPhrase} `);
+};
+
+const FUNCTION_WORDS = new Set([
+  'a', 'an', 'and', 'as', 'at', 'by', 'for', 'from', 'in', 'into', 'of', 'on', 'or',
+  's', 'the', 'to', 'with', 'without',
+]);
+const GENERIC_STORY_WORDS = new Set([
+  'agreement', 'case', 'context', 'develop', 'life', 'new', 'project', 'report',
+  'story', 'update', 'work',
+]);
+const ENTITY_ANCHOR_TYPES = new Set(['person', 'organization']);
+const CENTRAL_STORY_TYPES = new Set([
+  'work', 'product_service', 'condition', 'symptom', 'phenomenon', 'relationship',
+  'event', 'manual',
+]);
+
+const isUsefulSingleSignal = (token) => (
+  token.length >= 5
+  && !FUNCTION_WORDS.has(token)
+  && !GENERIC_STORY_WORDS.has(token)
+);
+
+const getConceptSignals = (label, excludedTokens = new Set()) => {
+  const tokens = canonicalMatchText(label).split(' ').filter(Boolean);
+  const singles = tokens.filter((token) => (
+    !excludedTokens.has(token) && isUsefulSingleSignal(token)
+  ));
+  const phrases = [];
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    const first = tokens[index];
+    const second = tokens[index + 1];
+    const isCompound = first.length >= 3
+      && second.length >= 3
+      && !excludedTokens.has(first)
+      && !excludedTokens.has(second)
+      && !FUNCTION_WORDS.has(first)
+      && !FUNCTION_WORDS.has(second)
+      && (!GENERIC_STORY_WORDS.has(first) || !GENERIC_STORY_WORDS.has(second));
+    if (isCompound) phrases.push(`${first} ${second}`);
+  }
+  return {
+    singles: [...new Set(singles)],
+    phrases: [...new Set(phrases)],
+  };
+};
+
+const getMatchedSignals = (text, { singles, phrases }) => {
+  const matchedPhrases = phrases.filter((phrase) => containsPhrase(text, phrase));
+  const phraseTokens = new Set(matchedPhrases.flatMap((phrase) => phrase.split(' ')));
+  const matchedSingles = singles.filter((token) => (
+    !phraseTokens.has(token) && containsPhrase(text, token)
+  ));
+  return { phrases: matchedPhrases, singles: matchedSingles };
+};
+
+const hasStandaloneSemanticEvidence = ({ exact, signals }) => (
+  exact
+  || signals.phrases.length >= 2
+  || (signals.phrases.length >= 1 && signals.singles.length >= 1)
+  || signals.singles.length >= 3
+);
+
 export const matchFeedItemToStory = (item, storyProfile) => {
-  const text = normalizeMatchText([
+  // A byline identifies who wrote a candidate, not what the candidate is about.
+  const text = canonicalMatchText([
     item?.title,
     item?.excerpt,
-    item?.author,
   ].filter(Boolean).join(' '));
   if (!text) return { matched: false, evidence: [] };
 
@@ -98,7 +213,12 @@ export const matchFeedItemToStory = (item, storyProfile) => {
     relationship: { field: 'relationships', strength: 'strong' },
     manual: { field: 'userAddedConcepts', strength: 'strong' },
   };
-  getStoryProfileIdentifiers(storyProfile).forEach(({ label, type }) => {
+  const concepts = getStoryProfileIdentifiers(storyProfile)
+    .filter(({ label, type }) => typeof label === 'string' && evidenceType[type]);
+  const anchorTokens = new Set(concepts
+    .filter(({ type }) => ENTITY_ANCHOR_TYPES.has(type))
+    .flatMap(({ label }) => canonicalMatchText(label).split(' ').filter(Boolean)));
+  const matchedConcepts = concepts.map(({ label, type }) => {
     const normalized = normalizeMatchText(label);
     const wordCount = normalized.split(' ').filter(Boolean).length;
     const selectedType = manuallyAdded.has(normalized)
@@ -107,18 +227,41 @@ export const matchFeedItemToStory = (item, storyProfile) => {
     const permitsSpecificSingleWord = [
       'location', 'work', 'product_service', 'condition', 'symptom', 'phenomenon', 'relationship',
     ].includes(type);
+    const permitsNamedOrganization = type === 'organization' && normalized.length >= 3;
     const isEligiblePhrase = wordCount >= 2
+      || permitsNamedOrganization
       || (permitsSpecificSingleWord && normalized.length >= 5);
-    if (selectedType && isEligiblePhrase && containsPhrase(text, label)) {
+    const exact = Boolean(isEligiblePhrase && containsCanonicalPhrase(text, label));
+    const signals = CENTRAL_STORY_TYPES.has(type)
+      ? getMatchedSignals(text, getConceptSignals(label, anchorTokens))
+      : { phrases: [], singles: [] };
+    if (selectedType && (exact || signals.phrases.length || signals.singles.length)) {
       evidence.push({ ...selectedType, label });
     }
+    return {
+      exact,
+      isAnchor: ENTITY_ANCHOR_TYPES.has(type),
+      isCentral: CENTRAL_STORY_TYPES.has(type),
+      signals,
+    };
   });
 
-  const hasStrong = evidence.some(({ strength }) => strength === 'strong');
-  const hasLocation = evidence.some(({ field }) => field === 'locations');
-  const hasEventContext = evidence.some(({ field }) => field === 'eventTypes');
+  const usefulConceptCount = matchedConcepts.length;
+  const exactAnchors = matchedConcepts.filter(({ isAnchor, exact }) => isAnchor && exact);
+  const centralConcepts = matchedConcepts.filter(({ isCentral }) => isCentral);
+  const hasCorroboratingStorySignal = centralConcepts.some(({ signals }) => (
+    signals.phrases.length > 0 || signals.singles.length > 0
+  ));
+  const hasStandaloneCentralEvidence = centralConcepts.some(hasStandaloneSemanticEvidence);
+  const matched = usefulConceptCount === 1
+    ? matchedConcepts.some(({ exact, isCentral, signals }) => (
+      exact || (isCentral && hasStandaloneSemanticEvidence({ exact, signals }))
+    ))
+    : hasStandaloneCentralEvidence
+      || (exactAnchors.length > 0 && hasCorroboratingStorySignal)
+      || (!centralConcepts.length && exactAnchors.length >= 2);
   return {
-    matched: hasStrong || (hasLocation && hasEventContext),
+    matched,
     evidence,
   };
 };
