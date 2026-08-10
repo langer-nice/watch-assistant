@@ -125,7 +125,7 @@ import {
   getStoryProfileIdentifiers,
   synchronizeStoryProfile,
 } from './story-profile.js';
-import { isDistinctMonitoringScope } from './story-review.js';
+import { createMonitoringScope, isDistinctMonitoringScope } from './story-review.js';
 import { renderWatchCardLink } from './watch-card-link.js';
 import {
   CURRENT_UPDATE_FRAGMENT,
@@ -134,7 +134,7 @@ import {
   getWatchIdFromLocation,
 } from './watch-routes.js';
 import {
-  getCategoryPendingSituationKey,
+  getWatchPendingSituationKey,
   inferWatchCategory,
   normalizeWatchCategory,
 } from './watch-category.js';
@@ -142,7 +142,7 @@ import {
   getLatestUpdate,
   getWatchUpdates,
 } from './watch-updates.js';
-import { getWatchTimelineEvents } from './watch-timeline.js';
+import { getWatchJourneyEvents } from './watch-timeline.js';
 import {
   getBodaccBusinessEventLabel,
   getCurrentSituationPresentation,
@@ -527,14 +527,18 @@ const hasReleaseIntent = (request) => (
     .test(request.toLowerCase())
 );
 
-const inferCurrentSituationKey = (request, category) => {
+const inferCurrentSituationKey = (request, category, { isMediaStory = false } = {}) => {
   const text = request.toLowerCase();
 
   if (hasReleaseIntent(text)) {
     return 'watchData.pendingSituations.release';
   }
 
-  return getCategoryPendingSituationKey(category);
+  return getWatchPendingSituationKey({
+    category,
+    inputType: isMediaStory ? 'url' : null,
+    isStory: isMediaStory,
+  });
 };
 
 const createTitle = (request) => {
@@ -649,7 +653,58 @@ const extractStructuredCriteria = (request) => {
   };
 };
 
-const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
+const clonePlainData = (value) => (
+  value == null ? value : JSON.parse(JSON.stringify(value))
+);
+
+const SCOPE_IDENTITY_STOP_WORDS = new Set([
+  'about', 'directly', 'follow', 'future', 'including', 'reporting', 'related', 'this',
+  'watch', 'will',
+]);
+const SCOPE_PRIMARY_IDENTIFIER_TYPES = new Set([
+  'organization', 'person', 'product_service', 'work',
+]);
+
+const isScopeGroundedInProfile = (scope, storyProfile) => {
+  const normalizedScope = normalizeComparableText(scope);
+  const identifiers = getStoryProfileIdentifiers(storyProfile);
+  if (!normalizedScope || !identifiers.length) return false;
+  const primaryIdentifiers = identifiers.filter(({ type }) => (
+    SCOPE_PRIMARY_IDENTIFIER_TYPES.has(type)
+  ));
+  if (primaryIdentifiers.length) {
+    return primaryIdentifiers.some(({ label }) => {
+      const normalizedLabel = normalizeComparableText(label);
+      return normalizedLabel && normalizedScope.includes(normalizedLabel);
+    });
+  }
+  return identifiers.some(({ label }) => {
+    const normalizedLabel = normalizeComparableText(label);
+    if (normalizedLabel && normalizedScope.includes(normalizedLabel)) return true;
+    const distinctiveTokens = normalizedLabel.split(' ').filter((token) => (
+      token.length >= 5
+      && !SCOPE_IDENTITY_STOP_WORDS.has(token)
+    ));
+    const scopeTokens = new Set(normalizedScope.split(' '));
+    return distinctiveTokens.filter((token) => scopeTokens.has(token)).length >= 2;
+  });
+};
+
+const getAnalysisMonitoringScope = (urlAnalysis, storyProfile) => {
+  const suppliedScope = urlAnalysis?.monitoringScope || '';
+  if (!storyProfile || isScopeGroundedInProfile(suppliedScope, storyProfile)) {
+    return suppliedScope;
+  }
+  return createMonitoringScope({
+    watchingFor: '',
+    profile: storyProfile,
+    storyFingerprint: storyProfile.concepts,
+    title: urlAnalysis?.title,
+    overview: storyProfile.storySummary,
+  });
+};
+
+export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
   const companyMonitoringSource = urlAnalysis?.inputType === 'company'
     ? createBodaccMonitoringSource(urlAnalysis?.company?.siren)
     : null;
@@ -698,12 +753,14 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
       ? options.selectedKeywords
       : keywords;
   const structuredCriteria = extractStructuredCriteria(request);
-  const storyFingerprint = isStory
+  const storyFingerprint = clonePlainData(isStory
     ? Object.hasOwn(options, 'storyFingerprint')
       ? options.storyFingerprint
       : urlAnalysis?.storyFingerprint
-    : [];
-  const sourceStoryProfile = urlAnalysis?.storyProfile || options.storyProfile || null;
+    : []);
+  const sourceStoryProfile = clonePlainData(
+    urlAnalysis?.storyProfile || options.storyProfile || null,
+  );
   const storyProfile = isUrlRequest && !isStory
     ? null
     : isUrlRequest
@@ -778,16 +835,18 @@ const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
       || null,
     structuredCriteria,
     ...structuredCriteria,
-    monitoringSummary: urlAnalysis?.monitoringScope
+    monitoringSummary: getAnalysisMonitoringScope(urlAnalysis, storyProfile)
       || urlAnalysis?.summary
       || options.monitoringSummary
       || null,
     monitoringSummaryKey: null,
-    currentSituationKey: inferCurrentSituationKey(request, category),
+    currentSituationKey: inferCurrentSituationKey(request, category, {
+      isMediaStory: isUrlRequest && isStory,
+    }),
   };
 };
 
-const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, options = {}) => {
+export const createWatchObject = (request, whyFollowing = '', urlAnalysis = null, options = {}) => {
   const now = new Date().toISOString();
   const derivedData = deriveWatchData(request, urlAnalysis, options);
   const missingMonitoringSource = !derivedData.monitoringSource;
@@ -1369,7 +1428,9 @@ const renderWatchDetail = () => {
   const storedCurrentSituation = localizeField(watch, 'currentSituation');
   const pendingSituation = isDistinctMeaningfulText(storedCurrentSituation, request || '')
     ? storedCurrentSituation
-    : t(inferCurrentSituationKey(request || '', watch.category));
+    : t(inferCurrentSituationKey(request || '', watch.category, {
+      isMediaStory: watch.inputType === 'url' && watch.isStory === true,
+    }));
   const currentUpdate = getCurrentSituationPresentation(watch, {
     fallback: pendingSituation,
     formatTimestamp: formatMonitoringTimestamp,
@@ -1599,7 +1660,9 @@ const renderWatchDetail = () => {
     whyFollowingEl.hidden = !hasWhyFollowing;
   }
 
-  const timeline = getWatchTimelineEvents(watch)
+  const timeline = getWatchJourneyEvents(watch, {
+    currentUpdateId: latestMeaningfulUpdate?.id,
+  })
     .map((item) => {
       const label = item.type === 'created'
         ? t('watchData.created')

@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { getBriefingWatchGroups } from './watch-grouping.js';
-import { getWatchTimelineEvents } from './watch-timeline.js';
-import { getLatestUpdate } from './watch-updates.js';
+import { getWatchJourneyEvents, getWatchTimelineEvents } from './watch-timeline.js';
+import { getLatestUpdate, getWatchUpdates } from './watch-updates.js';
+import { getCurrentSituationPresentation } from './watch-update-presentation.js';
 
 const createdAt = '2026-07-29T08:00:00.000Z';
 const update = (id, timestamp, sourceTitle = null, summary = null) => ({
@@ -34,6 +35,83 @@ test('one persisted update appears after creation with its meaningful title', ()
   ]));
   assert.deepEqual(events.map(({ type }) => type), ['created', 'update']);
   assert.equal(events[1].source.sourceTitle, 'Agreement talks resume');
+});
+
+test('How We Got Here excludes the newest Update projected as Current Situation', () => {
+  const oneUpdate = watchWith([
+    update('itv', '2026-08-07T12:00:00Z', 'Ivan Toney charged over Soho assault'),
+  ]);
+  assert.deepEqual(
+    getWatchJourneyEvents(oneUpdate, { currentUpdateId: 'itv' }).map(({ type }) => type),
+    ['created'],
+  );
+
+  const threeUpdates = watchWith([
+    update('itv', '2026-08-07T12:00:00Z', 'Initial charge'),
+    update('court', '2026-08-08T12:00:00Z', 'First court hearing'),
+    update('latest', '2026-08-09T12:00:00Z', 'Case adjourned'),
+  ]);
+  const journey = getWatchJourneyEvents(threeUpdates, { currentUpdateId: 'latest' });
+  assert.deepEqual(journey.map(({ source }) => source?.id || 'created'), [
+    'created', 'itv', 'court',
+  ]);
+  assert.deepEqual(getWatchTimelineEvents(threeUpdates).map(({ source }) => source?.id || 'created'), [
+    'created', 'itv', 'court', 'latest',
+  ]);
+});
+
+test('How We Got Here clusters publisher articles by development while history stays complete', () => {
+  const watch = watchWith([
+    {
+      ...update('nyt', '2026-08-07T09:00:00Z', 'Ivan Toney charged over Soho nightclub incident'),
+      sourceUrl: 'https://nypost.com/ivan-toney-charged-soho',
+      summary: 'Ivan Toney was charged with assault after an incident at a Soho nightclub.',
+    },
+    {
+      ...update('itv', '2026-08-07T10:00:00Z', 'Footballer Ivan Toney charged with assault'),
+      sourceUrl: 'https://itv.com/news/ivan-toney-assault-charge',
+      summary: 'The charge follows the same Soho nightclub incident.',
+    },
+    {
+      ...update('guardian', '2026-08-07T11:00:00Z', 'Ivan Toney faces assault charge after London incident'),
+      sourceUrl: 'https://croydonguardian.co.uk/ivan-toney-charge',
+      summary: 'The footballer faces a charge over the Soho nightclub incident.',
+    },
+    {
+      ...update('court', '2026-08-09T09:00:00Z', 'Ivan Toney enters not-guilty plea at court hearing'),
+      sourceUrl: 'https://example.com/ivan-toney-court-plea',
+      summary: 'Toney pleaded not guilty at a hearing in the Soho assault case.',
+    },
+    {
+      ...update('syndicated-charge', '2026-08-10T09:00:00Z', 'Ivan Toney charged after Soho incident'),
+      sourceUrl: 'https://socialnews.example/ivan-toney-charge',
+      summary: 'A syndicated report repeats the original assault charge.',
+    },
+  ]);
+
+  assert.equal(getWatchUpdates(watch).length, 5);
+  const current = getCurrentSituationPresentation(watch);
+  assert.equal(current.update.id, 'court');
+  assert.deepEqual(
+    getWatchJourneyEvents(watch, { currentUpdateId: current.update.id })
+      .map(({ source }) => source?.id || 'created'),
+    ['created', 'nyt'],
+  );
+});
+
+test('materially different developments from different publishers remain separate milestones', () => {
+  const watch = watchWith([
+    update('charge', '2026-08-07T09:00:00Z', 'Ivan Toney charged over Soho assault'),
+    update('bail', '2026-08-08T09:00:00Z', 'Ivan Toney granted bail in Soho assault case'),
+    update('hearing', '2026-08-09T09:00:00Z', 'Ivan Toney appears at court hearing'),
+  ]);
+  const current = getCurrentSituationPresentation(watch);
+  assert.equal(current.update.id, 'hearing');
+  assert.deepEqual(
+    getWatchJourneyEvents(watch, { currentUpdateId: current.update.id })
+      .map(({ source }) => source?.id || 'created'),
+    ['created', 'charge', 'bail'],
+  );
 });
 
 test('two distinct updates remain distinct and are ordered chronologically across timestamp formats', () => {

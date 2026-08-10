@@ -18,6 +18,7 @@ import {
   enrichStoryFingerprint,
 } from './story-review.js';
 import {
+  extractDistinctiveHeadlineConcepts,
   isSafeAutomaticStoryConcept,
   rankStoryIdentifiers,
 } from './story-identifier-ranking.js';
@@ -725,7 +726,21 @@ export const createTitleDerivedFallback = (pageTitle) => {
 
 const mergeConceptProposal = (proposal, deterministicSuggestion, analysisPage) => {
   if (!Array.isArray(proposal?.concepts)) return proposal;
-  const proposedConcepts = normalizeAutomaticStoryFingerprint(proposal.concepts, 6);
+  const normalizedProposal = normalizeAutomaticStoryFingerprint(proposal.concepts, 6);
+  const headlineContext = extractDistinctiveHeadlineConcepts(analysisPage)[0];
+  const contextTokens = new Set(String(headlineContext?.label || '').toLocaleLowerCase()
+    .match(/[\p{L}\p{N}]{4,}/gu) || []);
+  const hasHeadlineContext = headlineContext && normalizedProposal.some(({ label }) => (
+    (String(label).toLocaleLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || [])
+      .some((token) => contextTokens.has(token))
+  ));
+  const proposedConcepts = headlineContext && !hasHeadlineContext
+    ? normalizeAutomaticStoryFingerprint([
+      ...normalizedProposal.slice(0, 3),
+      headlineContext,
+      ...normalizedProposal.slice(3),
+    ], 6)
+    : normalizedProposal;
   const validatedProposal = rankStoryIdentifiers({
     selected: proposedConcepts,
     evidence: analysisPage,

@@ -1126,6 +1126,58 @@ test('strong Ivan Toney AI concepts remain authoritative through the final Story
   }
 });
 
+test('headline-defining activity survives an otherwise strong incomplete Story Profile', async () => {
+  const originalFetch = globalThis.fetch;
+  const url = 'https://www.bbc.com/travel/article/carol-ruckdeschel-example';
+  globalThis.fetch = async (path) => {
+    if (path === '/api/page-title') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          title: 'The snake-wrangling 84-year-old who lives on a remote barrier island',
+          description: 'Naturalist Carol Ruckdeschel has fought to preserve Cumberland Island.',
+          articleText: [
+            'Carol Ruckdeschel is known for her snake-wrangling naturalist life.',
+            'She rears snakes and has lived on Cumberland Island for decades.',
+            'Her conservation work opposes development on the island.',
+          ].join(' '),
+          siteName: 'BBC Travel', language: 'en', pageType: 'article', sourceUrl: url,
+        }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        concepts: [
+          { label: 'Carol Ruckdeschel', type: 'person', reason: 'Named central subject' },
+          {
+            label: 'Carol Ruckdeschel’s conservation fight for Cumberland Island',
+            type: 'relationship',
+            reason: 'Central conservation relationship',
+          },
+          { label: 'Cumberland Island', type: 'location', reason: 'Defining location' },
+        ],
+        confidence: 0.98,
+        analysisProvider: 'openai',
+        analysisStatus: 'success',
+        analysisModel: 'gpt-5.6-luna',
+      }),
+    };
+  };
+
+  try {
+    const result = await analyseUrl(url);
+    const labels = result.storyProfile.concepts.map(({ label }) => label);
+    assert.ok(labels.includes('Carol Ruckdeschel'));
+    assert.ok(labels.some((label) => /Cumberland Island/iu.test(label)));
+    assert.ok(labels.some((label) => /snake|wrangling|rearing/iu.test(label)), labels.join(', '));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('one authoritative ultra-processed-food concept remains sufficient without padding', async () => {
   const originalFetch = globalThis.fetch;
   const url = 'https://www.bbc.com/future/article/ultra-processed-foods';

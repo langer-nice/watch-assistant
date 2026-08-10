@@ -371,6 +371,26 @@ const extractDefiningOrganizations = (evidence) => {
   }).filter(({ label }) => !GENERIC_AUTHORITY.test(label));
 };
 
+export const extractDistinctiveHeadlineConcepts = (evidence = {}) => {
+  const title = String(evidence.title || evidence.articleHeadline || '');
+  const corroboratingEvidence = [
+    evidence.subheading,
+    evidence.articleSubheading,
+    evidence.description,
+    evidence.articleText,
+  ].filter(Boolean).join(' ');
+  const concepts = [];
+  for (const match of title.matchAll(
+    /\b([\p{L}][\p{L}\p{M}'’]{2,}[-‑–][\p{L}\p{M}'’]{3,}ing)\b/giu,
+  )) {
+    const label = titleCaseFirst(match[1]);
+    if (countExactMentions(corroboratingEvidence, label) > 0) {
+      concepts.push({ label, type: 'phenomenon', origin: 'structure' });
+    }
+  }
+  return unique(concepts).slice(0, 1);
+};
+
 const scoreCandidate = (candidate, evidence) => {
   const titleHits = countMentions(evidence.title, candidate.label);
   const subheadingHits = countMentions(evidence.subheading, candidate.label);
@@ -485,6 +505,7 @@ export const rankStoryIdentifiers = ({
       ...extractDefiningPeople(normalizedEvidence),
       ...extractDefiningOrganizations(normalizedEvidence),
       ...extractDefiningPlaces(normalizedEvidence),
+      ...extractDistinctiveHeadlineConcepts(normalizedEvidence),
     ] : []),
   ].flatMap((rawCandidate) => {
     const candidate = canonicalizeCandidate(rawCandidate);

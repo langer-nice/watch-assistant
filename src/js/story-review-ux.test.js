@@ -15,7 +15,8 @@ test('Story Review and Detail present overview and monitoring scope separately',
   assert.match(reviewHtml, /id="urlReviewMonitoringScopeField"[\s\S]*?id="urlReviewMonitoringScope"/);
   assert.match(detailHtml, /id="watchStorySummary"[\s\S]*?detail\.storyOverview/);
   assert.match(detailHtml, /id="watchMonitoringScope"[\s\S]*?detail\.monitoringScope/);
-  assert.match(navigation, /monitoringSummary: urlAnalysis\?\.monitoringScope/);
+  assert.match(navigation, /monitoringSummary: getAnalysisMonitoringScope\(urlAnalysis, storyProfile\)/);
+  assert.match(navigation, /isScopeGroundedInProfile\(suppliedScope, storyProfile\)/);
   assert.match(navigation, /storySummary: reviewSummary\.value\.trim\(\)/);
   assert.match(navigation, /isDistinctMonitoringScope\(watch\.monitoringSummary, storySummary, watch\.title\)/);
 });

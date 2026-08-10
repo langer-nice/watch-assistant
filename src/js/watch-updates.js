@@ -36,6 +36,31 @@ const getUpdateIdentity = (update) => [
   update.summary,
 ].map((value) => value || '').join('\u0000');
 
+const TRACKING_QUERY_PARAMETERS = new Set([
+  'fbclid', 'gclid', 'mc_cid', 'mc_eid', 'ref', 'referrer',
+]);
+
+const getCanonicalArticleUrl = (value) => {
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    url.hostname = url.hostname.replace(/^www\./i, '').toLocaleLowerCase();
+    url.hash = '';
+    [...url.searchParams.keys()].forEach((key) => {
+      if (key.toLocaleLowerCase().startsWith('utm_') || TRACKING_QUERY_PARAMETERS.has(
+        key.toLocaleLowerCase(),
+      )) {
+        url.searchParams.delete(key);
+      }
+    });
+    url.searchParams.sort();
+    if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/u, '');
+    return url.href;
+  } catch {
+    return null;
+  }
+};
+
 export const normalizeUpdate = (update, { fallbackTimestamp = null } = {}) => {
   if (!update || typeof update !== 'object') return null;
   const timestamp = normalizeTimestamp(
@@ -73,14 +98,21 @@ export const normalizeUpdate = (update, { fallbackTimestamp = null } = {}) => {
 const normalizeUpdates = (updates) => {
   const seenIds = new Set();
   const seenResults = new Set();
+  const seenArticleUrls = new Set();
   return (Array.isArray(updates) ? updates : [])
     .map((update) => normalizeUpdate(update))
     .filter((update) => {
       if (!update) return false;
       const identity = getUpdateIdentity(update);
-      if (seenIds.has(update.id) || seenResults.has(identity)) return false;
+      const articleUrl = getCanonicalArticleUrl(update.sourceUrl);
+      if (
+        seenIds.has(update.id)
+        || seenResults.has(identity)
+        || (articleUrl && seenArticleUrls.has(articleUrl))
+      ) return false;
       seenIds.add(update.id);
       seenResults.add(identity);
+      if (articleUrl) seenArticleUrls.add(articleUrl);
       return true;
     })
     .sort((first, second) => Date.parse(first.timestamp) - Date.parse(second.timestamp));
@@ -104,8 +136,11 @@ export const addUpdateToWatch = (watch, update) => {
 
   const updates = normalizeUpdates(watch.updates);
   const identity = getUpdateIdentity(normalizedUpdate);
+  const articleUrl = getCanonicalArticleUrl(normalizedUpdate.sourceUrl);
   const duplicate = updates.some((existing) => (
-    existing.id === normalizedUpdate.id || getUpdateIdentity(existing) === identity
+    existing.id === normalizedUpdate.id
+    || getUpdateIdentity(existing) === identity
+    || (articleUrl && getCanonicalArticleUrl(existing.sourceUrl) === articleUrl)
   ));
   if (duplicate) return {
     ...watch,

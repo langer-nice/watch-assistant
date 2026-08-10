@@ -46,6 +46,41 @@ test('rejects the same monitoring Update when it is processed more than once', (
   assert.deepEqual(repeated.updates[0].rawMonitoringResult, { id: 'result-1' });
 });
 
+test('deduplicates tracking variants of one article without merging different publishers', () => {
+  const initial = addUpdateToWatch({ updates: [] }, {
+    id: 'itv-first',
+    timestamp: '2026-08-07T12:00:00Z',
+    sourceUrl: 'https://www.itv.com/news/story?utm_source=google&utm_medium=rss',
+    sourceTitle: 'Ivan Toney charged over Soho assault',
+    sourceName: 'ITV News',
+    summary: 'The footballer was charged after an incident.',
+    status: 'new',
+  });
+  const repeated = addUpdateToWatch(initial, {
+    id: 'itv-tracking-variant',
+    timestamp: '2026-08-07T13:00:00Z',
+    sourceUrl: 'https://itv.com/news/story?utm_campaign=follow-up#article',
+    sourceTitle: 'Ivan Toney charged over Soho assault',
+    sourceName: 'ITV News',
+    summary: 'The footballer was charged after an incident.',
+    status: 'new',
+  });
+  const otherPublisher = addUpdateToWatch(repeated, {
+    id: 'nyt-same-story',
+    timestamp: '2026-08-07T14:00:00Z',
+    sourceUrl: 'https://news.example.com/ivan-toney-soho-assault',
+    sourceTitle: 'Ivan Toney charged over Soho assault',
+    sourceName: 'Different Publisher',
+    summary: 'The footballer was charged after an incident.',
+    status: 'new',
+  });
+
+  assert.deepEqual(getWatchUpdates(repeated).map(({ id }) => id), ['itv-first']);
+  assert.deepEqual(getWatchUpdates(otherPublisher).map(({ id }) => id), [
+    'itv-first', 'nyt-same-story',
+  ]);
+});
+
 test('gets latest and unread Updates safely in chronological order', () => {
   const watch = {
     updates: [

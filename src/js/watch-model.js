@@ -5,7 +5,7 @@ import {
   normalizeStoryFingerprint,
 } from './monitoring-concepts.js';
 import {
-  getCategoryPendingSituationKey,
+  getWatchPendingSituationKey,
   inferWatchCategory,
   normalizeWatchCategory,
 } from './watch-category.js';
@@ -251,7 +251,7 @@ export const migrateWatchModel = (watch) => {
     'watchData.pendingSituations.general',
   ]);
   const currentSituationKey = generatedPendingSituationKeys.has(watch.currentSituationKey)
-    ? getCategoryPendingSituationKey(category)
+    ? getWatchPendingSituationKey({ category, inputType: watch.inputType, isStory })
     : watch.currentSituationKey;
   const migratedWatch = {
     ...watch,

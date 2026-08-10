@@ -25,7 +25,7 @@ test('Detail renders persisted history before marking only displayed unread Upda
   const readIndex = detailRenderer.indexOf('queueMicrotask(() => markUpdatesAsRead(watch.id, readableUpdateIds))');
 
   assert.match(detailRenderer, /getWatchUpdates\(watch\)\.reverse\(\)/);
-  assert.match(detailRenderer, /getWatchTimelineEvents\(watch\)/);
+  assert.match(detailRenderer, /getWatchJourneyEvents\(watch,[\s\S]*?currentUpdateId: latestMeaningfulUpdate\?\.id/);
   assert.match(detailRenderer, /filter\(\(\{ status: updateStatus \}\) => updateStatus === 'new'\)/);
   assert.ok(renderIndex >= 0 && visibleIndex > renderIndex && readIndex > visibleIndex);
   assert.match(detailRenderer, /!detailCheckInProgress/);

@@ -1,4 +1,5 @@
-import { getLatestUpdate, getWatchUpdates } from './watch-updates.js';
+import { getLatestDevelopmentUpdate } from './watch-developments.js';
+import { getWatchUpdates } from './watch-updates.js';
 
 const BODACC_BUSINESS_EVENT_TYPES = new Set([
   'capital_increase',
@@ -35,7 +36,7 @@ export const getCurrentSituationPresentation = (watch, {
   sanitizeUrl = () => '',
   translateBusinessEvent = () => '',
 } = {}) => {
-  const update = getLatestUpdate(watch);
+  const update = getLatestDevelopmentUpdate(watch);
   if (!update) {
     return {
       update: null,

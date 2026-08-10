@@ -1,4 +1,5 @@
 import { getWatchCreationDate, parseTimestampValue } from './watch-dates.js';
+import { getWatchDevelopments } from './watch-developments.js';
 import { getWatchUpdates } from './watch-updates.js';
 
 const normalizeEventTimestamp = (...values) => {
@@ -70,4 +71,15 @@ export const getWatchTimelineEvents = (watch) => {
     }));
 
   return [...events, ...updateEvents].sort(compareEvents);
+};
+
+// “How We Got Here” shows the milestones leading to the Current Situation. The newest Update is
+// projected above as Current Situation and remains in the complete Update History, so repeating it
+// in this journey would render the same article three times on one page.
+export const getWatchJourneyEvents = (watch, { currentUpdateId = null } = {}) => {
+  const milestoneIds = new Set(getWatchDevelopments(watch).map(({ update }) => update.id));
+  return getWatchTimelineEvents(watch).filter(({ type, source }) => {
+    if (type !== 'update') return true;
+    return milestoneIds.has(source?.id) && (!currentUpdateId || source?.id !== currentUpdateId);
+  });
 };

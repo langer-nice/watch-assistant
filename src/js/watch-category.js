@@ -74,3 +74,9 @@ export const getCategoryPendingSituationKey = (category) => ({
   news: 'watchData.pendingSituations.news',
   events: 'watchData.pendingSituations.event',
 }[normalizeWatchCategory(category)] || 'watchData.pendingSituations.general');
+
+export const getWatchPendingSituationKey = ({ category, inputType, isStory } = {}) => (
+  inputType === 'url' && isStory === true
+    ? 'watchData.pendingSituations.news'
+    : getCategoryPendingSituationKey(category)
+);
