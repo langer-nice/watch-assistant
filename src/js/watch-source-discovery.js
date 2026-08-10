@@ -11,6 +11,9 @@ export class SourceDiscoveryError extends Error {
 export const normalizeMonitoringSource = (source) => {
   const url = normalizeFeedUrl(source?.url || '');
   if (!url) return null;
+  const query = typeof source?.query === 'string' && source.query.trim()
+    ? source.query.trim().slice(0, 500)
+    : null;
   return {
     url,
     type: source?.type === 'atom' ? 'atom' : 'rss',
@@ -20,6 +23,7 @@ export const normalizeMonitoringSource = (source) => {
     discovery: typeof source?.discovery === 'string' && source.discovery.trim()
       ? source.discovery.trim()
       : 'automatic',
+    ...(query ? { query } : {}),
   };
 };
 

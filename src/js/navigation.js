@@ -139,6 +139,10 @@ import {
   normalizeWatchCategory,
 } from './watch-category.js';
 import {
+  getMediaMentionConcepts,
+  parseMediaMentionRequest,
+} from './media-mention-request.js';
+import {
   getLatestUpdate,
   getWatchUpdates,
 } from './watch-updates.js';
@@ -553,6 +557,13 @@ const createTitle = (request) => {
     }
   }
 
+  const mediaMentionRequest = parseMediaMentionRequest(value);
+  if (mediaMentionRequest.recognized) {
+    return mediaMentionRequest.language === 'fr'
+      ? `${mediaMentionRequest.query} dans les médias`
+      : `${mediaMentionRequest.query} media mentions`;
+  }
+
   const text = value
     .split(/\n+|[.!?]+(?:\s|$)/)[0]
     .trim()
@@ -723,6 +734,9 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     }
     : null;
   const isUrlRequest = !isCompanyRequest && (Boolean(urlAnalysis) || isUrl(request));
+  const mediaMentionRequest = !isCompanyRequest && !isUrlRequest
+    ? parseMediaMentionRequest(request)
+    : null;
   const isStory = !isUrlRequest || urlAnalysis?.isStory !== false;
   const sourceName = isCompanyRequest
     ? companyMonitoringSource.title
@@ -790,6 +804,9 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
       type: automaticMonitoringSource?.type || 'feed',
       title: automaticMonitoringSource?.title || null,
       discovery: options.feedUrl ? 'manual' : automaticMonitoringSource?.discovery || 'manual',
+      ...(automaticMonitoringSource?.query && !options.feedUrl
+        ? { query: automaticMonitoringSource.query }
+        : {}),
     }
     : null);
   return {
@@ -810,6 +827,12 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     sourceUrl: sourceUrl || null,
     feedUrl: monitoringUrl,
     monitoringSource,
+    ...(mediaMentionRequest?.recognized ? {
+      mediaMention: {
+        subjects: [...mediaMentionRequest.subjects],
+        matchMode: mediaMentionRequest.matchMode,
+      },
+    } : {}),
     category,
     categorySource: options.categorySource || 'inferred',
     keywords,
@@ -2576,11 +2599,14 @@ export function initForm() {
   };
 
   const replaceSuggestedKeywords = (request) => {
-    keywordItems = extractMonitoringConcepts(request).map((label) => ({
-      label,
-      selected: true,
-      type: 'manual',
-    }));
+    const mediaMentionConcepts = getMediaMentionConcepts(request);
+    keywordItems = mediaMentionConcepts
+      ? mediaMentionConcepts.map((concept) => ({ ...concept, selected: true }))
+      : extractMonitoringConcepts(request).map((label) => ({
+        label,
+        selected: true,
+        type: 'manual',
+      }));
     keywordSourceRequest = request;
     renderKeywords();
   };
@@ -2892,8 +2918,14 @@ export function initForm() {
           discovery: manualFeedChanged
             ? 'manual'
             : urlAnalysis?.monitoringSource?.discovery || editingWatch.monitoringSource?.discovery || 'manual',
+          ...(!manualFeedChanged && (
+            urlAnalysis?.monitoringSource?.query || editingWatch.monitoringSource?.query
+          ) ? {
+            query: urlAnalysis?.monitoringSource?.query || editingWatch.monitoringSource.query,
+          } : {}),
         }
         : null,
+      mediaMention: derivedData.mediaMention || null,
       ...getPreservedCompanyEditChanges(editingWatch, urlAnalysis),
     };
     if (derivedData.isStory === false) changes.storyProfile = null;
@@ -3793,8 +3825,11 @@ export function initForm() {
         watchOptionsEl.hidden = true;
       }
       keywordSourceRequest = input?.value || '';
-      keywordItems = extractMonitoringConcepts(keywordSourceRequest)
-        .map((label) => ({ label, selected: true, type: 'manual' }));
+      const mediaMentionConcepts = getMediaMentionConcepts(keywordSourceRequest);
+      keywordItems = mediaMentionConcepts
+        ? mediaMentionConcepts.map((concept) => ({ ...concept, selected: true }))
+        : extractMonitoringConcepts(keywordSourceRequest)
+          .map((label) => ({ label, selected: true, type: 'manual' }));
       if (categoryInputEl) {
         categoryInputEl.value = inferWatchCategory(keywordSourceRequest);
       }

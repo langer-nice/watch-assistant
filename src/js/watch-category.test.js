@@ -36,6 +36,18 @@ test('isolated monetary and commercial words do not dominate the monitored inten
   assert.equal(inferWatchCategory('A court case about disputed airline fares'), 'news');
 });
 
+test('explicit English and French media-mention Watches use the News category', () => {
+  assert.equal(
+    inferWatchCategory('Tell me when Elon Musk is mentioned in the media.'),
+    'news',
+  );
+  assert.equal(
+    inferWatchCategory('Dis-moi quand Bernard Arnault est mentionné dans les médias.'),
+    'news',
+  );
+  assert.equal(inferWatchCategory('Monitor social media analytics'), 'general');
+});
+
 test('normalizes supported English and French category labels', () => {
   assert.equal(normalizeWatchCategory('Price'), 'price');
   assert.equal(normalizeWatchCategory('Prix'), 'price');

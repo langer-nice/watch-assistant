@@ -22,6 +22,7 @@ import {
   isStoryPageType,
   normalizePageType,
 } from './page-classification.js';
+import { parseMediaMentionRequest } from './media-mention-request.js';
 
 export const WATCH_MODEL_VERSION = 10;
 
@@ -183,7 +184,7 @@ export const migrateWatchModel = (watch) => {
       selectionWasManuallyEdited
       || explicitlyManualLabels.has(label.toLocaleLowerCase())
     )), ...rejectedAutomaticLabels];
-  const storyProfile = watch.inputType === 'url' && isStory
+  const storedStoryProfile = watch.inputType === 'url' && isStory
     ? createStoryProfile({
       storyFingerprint: migratedFingerprint,
       profile: {
@@ -201,6 +202,31 @@ export const migrateWatchModel = (watch) => {
       extractedAt: watch.storyProfile?.extractedAt || watch.createdAt,
     })
     : watch.inputType === 'url' ? null : watch.storyProfile || null;
+  const parsedMediaMention = watch.inputType === 'text'
+    ? parseMediaMentionRequest(watch.request)
+    : null;
+  const mediaMention = parsedMediaMention?.recognized
+    ? {
+      subjects: [...parsedMediaMention.subjects],
+      matchMode: parsedMediaMention.matchMode,
+    }
+    : null;
+  const normalizeGeneratedMediaConcepts = Boolean(mediaMention && !selectionWasManuallyEdited);
+  const mediaMentionFingerprint = normalizeGeneratedMediaConcepts
+    ? mediaMention.subjects.map((label) => ({ label, type: 'manual' }))
+    : null;
+  const storyProfile = normalizeGeneratedMediaConcepts
+    ? createStoryProfile({
+      storyFingerprint: mediaMentionFingerprint,
+      profile: {
+        storySummary: storedStoryProfile?.storySummary
+          || watch.monitoringSummary
+          || watch.request,
+      },
+      sourceTitle: watch.request,
+      extractedAt: storedStoryProfile?.extractedAt || watch.createdAt,
+    })
+    : storedStoryProfile;
   const migratedLabels = storyProfile?.concepts?.map(({ label }) => label) || [];
   const missingSource = watch.inputType === 'url' && !feedUrl;
   const legacyTechnicalReason = [
@@ -275,16 +301,27 @@ export const migrateWatchModel = (watch) => {
       ? watch.analysisDiagnosticId
       : null,
     ...(watch.inputType === 'company' ? { company } : {}),
+    ...(mediaMention
+      ? { mediaMention }
+      : watch.mediaMention ? { mediaMention: null } : {}),
     monitoringSource: bodaccMonitoringSource || (feedUrl
       ? {
         url: feedUrl,
         type: watch.monitoringSource?.type || 'feed',
         title: watch.monitoringSource?.title || null,
         discovery: watch.monitoringSource?.discovery || 'manual',
+        ...(typeof watch.monitoringSource?.query === 'string' && watch.monitoringSource.query.trim()
+          ? { query: watch.monitoringSource.query.trim().slice(0, 500) }
+          : {}),
       }
       : null),
     feedUrl,
     storyProfile,
+    ...(normalizeGeneratedMediaConcepts ? {
+      storyFingerprint: mediaMentionFingerprint,
+      keywords: [...mediaMention.subjects],
+      selectedKeywords: [...mediaMention.subjects],
+    } : {}),
     ...(watch.inputType === 'url' ? {
       pageType: inferredPageType,
       isStory,

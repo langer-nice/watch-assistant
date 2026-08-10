@@ -1,4 +1,5 @@
 import { fetchAndNormalizeFeed } from './check-watch-api.js';
+import { parseMediaMentionRequest } from '../src/js/media-mention-request.js';
 
 const ENDPOINT = '/api/monitoring-source';
 const MAX_BODY_BYTES = 4_096;
@@ -35,7 +36,9 @@ export const discoverTextMonitoringSource = async ({
   request,
   language = 'en',
 }, options = {}) => {
-  const sourceUrl = createNewsSearchFeedUrl(request, language);
+  const mediaMentionRequest = parseMediaMentionRequest(request);
+  const query = mediaMentionRequest.query || String(request || '').trim();
+  const sourceUrl = createNewsSearchFeedUrl(query, language);
   try {
     const feed = await fetchAndNormalizeFeed(sourceUrl, options);
     return {
@@ -44,6 +47,7 @@ export const discoverTextMonitoringSource = async ({
         type: 'rss',
         title: feed.source?.title || null,
         discovery: 'news-search',
+        query,
       },
     };
   } catch (cause) {

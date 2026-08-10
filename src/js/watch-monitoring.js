@@ -266,6 +266,30 @@ export const matchFeedItemToStory = (item, storyProfile) => {
   };
 };
 
+export const matchFeedItemToMediaMention = (item, mediaMention) => {
+  const text = canonicalMatchText([
+    item?.title,
+    item?.excerpt,
+  ].filter(Boolean).join(' '));
+  const subjects = Array.isArray(mediaMention?.subjects)
+    ? mediaMention.subjects
+      .map((subject) => String(subject || '').replace(/\s+/gu, ' ').trim())
+      .filter(Boolean)
+    : [];
+  if (!text || !subjects.length || mediaMention?.matchMode !== 'all') {
+    return { matched: false, evidence: [] };
+  }
+  const matchedSubjects = subjects.filter((subject) => containsCanonicalPhrase(text, subject));
+  return {
+    matched: matchedSubjects.length === subjects.length,
+    evidence: matchedSubjects.map((label) => ({
+      field: 'mediaMentionSubjects',
+      strength: 'strong',
+      label,
+    })),
+  };
+};
+
 const getValidatedBodaccSiren = (source) => (
   source?.type === 'bodacc'
   && source?.provider === 'dila'
@@ -287,6 +311,9 @@ export const matchFeedItemToWatch = (item, watch, { trustedSourceType = null } =
         label: `BODACC SIREN ${bodaccSiren}`,
       }],
     };
+  }
+  if (watch?.inputType === 'text' && watch?.mediaMention) {
+    return matchFeedItemToMediaMention(item, watch.mediaMention);
   }
   return matchFeedItemToStory(item, watch?.storyProfile);
 };

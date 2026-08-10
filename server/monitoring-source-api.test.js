@@ -46,7 +46,60 @@ test('discovers and returns a supported source only after the feed is fetched an
     type: 'rss',
     title: 'US–Iran strikes - Google News',
     discovery: 'news-search',
+    query: 'US–Iran strikes BBC News',
   });
+});
+
+test('normalizes explicit media-mention requests before building localized search URLs', async () => {
+  const cases = [
+    {
+      request: 'Tell me when Elon Musk is mentioned in the media.',
+      language: 'en',
+      query: 'Elon Musk',
+      locale: { hl: 'en-GB', gl: 'GB', ceid: 'GB:en' },
+    },
+    {
+      request: 'Dis-moi quand Elon Musk est mentionné dans les médias.',
+      language: 'fr',
+      query: 'Elon Musk',
+      locale: { hl: 'fr', gl: 'FR', ceid: 'FR:fr' },
+    },
+  ];
+
+  for (const fixture of cases) {
+    let requestedUrl = null;
+    const result = await discoverTextMonitoringSource(fixture, {
+      lookup: publicLookup,
+      fetchImpl: async (url) => {
+        requestedUrl = new URL(url);
+        return new Response(validFeed, {
+          headers: { 'content-type': 'application/rss+xml' },
+        });
+      },
+    });
+    assert.equal(requestedUrl.searchParams.get('q'), fixture.query);
+    Object.entries(fixture.locale).forEach(([key, value]) => {
+      assert.equal(requestedUrl.searchParams.get(key), value);
+    });
+    assert.equal(result.monitoringSource.query, fixture.query);
+    assert.equal(new URL(result.monitoringSource.url).searchParams.get('q'), fixture.query);
+  }
+});
+
+test('preserves the existing full-request query when no safe mention subject is recognized', async () => {
+  const request = 'Tell me when something important happens in AI.';
+  let requestedUrl = null;
+  const result = await discoverTextMonitoringSource({ request, language: 'en' }, {
+    lookup: publicLookup,
+    fetchImpl: async (url) => {
+      requestedUrl = new URL(url);
+      return new Response(validFeed, {
+        headers: { 'content-type': 'application/rss+xml' },
+      });
+    },
+  });
+  assert.equal(requestedUrl.searchParams.get('q'), request);
+  assert.equal(result.monitoringSource.query, request);
 });
 
 test('unsupported or malformed discovery results fail safely instead of returning a source', async () => {

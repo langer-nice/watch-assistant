@@ -1,3 +1,5 @@
+import { parseMediaMentionRequest } from './media-mention-request.js';
+
 export const SUPPORTED_WATCH_CATEGORIES = Object.freeze([
   'general', 'travel', 'news', 'property', 'price', 'events', 'entertainment', 'finance',
 ]);
@@ -55,6 +57,7 @@ const hasExplicitCommercialPriceChange = (text) => hasExplicitCommercialPriceSub
 
 export const inferWatchCategory = (value) => {
   const text = foldText(value);
+  if (parseMediaMentionRequest(value).recognized) return 'news';
   const legalIntent = hasLegalIntent(text);
   const priceIntent = hasPriceIntent(text);
   if (priceIntent && (!legalIntent || hasExplicitCommercialPriceChange(text))) return 'price';
