@@ -528,11 +528,16 @@ test('normalizes AI concepts into precise phrases without weak or contained term
     );
     const source = JSON.parse(request.input);
     assert.deepEqual(source, {
-      title: 'Experience: I hunt for missing hikers in remote mountains',
-      description: "A search-and-rescue account from Taiwan's mountains.",
-      articleText: 'Petr Novotny searches for missing hikers across remote mountains in Taiwan.',
-      author: 'Petr Novotny',
-      slug: 'experience i hunt missing hikers remote mountains taiwan',
+      primaryEvidence: {
+        headline: 'Experience: I hunt for missing hikers in remote mountains',
+        description: "A search-and-rescue account from Taiwan's mountains.",
+        openingText: 'Petr Novotny searches for missing hikers across remote mountains in Taiwan.',
+      },
+      supportingEvidence: {
+        bodyText: 'Petr Novotny searches for missing hikers across remote mountains in Taiwan.',
+      },
+      provenanceOnly: { authorByline: 'Petr Novotny' },
+      deterministicHints: { slug: 'experience i hunt missing hikers remote mountains taiwan' },
     });
     return {
       ok: true,
@@ -596,6 +601,85 @@ test('normalizes AI concepts into precise phrases without weak or contained term
   assert.deepEqual(suggestion.storyProfile.primaryPeople, ['Petr Novotny']);
 });
 
+test('concurrent Story suggestions keep request-local evidence and provider responses correlated', async () => {
+  const cases = [
+    {
+      title: 'Carol Ruckdeschel profile',
+      description: 'Carol Ruckdeschel lives off-grid and protects Cumberland Island.',
+      articleText: [
+        'Carol Ruckdeschel lives on Cumberland Island.',
+        'Her conservation and naturalist work define the profile.',
+        'Alexandra Marvar reports on her life in America.',
+      ].join('\n\n'),
+      author: 'Alexandra Marvar',
+      concepts: [
+        { label: 'Alexandra Marvar', type: 'person', reason: 'Present in request evidence' },
+        { label: 'America', type: 'location', reason: 'Present in request evidence' },
+      ],
+    },
+    {
+      title: 'RWE offshore wind agreement',
+      description: 'RWE agreed to abandon US offshore wind projects.',
+      articleText: [
+        'RWE agreed to abandon offshore wind projects.',
+        'The agreement follows the Trump administration’s offshore-wind rollback.',
+        'Louisiana and President Donald Trump’s Department are discussed later.',
+      ].join('\n\n'),
+      concepts: [
+        { label: 'Louisiana', type: 'location', reason: 'Present in request evidence' },
+        {
+          label: 'President Donald Trump’s Department',
+          type: 'organization',
+          reason: 'Present in request evidence',
+        },
+      ],
+    },
+    {
+      title: 'Ivan Toney charged after Soho incident',
+      description: 'Ivan Toney faces an assault charge.',
+      articleText: 'Ivan Toney was charged after a Soho nightclub incident.',
+      concepts: [
+        { label: 'Ivan Toney', type: 'person', reason: 'Central subject' },
+        { label: 'Soho nightclub incident', type: 'event', reason: 'Central event' },
+      ],
+    },
+  ];
+  let releaseCarol;
+  const delayedCarol = new Promise((resolve) => { releaseCarol = resolve; });
+  const fetchImpl = async (_url, options) => {
+    const providerRequest = JSON.parse(options.body);
+    const source = JSON.parse(providerRequest.input);
+    const fixture = cases.find(({ title }) => title === source.primaryEvidence.headline);
+    assert.ok(fixture, `unknown provider source: ${source.primaryEvidence.headline}`);
+    if (fixture === cases[0]) await delayedCarol;
+    return createOpenAiResponse({ concepts: fixture.concepts, confidence: 0.98 });
+  };
+  const request = (fixture, diagnosticId) => generateWatchSuggestion({
+    ...fixture,
+    apiKey: 'test-key',
+    model: 'gpt-5.6-luna',
+    fetchImpl,
+    diagnosticId,
+  });
+
+  const carolPromise = request(cases[0], 'carol-request');
+  const rwePromise = request(cases[1], 'rwe-request');
+  const ivanPromise = request(cases[2], 'ivan-request');
+  const [rwe, ivan] = await Promise.all([rwePromise, ivanPromise]);
+  releaseCarol();
+  const carol = await carolPromise;
+
+  assert.deepEqual(carol.concepts, []);
+  assert.equal(carol.confidence, 0);
+  assert.deepEqual(rwe.concepts, []);
+  assert.equal(rwe.confidence, 0);
+  assert.deepEqual(ivan.concepts.map(({ reason: _reason, ...concept }) => concept),
+    cases[2].concepts.map(({ reason: _reason, ...concept }) => concept));
+  assert.equal(carol.analysisDiagnosticId, 'carol-request');
+  assert.equal(rwe.analysisDiagnosticId, 'rwe-request');
+  assert.equal(ivan.analysisDiagnosticId, 'ivan-request');
+});
+
 test('concept prompt defines the Story Spine, optional distinctive context and headline coverage without padding', async () => {
   let requestCount = 0;
   const suggestion = await generateWatchSuggestion({
@@ -642,6 +726,157 @@ test('concept prompt defines the Story Spine, optional distinctive context and h
   ]);
   assert.equal(suggestion.confidence, 0.96);
 });
+
+test('semantic centrality separates primary evidence from byline and deep-body context', async () => {
+  let requestCount = 0;
+  const suggestion = await generateWatchSuggestion({
+    title: 'The snake-wrangling 84-year-old who lives on a remote barrier island',
+    description: 'Naturalist Carol Ruckdeschel has fought to preserve Cumberland Island.',
+    articleText: [
+      'Carol Ruckdeschel lives off-grid on Cumberland Island and is known for rearing snakes.',
+      'Her conservation work and naturalist island life define the profile.',
+      'Alexandra Marvar wrote the report. America is mentioned as broad geographical context.',
+    ].join('\n\n'),
+    author: 'Alexandra Marvar',
+    publisher: 'BBC Travel',
+    apiKey: 'test-key',
+    model: 'test-model',
+    fetchImpl: async (_url, options) => {
+      requestCount += 1;
+      const request = JSON.parse(options.body);
+      const evidence = JSON.parse(request.input);
+      assert.deepEqual(evidence.primaryEvidence, {
+        headline: 'The snake-wrangling 84-year-old who lives on a remote barrier island',
+        description: 'Naturalist Carol Ruckdeschel has fought to preserve Cumberland Island.',
+        openingText: [
+          'Carol Ruckdeschel lives off-grid on Cumberland Island and is known for rearing snakes.',
+          'Her conservation work and naturalist island life define the profile.',
+        ].join('\n\n'),
+      });
+      assert.deepEqual(evidence.supportingEvidence, {
+        bodyText: [
+          'Carol Ruckdeschel lives off-grid on Cumberland Island and is known for rearing snakes.',
+          'Her conservation work and naturalist island life define the profile.',
+          'Alexandra Marvar wrote the report. America is mentioned as broad geographical context.',
+        ].join('\n\n'),
+      });
+      assert.deepEqual(evidence.provenanceOnly, {
+        authorByline: 'Alexandra Marvar',
+        publisher: 'BBC Travel',
+      });
+      assert.match(request.instructions, /CENTRAL EVIDENCE/);
+      assert.match(request.instructions, /PERIPHERAL EVIDENCE/);
+      assert.match(request.instructions, /author or byline/iu);
+      assert.match(request.instructions, /removed.+remaining profile.+preserve the identity/isu);
+      return createOpenAiResponse({
+        concepts: [
+          { label: 'Alexandra Marvar', type: 'person', reason: 'Named in the supplied evidence' },
+          { label: 'America', type: 'location', reason: 'Named in the supplied evidence' },
+        ],
+        confidence: 0.98,
+      });
+    },
+  });
+
+  assert.equal(requestCount, 1);
+  assert.deepEqual(suggestion.concepts, []);
+  assert.equal(suggestion.confidence, 0);
+});
+
+test('semantic centrality rejects an all-peripheral RWE proposal without requiring headline keywords', async () => {
+  const suggestion = await generateWatchSuggestion({
+    title: 'US strikes deal to pay German firm to halt offshore wind projects',
+    description: 'RWE agreed to relinquish US offshore wind leases under a Trump administration deal.',
+    articleText: [
+      'RWE reached an agreement to abandon US offshore wind projects.',
+      'The deal follows the Trump administration’s offshore-wind rollback policy.',
+      'Louisiana and President Donald Trump’s Department are mentioned later as supporting context.',
+    ].join('\n\n'),
+    apiKey: 'test-key',
+    model: 'test-model',
+    fetchImpl: async () => createOpenAiResponse({
+      concepts: [
+        { label: 'Louisiana', type: 'location', reason: 'Named in the supplied evidence' },
+        {
+          label: 'President Donald Trump’s Department',
+          type: 'organization',
+          reason: 'Named in the supplied evidence',
+        },
+      ],
+      confidence: 0.98,
+    }),
+  });
+
+  assert.deepEqual(suggestion.concepts, []);
+  assert.equal(suggestion.confidence, 0);
+});
+
+for (const fixture of [
+  {
+    name: 'an author/byline alone',
+    title: 'Coastal restoration project protects nesting birds',
+    description: 'The North Shore habitat project has restored protected nesting grounds.',
+    articleText: [
+      'The North Shore habitat project restored protected nesting grounds.',
+      'Conservation teams recorded the first returning birds this spring.',
+      'Reporter Maya Laurent wrote the article.',
+    ].join('\n\n'),
+    author: 'Maya Laurent',
+    concept: { label: 'Maya Laurent', type: 'person', reason: 'The named article author' },
+  },
+  {
+    name: 'incidental deep-body geography alone',
+    title: 'European battery merger faces antitrust review',
+    description: 'Northstar and Helios face an antitrust review of their proposed merger.',
+    articleText: [
+      'Northstar and Helios face an antitrust review of their proposed merger.',
+      'Regulators are examining the effect on the European battery market.',
+      'A separate historical example involved a factory in Louisiana.',
+    ].join('\n\n'),
+    concept: { label: 'Louisiana', type: 'location', reason: 'A place named later in the body' },
+  },
+  {
+    name: 'a secondary quoted organization alone',
+    title: 'University opens plagiarism investigation into professor',
+    description: 'The University of Cambridge opened a plagiarism investigation into Jason Arday.',
+    articleText: [
+      'The University of Cambridge opened a plagiarism investigation into Jason Arday.',
+      'The university said its review would follow established procedures.',
+      'The Academic Standards Forum supplied a general quotation about research integrity.',
+    ].join('\n\n'),
+    concept: {
+      label: 'Academic Standards Forum',
+      type: 'organization',
+      reason: 'An organization quoted in the article',
+    },
+  },
+  {
+    name: 'a secondary quoted person alone',
+    title: 'Russian Black Sea strike campaign expands in Odesa',
+    description: 'Russian strikes targeted civilian infrastructure in Odesa, Ukraine.',
+    articleText: [
+      'The Black Sea strike campaign expanded in Odesa.',
+      'Russian strikes damaged civilian infrastructure in Ukraine.',
+      'Yaroslav Petrenko later described damage to one building.',
+    ].join('\n\n'),
+    concept: { label: 'Yaroslav Petrenko', type: 'person', reason: 'A person quoted later' },
+  },
+]) {
+  test(`semantic centrality rejects ${fixture.name}`, async () => {
+    const suggestion = await generateWatchSuggestion({
+      ...fixture,
+      apiKey: 'test-key',
+      model: 'test-model',
+      fetchImpl: async () => createOpenAiResponse({
+        concepts: [fixture.concept],
+        confidence: 0.99,
+      }),
+    });
+
+    assert.deepEqual(suggestion.concepts, []);
+    assert.equal(suggestion.confidence, 0);
+  });
+}
 
 test('concept proposal input is cleaned and deterministic validation rejects generic, unsupported and access concepts', async () => {
   let suppliedSource;

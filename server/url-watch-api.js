@@ -744,21 +744,30 @@ const validateSuggestion = (suggestion) => {
 const GENERIC_MONITORING_CONCEPT = /^(?:business|entertainment|health|lifestyle|news|politics|science|sport|sports|technology|world)$/iu;
 const CONCEPT_CONNECTOR = /^(?:a|an|and|at|de|des|du|en|et|for|from|in|la|le|les|of|on|the|to)$/iu;
 
-const hasTrustedConceptSupport = (label, source) => {
+const hasConceptSupportInEvidence = (label, evidence) => {
   const labelTokens = getComparableTokens(label).filter((token) => (
     token.length > 2 && !CONCEPT_CONNECTOR.test(token)
   ));
   if (!labelTokens.length) return false;
-  const sourceTokens = new Set(getComparableTokens([
-    source.title,
-    source.subtitle,
-    source.description,
-    source.articleText,
-  ].filter(Boolean).join(' ')));
+  const sourceTokens = new Set(getComparableTokens(evidence));
   const supportedCount = labelTokens.filter((token) => sourceTokens.has(token)).length;
   return supportedCount === labelTokens.length
     || (labelTokens.length >= 3 && supportedCount / labelTokens.length >= 0.75);
 };
+
+const hasTrustedConceptSupport = (label, source) => hasConceptSupportInEvidence(label, [
+  source.title,
+  source.subtitle,
+  source.description,
+  source.articleText,
+].filter(Boolean).join(' '));
+
+const hasPrimaryConceptSupport = (label, source) => hasConceptSupportInEvidence(label, [
+  source.title,
+  source.subtitle,
+  source.description,
+  source.openingText,
+].filter(Boolean).join(' '));
 
 const validateConceptProposal = (proposal, source) => {
   if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)) {
@@ -815,10 +824,53 @@ const validateConceptProposal = (proposal, source) => {
       candidate.type === concept.type && hasSameNormalizedLabel(candidate.label, concept.label)
     ))?.reason.trim() || 'Supported by the supplied article evidence',
   }));
+  const hasCentralAnchor = concepts.some(({ label }) => hasPrimaryConceptSupport(label, source));
+  const failedCentrality = proposal.concepts.length > 0 && !hasCentralAnchor;
   return {
-    concepts,
-    confidence: proposal.confidence,
+    concepts: hasCentralAnchor ? concepts : [],
+    confidence: failedCentrality ? 0 : proposal.confidence,
   };
+};
+
+const getOpeningText = (articleText) => String(articleText || '')
+  .split(/\n{2,}/u)
+  .map((paragraph) => paragraph.trim())
+  .filter(Boolean)
+  .slice(0, 2)
+  .join('\n\n')
+  .slice(0, 2_000)
+  .trim();
+
+const createProviderEvidence = (source) => {
+  const sections = {
+    primaryEvidence: {
+      headline: source.title,
+      subheadline: source.subtitle,
+      description: source.description,
+      openingText: source.openingText,
+    },
+    supportingEvidence: {
+      bodyText: source.articleText,
+    },
+    provenanceOnly: {
+      authorByline: source.author,
+      publisher: source.publisher,
+    },
+    metadata: {
+      publishedAt: source.publishedAt,
+      language: source.language,
+    },
+    deterministicHints: {
+      candidates: source.deterministicCandidates,
+      slug: source.slug,
+    },
+  };
+  return Object.fromEntries(Object.entries(sections)
+    .map(([section, values]) => [
+      section,
+      Object.fromEntries(Object.entries(values).filter(([, value]) => value)),
+    ])
+    .filter(([, values]) => Object.keys(values).length));
 };
 
 export const generateWatchSuggestion = async ({
@@ -849,11 +901,13 @@ export const generateWatchSuggestion = async ({
     throw new ArticleAnalysisError('configuration_missing', 503);
   }
 
+  const cleanedArticleText = cleanArticleContentForAnalysis(articleText);
   const source = Object.fromEntries(Object.entries({
     title: String(title || '').trim(),
     subtitle: String(subtitle || '').trim(),
     description: String(description || '').trim(),
-    articleText: cleanArticleContentForAnalysis(articleText),
+    openingText: getOpeningText(cleanedArticleText),
+    articleText: cleanedArticleText,
     author: String(author || '').trim(),
     publisher: String(publisher || '').trim(),
     publishedAt: String(publishedAt || '').trim(),
@@ -863,6 +917,7 @@ export const generateWatchSuggestion = async ({
       .join('; '),
     slug: String(slug || '').trim(),
   }).filter(([, value]) => value));
+  const providerEvidence = createProviderEvidence(source);
   const executeAttempt = async (attemptSignal) => {
   let response;
   try {
@@ -879,6 +934,12 @@ export const generateWatchSuggestion = async ({
 
 This is concept selection only. Do not summarize the article, rewrite its title, create keywords, or list every named entity. Select the STORY SPINE: the smallest complementary set of concepts that preserves the identity of this particular story while remaining useful across normal wording changes in future reporting. Each concept must be concise, independently understandable, central to the supplied evidence, discriminating, and useful in later coverage.
 
+Use the labeled evidence hierarchy. primaryEvidence is CENTRAL EVIDENCE: headline, subheadline, description and opening text have the highest signal for what the article is about. supportingEvidence is the full body: recurring subjects and developments tied directly to the opening may corroborate the Story Spine, while one-off deep-body references, historical examples, incidental geography, secondary actors and quoted people or organizations are PERIPHERAL EVIDENCE and must not become the profile merely because they occur in the article. provenanceOnly identifies who produced the article, not what the story is about. deterministicHints are optional hints, not evidence.
+
+At least one selected concept must be directly grounded in primaryEvidence whenever you return a non-empty profile. This is a semantic centrality requirement, not headline keyword extraction and not a requirement that every concept appear in the headline. For every proposed concept ask: "If this concept were removed, would the remaining profile still preserve the identity of the headline development?" Also ask whether it is directly involved in what the headline, description or opening says happened, rather than context that appears elsewhere.
+
+Never select an article author or byline as a Story concept merely because the name appears in provenance or article text. Select that person only when primaryEvidence shows that the article itself is substantively about the same person. Apply the same centrality test to secondary quoted people or organizations and incidental locations.
+
 Reason about three dimensions when they are present, but do not treat them as mandatory output slots: (1) the principal subject — the person, organization, product, work, condition or phenomenon centrally involved; (2) the defining development or issue — what happened, is happening or is disputed, if the article has one; and (3) optional distinctive context — an evidence-grounded activity, attribute, relationship, circumstance, project, role, lifestyle or discriminating location without which the remaining profile would become materially broader or lose this story's identity. Apply this removal test to distinctive context: if removing it still identifies this particular story rather than a substantially broader subject, omit it; if not, one concise context concept may be useful. Do not manufacture context to fill the profile.
 
 Choose the expected abstraction level. Preserve specific story-defining concepts such as a named person plus their legal case, election or distinctive profile context; a university plagiarism investigation and resignation; a named strike campaign; a particular agreement, merger or tournament; or a supported topic such as ultra-processed foods. A single strong topic concept can be sufficient. Reject isolated title fragments, list-item wording, generic categories such as News, Health or Politics, incidental deep-body mentions, quoted experts, bylines, publishers, and concepts that merely repeat one sentence.
@@ -888,7 +949,7 @@ Before returning the profile, perform a HEADLINE COVERAGE CHECK against the head
 Every concept must be directly supported by the supplied trusted article evidence. Never use navigation, related-story cards, recommendations, Most Read modules, paywall or subscription text, login or registration prompts, advertising unlock copy, consent overlays, footers, or promotional content. The supplied deterministicCandidates are hints only and may be rejected or improved.
 
 Use only the existing type enum. A company is an organization; a named product or service is product_service; a central subject or distinctive context without a narrower compatible type may be phenomenon. Explain briefly in reason why each concept helps recognize future reporting about this specific story and which supplied evidence supports it. Confidence describes the proposal as a whole. Do not invent facts or translate proper names.`,
-      input: JSON.stringify(source),
+      input: JSON.stringify(providerEvidence),
       reasoning: { effort: 'low' },
       max_output_tokens: 600,
       text: {

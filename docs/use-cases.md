@@ -1,6 +1,9 @@
 # tests
 
-
+- Premier check, aucun changement depuis création :
+No changes detected since monitoring started.
+Checks suivants, aucun nouveau changement lors du dernier check :
+No changes detected since the last check.
 
 # Use Cases
 

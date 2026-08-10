@@ -1003,6 +1003,7 @@ export const analyseUrl = async (input, {
     subtitle: analysisPage.articleSubheading,
     description: analysisPage.description,
     articleText: analysisPage.articleText,
+    author: analysisPage.author,
     publisher: analysisPage.siteName,
     publishedAt: analysisPage.publishedAt,
     language: analysisPage.language,

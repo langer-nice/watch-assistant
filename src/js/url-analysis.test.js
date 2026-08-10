@@ -754,6 +754,10 @@ test('classified BBC and Reuters articles retain Story analysis without duplicat
       '/api/page-title', '/api/watch-suggestion',
       '/api/page-title', '/api/watch-suggestion',
     ]);
+    assert.deepEqual(
+      calls.filter(({ path }) => path === '/api/watch-suggestion').map(({ body }) => body.author),
+      ['Example Reporter', 'Example Reporter'],
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }

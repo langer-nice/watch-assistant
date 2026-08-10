@@ -78,6 +78,107 @@ test('creation activation stores the baseline before later checks compare agains
   assert.deepEqual(firstManualCheck.newItems, []);
 });
 
+test('current Ivan profile matches relevant candidates and rejects unrelated football reporting', () => {
+  const storyProfile = {
+    concepts: [
+      { label: 'Ivan Toney', type: 'person' },
+      {
+        label: 'Ivan Toney’s assault charge arising from a Soho nightclub incident',
+        type: 'event',
+      },
+    ],
+  };
+  const candidates = [
+    item('itv', "England's Ivan Toney charged with assault over incident in Soho nightclub"),
+    item('court', 'Ivan Toney due in court over Soho nightclub assault charge'),
+    {
+      ...item('new-york-post', 'Soccer star charged with alleged nightclub assault causing actual bodily harm'),
+      excerpt: 'Police identified the soccer star as Ivan Toney after the Soho incident.',
+    },
+    item('football', 'Ivan Toney scores twice in league victory'),
+  ];
+  const results = candidates.map((candidate) => matchFeedItemToStory(candidate, storyProfile));
+
+  assert.deepEqual(results.map(({ matched }) => matched), [true, true, true, false]);
+  assert.ok(results[0].evidence.some(({ label }) => label === 'Ivan Toney'));
+  assert.ok(results[0].evidence.some(({ label }) => /assault charge/iu.test(label)));
+  assert.ok(results[1].evidence.some(({ label }) => /assault charge/iu.test(label)));
+  assert.ok(results[2].evidence.some(({ label }) => label === 'Ivan Toney'));
+  assert.deepEqual(results[3].evidence, [{ field: 'people', strength: 'strong', label: 'Ivan Toney' }]);
+});
+
+test('Ivan creation baseline explains why unchanged ITV and New York Post candidates create no Update', () => {
+  const storyProfile = {
+    concepts: [
+      { label: 'Ivan Toney', type: 'person' },
+      {
+        label: 'Ivan Toney’s assault charge arising from a Soho nightclub incident',
+        type: 'event',
+      },
+    ],
+  };
+  const itv = {
+    ...item('itv', "England's Ivan Toney charged with assault over incident in Soho nightclub"),
+    url: 'https://www.itv.com/news/ivan-toney-soho-assault',
+    source: 'ITV News',
+  };
+  const newYorkPost = {
+    ...item('new-york-post', 'Soccer star charged with alleged nightclub assault causing actual bodily harm'),
+    url: 'https://nypost.com/ivan-toney-soho-assault',
+    source: 'New York Post',
+    excerpt: 'Police identified the soccer star as Ivan Toney after the Soho nightclub incident.',
+  };
+  const unrelated = {
+    ...item('football', 'Ivan Toney scores twice in league victory'),
+    url: 'https://sports.example.com/ivan-toney-scores',
+    source: 'Sports Desk',
+  };
+  const source = {
+    title: 'Google News search',
+    url: 'https://news.google.com/rss/search?q=Ivan+Toney+BBC+News',
+  };
+
+  const baseline = applyFeedCheckResult(
+    { id: 'ivan-watch', storyProfile },
+    { source, checkedAt: '2026-08-10T10:00:00.000Z', items: [itv, newYorkPost, unrelated] },
+  );
+  assert.equal(baseline.outcome, 'baseline');
+  assert.deepEqual(baseline.changes.monitoringSnapshot.itemIds, [
+    'itv', 'new-york-post', 'football',
+  ]);
+  assert.deepEqual(baseline.unseenItems, []);
+  assert.deepEqual(baseline.matchedItems, []);
+  assert.deepEqual(baseline.changes.updates, undefined);
+
+  const beforeCheckNow = { id: 'ivan-watch', storyProfile, ...baseline.changes };
+  const unchanged = applyFeedCheckResult(beforeCheckNow, {
+    source,
+    checkedAt: '2026-08-10T11:00:00.000Z',
+    items: [itv, newYorkPost, unrelated],
+  });
+  assert.equal(unchanged.outcome, 'no-new-items');
+  assert.deepEqual(unchanged.newItems, []);
+  assert.deepEqual(unchanged.matchedItems, []);
+  assert.equal(unchanged.changes.lastCheckResult.diagnostics.matchedCandidateCount, 0);
+  assert.equal(unchanged.changes.updates, undefined);
+
+  const court = {
+    ...item('court', 'Ivan Toney due in court over Soho nightclub assault charge'),
+    url: 'https://court.example.com/ivan-toney-hearing',
+    source: 'Court News',
+  };
+  const withNewDevelopment = applyFeedCheckResult(beforeCheckNow, {
+    source,
+    checkedAt: '2026-08-10T12:00:00.000Z',
+    items: [court, itv, newYorkPost, unrelated],
+  });
+  assert.deepEqual(withNewDevelopment.newItems.map(({ id }) => id), ['court']);
+  assert.deepEqual(withNewDevelopment.matchedItems.map(({ id }) => id), ['court']);
+  assert.deepEqual(withNewDevelopment.changes.updates.map(({ id }) => id), ['court']);
+  assert.ok(withNewDevelopment.changes.updates[0].rawMonitoringResult.matchEvidence
+    .some(({ label }) => /assault charge/iu.test(label)));
+});
+
 test('later checks detect only unseen IDs and repeated checks do not duplicate updates', () => {
   const baseline = applyFeedCheckResult({ id: 'watch-1' }, response(['a', 'b'])).changes;
   const watch = {
