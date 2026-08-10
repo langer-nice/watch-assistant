@@ -1,9 +1,7 @@
 # tests
-
-- Premier check, aucun changement depuis création :
-No changes detected since monitoring started.
-Checks suivants, aucun nouveau changement lors du dernier check :
-No changes detected since the last check.
+ - Bug : Create watch button not active without the word Watch in front
+ - Fix : Enleve les deux status badges pour le details page
+ - Changes ne sont pas poussés
 
 # Use Cases
 
