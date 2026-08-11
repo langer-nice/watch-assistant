@@ -4,7 +4,8 @@ const cleanQuery = (value) => String(value || '')
   .replace(/\s+/gu, ' ')
   .trim();
 
-const UNSAFE_GENERIC_SUBJECT = /^(?:anything|something|someone|somebody|everything|it|this|that|quelqu['’]un|quelque chose|ceci|cela|ça)$/iu;
+const UNSAFE_GENERIC_SUBJECT = /^(?:anything|something|someone|somebody|everything|it|this|that|they|them|he|him|she|her|quelqu['’]un|quelque chose|ceci|cela|ça|ils|elles|eux)$/iu;
+const UNSUPPORTED_SUBJECT_RELATION = /(?:\s+(?:or|ou)\s+|\b(?:maybe|perhaps|possibly|peut[- ]?[êe]tre|[ée]ventuellement)\b)/iu;
 
 const splitCoordinatedSubjects = (query, language) => {
   const separator = language === 'fr' ? /\s+(?:et|&)\s+/iu : /\s+(?:and|&)\s+/iu;
@@ -59,6 +60,7 @@ export const parseMediaMentionRequest = (request) => {
       && query.length <= 200
       && /[\p{L}\p{N}]/u.test(query)
       && !UNSAFE_GENERIC_SUBJECT.test(query)
+      && !UNSUPPORTED_SUBJECT_RELATION.test(query)
     ) {
       const subjects = coordinated ? splitCoordinatedSubjects(query, language) : [query];
       return {

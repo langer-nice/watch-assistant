@@ -264,3 +264,134 @@ test('Create as written surfaces source failure, preserves input, and resets for
     assert.equal(calls.filter(({ path }) => path === '/api/request-clarification').length, 2);
   });
 });
+
+for (const fixture of [
+  {
+    language: 'en',
+    request: 'Tell me when Elon Musk and Tesla are mentioned in the media',
+    query: 'Elon Musk and Tesla',
+    title: 'Elon Musk and Tesla media mentions',
+    clarificationMessage: 'Should the Watch alert you when a media item mentions both Elon Musk and Tesla, or when either one is mentioned?',
+  },
+  {
+    language: 'fr',
+    request: 'Dis-moi quand Elon Musk et Tesla sont mentionnés dans les médias',
+    query: 'Elon Musk et Tesla',
+    title: 'Elon Musk et Tesla dans les médias',
+    clarificationMessage: 'La Watch doit-elle vous alerter lorsque les deux sujets sont mentionnés, ou lorsqu’un seul est mentionné ?',
+  },
+]) {
+  test(`resolved ${fixture.language} media co-occurrence bypasses contradictory clarification`, async () => {
+    const sourceUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(fixture.query)}`;
+    await withBrowserForm({
+      request: fixture.request,
+      language: fixture.language,
+      fetchImpl: async (path) => {
+        if (path.startsWith('/api/plan-watch')) return {
+          ok: true,
+          json: async () => ({
+            strategy: 'web_search', connector: 'web_ai', country: null, identifier: null,
+            confidence: 0.5, needsClarification: false, clarificationQuestion: null,
+          }),
+        };
+        if (path === '/api/request-clarification') return {
+          ok: true,
+          json: async () => ({
+            resultType: 'clarification_required',
+            suggestedRequest: '',
+            clarificationMessage: fixture.clarificationMessage,
+          }),
+        };
+        if (path === '/api/monitoring-source') return {
+          ok: true,
+          json: async () => ({ monitoringSource: {
+            url: sourceUrl,
+            type: 'rss',
+            title: `${fixture.query} - Google News`,
+            discovery: 'news-search',
+            query: fixture.query,
+          } }),
+        };
+        if (path === '/api/check-watch') return {
+          ok: true,
+          json: async () => ({
+            checkedAt: '2026-08-11T10:00:00.000Z',
+            source: { title: `${fixture.query} - Google News`, url: sourceUrl },
+            items: [],
+          }),
+        };
+        throw new Error(`Unexpected request: ${path}`);
+      },
+    }, async ({ elements, calls, storage, window }) => {
+      assert.equal(elements.get('#requestClarification').hidden, true);
+      assert.doesNotMatch(
+        elements.get('#clarificationMessage').textContent,
+        /both|either|les deux|un seul/iu,
+      );
+      assert.equal(calls.some(({ path }) => path === '/api/request-clarification'), false);
+      assert.match(elements.get('#watchKeywordChips').innerHTML, /Elon Musk/u);
+      assert.match(elements.get('#watchKeywordChips').innerHTML, /Tesla/u);
+
+      const watches = JSON.parse(storage.getItem('watchAssistant.watches') || '[]');
+      assert.equal(watches.length, 1);
+      assert.equal(watches[0].request, fixture.request);
+      assert.equal(watches[0].title, fixture.title);
+      assert.equal(watches[0].category, 'news');
+      assert.deepEqual(watches[0].storyProfile.concepts.map(({ label }) => label), [
+        'Elon Musk',
+        'Tesla',
+      ]);
+      assert.deepEqual(watches[0].mediaMention, {
+        subjects: ['Elon Musk', 'Tesla'],
+        matchMode: 'all',
+      });
+      assert.equal(watches[0].monitoringSource.type, 'rss');
+      assert.equal(watches[0].monitoringSource.discovery, 'news-search');
+      assert.equal(watches[0].monitoringSource.query, fixture.query);
+      assert.equal(watches[0].monitoringSnapshot.itemIds.length, 0);
+      assert.equal(watches[0].updates.length, 0);
+      assert.match(window.location.href, /watch-detail\.html\?id=/u);
+    });
+  });
+}
+
+for (const request of [
+  'Tell me when Elon Musk or Tesla is mentioned in the media.',
+  'Tell me when Elon Musk and maybe Tesla are mentioned in the media.',
+  'Tell me when they are mentioned in the media.',
+]) {
+  test(`ambiguous media request still enters clarification: ${request}`, async () => {
+    await withBrowserForm({
+      request,
+      fetchImpl: async (path) => {
+        if (path.startsWith('/api/plan-watch')) return {
+          ok: true,
+          json: async () => ({
+            strategy: 'web_search', connector: 'web_ai', country: null, identifier: null,
+            confidence: 0.5, needsClarification: false, clarificationQuestion: null,
+          }),
+        };
+        if (path === '/api/request-clarification') return {
+          ok: true,
+          json: async () => ({
+            resultType: 'clarification_required',
+            suggestedRequest: '',
+            clarificationMessage: 'What exact monitoring condition should this Watch use?',
+          }),
+        };
+        throw new Error(`Unexpected request: ${path}`);
+      },
+    }, async ({ elements, calls, storage }) => {
+      assert.equal(elements.get('#requestClarification').hidden, false);
+      assert.equal(
+        elements.get('#clarificationMessage').textContent,
+        'What exact monitoring condition should this Watch use?',
+      );
+      assert.deepEqual(calls.map(({ path }) => path), [
+        '/api/plan-watch?scope=migrated_routes',
+        '/api/request-clarification',
+      ]);
+      assert.equal(storage.getItem('watchAssistant.watches'), null);
+    });
+  });
+}

@@ -112,6 +112,74 @@ test('leaves an already clear monitoring instruction unchanged', () => {
   assert.equal(result.suggestedRequest, request);
 });
 
+test('a resolved media mention overrides a contradictory generic clarification', () => {
+  for (const request of [
+    'Tell me when Elon Musk is mentioned in the media.',
+    'Tell me when Elon Musk and Tesla are mentioned in the media.',
+    'Dis-moi quand Elon Musk et Tesla sont mentionnés dans les médias.',
+    'Tell me when Marks and Spencer is mentioned in the media.',
+    "Tell me when Elon Musk's Tesla is mentioned in the media.",
+  ]) {
+    assert.deepEqual(validateClarification({
+      resultType: 'clarification_required',
+      suggestedRequest: '',
+      clarificationMessage: 'Should this mean both or either?',
+    }, request), {
+      type: CLARIFICATION_TYPES.CLEAR,
+      needsClarification: false,
+      hasSuggestion: false,
+      suggestedRequest: request,
+      clarificationMessage: '',
+    });
+  }
+});
+
+test('resolved simple and coordinated media mentions skip the generic clarification service', async () => {
+  const originalWindow = globalThis.window;
+  let clarificationCalls = 0;
+  globalThis.window = {
+    watchAssistantClarifyRequest: async () => {
+      clarificationCalls += 1;
+      throw new Error('The generic clarification service must not run.');
+    },
+  };
+  try {
+    for (const request of [
+      'Tell me when Elon Musk is mentioned in the media.',
+      'Tell me when Tesla is mentioned in the media.',
+      'Dis-moi quand Bernard Arnault est mentionné dans les médias.',
+      'Préviens-moi quand LVMH est mentionné dans la presse.',
+      'Tell me when Elon Musk and Tesla are mentioned in the media.',
+      'Dis-moi quand Elon Musk et Tesla sont mentionnés dans les médias.',
+    ]) {
+      const result = await clarifyWatchRequest(request);
+      assert.equal(result.type, CLARIFICATION_TYPES.CLEAR, request);
+      assert.equal(result.needsClarification, false, request);
+    }
+    assert.equal(clarificationCalls, 0);
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
+  }
+});
+
+test('unsupported alternatives, hedging, and missing subjects still allow clarification', () => {
+  for (const request of [
+    'Tell me when Elon Musk or Tesla is mentioned in the media.',
+    'Tell me when Elon Musk and maybe Tesla are mentioned in the media.',
+    'Tell me when they are mentioned in the media.',
+    'Tell me when something important about Elon Musk happens.',
+  ]) {
+    const result = validateClarification({
+      resultType: 'clarification_required',
+      suggestedRequest: '',
+      clarificationMessage: 'What exact monitoring condition should this Watch use?',
+    }, request);
+    assert.equal(result.type, CLARIFICATION_TYPES.CLARIFICATION_REQUIRED, request);
+    assert.equal(result.needsClarification, true, request);
+  }
+});
+
 test('rejects empty and unchanged suggestions', () => {
   const original = 'Notify me when the price falls below €500.';
   const result = validateClarification({

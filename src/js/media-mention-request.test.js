@@ -79,6 +79,9 @@ test('does not force ambiguous or non-mention requests through subject extractio
     'Keep me updated about artificial intelligence.',
     'Monitor technology news.',
     'Tell me when something is mentioned in the media.',
+    'Tell me when Elon Musk or Tesla is mentioned in the media.',
+    'Tell me when Elon Musk and maybe Tesla are mentioned in the media.',
+    'Tell me when they are mentioned in the media.',
   ]) {
     assert.deepEqual(parseMediaMentionRequest(request), {
       recognized: false,

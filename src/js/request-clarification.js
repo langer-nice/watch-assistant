@@ -1,3 +1,5 @@
+import { parseMediaMentionRequest } from './media-mention-request.js';
+
 const MAX_REQUEST_LENGTH = 500;
 
 export const CLARIFICATION_TYPES = Object.freeze({
@@ -154,6 +156,7 @@ const createLocalClarification = (request, { language = 'en' } = {}) => {
 
 const validateClarification = (result, original, { language = 'en' } = {}) => {
   const request = normalize(original);
+  if (parseMediaMentionRequest(request).recognized) return clearResult(request);
   const deterministicResult = createLocalClarification(request, { language });
   if (deterministicResult.type !== CLARIFICATION_TYPES.CLEAR) return deterministicResult;
 
@@ -176,6 +179,7 @@ const validateClarification = (result, original, { language = 'en' } = {}) => {
 export const clarifyWatchRequest = async (request, { language = 'en' } = {}) => {
   const original = normalize(request).slice(0, MAX_REQUEST_LENGTH);
   if (!original) return clearResult('');
+  if (parseMediaMentionRequest(original).recognized) return clearResult(original);
 
   try {
     if (typeof window.watchAssistantClarifyRequest === 'function') {
