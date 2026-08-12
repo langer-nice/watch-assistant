@@ -25,12 +25,17 @@
             <button
               class="watch-composer__microphone"
               type="button"
-              data-i18n-aria-label="newWatch.voiceUnavailable"
-              data-i18n-title="newWatch.voiceUnavailable"
+              data-voice-start
+              data-i18n-aria-label="newWatch.voiceStart"
+              data-i18n-title="newWatch.voiceStart"
+              aria-pressed="false"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
+              <svg viewBox="0 0 24 24" aria-hidden="true" data-voice-idle-icon>
                 <path d="M12 15a3 3 0 0 0 3-3V7a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z"></path>
                 <path d="M18 11.5a6 6 0 0 1-12 0M12 17.5V21M9 21h6"></path>
+              </svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true" data-voice-stop-icon hidden>
+                <rect x="7" y="7" width="10" height="10" rx="1"></rect>
               </svg>
             </button>
             <button
@@ -48,6 +53,12 @@
               data-i18n-placeholder="newWatch.placeholder"
               autofocus
             ></textarea>
+            <div class="watch-composer__voice-status" data-voice-status hidden>
+              <span class="watch-composer__listening" role="status" aria-live="polite">
+                <span class="watch-composer__listening-dot" aria-hidden="true"></span>
+                <span data-i18n="newWatch.voiceListening"></span>
+              </span>
+            </div>
             <p class="watch-composer__helper" data-i18n="newWatch.urlHelper"></p>
           </div>
 

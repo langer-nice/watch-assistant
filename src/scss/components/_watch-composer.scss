@@ -74,8 +74,28 @@
 }
 
 .watch-composer__microphone {
-  cursor: not-allowed;
+  width: 2.75rem;
+  height: 2.75rem;
+  cursor: pointer;
   transition: right var(--transition-default);
+}
+
+.watch-composer__microphone:hover,
+.watch-composer__microphone:focus-visible {
+  color: var(--color-action);
+  background: var(--color-surface-subtle);
+}
+
+.watch-composer__microphone.is-active,
+.watch-composer__microphone.is-active:hover,
+.watch-composer__microphone.is-active:focus-visible {
+  color: var(--color-text-on-dark);
+  background: var(--color-attention-strong);
+  border-color: var(--color-attention-strong);
+}
+
+.watch-composer__microphone[hidden] {
+  display: none;
 }
 
 .watch-composer.has-value .watch-composer__microphone {
@@ -101,6 +121,15 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.75;
+}
+
+.watch-composer__microphone [data-voice-stop-icon] {
+  fill: currentColor;
+  stroke: none;
+}
+
+.watch-composer__microphone svg[hidden] {
+  display: none;
 }
 
 .microphone-tooltip {
@@ -149,6 +178,36 @@
 
 .microphone-tooltip.is-below.is-visible {
   transform: translateY(0);
+}
+
+.watch-composer__voice-status {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-sm) var(--space-xs) 0;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+
+.watch-composer__voice-status[hidden] {
+  display: none;
+}
+
+.watch-composer__listening {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.watch-composer__listening-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: 0 0 auto;
+  background: var(--color-action);
+  border-radius: var(--radius-pill);
 }
 
 .watch-composer__clear:hover,
