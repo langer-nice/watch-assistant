@@ -12,6 +12,11 @@ import {
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
 import { getLanguage, t } from './i18n.js';
+import {
+  createVoiceDictationController,
+  getSpeechRecognitionConstructor,
+  renderVoiceDictationState,
+} from './voice-dictation.js';
 import { analyseUrl } from './url-analysis.js';
 import { requiresNonArticleClarification } from './page-classification.js';
 import {
@@ -2398,6 +2403,10 @@ export function initForm() {
   const input = form?.watchRequest;
   const composer = input?.closest('.watch-composer');
   const watchClear = form?.querySelector('[data-watch-clear]');
+  const voiceStart = form?.querySelector('[data-voice-start]');
+  const voiceStatus = form?.querySelector('[data-voice-status]');
+  const voiceIdleIcon = voiceStart?.querySelector('[data-voice-idle-icon]');
+  const voiceStopIcon = voiceStart?.querySelector('[data-voice-stop-icon]');
   const noteToggle = form?.querySelector('[data-note-toggle]');
   const noteClose = form?.querySelector('[data-note-close]');
   const noteRegion = document.querySelector('#watchReason');
@@ -2467,6 +2476,58 @@ export function initForm() {
     window.location.replace('watches.html');
     return;
   }
+
+  form.voiceDictationCleanup?.();
+  const Recognition = getSpeechRecognitionConstructor(window);
+  if (voiceStart && !Recognition) {
+    voiceStart.hidden = true;
+    voiceStart.setAttribute('aria-label', t('newWatch.voiceUnsupported'));
+    voiceStart.setAttribute('title', t('newWatch.voiceUnsupported'));
+  }
+  const renderVoiceState = (listening) => {
+    renderVoiceDictationState({
+      button: voiceStart,
+      status: voiceStatus,
+      idleIcon: voiceIdleIcon,
+      stopIcon: voiceStopIcon,
+      listening,
+      label: t(listening ? 'newWatch.voiceStop' : 'newWatch.voiceStart'),
+    });
+    composer?.classList.toggle('is-listening', listening);
+  };
+  const voiceDictation = Recognition && input && voiceStart
+    ? createVoiceDictationController({
+      input,
+      Recognition,
+      getLanguage,
+      onStateChange: renderVoiceState,
+      onTranscriptChange: () => input.dispatchEvent(new Event('input', { bubbles: true })),
+      onError: (key) => {
+        if (watchError) watchError.textContent = key ? t(key) : '';
+      },
+    })
+    : null;
+  const handleVoiceToggle = () => {
+    if (!voiceDictation) return;
+    if (voiceDictation.isListening()) {
+      voiceDictation.stop();
+      return;
+    }
+    if (!isEditMode) trackProductEvent(PRODUCT_EVENTS.MICROPHONE_CLICKED);
+    voiceDictation.start();
+  };
+  const destroyVoiceDictation = () => {
+    voiceDictation?.destroy();
+    voiceStart?.removeEventListener('click', handleVoiceToggle);
+    window.removeEventListener('pagehide', destroyVoiceDictation);
+    if (form.voiceDictationCleanup === destroyVoiceDictation) {
+      form.voiceDictationCleanup = null;
+    }
+  };
+  form.voiceDictationCleanup = destroyVoiceDictation;
+  voiceStart?.addEventListener('click', handleVoiceToggle);
+  window.addEventListener('pagehide', destroyVoiceDictation, { once: true });
+  if (voiceDictation) renderVoiceState(false);
 
   if (!isEditMode) {
     trackProductEventOnce(PRODUCT_EVENTS.CREATE_WATCH_PAGE_VIEWED);
@@ -2734,6 +2795,7 @@ export function initForm() {
     if (watchClear) {
       watchClear.disabled = disabled;
     }
+    if (voiceStart) voiceStart.disabled = disabled;
     if (keywordInputEl) {
       keywordInputEl.disabled = disabled;
     }
@@ -3624,6 +3686,7 @@ export function initForm() {
   };
 
   const resetUrlFlow = ({ clearInput = false, trackCancellation = false } = {}) => {
+    voiceDictation?.stop({ focus: false });
     const hadActiveCreation = analysisInProgress || pendingRequest || pendingAnalysis;
     if (trackCancellation && hadActiveCreation) {
       trackProductEvent(PRODUCT_EVENTS.WATCH_CREATION_CANCELLED, {
@@ -4093,6 +4156,7 @@ export function initForm() {
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    voiceDictation?.stop({ focus: false });
 
     if (isModalEditMode && !hasUnsavedEditChanges()) {
       return;
@@ -4495,7 +4559,7 @@ export function initForm() {
     }, 2500);
   };
 
-  form.querySelectorAll('.watch-composer__microphone, .watch-reason__microphone')
+  form.querySelectorAll('.watch-reason__microphone')
     .forEach((microphone) => {
       microphone.addEventListener('click', () => {
         if (!isEditMode) trackProductEvent(PRODUCT_EVENTS.MICROPHONE_CLICKED);
@@ -4579,6 +4643,7 @@ export function initForm() {
   }
 
   document.addEventListener('i18n:languageChanged', () => {
+    renderVoiceState(Boolean(voiceDictation?.isListening()));
     updateNoteCloseLabel();
     resizeInput({ immediate: true });
     resizeNote({ immediate: true });
