@@ -136,7 +136,7 @@ test('All Watches renders at most one canonical Home-style update separator per 
   ]);
   const listRenderer = navigation.match(/const renderWatchList = \(\) => \{[\s\S]*?const renderWatchDetail/)?.[0] || '';
 
-  assert.match(listRenderer, /getUpdatedSeparatorWatchId\(\s*orderedGroups,\s*canonicalGroups\.updatedWatches/);
+  assert.match(listRenderer, /getUpdatedSeparatorWatchId\(\s*orderedGroups,\s*displayWatches\.filter/);
   assert.match(listRenderer, /watch\.id === orderedSeparatorAfterWatchId/);
   assert.equal((listRenderer.match(/watch-list__update-separator/g) || []).length, 1);
   assert.match(listRenderer, /list\.innerHTML = orderedGroups/);

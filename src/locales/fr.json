@@ -100,6 +100,13 @@
     "briefLabel": "Brief de l’après-midi",
     "updatedAt": "Mis à jour",
     "briefingTimeUnavailable": "Heure du briefing indisponible",
+    "generateReport": "Générer le rapport",
+    "generatingReport": "Génération du rapport…",
+    "reportGenerating": "Génération de votre rapport…",
+    "reportReady": "Rapport prêt",
+    "reportGenerationError": "Nous n’avons pas pu générer votre rapport. Veuillez réessayer.",
+    "reportTryAgain": "Réessayer",
+    "reportClose": "Fermer",
     "viewIntroduction": "Voir l'introduction",
     "today": "Aujourd’hui",
     "watchesChecked": "Watches vérifiées",
@@ -109,8 +116,8 @@
       "evening": "Bonsoir David."
     },
     "checkedAway": {
-      "one": "J’ai effectué {count} vérification de vos Watches pendant votre absence.",
-      "other": "J’ai effectué {count} vérifications de vos Watches pendant votre absence."
+      "one": "{count} vérification de Watch terminée dans ce rapport.",
+      "other": "{count} vérifications de Watches terminées dans ce rapport."
     },
     "attentionLabel": {
       "one": "demande votre attention",
@@ -139,7 +146,7 @@
     "sortMostRecent": "Plus récentes",
     "sortOldestFirst": "Plus anciennes",
     "dashboardUpToDate": "✓ Tout est à jour.",
-    "dashboardNoNewUpdates": "Aucune nouvelle mise à jour depuis votre dernière visite.",
+    "dashboardNoNewUpdates": "Ce rapport n’a détecté aucun changement.",
     "viewAllWatches": "Voir toutes les Watches",
     "needsAttention": "nécessite votre attention",
     "updatedCount": "mises à jour",

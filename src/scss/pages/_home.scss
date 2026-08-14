@@ -208,6 +208,213 @@
   width: 100%;
 }
 
+.briefing-summary__masthead-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+.briefing-summary__generate {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 2.75rem;
+  padding: 0;
+  place-items: center;
+  color: var(--color-text-muted);
+  background: var(--color-transparent);
+  border: 1px solid var(--color-transparent);
+  border-radius: var(--radius-pill);
+  box-shadow: none;
+  cursor: pointer;
+  transition:
+    color var(--transition-default),
+    background-color var(--transition-default),
+    border-color var(--transition-default);
+}
+
+.briefing-summary__generate:hover,
+.briefing-summary__generate:focus-visible {
+  color: var(--color-text);
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.briefing-summary__generate:active {
+  color: var(--color-action-on-tint);
+  background: var(--color-action-tint);
+  border-color: var(--color-action);
+}
+
+.briefing-summary__generate svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+}
+
+.briefing-summary__generate:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.briefing-summary__generate[aria-busy='true'] svg {
+  animation: home-report-refresh-spin 800ms linear infinite;
+}
+
+@keyframes home-report-refresh-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (max-width: 32rem) {
+  .briefing-summary__masthead {
+    align-items: flex-start;
+  }
+
+  .briefing-summary__masthead-meta {
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+  }
+
+}
+
+.home-report-progress {
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: var(--space-xl);
+  color: var(--color-text-on-dark);
+  background: color-mix(in srgb, #111827 86%, var(--color-transparent));
+  border: 0;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.home-report-progress[open] {
+  display: grid;
+  place-items: center;
+}
+
+.home-report-progress::backdrop {
+  background: var(--color-transparent);
+}
+
+.home-report-progress.is-closing {
+  opacity: 0;
+}
+
+.home-report-progress__content {
+  display: grid;
+  width: min(100%, 28rem);
+  justify-items: center;
+  gap: var(--space-md);
+  text-align: center;
+}
+
+.home-report-progress__content:focus {
+  outline: none;
+}
+
+.home-report-progress__spinner,
+.home-report-progress__result-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.home-report-progress__spinner {
+  border: 3px solid color-mix(in srgb, var(--color-text-on-dark) 35%, var(--color-transparent));
+  border-top-color: var(--color-text-on-dark);
+  border-radius: var(--radius-pill);
+  animation: home-report-refresh-spin 800ms linear infinite;
+}
+
+.home-report-progress__result-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+}
+
+.home-report-progress__result-icon--success {
+  color: var(--color-status-success);
+}
+
+.home-report-progress__result-icon--error {
+  color: var(--color-attention);
+}
+
+.home-report-progress__result-icon[hidden],
+.home-report-progress__actions[hidden] {
+  display: none;
+}
+
+.home-report-progress__message {
+  margin: 0;
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.25;
+}
+
+.home-report-progress__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.home-report-progress__actions .button {
+  min-width: 7rem;
+  box-shadow: none;
+}
+
+html.is-home-report-progress-open {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+body.is-home-report-progress-open {
+  position: fixed;
+  top: var(--home-report-scroll-offset, 0);
+  right: 0;
+  left: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+@media (max-width: 24rem) {
+  .home-report-progress {
+    padding: var(--space-lg);
+  }
+
+  .home-report-progress__actions {
+    width: 100%;
+  }
+
+  .home-report-progress__actions .button {
+    flex: 1 1 8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-report-progress {
+    transition: none;
+  }
+
+  .home-report-progress__spinner {
+    animation: none;
+  }
+}
+
 .home-watch-sort {
   display: flex;
   align-items: center;

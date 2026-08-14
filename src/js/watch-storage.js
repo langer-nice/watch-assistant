@@ -1,6 +1,7 @@
 import { mockWatches } from './data/mock-watches.js';
 import { normalizeWatchCreationDate } from './watch-dates.js';
 import { migrateWatchModel } from './watch-model.js';
+import { hasMeaningfulWatchUpdate } from './report-status.js';
 import {
   markUpdateAsRead as markStoredUpdateAsRead,
   markUpdatesAsRead as markStoredUpdatesAsRead,
@@ -8,11 +9,11 @@ import {
 
 const STORAGE_KEY = 'watchAssistant.watches';
 const DELETED_WATCHES_STORAGE_KEY = 'watchAssistant.deletedWatchIds';
-const BRIEFING_GENERATED_AT_KEY = 'watchAssistant.briefingGeneratedAt';
 const DEMO_DATA_VERSION_KEY = 'watchAssistant.demoDataVersion';
-const DEMO_DATA_VERSION = 'home-report-v1';
 const HTML_ENTITY_MIGRATION_KEY = 'watchAssistant.htmlEntityDecodeVersion';
 const HTML_ENTITY_MIGRATION_VERSION = '1';
+const REPORT_STATUS_MIGRATION_KEY = 'watchAssistant.reportStatusMigrationVersion';
+const REPORT_STATUS_MIGRATION_VERSION = '2';
 const creationDateWarnings = new Set();
 export const WATCH_STORAGE_CHANGED_EVENT = 'watchassistant:watcheschanged';
 
@@ -90,6 +91,40 @@ const migrateStoredWatchTitles = (watches) => {
   return migratedWatches;
 };
 
+const migrateLegacyReportStatuses = (watches) => {
+  try {
+    if (localStorage.getItem(REPORT_STATUS_MIGRATION_KEY) === REPORT_STATUS_MIGRATION_VERSION) {
+      return watches;
+    }
+  } catch {
+    // Continue with an in-memory migration when storage cannot be updated.
+  }
+
+  let changed = false;
+  const migrated = watches.map((watch) => {
+    const hasMeaningfulUpdate = hasMeaningfulWatchUpdate(watch);
+    const canRepairDisplayStatus = !['paused', 'completed', 'attention'].includes(watch.status)
+      && watch.actionRequired !== true;
+    const status = hasMeaningfulUpdate && canRepairDisplayStatus
+      ? 'updated'
+      : ['new', 'updated'].includes(watch.status) ? 'watching' : watch.status;
+    const currentStatus = hasMeaningfulUpdate && canRepairDisplayStatus
+      ? 'updated'
+      : ['new', 'updated'].includes(watch.currentStatus) ? status || 'watching' : watch.currentStatus;
+    if (status === watch.status && currentStatus === watch.currentStatus) return watch;
+    changed = true;
+    return { ...watch, status, currentStatus };
+  });
+
+  try {
+    if (changed) saveWatches(migrated);
+    localStorage.setItem(REPORT_STATUS_MIGRATION_KEY, REPORT_STATUS_MIGRATION_VERSION);
+  } catch {
+    // The idempotent in-memory migration remains safe for this session.
+  }
+  return migrated;
+};
+
 const getDeletedWatchIds = () => {
   try {
     const value = JSON.parse(localStorage.getItem(DELETED_WATCHES_STORAGE_KEY) || '[]');
@@ -103,26 +138,6 @@ const saveDeletedWatchIds = (watchIds) => {
   localStorage.setItem(DELETED_WATCHES_STORAGE_KEY, JSON.stringify(watchIds));
 };
 
-export function getBriefingGeneratedAt() {
-  try {
-    const value = localStorage.getItem(BRIEFING_GENERATED_AT_KEY);
-    return value && !Number.isNaN(Date.parse(value)) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-export function setBriefingGeneratedAt(date = new Date()) {
-  const timestamp = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(timestamp.getTime())) {
-    throw new TypeError('briefingGeneratedAt must be a valid date');
-  }
-
-  const value = timestamp.toISOString();
-  localStorage.setItem(BRIEFING_GENERATED_AT_KEY, value);
-  return value;
-}
-
 export function getStoredWatches() {
   try {
     const json = localStorage.getItem(STORAGE_KEY);
@@ -132,7 +147,10 @@ export function getStoredWatches() {
     const watches = JSON.parse(json);
     return Array.isArray(watches)
       ? normalizeWatchModels(
-        normalizeWatchCreationDates(migrateStoredWatchTitles(watches), { persist: true }),
+        normalizeWatchCreationDates(
+          migrateLegacyReportStatuses(migrateStoredWatchTitles(watches)),
+          { persist: true },
+        ),
         { persist: true },
       )
       : [];
@@ -146,47 +164,24 @@ function saveWatches(watches) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(watches));
 }
 
-const ensureCurrentDemoData = () => {
-  try {
-    if (localStorage.getItem(DEMO_DATA_VERSION_KEY) === DEMO_DATA_VERSION) return;
-
-    const demoIds = new Set(mockWatches.map((watch) => watch.id));
-    const customWatches = getStoredWatches().filter((watch) => !demoIds.has(watch.id));
-    const customDeletedIds = getDeletedWatchIds().filter((id) => !demoIds.has(id));
-    saveWatches(customWatches);
-    saveDeletedWatchIds(customDeletedIds);
-    localStorage.setItem(DEMO_DATA_VERSION_KEY, DEMO_DATA_VERSION);
-  } catch {
-    // Canonical in-memory demo data remains available when storage is unavailable.
-  }
-};
-
 export function resetStoredWatches() {
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(DELETED_WATCHES_STORAGE_KEY);
   localStorage.removeItem(DEMO_DATA_VERSION_KEY);
   localStorage.removeItem(HTML_ENTITY_MIGRATION_KEY);
+  localStorage.removeItem(REPORT_STATUS_MIGRATION_KEY);
   notifyWatchStorageChanged();
 }
 
 export function getWatches() {
-  ensureCurrentDemoData();
   const stored = getStoredWatches();
   const deletedIds = new Set(getDeletedWatchIds());
-  const mockIds = new Set(mockWatches.map((watch) => watch.id));
-  const storedById = new Map(stored.map((watch) => [watch.id, watch]));
-  const seededWatches = mockWatches
-    .filter((watch) => !deletedIds.has(watch.id))
-    .map((watch) => storedById.get(watch.id) || watch);
-  const customWatches = stored.filter(
-    (watch) => !mockIds.has(watch.id) && !deletedIds.has(watch.id),
-  );
-  return normalizeWatchModels(normalizeWatchCreationDates([...seededWatches, ...customWatches]));
+  const demoIds = new Set(mockWatches.map((watch) => watch.id));
+  return stored.filter((watch) => !deletedIds.has(watch.id) && !demoIds.has(watch.id));
 }
 
 export function getDemoWatches() {
-  const demoIds = new Set(mockWatches.map((watch) => watch.id));
-  return getWatches().filter((watch) => demoIds.has(watch.id));
+  return normalizeWatchModels(normalizeWatchCreationDates(mockWatches));
 }
 
 export function getUserCreatedWatches() {

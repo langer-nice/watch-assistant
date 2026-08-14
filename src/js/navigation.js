@@ -5,12 +5,23 @@ import {
   updateWatch,
   deleteWatch,
   getWatchById,
-  getBriefingGeneratedAt,
-  setBriefingGeneratedAt,
   resetStoredWatches,
-  markUpdatesAsRead,
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
+import {
+  getLatestReport,
+  getReports,
+  REPORTS_CHANGED_EVENT,
+} from './report-storage.js';
+import {
+  getCanonicalStatusMap,
+  getCanonicalWatchClassification,
+  WATCH_CLASSIFICATIONS,
+} from './report-status.js';
+import {
+  generateReport,
+  isReportGenerationInProgress,
+} from './report-service.js';
 import { getLanguage, t } from './i18n.js';
 import {
   createVoiceDictationController,
@@ -27,8 +38,6 @@ import {
   getClarificationActions,
 } from './request-clarification.js';
 import {
-  getBriefingWatchGroups,
-  getHomeInboxSelection,
   getUpdatedSeparatorWatchId,
   groupWatches,
   isUserActionRequired,
@@ -173,8 +182,12 @@ let firstMonitoringTimer = null;
 let firstMonitoringTransitionTimer = null;
 let editSheetCloseTimer = null;
 let editSheetBackgroundScrollY = 0;
+let homeReportProgressState = 'closed';
+let homeReportProgressScrollY = 0;
 
 const FIRST_MONITORING_DELAY = 3200;
+const HOME_REPORT_READY_DURATION_MS = 700;
+const HOME_REPORT_FADE_DURATION_MS = 180;
 const watchCheckController = createWatchCheckController({
   getWatch: getWatchById,
   saveWatch: updateWatch,
@@ -912,28 +925,48 @@ export const createWatchObject = (request, whyFollowing = '', urlAnalysis = null
 };
 
 const getHomeReport = () => {
-  const isDisplayableWatch = (watch) => (
-    hasMeaningfulText(getWatchDisplayTitle(watch))
-  );
-  const watches = getWatches().filter((watch) => (
-    watch.status !== 'completed' && isDisplayableWatch(watch)
-  ));
-  const briefing = getHomeInboxSelection(watches, {
-    getMeaningfulUpdate: getHomeUpdateText,
-    isDisplayableWatch,
-  });
-  const attentionWatches = briefing.attentionWatches;
-  const updatedWatches = briefing.updatedWatches;
-  const quietWatches = briefing.quietWatches;
+  const report = getLatestReport();
+  if (!report) {
+    return {
+      report: null,
+      watches: [],
+      statusById: new Map(),
+      attentionWatches: [],
+      updatedWatches: [],
+      newlyCreatedWatches: [],
+      quietWatches: [],
+      totalChecked: 0,
+    };
+  }
+  const snapshots = report.entries.map((entry) => ({
+    id: entry.watchId,
+    title: entry.title,
+    category: entry.category,
+    reportUpdateTitle: entry.updateTitle,
+    reportSummary: entry.summary,
+    reportCheckedAt: entry.checkedAt,
+    reportFailureCode: entry.failureCode,
+  }));
+  const byId = new Map(snapshots.map((watch) => [watch.id, watch]));
+  const select = (classification) => report.entries
+    .filter((entry) => entry.classification === classification)
+    .map((entry) => byId.get(entry.watchId));
+  const attentionWatches = select(WATCH_CLASSIFICATIONS.ATTENTION);
+  const newWatches = select(WATCH_CLASSIFICATIONS.NEW);
+  const updatedWatches = select(WATCH_CLASSIFICATIONS.UPDATED);
+  const quietWatches = select(WATCH_CLASSIFICATIONS.WATCHING);
 
   return {
-    watches: briefing.watches,
-    statusById: briefing.statusById,
+    report,
+    watches: [...attentionWatches, ...newWatches, ...updatedWatches],
+    statusById: new Map(report.entries.map(({ watchId, classification }) => (
+      [watchId, classification]
+    ))),
     attentionWatches,
     updatedWatches,
-    newlyCreatedWatches: briefing.newlyCreatedWatches,
+    newlyCreatedWatches: newWatches,
     quietWatches,
-    totalChecked: briefing.totalChecked,
+    totalChecked: report.counts.completed,
   };
 };
 
@@ -1021,10 +1054,16 @@ const renderHomeWatchCards = (watches, statusById) => {
 
     const homeStatus = statusById.get(watch.id);
     if (!homeStatus) return '';
-    const latestChangeAt = homeStatus === 'new'
-      ? formatHomeWatchTimestamp(watch.createdAt)
+    const latestChangeAt = watch.reportCheckedAt
+      ? formatHomeWatchTimestamp(watch.reportCheckedAt)
       : getHomeWatchTimestampText(watch, latestUpdate);
-    const supportingText = latestUpdate
+    const reportContent = [watch.reportUpdateTitle, watch.reportSummary]
+      .filter(hasMeaningfulText).join(' — ');
+    const supportingText = hasMeaningfulText(reportContent)
+      ? reportContent
+      : watch.reportFailureCode
+        ? t(getMonitoringFailureMessageKey(watch.reportFailureCode))
+      : latestUpdate
       ? getBodaccBusinessEventLabel(latestUpdate, t)
         || latestUpdate.sourceTitle
         || latestUpdate.summary
@@ -1092,41 +1131,50 @@ const renderWatchList = () => {
     return;
   }
 
-  const groups = groupWatches(watches, {
-    getMeaningfulUpdate: getHomeUpdateText,
+  const reports = getReports();
+  const canonicalStatusById = getCanonicalStatusMap(watches, reports);
+  const displayWatches = watches.map((watch) => {
+    const classification = canonicalStatusById.get(watch.id);
+    return {
+      ...watch,
+      actionRequired: classification === WATCH_CLASSIFICATIONS.ATTENTION,
+      requiresAttention: classification === WATCH_CLASSIFICATIONS.ATTENTION,
+      status: ['paused', 'completed'].includes(watch.status)
+        ? watch.status
+        : classification === WATCH_CLASSIFICATIONS.ATTENTION ? 'attention' : 'watching',
+    };
+  });
+  const groups = groupWatches(displayWatches, {
+    getMeaningfulUpdate: (watch) => canonicalStatusById.get(watch.id) === WATCH_CLASSIFICATIONS.UPDATED
+      ? 'report-result'
+      : '',
     isDisplayableWatch: (watch) => hasMeaningfulText(getWatchDisplayTitle(watch)),
     language: getLanguage(),
   });
-  const canonicalGroups = getBriefingWatchGroups(watches, {
-    getMeaningfulUpdate: getHomeUpdateText,
-    isDisplayableWatch: (watch) => hasMeaningfulText(getWatchDisplayTitle(watch)),
-  });
-  const homeSelection = getHomeInboxSelection(watches, {
-    getMeaningfulUpdate: getHomeUpdateText,
-    isDisplayableWatch: (watch) => hasMeaningfulText(getWatchDisplayTitle(watch)),
-  });
-  const attentionIds = new Set(canonicalGroups.attentionWatches.map(({ id }) => id));
-  const updatedIds = new Set(canonicalGroups.updatedWatches.map(({ id }) => id));
-  const newIds = new Set(homeSelection.newlyCreatedWatches.map(({ id }) => id));
-  const statusById = new Map([
-    ...canonicalGroups.attentionWatches.map((watch) => [watch.id, 'attention']),
-    ...canonicalGroups.updatedWatches.map((watch) => [watch.id, 'updated']),
-    ...homeSelection.newlyCreatedWatches.map((watch) => [watch.id, 'new']),
-  ]);
+  const attentionIds = new Set(watches.filter((watch) => (
+    canonicalStatusById.get(watch.id) === WATCH_CLASSIFICATIONS.ATTENTION
+  )).map(({ id }) => id));
+  const updatedIds = new Set(watches.filter((watch) => (
+    canonicalStatusById.get(watch.id) === WATCH_CLASSIFICATIONS.UPDATED
+  )).map(({ id }) => id));
+  const newIds = new Set(watches.filter((watch) => (
+    canonicalStatusById.get(watch.id) === WATCH_CLASSIFICATIONS.NEW
+  )).map(({ id }) => id));
+  const statusById = canonicalStatusById;
   const mode = getHomeSortPreference();
   const orderedWatches = sortHomeWatches(watches, {
     mode,
     getStatus: (watch) => statusById.get(watch.id) || 'unchanged',
   });
   const orderedGroups = orderAllWatchGroups(groups, {
-    attentionWatches: canonicalGroups.attentionWatches,
-    updatedWatches: canonicalGroups.updatedWatches,
+    attentionWatches: displayWatches.filter(({ id }) => attentionIds.has(id)),
+    updatedWatches: displayWatches.filter(({ id }) => updatedIds.has(id)),
     orderedWatches,
     mode,
   });
   const orderedSeparatorAfterWatchId = getUpdatedSeparatorWatchId(
     orderedGroups,
-    canonicalGroups.updatedWatches,
+    displayWatches.filter(({ id }) => updatedIds.has(id)),
   );
   if (sortControl) sortControl.value = mode;
   if (sortRow) sortRow.hidden = false;
@@ -1231,6 +1279,7 @@ const renderWatchDetail = () => {
   detailPageEl?.classList.toggle('is-paused', watch?.status === 'paused');
 
   const categoryEl = document.querySelector('#watchCategory');
+  const canonicalStatusEl = document.querySelector('#watchCanonicalStatus');
   const pausedStateEl = document.querySelector('#watchPausedState');
   const pausedResumeEl = document.querySelector('#watchPausedResume');
   const notFoundEl = document.querySelector('#watchNotFound');
@@ -1376,6 +1425,16 @@ const renderWatchDetail = () => {
     categoryEl.textContent = category || '';
     categoryEl.hidden = !category;
     categoryEl.className = `category-pill${watch.category === 'travel' ? ' category-pill--travel' : ''}`;
+  }
+
+  if (canonicalStatusEl) {
+    const classification = getCanonicalWatchClassification(watch, { reports: getReports() });
+    const presentation = getSummaryCardStatus(classification);
+    canonicalStatusEl.textContent = presentation?.label || t('statuses.watching');
+    canonicalStatusEl.className = presentation
+      ? `status-label status-label--${presentation.modifier}`
+      : 'status-label';
+    canonicalStatusEl.hidden = false;
   }
 
   if (pausedStateEl) {
@@ -1795,23 +1854,9 @@ const renderWatchDetail = () => {
   if (monitoringUpdatesEl) {
     monitoringUpdatesEl.hidden = monitoringUpdates.length === 0;
   }
-  if (
-    monitoringUpdatesEl
-    && monitoringUpdatesListEl
-    && !monitoringUpdatesEl.hidden
-    && displayedUnreadUpdateIds.length
-    && !detailCheckInProgress
-  ) {
-    const readableUpdateIds = displayedUnreadUpdateIds.filter(
-      (updateId) => !detailDeferredReadUpdateIds.has(getDeferredReadKey(watch.id, updateId)),
-    );
-    if (readableUpdateIds.length) {
-      queueMicrotask(() => markUpdatesAsRead(watch.id, readableUpdateIds));
-    }
-    displayedUnreadUpdateIds.forEach((updateId) => (
-      detailDeferredReadUpdateIds.delete(getDeferredReadKey(watch.id, updateId))
-    ));
-  }
+  displayedUnreadUpdateIds.forEach((updateId) => (
+    detailDeferredReadUpdateIds.delete(getDeferredReadKey(watch.id, updateId))
+  ));
 
   if (preparingEl) {
     preparingEl.hidden = !isPreparing;
@@ -1858,7 +1903,6 @@ const renderWatchDetail = () => {
           detailDeferredReadUpdateIds.add(getDeferredReadKey(watch.id, id))
         ));
         detailCheckErrorWatchId = null;
-        setBriefingGeneratedAt(result.changes.lastChecked);
       } catch (error) {
         detailCheckErrorWatchId = watch.id;
         if (import.meta.env.DEV) {
@@ -2103,7 +2147,149 @@ const renderDevTools = () => {
   shell.append(control);
 };
 
+const waitForHomeReportProgress = (duration) => new Promise((resolve) => {
+  window.setTimeout(resolve, duration);
+});
+
+const getHomeReportProgressElements = () => ({
+  dialog: document.querySelector('#homeReportProgress'),
+  focusTarget: document.querySelector('#homeReportProgressFocus'),
+  spinner: document.querySelector('#homeReportProgressSpinner'),
+  successIcon: document.querySelector('#homeReportProgressSuccess'),
+  errorIcon: document.querySelector('#homeReportProgressError'),
+  message: document.querySelector('#homeReportProgressMessage'),
+  actions: document.querySelector('#homeReportProgressActions'),
+  retryButton: document.querySelector('#homeReportProgressRetry'),
+  closeButton: document.querySelector('#homeReportProgressClose'),
+  shell: document.querySelector('.app-shell'),
+});
+
+const setHomeReportProgressState = (state) => {
+  const {
+    dialog,
+    spinner,
+    successIcon,
+    errorIcon,
+    message,
+    actions,
+    retryButton,
+    shell,
+  } = getHomeReportProgressElements();
+  if (!dialog) return;
+
+  homeReportProgressState = state;
+  dialog.dataset.state = state;
+  spinner?.toggleAttribute('hidden', state !== 'loading');
+  successIcon?.toggleAttribute('hidden', state !== 'success');
+  errorIcon?.toggleAttribute('hidden', state !== 'error');
+  actions?.toggleAttribute('hidden', state !== 'error');
+  if (retryButton) retryButton.disabled = state !== 'error';
+  if (message) {
+    const messageKey = state === 'success'
+      ? 'home.reportReady'
+      : state === 'error' ? 'home.reportGenerationError' : 'home.reportGenerating';
+    message.textContent = t(messageKey);
+  }
+  if (state === 'loading') {
+    shell?.setAttribute('aria-busy', 'true');
+  } else {
+    shell?.removeAttribute('aria-busy');
+  }
+};
+
+const openHomeReportProgress = () => {
+  const { dialog, focusTarget } = getHomeReportProgressElements();
+  if (!dialog) return false;
+
+  dialog.classList.remove('is-closing');
+  if (!dialog.open) {
+    homeReportProgressScrollY = window.scrollY;
+    document.body.style.setProperty('--home-report-scroll-offset', `-${homeReportProgressScrollY}px`);
+    document.documentElement.classList.add('is-home-report-progress-open');
+    document.body.classList.add('is-home-report-progress-open');
+    dialog.showModal();
+  }
+  setHomeReportProgressState('loading');
+  window.requestAnimationFrame(() => focusTarget?.focus({ preventScroll: true }));
+  return true;
+};
+
+const closeHomeReportProgress = async () => {
+  const { dialog, shell } = getHomeReportProgressElements();
+  if (!dialog?.open) return;
+
+  homeReportProgressState = 'closing';
+  dialog.classList.add('is-closing');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  await waitForHomeReportProgress(reducedMotion ? 0 : HOME_REPORT_FADE_DURATION_MS);
+  dialog.close();
+  dialog.classList.remove('is-closing');
+  document.documentElement.classList.remove('is-home-report-progress-open');
+  document.body.classList.remove('is-home-report-progress-open');
+  document.body.style.removeProperty('--home-report-scroll-offset');
+  shell?.removeAttribute('aria-busy');
+  window.scrollTo(0, homeReportProgressScrollY);
+  homeReportProgressState = 'closed';
+  document.querySelector('#homeGenerateReport')?.focus({ preventScroll: true });
+};
+
+const runHomeReportGeneration = async () => {
+  if (isReportGenerationInProgress() || homeReportProgressState === 'loading'
+    || homeReportProgressState === 'success' || homeReportProgressState === 'closing') return;
+
+  if (!openHomeReportProgress()) return;
+  const generateReportButton = document.querySelector('#homeGenerateReport');
+  if (generateReportButton) {
+    generateReportButton.disabled = true;
+    generateReportButton.setAttribute('aria-label', t('home.generatingReport'));
+    generateReportButton.setAttribute('title', t('home.generatingReport'));
+    generateReportButton.setAttribute('aria-busy', 'true');
+  }
+
+  try {
+    await waitForVisiblePaint({ minimumDuration: 0 });
+    await generateReport({
+      watches: getUserCreatedWatches(),
+      checkController: watchCheckController,
+      getWatch: getWatchById,
+      saveWatch: updateWatch,
+    });
+    renderHomeSummary();
+    renderHomeBriefing();
+    renderWatchList();
+    renderWatchDetail();
+    setHomeReportProgressState('success');
+    await waitForHomeReportProgress(HOME_REPORT_READY_DURATION_MS);
+    await closeHomeReportProgress();
+  } catch (error) {
+    console.error('Report generation failed', error);
+    renderHomeSummary();
+    renderHomeBriefing();
+    renderWatchList();
+    renderWatchDetail();
+    setHomeReportProgressState('error');
+    const { retryButton } = getHomeReportProgressElements();
+    window.requestAnimationFrame(() => retryButton?.focus({ preventScroll: true }));
+  }
+};
+
+const initializeHomeReportProgress = () => {
+  const { dialog, retryButton, closeButton } = getHomeReportProgressElements();
+  if (!dialog || dialog.dataset.initialized === 'true') return;
+
+  dialog.dataset.initialized = 'true';
+  retryButton?.addEventListener('click', runHomeReportGeneration);
+  closeButton?.addEventListener('click', () => {
+    if (homeReportProgressState === 'error') void closeHomeReportProgress();
+  });
+  dialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    if (homeReportProgressState === 'error') void closeHomeReportProgress();
+  });
+};
+
 const renderHomeSummary = () => {
+  initializeHomeReportProgress();
   const confirmationBanner = document.querySelector('#homeConfirmation');
   const confirmationBadge = document.querySelector('#homeConfirmationBadge');
   const confirmationCopy = document.querySelector('#homeConfirmationCopy');
@@ -2127,6 +2313,7 @@ const renderHomeSummary = () => {
   const newSummary = document.querySelector('#homeNewSummary');
   const newCount = document.querySelector('#homeNewCount');
   const newLabel = document.querySelector('#homeNewLabel');
+  const generateReportButton = document.querySelector('#homeGenerateReport');
 
   if (!confirmationBanner && !briefingDate) {
     return;
@@ -2134,17 +2321,28 @@ const renderHomeSummary = () => {
 
   const homeReport = getHomeReport();
   const hasUserCreatedWatches = getUserCreatedWatches().length > 0;
+  const hasReport = Boolean(homeReport.report);
   const hasHomeItems = homeReport.watches.length > 0;
   const hasQuietItems = homeReport.quietWatches.length > 0;
-  if (briefingReport) briefingReport.hidden = !hasUserCreatedWatches || !hasHomeItems;
+  if (briefingReport) briefingReport.hidden = !hasUserCreatedWatches && !hasReport;
   if (briefingFeed) {
-    briefingFeed.hidden = !hasUserCreatedWatches || (!hasHomeItems && !hasQuietItems);
+    briefingFeed.hidden = !hasReport || (!hasHomeItems && !hasQuietItems);
   }
-  if (emptyState) emptyState.hidden = hasUserCreatedWatches;
+  if (emptyState) emptyState.hidden = hasUserCreatedWatches || hasReport;
   if (caughtUpState) {
-    caughtUpState.hidden = !hasUserCreatedWatches || hasHomeItems || hasQuietItems;
+    caughtUpState.hidden = !hasReport || hasHomeItems || hasQuietItems;
   }
-  if (allQuiet) allQuiet.hidden = !hasUserCreatedWatches || !hasQuietItems;
+  if (allQuiet) allQuiet.hidden = !hasReport || !hasQuietItems;
+
+  if (generateReportButton) {
+    const generating = isReportGenerationInProgress();
+    const generateLabel = t(generating ? 'home.generatingReport' : 'home.generateReport');
+    generateReportButton.disabled = generating || !hasUserCreatedWatches;
+    generateReportButton.setAttribute('aria-label', generateLabel);
+    generateReportButton.setAttribute('title', generateLabel);
+    generateReportButton.toggleAttribute('aria-busy', generating);
+    generateReportButton.onclick = runHomeReportGeneration;
+  }
 
   if (!homeFirstWatchConfirmationChecked) {
     const firstWatchId = consumeFirstWatchConfirmation();
@@ -2157,7 +2355,7 @@ const renderHomeSummary = () => {
 
   if (briefingDate) {
     const locale = getLanguage() === 'fr' ? 'fr-FR' : 'en-GB';
-    const storedTimestamp = getBriefingGeneratedAt();
+    const storedTimestamp = homeReport.report?.completedAt || null;
     const generatedAt = storedTimestamp ? new Date(storedTimestamp) : null;
     const dateParts = generatedAt
       ? new Intl.DateTimeFormat(locale, {
@@ -2342,17 +2540,6 @@ const renderHomeSummary = () => {
       confirmationBanner.hidden = true;
     }
   }
-};
-
-/**
- * Prototype hook for a completed global watch check.
- * Run refreshBriefing() in the browser console to persist a new briefing time.
- */
-export const refreshBriefing = () => {
-  const generatedAt = setBriefingGeneratedAt();
-  renderHomeSummary();
-  renderHomeBriefing();
-  return generatedAt;
 };
 
 export function initForm() {
@@ -4720,9 +4907,6 @@ export const initApp = () => {
   initForm();
   renderDevTools();
 
-  // Exposed for prototype testing; normal page loads never update the timestamp.
-  window.refreshBriefing = refreshBriefing;
-
   window.addEventListener('storage', () => {
     renderHomeSummary();
     renderHomeBriefing();
@@ -4731,6 +4915,13 @@ export const initApp = () => {
   });
 
   window.addEventListener(WATCH_STORAGE_CHANGED_EVENT, () => {
+    renderHomeSummary();
+    renderHomeBriefing();
+    renderWatchList();
+    renderWatchDetail();
+  });
+
+  window.addEventListener(REPORTS_CHANGED_EVENT, () => {
     renderHomeSummary();
     renderHomeBriefing();
     renderWatchList();
