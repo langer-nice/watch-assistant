@@ -79,6 +79,20 @@ export const normalizeUpdate = (update, { fallbackTimestamp = null } = {}) => {
   const generatedIdentity = [timestamp, sourceUrl, sourceTitle, summary]
     .map((value) => value || '').join('\u0000');
   const id = normalizeText(update.id) || `update-${hashText(generatedIdentity)}`;
+  const provenance = update.monitoringProvenance;
+  const monitoringProvenance = provenance
+    && typeof provenance.reportId === 'string'
+    && typeof provenance.watchId === 'string'
+    && typeof provenance.resultId === 'string'
+    && provenance.resultId === id
+    ? {
+      reportId: provenance.reportId,
+      watchId: provenance.watchId,
+      resultId: provenance.resultId,
+      detectedAt: normalizeTimestamp(provenance.detectedAt || timestamp),
+      reportedAt: normalizeTimestamp(provenance.reportedAt),
+    }
+    : null;
 
   return {
     id,
@@ -89,6 +103,7 @@ export const normalizeUpdate = (update, { fallbackTimestamp = null } = {}) => {
     sourceDomain,
     summary,
     status,
+    ...(monitoringProvenance ? { monitoringProvenance } : {}),
     ...('rawMonitoringResult' in update && update.rawMonitoringResult != null
       ? { rawMonitoringResult: update.rawMonitoringResult }
       : {}),

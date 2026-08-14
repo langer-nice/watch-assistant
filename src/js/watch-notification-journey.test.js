@@ -15,21 +15,19 @@ test('Home and All Watches derive Updated presentation from persisted Updates', 
   assert.match(listRenderer, /newIds\.has\(watch\.id\)[\s\S]*?\? 'new'/);
 });
 
-test('Detail renders persisted history before marking only displayed unread Updates read', async () => {
+test('Detail renders persisted history without silently acknowledging Updates', async () => {
   const source = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
   const detailRenderer = source.match(/const renderWatchDetail =[\s\S]*?const scheduleFirstMonitoringPass/)?.[0]
     || source.match(/const renderWatchDetail =[\s\S]*?const resolveInitialHomeRoute/)?.[0]
     || '';
   const renderIndex = detailRenderer.indexOf('monitoringUpdatesListEl.innerHTML');
   const visibleIndex = detailRenderer.indexOf('monitoringUpdatesEl.hidden = monitoringUpdates.length === 0');
-  const readIndex = detailRenderer.indexOf('queueMicrotask(() => markUpdatesAsRead(watch.id, readableUpdateIds))');
 
   assert.match(detailRenderer, /getWatchUpdates\(watch\)\.reverse\(\)/);
   assert.match(detailRenderer, /getWatchJourneyEvents\(watch,[\s\S]*?currentUpdateId: latestMeaningfulUpdate\?\.id/);
   assert.match(detailRenderer, /filter\(\(\{ status: updateStatus \}\) => updateStatus === 'new'\)/);
-  assert.ok(renderIndex >= 0 && visibleIndex > renderIndex && readIndex > visibleIndex);
-  assert.match(detailRenderer, /!detailCheckInProgress/);
-  assert.match(detailRenderer, /!detailDeferredReadUpdateIds\.has\(getDeferredReadKey\(watch\.id, updateId\)\)/);
+  assert.ok(renderIndex >= 0 && visibleIndex > renderIndex);
+  assert.doesNotMatch(detailRenderer, /markUpdatesAsRead\(/);
   assert.match(detailRenderer, /result\.matchedItems\.forEach/);
   assert.match(detailRenderer, /item\.sourceTitle \|\| item\.summary/);
   assert.match(detailRenderer, /formatMonitoringTimestamp\(item\.timestamp\)/);

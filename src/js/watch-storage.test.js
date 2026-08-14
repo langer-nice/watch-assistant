@@ -246,7 +246,7 @@ test('the storage helper marks one Update read without deleting its Watch or his
   }
 });
 
-test('batch read state persists across storage reloads without clearing factual Updated status', async () => {
+test('batch read state persists while meaningful legacy Updated status is preserved', async () => {
   const originalStorage = globalThis.localStorage;
   const storage = createStorage({
     'watchAssistant.watches': JSON.stringify([{

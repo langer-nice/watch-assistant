@@ -33,15 +33,17 @@ adding or changing these values so the server-side middleware reloads them.
 
 > The HTML files reference the stylesheet as `/src/scss/main.scss` so Vite can compile the SCSS automatically.
 
-## Demo data behavior
+## Watch and report storage
 
-The prototype always renders a fixed set of demo watches from `src/js/data/mock-watches.js` plus any watches created locally in the browser.
+Normal local and production use renders only Watches created in that browser. Built-in
+fixtures remain available to automated tests through the explicit `getDemoWatches()`
+helper and are never merged into user data.
 
-- Demo watches are always available in a fresh browser.
-- User-created watches are stored in `localStorage` only and are private to that browser and origin.
-- Duplicate demo watch IDs are filtered out so mock watches never render twice.
+- User-created Watches are stored in `localStorage` only and are private to that browser and origin.
+- Completed report snapshots are stored separately in `watchAssistant.reports.v1`.
+- Reopening a report uses its immutable entries rather than recomputing historical counts.
 
-### Reset demo data
+### Reset local prototype data
 
 During development you can reset the local demo state in the browser console:
 

@@ -100,6 +100,13 @@
     "briefLabel": "Afternoon brief",
     "updatedAt": "Updated at",
     "briefingTimeUnavailable": "Briefing time unavailable",
+    "generateReport": "Generate report",
+    "generatingReport": "Generating report…",
+    "reportGenerating": "Generating your report…",
+    "reportReady": "Report ready",
+    "reportGenerationError": "We couldn’t generate your report. Please try again.",
+    "reportTryAgain": "Try again",
+    "reportClose": "Close",
     "viewIntroduction": "View introduction",
     "today": "Today",
     "watchesChecked": "watches checked",
@@ -109,8 +116,8 @@
       "evening": "Good evening, David."
     },
     "checkedAway": {
-      "one": "I completed {count} watch check while you were away.",
-      "other": "I completed {count} watch checks while you were away."
+      "one": "{count} Watch check completed in this report.",
+      "other": "{count} Watch checks completed in this report."
     },
     "attentionLabel": {
       "one": "needs your attention",
@@ -139,7 +146,7 @@
     "sortMostRecent": "Most recent",
     "sortOldestFirst": "Oldest first",
     "dashboardUpToDate": "✓ Everything is up to date.",
-    "dashboardNoNewUpdates": "No new updates since your last visit.",
+    "dashboardNoNewUpdates": "This report found no changes.",
     "viewAllWatches": "View all Watches",
     "needsAttention": "needs your attention",
     "updatedCount": "updated",

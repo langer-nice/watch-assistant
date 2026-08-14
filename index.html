@@ -28,7 +28,21 @@
         <section class="briefing-report" id="homeBriefingReport" aria-labelledby="homeSummaryLabel">
           <header class="briefing-summary__masthead">
             <p data-i18n="home.briefLabel"></p>
-            <time class="briefing-summary__timestamp" id="homeBriefingDate"></time>
+            <div class="briefing-summary__masthead-meta">
+              <time class="briefing-summary__timestamp" id="homeBriefingDate"></time>
+              <button
+                class="briefing-summary__generate"
+                id="homeGenerateReport"
+                type="button"
+                data-i18n-aria-label="home.generateReport"
+                data-i18n-title="home.generateReport"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5"></path>
+                  <path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"></path>
+                </svg>
+              </button>
+            </div>
           </header>
 
           <div class="briefing-summary">
@@ -99,6 +113,29 @@
           <a href="dashboard.html" data-i18n="home.introductionJourneys"></a>
         </nav>
       </main>
+
+      <dialog
+        class="home-report-progress"
+        id="homeReportProgress"
+        aria-modal="true"
+        aria-labelledby="homeReportProgressMessage"
+      >
+        <div class="home-report-progress__content" id="homeReportProgressFocus" tabindex="-1">
+          <span class="home-report-progress__spinner" id="homeReportProgressSpinner" aria-hidden="true"></span>
+          <svg class="home-report-progress__result-icon home-report-progress__result-icon--success" id="homeReportProgressSuccess" viewBox="0 0 24 24" aria-hidden="true" focusable="false" hidden>
+            <path d="m5 12.5 4.5 4.5L19 7"></path>
+          </svg>
+          <svg class="home-report-progress__result-icon home-report-progress__result-icon--error" id="homeReportProgressError" viewBox="0 0 24 24" aria-hidden="true" focusable="false" hidden>
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M12 7.5v6M12 17h.01"></path>
+          </svg>
+          <p class="home-report-progress__message" id="homeReportProgressMessage" role="status" aria-live="polite" aria-atomic="true" data-i18n="home.reportGenerating"></p>
+          <div class="home-report-progress__actions" id="homeReportProgressActions" hidden>
+            <button class="button button--primary" id="homeReportProgressRetry" type="button" data-i18n="home.reportTryAgain"></button>
+            <button class="button button--secondary" id="homeReportProgressClose" type="button" data-i18n="home.reportClose"></button>
+          </div>
+        </div>
+      </dialog>
 
     </div>
 

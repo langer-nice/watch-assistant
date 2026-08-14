@@ -57,9 +57,9 @@ test('Home distinguishes first-use, Everything else, and the fallback caught-up 
   assert.match(html, /id="homeCaughtUpState"[\s\S]*?data-i18n="home\.dashboardUpToDate"[\s\S]*?data-i18n="home\.dashboardNoNewUpdates"[\s\S]*?href="watches\.html"/);
   assert.match(html, /id="homeBriefingList"[\s\S]*?id="homeAllQuiet"[\s\S]*?id="homeEverythingChecked"[\s\S]*?href="watches\.html"/);
   assert.match(navigation, /emptyState\.hidden = hasUserCreatedWatches/);
-  assert.match(navigation, /briefingFeed\.hidden = !hasUserCreatedWatches \|\| \(!hasHomeItems && !hasQuietItems\)/);
-  assert.match(navigation, /caughtUpState\.hidden = !hasUserCreatedWatches \|\| hasHomeItems \|\| hasQuietItems/);
-  assert.match(navigation, /allQuiet\.hidden = !hasUserCreatedWatches \|\| !hasQuietItems/);
+  assert.match(navigation, /briefingFeed\.hidden = !hasReport/);
+  assert.match(navigation, /caughtUpState\.hidden = !hasReport \|\| hasHomeItems \|\| hasQuietItems/);
+  assert.match(navigation, /allQuiet\.hidden = !hasReport \|\| !hasQuietItems/);
   assert.match(navigation, /pluralKey\('home\.everythingChecked', quietWatches\.length\)/);
   assert.equal(
     english.home.dashboardUpToDate,
@@ -69,7 +69,7 @@ test('Home distinguishes first-use, Everything else, and the fallback caught-up 
     french.home.dashboardUpToDate,
     '✓ Tout est à jour.',
   );
-  assert.equal(english.home.dashboardNoNewUpdates, 'No new updates since your last visit.');
+  assert.equal(english.home.dashboardNoNewUpdates, 'This report found no changes.');
   assert.equal(french.home.viewAllWatches, 'Voir toutes les Watches');
 });
 
@@ -96,8 +96,8 @@ test('All Watches renderer continues to read and render the complete collection'
   const navigation = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
   const renderer = navigation.match(/const renderWatchList = \(\) => \{[\s\S]*?const renderWatchDetail/)?.[0] || '';
   assert.match(renderer, /const watches = getWatches\(\)/);
-  assert.match(renderer, /groupWatches\(watches/);
-  assert.match(renderer, /getHomeInboxSelection\(watches/);
+  assert.match(renderer, /groupWatches\(displayWatches/);
+  assert.match(renderer, /getCanonicalStatusMap\(watches, reports\)/);
   assert.doesNotMatch(renderer, /filter\([^)]*unchanged/);
 });
 
