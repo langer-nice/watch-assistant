@@ -614,6 +614,14 @@
   },
   "dev": {
     "reset": "Réinitialiser les données de démonstration",
-    "only": "Développement uniquement"
+    "only": "Développement uniquement",
+    "previewTools": "Données de test de la preview",
+    "loadTestWatches": "Charger les Watches de test",
+    "resetTestWatches": "Réinitialiser et recharger les Watches",
+    "previewOnly": "Disponible uniquement en développement local et dans les previews Vercel.",
+    "testWatchesLoaded": "{count} Watches de test chargées.",
+    "testWatchesAlreadyLoaded": "Les Watches de test sont déjà chargées ; aucun doublon n’a été ajouté.",
+    "resetTestWatchesConfirm": "Réinitialiser toutes les Watches et tous les rapports, puis charger les Watches de test ? Cette action est irréversible.",
+    "testWatchesReset": "Stockage réinitialisé et {count} Watches de test chargées."
   }
 }

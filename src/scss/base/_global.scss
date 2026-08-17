@@ -77,11 +77,24 @@ body {
 .dev-reset-control {
   margin-top: var(--space-lg);
   display: flex;
+  flex-direction: column;
   flex-wrap: wrap;
   gap: var(--space-sm);
-  align-items: center;
+  align-items: flex-start;
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
 }
 
 .dev-reset-control p {
   margin: 0;
+}
+
+.dev-reset-control__label {
+  font-weight: 600;
+}
+
+.dev-reset-control__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
 }
