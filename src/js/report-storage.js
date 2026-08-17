@@ -107,3 +107,8 @@ export const saveReport = (report) => {
   notifyReportsChanged();
   return normalized;
 };
+
+export const resetStoredReports = () => {
+  localStorage.removeItem(REPORTS_STORAGE_KEY);
+  notifyReportsChanged();
+};

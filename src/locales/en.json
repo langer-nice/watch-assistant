@@ -614,6 +614,14 @@
   },
   "dev": {
     "reset": "Reset demo data",
-    "only": "Development only"
+    "only": "Development only",
+    "previewTools": "Preview test data",
+    "loadTestWatches": "Load test Watches",
+    "resetTestWatches": "Reset and reload test Watches",
+    "previewOnly": "Available only in local development and Vercel previews.",
+    "testWatchesLoaded": "{count} test Watches loaded.",
+    "testWatchesAlreadyLoaded": "Test Watches are already loaded; no duplicates were added.",
+    "resetTestWatchesConfirm": "Reset all Watches and reports, then load the test Watches? This cannot be undone.",
+    "testWatchesReset": "Storage reset and {count} test Watches loaded."
   }
 }
