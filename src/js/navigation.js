@@ -5,6 +5,7 @@ import {
   updateWatch,
   deleteWatch,
   getWatchById,
+  acknowledgeLatestWatchUpdate,
   resetStoredWatches,
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
@@ -21,6 +22,7 @@ import {
 import {
   generateReport,
   isReportGenerationInProgress,
+  refreshLatestReport,
 } from './report-service.js';
 import { getLanguage, t } from './i18n.js';
 import {
@@ -1004,6 +1006,9 @@ const getSummaryCardStatus = (status) => {
   if (status === 'new') {
     return { label: t('home.newBadge'), modifier: 'stable' };
   }
+  if (status === 'watching') {
+    return { label: t('statuses.watching'), modifier: 'watching' };
+  }
   return null;
 };
 
@@ -1194,7 +1199,7 @@ const renderWatchList = () => {
           ? 'updated'
           : newIds.has(watch.id)
             ? 'new'
-            : null;
+            : 'watching';
       const showCreationMetadata = group.type === 'last7Days';
       const creationMetadata = showCreationMetadata
         ? formatWatchCreationMetadata(getWatchCreationDate(watch), {
@@ -1268,6 +1273,10 @@ const renderWatchDetail = () => {
 
   const watchId = getWatchIdFromLocation(window.location);
   let watch = getWatchById(watchId);
+  if (getCanonicalWatchClassification(watch) === WATCH_CLASSIFICATIONS.UPDATED) {
+    watch = acknowledgeLatestWatchUpdate(watch.id) || watch;
+    refreshLatestReport({ watches: getWatches() });
+  }
   if (
     watch?.monitoringState === 'preparing'
     && Date.parse(watch.firstCheckCompletesAt) <= Date.now()
@@ -1752,7 +1761,7 @@ const renderWatchDetail = () => {
   }
 
   const timeline = getWatchJourneyEvents(watch, {
-    currentUpdateId: latestMeaningfulUpdate?.id,
+    currentUpdateId: latestMeaningfulUpdate?.status === 'new' ? latestMeaningfulUpdate.id : null,
   })
     .map((item) => {
       const label = item.type === 'created'
@@ -1916,6 +1925,7 @@ const renderWatchDetail = () => {
           });
         }
       } finally {
+        refreshLatestReport({ watches: getWatches() });
         detailCheckInProgress = false;
         renderWatchDetail();
       }

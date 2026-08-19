@@ -436,15 +436,7 @@ export const applyFeedCheckResult = (watch, response, {
   const latestUpdateAt = detectedUpdates.length
     ? checkedAt
     : watch.latestUpdateAt || null;
-  const hadMonitoringIssue = ['setup-required', 'unavailable', 'needs-attention']
-    .includes(watch.monitoringStatus?.state)
-    || Boolean(watch.monitoringIssueReason);
-  const actionRequired = watch.actionRequired === true || (
-    !hadMonitoringIssue && (watch.requiresAttention === true || watch.status === 'attention')
-  );
-  const status = actionRequired && watch.status !== 'paused'
-    ? 'attention'
-    : watch.status === 'attention' && hadMonitoringIssue ? 'watching' : watch.status || 'watching';
+  const status = ['paused', 'completed'].includes(watch.status) ? watch.status : 'watching';
 
   return {
     outcome,
@@ -495,18 +487,17 @@ export const applyFeedCheckResult = (watch, response, {
       unreadUpdateCount: getUnreadUpdates(watchWithUpdates).length,
       latestUpdateAt,
       ...(detectedUpdates.length || Array.isArray(watch.updates) ? {
-        currentStatus: ['attention', 'paused', 'completed'].includes(status)
-          ? status
-          : watchWithUpdates.currentStatus || watch.currentStatus || status,
+        currentStatus: detectedUpdates.length && status === 'watching' ? 'updated' : status,
         lastUpdated: watchWithUpdates.lastUpdated || watch.lastUpdated || null,
         updates: watchWithUpdates.updates || watch.updates || [],
       } : {}),
       monitoringStatus: { state: 'active', reason: null },
       monitoringIssueReason: null,
       monitoringFailure: null,
-      actionRequired,
-      attentionReason: actionRequired ? watch.attentionReason || null : null,
-      requiresAttention: actionRequired,
+      actionRequired: false,
+      userActionReason: null,
+      attentionReason: null,
+      requiresAttention: false,
       status,
     },
   };
