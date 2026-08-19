@@ -183,3 +183,21 @@ test('only the newest rendered event receives the established active green treat
   assert.match(styles, /\.timeline__marker[\s\S]*?background: var\(--color-border\)/);
   assert.match(styles, /\.timeline__item--latest \.timeline__marker[\s\S]*?background: var\(--color-indicator-unchanged\)/);
 });
+
+test('BODACC history uses its source publication date instead of its detection date', () => {
+  const watch = {
+    createdAt: '2026-08-01T08:00:00.000Z',
+    updates: [{
+      id: 'bodacc-notice',
+      timestamp: '2026-08-10T12:00:00.000Z',
+      detectedAt: '2026-08-10T12:00:00.000Z',
+      publishedAt: '2026-08-05T00:00:00.000Z',
+      sourceTitle: 'Accounts filed',
+      summary: 'Accounts filed',
+      status: 'read',
+    }],
+  };
+  const updateEvent = getWatchTimelineEvents(watch).find(({ type }) => type === 'update');
+  assert.equal(updateEvent.timestamp, '2026-08-05T00:00:00.000Z');
+  assert.equal(updateEvent.source.detectedAt, '2026-08-10T12:00:00.000Z');
+});

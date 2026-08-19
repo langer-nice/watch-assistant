@@ -6,6 +6,7 @@ import {
   deleteWatch,
   getWatchById,
   acknowledgeLatestWatchUpdate,
+  markUpdatesAsRead,
   resetStoredWatches,
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
@@ -183,8 +184,6 @@ let detailConfirmationHideTimer = null;
 let detailCheckInProgress = false;
 let detailCheckErrorWatchId = null;
 let detailRevealedUpdateRoute = null;
-const detailDeferredReadUpdateIds = new Set();
-const getDeferredReadKey = (watchId, updateId) => `${watchId}\u0000${updateId}`;
 let firstMonitoringTimer = null;
 let firstMonitoringTransitionTimer = null;
 let editSheetCloseTimer = null;
@@ -1818,9 +1817,6 @@ const renderWatchDetail = () => {
   }
 
   const monitoringUpdates = getWatchUpdates(watch).reverse();
-  const displayedUnreadUpdateIds = monitoringUpdates
-    .filter(({ status: updateStatus }) => updateStatus === 'new')
-    .map(({ id }) => id);
   if (monitoringUpdatesListEl) {
     monitoringUpdatesListEl.innerHTML = monitoringUpdates
       .map((item, index) => {
@@ -1848,9 +1844,6 @@ const renderWatchDetail = () => {
   if (monitoringUpdatesEl) {
     monitoringUpdatesEl.hidden = monitoringUpdates.length === 0;
   }
-  displayedUnreadUpdateIds.forEach((updateId) => (
-    detailDeferredReadUpdateIds.delete(getDeferredReadKey(watch.id, updateId))
-  ));
 
   if (preparingEl) {
     preparingEl.hidden = !isPreparing;
@@ -1893,9 +1886,8 @@ const renderWatchDetail = () => {
           console.info('[Watch monitoring] Check requested', { watchId: watch.id });
         }
         const result = await watchCheckController.check(watch.id);
-        result.matchedItems.forEach(({ id }) => (
-          detailDeferredReadUpdateIds.add(getDeferredReadKey(watch.id, id))
-        ));
+        const displayedUpdateIds = result.matchedItems.map(({ id }) => id);
+        if (displayedUpdateIds.length) markUpdatesAsRead(watch.id, displayedUpdateIds);
         detailCheckErrorWatchId = null;
       } catch (error) {
         detailCheckErrorWatchId = watch.id;

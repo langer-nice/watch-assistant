@@ -27,10 +27,9 @@ test('Detail acknowledges only the latest unread Update and retains persisted hi
   assert.match(detailRenderer, /refreshLatestReport\(\{ watches: getWatches\(\) \}\)/);
   assert.match(detailRenderer, /getCanonicalWatchClassification\(watch,[\s\S]*?getSummaryCardStatus\(classification\)[\s\S]*?status-label--\$\{presentation\.modifier\}/);
   assert.match(detailRenderer, /getWatchJourneyEvents\(watch,[\s\S]*?latestMeaningfulUpdate\?\.status === 'new'/);
-  assert.match(detailRenderer, /filter\(\(\{ status: updateStatus \}\) => updateStatus === 'new'\)/);
   assert.ok(renderIndex >= 0 && visibleIndex > renderIndex);
-  assert.doesNotMatch(detailRenderer, /markUpdatesAsRead\(/);
-  assert.match(detailRenderer, /result\.matchedItems\.forEach/);
+  assert.match(detailRenderer, /result\.matchedItems\.map\(\(\{ id \}\) => id\)/);
+  assert.match(detailRenderer, /markUpdatesAsRead\(watch\.id, displayedUpdateIds\)/);
   assert.match(detailRenderer, /item\.sourceTitle \|\| item\.summary/);
   assert.match(detailRenderer, /formatMonitoringTimestamp\(item\.timestamp\)/);
   assert.doesNotMatch(detailRenderer, /1970-01-01T00:00:00\.000Z/);

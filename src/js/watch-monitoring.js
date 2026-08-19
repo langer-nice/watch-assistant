@@ -6,6 +6,7 @@ import { deriveCompanyStatus } from './company-watch-status.js';
 import { normalizeCompanyIdentity } from './company-administrative-status.js';
 
 export const MAX_SNAPSHOT_ITEMS = 20;
+export const MAX_BODACC_SNAPSHOT_ITEMS = 100;
 export const MAX_SEEN_ITEM_IDS = 200;
 export const MAX_MONITORING_UPDATES = 20;
 
@@ -47,6 +48,31 @@ const normalizeItem = (item) => {
       : [],
   };
 };
+
+const hashText = (value) => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+};
+
+const getItemCompatibilityKey = (item) => `source-${hashText([
+  item?.publishedAt,
+  item?.source,
+  item?.author,
+  item?.eventType,
+  ...(Array.isArray(item?.sirens) ? item.sirens : []),
+  item?.title,
+  item?.excerpt,
+].map((value) => String(value || '').trim().toLocaleLowerCase()).join('\u0000'))}`;
+
+const hasValidBodaccBaseline = (snapshot) => (
+  Array.isArray(snapshot?.itemIds)
+  && snapshot.itemIds.every((id) => typeof id === 'string' && id.trim())
+  && !Number.isNaN(Date.parse(snapshot.checkedAt))
+);
 
 const uniqueById = (items, limit) => {
   const seen = new Set();
@@ -337,12 +363,37 @@ export const applyFeedCheckResult = (watch, response, {
   }
 
   const checkedAt = getCheckedAt(response.checkedAt, now);
-  const items = uniqueById(
+  const snapshotLimit = trustedSourceType === 'bodacc'
+    ? MAX_BODACC_SNAPSHOT_ITEMS
+    : MAX_SNAPSHOT_ITEMS;
+  const normalizedItems = uniqueById(
     response.items.map(normalizeItem).filter(Boolean),
-    MAX_SNAPSHOT_ITEMS,
+    snapshotLimit,
   );
+  const responseCompatibilityKeys = new Set();
+  const items = trustedSourceType === 'bodacc'
+    ? normalizedItems.filter((item) => {
+      const key = getItemCompatibilityKey(item);
+      if (responseCompatibilityKeys.has(key)) return false;
+      responseCompatibilityKeys.add(key);
+      return true;
+    })
+    : normalizedItems;
   const currentIds = items.map(({ id }) => id);
-  const hasBaseline = Array.isArray(watch.monitoringSnapshot?.itemIds);
+  const hasBaseline = trustedSourceType === 'bodacc'
+    ? hasValidBodaccBaseline(watch.monitoringSnapshot)
+    : Array.isArray(watch.monitoringSnapshot?.itemIds);
+  const baselineCheckedAt = hasBaseline ? Date.parse(watch.monitoringSnapshot?.checkedAt) : null;
+  const baselinePublicationDate = Number.isFinite(baselineCheckedAt)
+    ? new Date(baselineCheckedAt).toISOString().slice(0, 10)
+    : null;
+  const previousItems = hasBaseline && Array.isArray(watch.monitoringSnapshot?.items)
+    ? watch.monitoringSnapshot.items.map(normalizeItem).filter(Boolean)
+    : [];
+  const previouslySeenKeys = new Set([
+    ...(Array.isArray(watch.seenMonitoringItemKeys) ? watch.seenMonitoringItemKeys : []),
+    ...previousItems.map(getItemCompatibilityKey),
+  ]);
   const previouslySeen = new Set([
     ...(Array.isArray(watch.seenMonitoringItemIds) ? watch.seenMonitoringItemIds : []),
     ...(hasBaseline ? watch.monitoringSnapshot.itemIds : []),
@@ -351,7 +402,15 @@ export const applyFeedCheckResult = (watch, response, {
       : []),
   ].filter(Boolean));
   const unseenItems = hasBaseline
-    ? items.filter(({ id }) => !previouslySeen.has(id))
+    ? items.filter((item) => {
+      if (previouslySeen.has(item.id) || previouslySeenKeys.has(getItemCompatibilityKey(item))) {
+        return false;
+      }
+      if (trustedSourceType !== 'bodacc') return true;
+      const publishedAt = Date.parse(item.publishedAt);
+      return !Number.isNaN(publishedAt)
+        && item.publishedAt.slice(0, 10) >= baselinePublicationDate;
+    })
     : [];
   const matchedItems = unseenItems
     .map((item) => ({
@@ -409,7 +468,11 @@ export const applyFeedCheckResult = (watch, response, {
   const watchWithUpdates = detectedUpdates.reduce((updatedWatch, detectedUpdate) => (
     addUpdateToWatch(updatedWatch, {
       id: detectedUpdate.id,
-      timestamp: detectedUpdate.detectedAt,
+      timestamp: trustedSourceType === 'bodacc'
+        ? detectedUpdate.publishedAt || detectedUpdate.detectedAt
+        : detectedUpdate.detectedAt,
+      publishedAt: detectedUpdate.publishedAt,
+      detectedAt: detectedUpdate.detectedAt,
       sourceUrl: detectedUpdate.url,
       sourceTitle: detectedUpdate.title,
       sourceName: detectedUpdate.source,
@@ -421,6 +484,10 @@ export const applyFeedCheckResult = (watch, response, {
   const seenMonitoringItemIds = [...new Set([
     ...currentIds,
     ...previouslySeen,
+  ])].slice(0, MAX_SEEN_ITEM_IDS);
+  const seenMonitoringItemKeys = [...new Set([
+    ...items.map(getItemCompatibilityKey),
+    ...previouslySeenKeys,
   ])].slice(0, MAX_SEEN_ITEM_IDS);
   const outcome = !hasBaseline
     ? 'baseline'
@@ -460,6 +527,7 @@ export const applyFeedCheckResult = (watch, response, {
         items,
       },
       seenMonitoringItemIds,
+      seenMonitoringItemKeys,
       candidateUpdates: monitoringUpdates,
       monitoringUpdates,
       lastChecked: checkedAt,

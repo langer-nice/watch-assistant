@@ -186,10 +186,9 @@ test('renderers use Updated badges, semantic update destinations, and the shared
   const allRenderer = navigation.match(/const renderWatchList =[\s\S]*?const renderWatchDetail/)?.[0] || '';
   const detailRenderer = navigation.match(/const renderWatchDetail = \(\) => \{[\s\S]*?function scheduleFirstMonitoringPass/)?.[0] || '';
 
-  assert.match(sharedRenderer, /statuses\.updated/);
+  assert.match(sharedRenderer, /getWatchStatusPresentation\(status, t\)/);
   assert.doesNotMatch(homeRenderer, /statuses\.new/);
-  assert.match(allRenderer, /\? 'updated'/);
-  assert.match(allRenderer, /newIds\.has\(watch\.id\)[\s\S]*?\? 'new'/);
+  assert.match(allRenderer, /const status = statusById\.get\(watch\.id\)/);
   assert.match(allRenderer, /sortHomeWatches\(watches/);
   assert.match(allRenderer, /getStatus: \(watch\) => statusById\.get\(watch\.id\) \|\| 'unchanged'/);
   assert.match(watchesHtml, /id="allWatchesSort"[\s\S]*?needs-attention-first[\s\S]*?updated-first[\s\S]*?most-recent[\s\S]*?oldest-first/);

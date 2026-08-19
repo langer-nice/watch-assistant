@@ -49,8 +49,8 @@ test('All Watch cards omit generic Monitoring and Monitoring setup badges', asyn
     /const renderWatchList = \(\) => \{[\s\S]*?const renderWatchDetail/,
   )?.[0] || '';
 
-  assert.match(allWatches, /updatedIds\.has\(watch\.id\)[\s\S]*?\? 'updated'[\s\S]*?newIds\.has\(watch\.id\)[\s\S]*?\? 'new'/);
-  assert.doesNotMatch(allWatches, /setupRequired|monitoringStatusBadge|statuses\.watching/);
+  assert.match(allWatches, /const status = statusById\.get\(watch\.id\)/);
+  assert.doesNotMatch(allWatches, /setupRequired|monitoringStatusBadge/);
 });
 
 test('administrative status support copy is concise in English and French', async () => {

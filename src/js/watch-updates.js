@@ -73,6 +73,8 @@ export const normalizeUpdate = (update, { fallbackTimestamp = null } = {}) => {
   const sourceName = normalizeText(update.sourceName || update.source);
   const summary = normalizeText(update.summary || update.excerpt || update.title);
   const sourceDomain = normalizeText(update.sourceDomain) || getSourceDomain(sourceUrl);
+  const publishedAt = normalizeTimestamp(update.publishedAt || update.rawMonitoringResult?.publishedAt);
+  const detectedAt = normalizeTimestamp(update.detectedAt || timestamp);
   const status = UPDATE_STATUSES.has(update.status)
     ? update.status
     : ['candidate', 'unreviewed', 'updated'].includes(update.status) ? 'new' : 'read';
@@ -103,6 +105,8 @@ export const normalizeUpdate = (update, { fallbackTimestamp = null } = {}) => {
     sourceDomain,
     summary,
     status,
+    ...(publishedAt ? { publishedAt } : {}),
+    ...(detectedAt ? { detectedAt } : {}),
     ...(monitoringProvenance ? { monitoringProvenance } : {}),
     ...('rawMonitoringResult' in update && update.rawMonitoringResult != null
       ? { rawMonitoringResult: update.rawMonitoringResult }

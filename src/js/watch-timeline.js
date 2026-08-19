@@ -64,7 +64,7 @@ export const getWatchTimelineEvents = (watch) => {
     .filter(({ id }) => !persistedUpdateIds.has(id))
     .map((update, index) => ({
       type: 'update',
-      timestamp: update.timestamp,
+      timestamp: normalizeEventTimestamp(update.publishedAt, update.timestamp),
       dateKey: null,
       source: update,
       order: persistedTimeline.length + index,
