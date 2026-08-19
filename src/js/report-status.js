@@ -49,6 +49,25 @@ export const getMeaningfulWatchUpdate = (watch) => {
 
 export const hasMeaningfulWatchUpdate = (watch) => Boolean(getMeaningfulWatchUpdate(watch));
 
+const getUpdateTimestamp = (update) => Date.parse(
+  update?.timestamp || update?.detectedAt || update?.publishedAt,
+);
+
+const isUpdateFromLatestSuccessfulCheck = (watch, meaningful) => {
+  const attempt = watch?.lastCheckAttempt;
+  if (attempt?.status !== 'succeeded') return false;
+  if (!['matching-items', 'new-items'].includes(attempt.outcome)) return false;
+
+  const updateId = meaningful?.update?.id;
+  const candidateIds = watch?.lastCheckResult?.candidateItemIds
+    || watch?.lastCheckOutcome?.candidateItemIds;
+  if (updateId && Array.isArray(candidateIds)) return candidateIds.includes(updateId);
+
+  const attemptedAt = Date.parse(attempt.attemptedAt);
+  const updatedAt = getUpdateTimestamp(meaningful?.update);
+  return Number.isFinite(attemptedAt) && Number.isFinite(updatedAt) && updatedAt >= attemptedAt;
+};
+
 export const isRecentlyCreatedWatch = (watch, now = new Date()) => {
   const createdAt = Date.parse(watch?.createdAt);
   const nowAt = now instanceof Date ? now.getTime() : Date.parse(now);
@@ -68,8 +87,15 @@ export const getUserFacingWatchClassification = (watch, { now = new Date() } = {
   if (!watch || typeof watch !== 'object' || watch.status === 'completed') {
     return WATCH_CLASSIFICATIONS.WATCHING;
   }
-  if (isUserActionRequired(watch)) return WATCH_CLASSIFICATIONS.ATTENTION;
-  if (hasMeaningfulWatchUpdate(watch)) return WATCH_CLASSIFICATIONS.UPDATED;
+  if (watch.lastCheckAttempt?.status === 'failed' || isUserActionRequired(watch)) {
+    return WATCH_CLASSIFICATIONS.ATTENTION;
+  }
+  const meaningful = getMeaningfulWatchUpdate(watch);
+  // Watches written before check attempts were introduced retain their legacy
+  // Updated presentation. Modern Watches are Updated only by their latest check.
+  if (meaningful && (
+    !watch.lastCheckAttempt || isUpdateFromLatestSuccessfulCheck(watch, meaningful)
+  )) return WATCH_CLASSIFICATIONS.UPDATED;
   if (isRecentlyCreatedWatch(watch, now)) return WATCH_CLASSIFICATIONS.NEW;
   return WATCH_CLASSIFICATIONS.WATCHING;
 };

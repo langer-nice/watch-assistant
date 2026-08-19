@@ -138,7 +138,7 @@ test('counts use actual terminal attempts and omit an unchecked Watch', async ()
   assert.equal(report.counts.failed, 0);
 });
 
-test('missing source is skipped while meaningful content remains Updated', async () => {
+test('missing source is skipped and its latest failed attempt takes precedence over stale content', async () => {
   const harness = createHarness({ outcomes: [{ type: 'no-new-items', ids: [] }] });
   const missing = {
     id: 'missing', title: 'Missing source', status: 'watching', updates: [{
@@ -175,7 +175,7 @@ test('missing source is skipped while meaningful content remains Updated', async
     lastCheckAttempt: {
       status: 'failed', attemptedAt: '2026-08-14T11:00:00Z', code: 'MISSING_FEED_URL',
     },
-  }, { reports: [report] }), WATCH_CLASSIFICATIONS.UPDATED);
+  }, { reports: [report] }), WATCH_CLASSIFICATIONS.ATTENTION);
 });
 
 test('explicit user action takes precedence over meaningful update content', () => {

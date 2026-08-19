@@ -21,6 +21,7 @@ import {
 import {
   generateReport,
   isReportGenerationInProgress,
+  refreshLatestReport,
 } from './report-service.js';
 import { getLanguage, t } from './i18n.js';
 import {
@@ -1916,6 +1917,7 @@ const renderWatchDetail = () => {
           });
         }
       } finally {
+        refreshLatestReport({ watches: getWatches() });
         detailCheckInProgress = false;
         renderWatchDetail();
       }
