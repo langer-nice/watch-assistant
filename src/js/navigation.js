@@ -2114,12 +2114,12 @@ function scheduleFirstMonitoringPass(watch, preparingEl) {
   }, remaining);
 }
 
-const renderDevTools = () => {
-  if (!isPreviewTestLoaderAvailable()) {
+const renderDevTools = ({ env = import.meta.env } = {}) => {
+  if (!isPreviewTestLoaderAvailable(env)) {
     return;
   }
 
-  if (import.meta.env.DEV) {
+  if (env.DEV) {
     window.watchAssistantResetDemo = () => {
       resetStoredWatches();
       localStorage.removeItem(ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -2130,7 +2130,7 @@ const renderDevTools = () => {
   }
 
   const shell = document.querySelector('.app-shell');
-  if (!shell) {
+  if (!shell || shell.querySelector('.dev-reset-control')) {
     return;
   }
 
@@ -4885,7 +4885,7 @@ export function initForm() {
   }
 }
 
-const resolveInitialHomeRoute = () => {
+const resolveInitialHomeRoute = (env = import.meta.env) => {
   if (!document.querySelector('.page--home')) return null;
 
   const homeUrl = new URL(window.location.href);
@@ -4897,7 +4897,9 @@ const resolveInitialHomeRoute = () => {
       `${homeUrl.pathname}${homeUrl.search}${homeUrl.hash}`,
     );
   }
-  if (!hasCompletedOnboarding()) return getReplayIntroFlow();
+  if (!isPreviewTestLoaderAvailable(env) && !hasCompletedOnboarding()) {
+    return getReplayIntroFlow();
+  }
   cancelOnboardingFirstWatch();
   return null;
 };
