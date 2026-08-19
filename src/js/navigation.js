@@ -1006,6 +1006,9 @@ const getSummaryCardStatus = (status) => {
   if (status === 'new') {
     return { label: t('home.newBadge'), modifier: 'stable' };
   }
+  if (status === 'watching') {
+    return { label: t('statuses.watching'), modifier: 'watching' };
+  }
   return null;
 };
 
@@ -1196,7 +1199,7 @@ const renderWatchList = () => {
           ? 'updated'
           : newIds.has(watch.id)
             ? 'new'
-            : null;
+            : 'watching';
       const showCreationMetadata = group.type === 'last7Days';
       const creationMetadata = showCreationMetadata
         ? formatWatchCreationMetadata(getWatchCreationDate(watch), {

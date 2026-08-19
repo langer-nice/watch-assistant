@@ -101,7 +101,7 @@ test('All Watches renderer continues to read and render the complete collection'
   assert.doesNotMatch(renderer, /filter\([^)]*unchanged/);
 });
 
-test('All Watches reuses the Home summary presentation without a Monitoring badge', async () => {
+test('All Watches reuses the validated summary presentation with a Watching badge', async () => {
   const [navigation, styles] = await Promise.all([
     readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
     readFile(new URL('../scss/pages/_watches.scss', import.meta.url), 'utf8'),
@@ -109,8 +109,8 @@ test('All Watches reuses the Home summary presentation without a Monitoring badg
   const renderer = navigation.match(/const renderWatchList = \(\) => \{[\s\S]*?const renderWatchDetail/)?.[0] || '';
 
   assert.match(renderer, /renderSummaryWatchCard\(\{/);
-  assert.match(renderer, /status = attentionIds\.has\(watch\.id\)[\s\S]*?newIds\.has\(watch\.id\)[\s\S]*?\? 'new'[\s\S]*?: null/);
-  assert.doesNotMatch(renderer, /statuses\.watching|monitoringStatusBadge|watch-row/);
+  assert.match(renderer, /status = attentionIds\.has\(watch\.id\)[\s\S]*?newIds\.has\(watch\.id\)[\s\S]*?\? 'new'[\s\S]*?: 'watching'/);
+  assert.doesNotMatch(renderer, /monitoringStatusBadge|watch-row/);
   assert.match(styles, /\.watch-list\s*\{[\s\S]*?display:\s*block/);
   assert.match(styles, /\.briefing-item\s*\{[\s\S]*?border-bottom:\s*1px solid var\(--color-divider\)/);
 });

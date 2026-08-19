@@ -10,9 +10,11 @@ test('Home and All Watches derive Updated presentation from persisted Updates', 
 
   assert.match(homeRenderer, /getLatestUpdate\(watch\)/);
   assert.match(sharedRenderer, /statuses\.updated/);
+  assert.match(sharedRenderer, /status === 'watching'[\s\S]*?statuses\.watching[\s\S]*?modifier: 'watching'/);
   assert.doesNotMatch(homeRenderer, /statuses\.new/);
   assert.match(listRenderer, /updatedIds\.has\(watch\.id\)[\s\S]*?\? 'updated'/);
   assert.match(listRenderer, /newIds\.has\(watch\.id\)[\s\S]*?\? 'new'/);
+  assert.match(listRenderer, /newIds\.has\(watch\.id\)[\s\S]*?\? 'new'[\s\S]*?: 'watching'/);
 });
 
 test('Detail acknowledges only the latest unread Update and retains persisted history', async () => {
@@ -26,6 +28,7 @@ test('Detail acknowledges only the latest unread Update and retains persisted hi
   assert.match(detailRenderer, /getWatchUpdates\(watch\)\.reverse\(\)/);
   assert.match(detailRenderer, /acknowledgeLatestWatchUpdate\(watch\.id\)/);
   assert.match(detailRenderer, /refreshLatestReport\(\{ watches: getWatches\(\) \}\)/);
+  assert.match(detailRenderer, /getCanonicalWatchClassification\(watch,[\s\S]*?getSummaryCardStatus\(classification\)[\s\S]*?status-label--\$\{presentation\.modifier\}/);
   assert.match(detailRenderer, /getWatchJourneyEvents\(watch,[\s\S]*?latestMeaningfulUpdate\?\.status === 'new'/);
   assert.match(detailRenderer, /filter\(\(\{ status: updateStatus \}\) => updateStatus === 'new'\)/);
   assert.ok(renderIndex >= 0 && visibleIndex > renderIndex);
