@@ -5,7 +5,7 @@ import {
   updateWatch,
   deleteWatch,
   getWatchById,
-  acknowledgeLatestWatchUpdate,
+  markUpdateAsRead,
   markUpdatesAsRead,
   resetStoredWatches,
   WATCH_STORAGE_CHANGED_EVENT,
@@ -21,6 +21,7 @@ import {
   WATCH_CLASSIFICATIONS,
 } from './report-status.js';
 import { getWatchStatusPresentation } from './watch-status-presentation.js';
+import { getWatchDetailPresentationSnapshot } from './watch-detail-presentation.js';
 import {
   generateReport,
   isReportGenerationInProgress,
@@ -1253,9 +1254,21 @@ const renderWatchDetail = () => {
 
   const watchId = getWatchIdFromLocation(window.location);
   let watch = getWatchById(watchId);
-  if (getCanonicalWatchClassification(watch) === WATCH_CLASSIFICATIONS.UPDATED) {
-    watch = acknowledgeLatestWatchUpdate(watch.id) || watch;
-    refreshLatestReport({ watches: getWatches() });
+  const detailPresentation = getWatchDetailPresentationSnapshot(watch, {
+    reports: getReports(),
+  });
+  if (detailPresentation.updateId) {
+    try {
+      markUpdateAsRead(watch.id, detailPresentation.updateId);
+      refreshLatestReport({ watches: getWatches() });
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn('[Watch updates] Could not acknowledge displayed update', {
+          watchId: watch.id,
+          updateId: detailPresentation.updateId,
+        });
+      }
+    }
   }
   if (
     watch?.monitoringState === 'preparing'
@@ -1421,8 +1434,7 @@ const renderWatchDetail = () => {
   }
 
   if (canonicalStatusEl) {
-    const classification = getCanonicalWatchClassification(watch, { reports: getReports() });
-    const presentation = getSummaryCardStatus(classification);
+    const presentation = getSummaryCardStatus(detailPresentation.classification);
     canonicalStatusEl.textContent = presentation?.label || t('statuses.watching');
     canonicalStatusEl.className = presentation
       ? `status-label status-label--${presentation.modifier}`

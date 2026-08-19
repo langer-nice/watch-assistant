@@ -23,9 +23,10 @@ test('Detail acknowledges only the latest unread Update and retains persisted hi
   const visibleIndex = detailRenderer.indexOf('monitoringUpdatesEl.hidden = monitoringUpdates.length === 0');
 
   assert.match(detailRenderer, /getWatchUpdates\(watch\)\.reverse\(\)/);
-  assert.match(detailRenderer, /acknowledgeLatestWatchUpdate\(watch\.id\)/);
+  assert.match(detailRenderer, /getWatchDetailPresentationSnapshot\(watch/);
+  assert.match(detailRenderer, /markUpdateAsRead\(watch\.id, detailPresentation\.updateId\)/);
   assert.match(detailRenderer, /refreshLatestReport\(\{ watches: getWatches\(\) \}\)/);
-  assert.match(detailRenderer, /getCanonicalWatchClassification\(watch,[\s\S]*?getSummaryCardStatus\(classification\)[\s\S]*?status-label--\$\{presentation\.modifier\}/);
+  assert.match(detailRenderer, /getSummaryCardStatus\(detailPresentation\.classification\)[\s\S]*?status-label--\$\{presentation\.modifier\}/);
   assert.match(detailRenderer, /getWatchJourneyEvents\(watch,[\s\S]*?latestMeaningfulUpdate\?\.status === 'new'/);
   assert.ok(renderIndex >= 0 && visibleIndex > renderIndex);
   assert.match(detailRenderer, /result\.matchedItems\.map\(\(\{ id \}\) => id\)/);
