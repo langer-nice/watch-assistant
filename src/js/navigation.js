@@ -5,6 +5,7 @@ import {
   updateWatch,
   deleteWatch,
   getWatchById,
+  acknowledgeLatestWatchUpdate,
   resetStoredWatches,
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
@@ -1269,6 +1270,10 @@ const renderWatchDetail = () => {
 
   const watchId = getWatchIdFromLocation(window.location);
   let watch = getWatchById(watchId);
+  if (getCanonicalWatchClassification(watch) === WATCH_CLASSIFICATIONS.UPDATED) {
+    watch = acknowledgeLatestWatchUpdate(watch.id) || watch;
+    refreshLatestReport({ watches: getWatches() });
+  }
   if (
     watch?.monitoringState === 'preparing'
     && Date.parse(watch.firstCheckCompletesAt) <= Date.now()
@@ -1753,7 +1758,7 @@ const renderWatchDetail = () => {
   }
 
   const timeline = getWatchJourneyEvents(watch, {
-    currentUpdateId: latestMeaningfulUpdate?.id,
+    currentUpdateId: latestMeaningfulUpdate?.status === 'new' ? latestMeaningfulUpdate.id : null,
   })
     .map((item) => {
       const label = item.type === 'created'

@@ -158,12 +158,12 @@ test('missing source is skipped and its latest failed attempt takes precedence o
   });
   assert.deepEqual(report.counts, {
     considered: 2, completed: 1, succeeded: 1, failed: 0, skipped: 1,
-    attention: 0, new: 0, updated: 1, watching: 1,
+    attention: 0, new: 0, updated: 0, watching: 2,
   });
   const entry = report.entries.find(({ watchId }) => watchId === 'missing');
-  assert.equal(entry.classification, 'updated');
-  assert.equal(entry.updateTitle, 'Existing headline');
-  assert.equal(entry.summary, 'Existing meaningful summary');
+  assert.equal(entry.classification, 'watching');
+  assert.equal(entry.updateTitle, '');
+  assert.equal(entry.summary, '');
   assert.equal(entry.attemptStatus, 'skipped');
   assert.equal(entry.failureCode, 'MISSING_FEED_URL');
   assert.deepEqual(report.watchIdsChecked, ['watch-1']);

@@ -1,4 +1,5 @@
 import { HOME_NEW_WATCH_WINDOW_MS, isUserActionRequired } from './watch-grouping.js';
+import { getUnreadUpdates } from './watch-updates.js';
 
 export const WATCH_CLASSIFICATIONS = Object.freeze({
   ATTENTION: 'attention',
@@ -49,25 +50,6 @@ export const getMeaningfulWatchUpdate = (watch) => {
 
 export const hasMeaningfulWatchUpdate = (watch) => Boolean(getMeaningfulWatchUpdate(watch));
 
-const getUpdateTimestamp = (update) => Date.parse(
-  update?.timestamp || update?.detectedAt || update?.publishedAt,
-);
-
-const isUpdateFromLatestSuccessfulCheck = (watch, meaningful) => {
-  const attempt = watch?.lastCheckAttempt;
-  if (attempt?.status !== 'succeeded') return false;
-  if (!['matching-items', 'new-items'].includes(attempt.outcome)) return false;
-
-  const updateId = meaningful?.update?.id;
-  const candidateIds = watch?.lastCheckResult?.candidateItemIds
-    || watch?.lastCheckOutcome?.candidateItemIds;
-  if (updateId && Array.isArray(candidateIds)) return candidateIds.includes(updateId);
-
-  const attemptedAt = Date.parse(attempt.attemptedAt);
-  const updatedAt = getUpdateTimestamp(meaningful?.update);
-  return Number.isFinite(attemptedAt) && Number.isFinite(updatedAt) && updatedAt >= attemptedAt;
-};
-
 export const isRecentlyCreatedWatch = (watch, now = new Date()) => {
   const createdAt = Date.parse(watch?.createdAt);
   const nowAt = now instanceof Date ? now.getTime() : Date.parse(now);
@@ -91,12 +73,17 @@ export const getUserFacingWatchClassification = (watch, { now = new Date() } = {
     return WATCH_CLASSIFICATIONS.ATTENTION;
   }
   const meaningful = getMeaningfulWatchUpdate(watch);
-  // Watches written before check attempts were introduced retain their legacy
-  // Updated presentation. Modern Watches are Updated only by their latest check.
-  if (meaningful && (
-    !watch.lastCheckAttempt || isUpdateFromLatestSuccessfulCheck(watch, meaningful)
-  )) return WATCH_CLASSIFICATIONS.UPDATED;
-  if (isRecentlyCreatedWatch(watch, now)) return WATCH_CLASSIFICATIONS.NEW;
+  // Persisted Update status is the acknowledgement record. Legacy Watches that
+  // predate structured Updates retain their old meaningful-text presentation.
+  if (meaningful?.update && getUnreadUpdates(watch).some(({ id }) => id === meaningful.update.id)) {
+    return WATCH_CLASSIFICATIONS.UPDATED;
+  }
+  if (meaningful && !meaningful.update && !watch.lastCheckAttempt) {
+    return WATCH_CLASSIFICATIONS.UPDATED;
+  }
+  if (!watch.lastCheckAttempt && isRecentlyCreatedWatch(watch, now)) {
+    return WATCH_CLASSIFICATIONS.NEW;
+  }
   return WATCH_CLASSIFICATIONS.WATCHING;
 };
 

@@ -13,6 +13,12 @@ import {
   createWatchCheckController,
   MonitoringCheckError,
 } from './watch-monitoring.js';
+import {
+  acknowledgeLatestWatchUpdate,
+  addWatch,
+  getWatchById,
+} from './watch-storage.js';
+import { getWatchTimelineEvents } from './watch-timeline.js';
 
 const NOW = new Date('2026-08-19T12:00:00.000Z');
 const baseline = {
@@ -69,15 +75,36 @@ test('update, no-change, and failure form one canonical, idempotent lifecycle', 
   assert.equal(unchanged.updates.length, 1, 'historical update is preserved');
   assert.equal(unchanged.lastChecked, '2026-08-19T11:00:00.000Z');
   assert.deepEqual(unchanged.monitoringSnapshot.itemIds, ['development']);
-  assert.equal(getCanonicalWatchClassification(unchanged, { now: NOW }), WATCH_CLASSIFICATIONS.WATCHING);
+  assert.equal(getCanonicalWatchClassification(unchanged, { now: NOW }), WATCH_CLASSIFICATIONS.UPDATED,
+    'a no-change check does not acknowledge an unviewed development');
+  const acknowledged = {
+    ...unchanged,
+    updates: unchanged.updates.map((update) => ({ ...update, status: 'read' })),
+    unreadUpdateCount: 0,
+  };
+  assert.equal(getCanonicalWatchClassification(acknowledged, { now: NOW }), WATCH_CLASSIFICATIONS.WATCHING);
 
   const failed = {
-    ...unchanged,
+    ...acknowledged,
     lastCheckAttempt: { status: 'failed', attemptedAt: '2026-08-19T12:00:00.000Z', code: 'TIMEOUT' },
   };
-  assert.equal(failed.lastChecked, unchanged.lastChecked, 'failure preserves last successful check time');
-  assert.deepEqual(failed.monitoringSnapshot, unchanged.monitoringSnapshot, 'failure preserves baseline');
+  assert.equal(failed.lastChecked, acknowledged.lastChecked, 'failure preserves last successful check time');
+  assert.deepEqual(failed.monitoringSnapshot, acknowledged.monitoringSnapshot, 'failure preserves baseline');
   assert.equal(getCanonicalWatchClassification(failed, { now: NOW }), WATCH_CLASSIFICATIONS.ATTENTION);
+});
+
+test('a recent Watch becomes Watching after its initial baseline without creating history', () => {
+  const result = applyFeedCheckResult({
+    ...baseline,
+    createdAt: '2026-08-19T11:30:00.000Z',
+    monitoringSnapshot: null,
+    seenMonitoringItemIds: [],
+  }, response(NOW.toISOString(), [item]));
+  const watch = { ...baseline, createdAt: '2026-08-19T11:30:00.000Z', ...result.changes };
+  assert.equal(result.outcome, 'baseline');
+  assert.equal(watch.updates.length, 0);
+  assert.equal(getWatchTimelineEvents(watch).filter(({ type }) => type === 'update').length, 0);
+  assert.equal(getCanonicalWatchClassification(watch, { now: NOW }), 'watching');
 });
 
 test('Check Now stores failure metadata without changing the valid snapshot or lastChecked', async () => {
@@ -134,6 +161,58 @@ test('every preview fixture has one mutually exclusive status shared by live vie
     entries.map(({ classification }) => classification),
     ['updated', 'watching', 'attention', 'updated', 'watching'],
   );
+});
+
+test('opening detail acknowledges one latest preview development and refreshes report without losing history', () => {
+  const fixtures = createPreviewTestWatches(NOW);
+  for (const original of fixtures.filter(({ updates }) => updates?.some(({ status }) => status === 'new'))) {
+    localStorage.removeItem('watchAssistant.watches');
+    localStorage.removeItem(REPORTS_STORAGE_KEY);
+    addWatch(original);
+    localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify([seedReport(original)]));
+
+    assert.equal(getCanonicalWatchClassification(getWatchById(original.id), { now: NOW }), 'updated');
+    const acknowledged = acknowledgeLatestWatchUpdate(original.id);
+    const repeated = acknowledgeLatestWatchUpdate(original.id);
+    const report = refreshLatestReport({ watches: [repeated], now: () => NOW });
+
+    assert.equal(getCanonicalWatchClassification(acknowledged, { now: NOW }), 'watching');
+    assert.equal(repeated.updates.length, 1);
+    assert.equal(repeated.updates[0].status, 'read');
+    assert.equal(getWatchTimelineEvents(repeated).filter(({ type }) => type === 'update').length, 1);
+    assert.equal(report.entries[0].classification, 'watching');
+    assert.equal(JSON.parse(localStorage.getItem(REPORTS_STORAGE_KEY)).length, 1);
+  }
+});
+
+test('preview Updates are timeline events and a successful flood retry clears every active marker', async () => {
+  const fixtures = createPreviewTestWatches(NOW);
+  for (const id of ['preview-test-updated', 'preview-test-media-story']) {
+    const watch = fixtures.find((fixture) => fixture.id === id);
+    assert.equal(getWatchTimelineEvents(watch).filter(({ type }) => type === 'update').length, 1);
+  }
+
+  let flood = fixtures.find(({ id }) => id === 'preview-test-attention');
+  const controller = createWatchCheckController({
+    getWatch: () => flood,
+    saveWatch: (_id, changes) => { flood = { ...flood, ...changes }; return flood; },
+    requestCheck: async () => response(NOW.toISOString(), [{
+      id: 'flood-baseline', title: 'Existing flood alert baseline',
+      excerpt: 'Existing regional flood alert baseline.', url: 'https://example.com/flood',
+    }]),
+    now: () => NOW,
+  });
+  await controller.check(flood.id);
+  assert.equal(flood.lastCheckAttempt.status, 'succeeded');
+  assert.equal(flood.actionRequired, false);
+  assert.equal(flood.requiresAttention, false);
+  assert.equal(flood.attentionReason, null);
+  assert.equal(flood.userActionReason, null);
+  assert.equal(flood.monitoringIssueReason, null);
+  assert.equal(flood.monitoringFailure, null);
+  assert.equal(flood.status, 'watching');
+  assert.equal(flood.currentStatus, 'watching');
+  assert.equal(getCanonicalWatchClassification(flood, { now: NOW }), 'watching');
 });
 
 test('legacy stored update text remains readable while modern no-change state ignores it', () => {
