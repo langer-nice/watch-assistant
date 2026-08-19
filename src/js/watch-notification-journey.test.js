@@ -9,13 +9,12 @@ test('Home and All Watches derive Updated presentation from persisted Updates', 
   const listRenderer = source.match(/const renderWatchList =[\s\S]*?const renderWatchDetail/)?.[0] || '';
 
   assert.match(homeRenderer, /getLatestUpdate\(watch\)/);
-  assert.match(sharedRenderer, /statuses\.updated/);
+  assert.match(sharedRenderer, /getWatchStatusPresentation\(status, t\)/);
   assert.doesNotMatch(homeRenderer, /statuses\.new/);
-  assert.match(listRenderer, /updatedIds\.has\(watch\.id\)[\s\S]*?\? 'updated'/);
-  assert.match(listRenderer, /newIds\.has\(watch\.id\)[\s\S]*?\? 'new'/);
+  assert.match(listRenderer, /const status = statusById\.get\(watch\.id\)/);
 });
 
-test('Detail renders persisted history without silently acknowledging Updates', async () => {
+test('Detail acknowledges only the latest unread Update and retains persisted history', async () => {
   const source = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
   const detailRenderer = source.match(/const renderWatchDetail =[\s\S]*?const scheduleFirstMonitoringPass/)?.[0]
     || source.match(/const renderWatchDetail =[\s\S]*?const resolveInitialHomeRoute/)?.[0]
@@ -24,7 +23,10 @@ test('Detail renders persisted history without silently acknowledging Updates', 
   const visibleIndex = detailRenderer.indexOf('monitoringUpdatesEl.hidden = monitoringUpdates.length === 0');
 
   assert.match(detailRenderer, /getWatchUpdates\(watch\)\.reverse\(\)/);
-  assert.match(detailRenderer, /getWatchJourneyEvents\(watch,[\s\S]*?currentUpdateId: latestMeaningfulUpdate\?\.id/);
+  assert.match(detailRenderer, /acknowledgeLatestWatchUpdate\(watch\.id\)/);
+  assert.match(detailRenderer, /refreshLatestReport\(\{ watches: getWatches\(\) \}\)/);
+  assert.match(detailRenderer, /getCanonicalWatchClassification\(watch,[\s\S]*?getSummaryCardStatus\(classification\)[\s\S]*?status-label--\$\{presentation\.modifier\}/);
+  assert.match(detailRenderer, /getWatchJourneyEvents\(watch,[\s\S]*?latestMeaningfulUpdate\?\.status === 'new'/);
   assert.match(detailRenderer, /filter\(\(\{ status: updateStatus \}\) => updateStatus === 'new'\)/);
   assert.ok(renderIndex >= 0 && visibleIndex > renderIndex);
   assert.doesNotMatch(detailRenderer, /markUpdatesAsRead\(/);

@@ -1,4 +1,5 @@
 import { HOME_NEW_WATCH_WINDOW_MS, isUserActionRequired } from './watch-grouping.js';
+import { getUnreadUpdates } from './watch-updates.js';
 
 export const WATCH_CLASSIFICATIONS = Object.freeze({
   ATTENTION: 'attention',
@@ -68,9 +69,21 @@ export const getUserFacingWatchClassification = (watch, { now = new Date() } = {
   if (!watch || typeof watch !== 'object' || watch.status === 'completed') {
     return WATCH_CLASSIFICATIONS.WATCHING;
   }
-  if (isUserActionRequired(watch)) return WATCH_CLASSIFICATIONS.ATTENTION;
-  if (hasMeaningfulWatchUpdate(watch)) return WATCH_CLASSIFICATIONS.UPDATED;
-  if (isRecentlyCreatedWatch(watch, now)) return WATCH_CLASSIFICATIONS.NEW;
+  if (watch.lastCheckAttempt?.status === 'failed' || isUserActionRequired(watch)) {
+    return WATCH_CLASSIFICATIONS.ATTENTION;
+  }
+  const meaningful = getMeaningfulWatchUpdate(watch);
+  // Persisted Update status is the acknowledgement record. Legacy Watches that
+  // predate structured Updates retain their old meaningful-text presentation.
+  if (meaningful?.update && getUnreadUpdates(watch).some(({ id }) => id === meaningful.update.id)) {
+    return WATCH_CLASSIFICATIONS.UPDATED;
+  }
+  if (meaningful && !meaningful.update && !watch.lastCheckAttempt) {
+    return WATCH_CLASSIFICATIONS.UPDATED;
+  }
+  if (!watch.lastCheckAttempt && isRecentlyCreatedWatch(watch, now)) {
+    return WATCH_CLASSIFICATIONS.NEW;
+  }
   return WATCH_CLASSIFICATIONS.WATCHING;
 };
 

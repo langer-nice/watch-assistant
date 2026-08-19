@@ -5,6 +5,7 @@ import {
   updateWatch,
   deleteWatch,
   getWatchById,
+  acknowledgeLatestWatchUpdate,
   resetStoredWatches,
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
@@ -18,9 +19,11 @@ import {
   getCanonicalWatchClassification,
   WATCH_CLASSIFICATIONS,
 } from './report-status.js';
+import { getWatchStatusPresentation } from './watch-status-presentation.js';
 import {
   generateReport,
   isReportGenerationInProgress,
+  refreshLatestReport,
 } from './report-service.js';
 import { getLanguage, t } from './i18n.js';
 import {
@@ -994,18 +997,7 @@ const getHomeWatchTimestampText = (watch, latestUpdate) => {
   return watch.lastCheckedKey ? lastChecked : formatHomeWatchTimestamp(lastChecked);
 };
 
-const getSummaryCardStatus = (status) => {
-  if (status === 'attention') {
-    return { label: t('statuses.attention'), modifier: 'attention' };
-  }
-  if (status === 'updated') {
-    return { label: t('statuses.updated'), modifier: 'updated' };
-  }
-  if (status === 'new') {
-    return { label: t('home.newBadge'), modifier: 'stable' };
-  }
-  return null;
-};
+const getSummaryCardStatus = (status) => getWatchStatusPresentation(status, t);
 
 const renderSummaryWatchCard = ({
   watch,
@@ -1188,13 +1180,7 @@ const renderWatchList = () => {
       const storedTitle = getWatchDisplayTitle(watch);
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
       const isPaused = watch.status === 'paused';
-      const status = attentionIds.has(watch.id)
-        ? 'attention'
-        : updatedIds.has(watch.id)
-          ? 'updated'
-          : newIds.has(watch.id)
-            ? 'new'
-            : null;
+      const status = statusById.get(watch.id);
       const showCreationMetadata = group.type === 'last7Days';
       const creationMetadata = showCreationMetadata
         ? formatWatchCreationMetadata(getWatchCreationDate(watch), {
@@ -1268,6 +1254,10 @@ const renderWatchDetail = () => {
 
   const watchId = getWatchIdFromLocation(window.location);
   let watch = getWatchById(watchId);
+  if (getCanonicalWatchClassification(watch) === WATCH_CLASSIFICATIONS.UPDATED) {
+    watch = acknowledgeLatestWatchUpdate(watch.id) || watch;
+    refreshLatestReport({ watches: getWatches() });
+  }
   if (
     watch?.monitoringState === 'preparing'
     && Date.parse(watch.firstCheckCompletesAt) <= Date.now()
@@ -1752,7 +1742,7 @@ const renderWatchDetail = () => {
   }
 
   const timeline = getWatchJourneyEvents(watch, {
-    currentUpdateId: latestMeaningfulUpdate?.id,
+    currentUpdateId: latestMeaningfulUpdate?.status === 'new' ? latestMeaningfulUpdate.id : null,
   })
     .map((item) => {
       const label = item.type === 'created'
@@ -1916,6 +1906,7 @@ const renderWatchDetail = () => {
           });
         }
       } finally {
+        refreshLatestReport({ watches: getWatches() });
         detailCheckInProgress = false;
         renderWatchDetail();
       }

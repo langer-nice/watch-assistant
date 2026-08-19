@@ -49,15 +49,15 @@ test('Needs attention uses the existing strong red token with white text', async
   assert.match(attentionRule, /background:\s*var\(--color-status-action\)/);
 });
 
-test('Home and All Watches keep only meaningful dashboard status badges', async () => {
+test('All Watches restores the validated Watching badge without changing Home selection', async () => {
   const [, labels, navigation] = await readStyles();
   const homeRenderer = navigation.match(/const renderHomeWatchCards =[\s\S]*?const renderHomeBriefing =/)?.[0] || '';
   const allRenderer = navigation.match(/const renderWatchList = \(\) => \{[\s\S]*?const renderWatchDetail/)?.[0] || '';
 
   assert.match(homeRenderer, /const homeStatus = statusById\.get\(watch\.id\);[\s\S]*?if \(!homeStatus\) return ''/);
   assert.doesNotMatch(homeRenderer, /status-label--unchanged|data-home-watch-status="unchanged"/);
-  assert.match(allRenderer, /updatedIds\.has\(watch\.id\)[\s\S]*?\? 'updated'[\s\S]*?newIds\.has\(watch\.id\)[\s\S]*?\? 'new'/);
-  assert.doesNotMatch(allRenderer, /monitoringHealthStatus|statuses\.watching|renderCompanyStatusBadge/);
+  assert.match(allRenderer, /const status = statusById\.get\(watch\.id\)/);
+  assert.doesNotMatch(allRenderer, /monitoringHealthStatus|renderCompanyStatusBadge/);
   assert.match(labels, /\.status-label--watching,[\s\S]*?border-color:\s*var\(--color-status-state-border\);[\s\S]*?background:\s*var\(--color-status-state-bg\)/);
 });
 
@@ -65,8 +65,7 @@ test('New reuses the existing success badge while Updated remains blue', async (
   const [tokens, labels, navigation] = await readStyles();
   const statusRenderer = navigation.match(/const getSummaryCardStatus =[\s\S]*?const renderSummaryWatchCard/)?.[0] || '';
 
-  assert.match(statusRenderer, /status === 'new'[\s\S]*?modifier: 'stable'/);
-  assert.match(statusRenderer, /status === 'updated'[\s\S]*?modifier: 'updated'/);
+  assert.match(statusRenderer, /getWatchStatusPresentation\(status, t\)/);
   assert.match(labels, /\.status-label--stable\s*\{[\s\S]*?background:\s*var\(--color-status-success\)/);
   assert.match(tokens, /--color-status-update-bg:\s*var\(--color-indicator-updated\)/);
 });

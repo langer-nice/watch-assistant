@@ -138,7 +138,7 @@ test('counts use actual terminal attempts and omit an unchecked Watch', async ()
   assert.equal(report.counts.failed, 0);
 });
 
-test('missing source is skipped while meaningful content remains Updated', async () => {
+test('missing source is skipped and its latest failed attempt takes precedence over stale content', async () => {
   const harness = createHarness({ outcomes: [{ type: 'no-new-items', ids: [] }] });
   const missing = {
     id: 'missing', title: 'Missing source', status: 'watching', updates: [{
@@ -158,12 +158,12 @@ test('missing source is skipped while meaningful content remains Updated', async
   });
   assert.deepEqual(report.counts, {
     considered: 2, completed: 1, succeeded: 1, failed: 0, skipped: 1,
-    attention: 0, new: 0, updated: 1, watching: 1,
+    attention: 0, new: 0, updated: 0, watching: 2,
   });
   const entry = report.entries.find(({ watchId }) => watchId === 'missing');
-  assert.equal(entry.classification, 'updated');
-  assert.equal(entry.updateTitle, 'Existing headline');
-  assert.equal(entry.summary, 'Existing meaningful summary');
+  assert.equal(entry.classification, 'watching');
+  assert.equal(entry.updateTitle, '');
+  assert.equal(entry.summary, '');
   assert.equal(entry.attemptStatus, 'skipped');
   assert.equal(entry.failureCode, 'MISSING_FEED_URL');
   assert.deepEqual(report.watchIdsChecked, ['watch-1']);
@@ -175,7 +175,7 @@ test('missing source is skipped while meaningful content remains Updated', async
     lastCheckAttempt: {
       status: 'failed', attemptedAt: '2026-08-14T11:00:00Z', code: 'MISSING_FEED_URL',
     },
-  }, { reports: [report] }), WATCH_CLASSIFICATIONS.UPDATED);
+  }, { reports: [report] }), WATCH_CLASSIFICATIONS.ATTENTION);
 });
 
 test('explicit user action takes precedence over meaningful update content', () => {
