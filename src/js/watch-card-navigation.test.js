@@ -150,7 +150,9 @@ test('Home keeps fixed priority and Everything else links to the complete Watch 
     readFile(new URL('../scss/components/_briefing-item.scss', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(html, /id="homeCaughtUpState"[\s\S]*?href="watches\.html"[\s\S]*?id="homeBriefingList"[\s\S]*?id="homeAllQuiet"[\s\S]*?href="watches\.html"/);
+  assert.match(html, /id="homeCaughtUpState"[\s\S]*?href="watches\.html"[\s\S]*?id="homeBriefingList"[\s\S]*?id="homeAllQuiet"/);
+  const allQuietMarkup = html.match(/id="homeAllQuiet"[\s\S]*?<\/section>/)?.[0] || '';
+  assert.doesNotMatch(allQuietMarkup, /href="watches\.html"|data-i18n="home\.allWatches"/);
   assert.doesNotMatch(html, /id="homeWatchSort"/);
   assert.match(navigation, /list\.innerHTML = renderHomeWatchCards\(watches, statusById\)/);
   assert.match(itemStyles, /\.briefing-item \+ \.briefing-item\s*\{[\s\S]*?border-top:\s*1px solid var\(--color-divider\)/);

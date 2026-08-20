@@ -55,7 +55,9 @@ test('Home distinguishes first-use, Everything else, and the fallback caught-up 
 
   assert.match(html, /id="homeEmptyState"[\s\S]*?data-i18n="home\.emptyAction"/);
   assert.match(html, /id="homeCaughtUpState"[\s\S]*?data-i18n="home\.dashboardUpToDate"[\s\S]*?data-i18n="home\.dashboardNoNewUpdates"[\s\S]*?href="watches\.html"/);
-  assert.match(html, /id="homeBriefingList"[\s\S]*?id="homeAllQuiet"[\s\S]*?id="homeEverythingChecked"[\s\S]*?href="watches\.html"/);
+  const allQuietMarkup = html.match(/id="homeAllQuiet"[\s\S]*?<\/section>/)?.[0] || '';
+  assert.match(allQuietMarkup, /id="homeEverythingChecked"/);
+  assert.doesNotMatch(allQuietMarkup, /href="watches\.html"|data-i18n="home\.allWatches"/);
   assert.match(navigation, /emptyState\.hidden = hasUserCreatedWatches/);
   assert.match(navigation, /briefingFeed\.hidden = !hasReport/);
   assert.match(navigation, /caughtUpState\.hidden = !hasReport \|\| hasHomeItems \|\| hasQuietItems/);
