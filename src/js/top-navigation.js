@@ -167,7 +167,9 @@ export const initTopNavigation = ({ env = import.meta.env } = {}) => {
           data-i18n-aria-label="topNavigation.accountMenu"
           hidden
         >
-          <p data-i18n="topNavigation.accountComingSoon"></p>
+          <div data-auth-root>
+            <p data-i18n="auth.loading"></p>
+          </div>
         </div>
       </div>
     </div>
