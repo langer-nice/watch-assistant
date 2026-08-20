@@ -238,11 +238,11 @@
     "noChangesFound": "No changes found.",
     "notCheckedYet": "Not checked yet",
     "checkFailedStatus": "Check failed",
-    "noNewUpdates": "No changes detected since monitoring started.",
-    "noMatchingUpdates": "New publications checked, but none matched this story",
+    "noNewUpdates": "No new updates found.",
+    "noMatchingUpdates": "No new updates found.",
     "newItemsFound": {
-      "one": "{count} new article found",
-      "other": "{count} new articles found"
+      "one": "{count} new update found.",
+      "other": "{count} new updates found."
     },
     "reviewUpdate": "Review update",
     "reviewUpdates": "Review updates",

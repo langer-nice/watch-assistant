@@ -55,7 +55,9 @@ test('Home distinguishes first-use, Everything else, and the fallback caught-up 
 
   assert.match(html, /id="homeEmptyState"[\s\S]*?data-i18n="home\.emptyAction"/);
   assert.match(html, /id="homeCaughtUpState"[\s\S]*?data-i18n="home\.dashboardUpToDate"[\s\S]*?data-i18n="home\.dashboardNoNewUpdates"[\s\S]*?href="watches\.html"/);
-  assert.match(html, /id="homeBriefingList"[\s\S]*?id="homeAllQuiet"[\s\S]*?id="homeEverythingChecked"[\s\S]*?href="watches\.html"/);
+  const allQuietMarkup = html.match(/id="homeAllQuiet"[\s\S]*?<\/section>/)?.[0] || '';
+  assert.match(allQuietMarkup, /id="homeEverythingChecked"/);
+  assert.doesNotMatch(allQuietMarkup, /href="watches\.html"|data-i18n="home\.allWatches"/);
   assert.match(navigation, /emptyState\.hidden = hasUserCreatedWatches/);
   assert.match(navigation, /briefingFeed\.hidden = !hasReport/);
   assert.match(navigation, /caughtUpState\.hidden = !hasReport \|\| hasHomeItems \|\| hasQuietItems/);
@@ -101,7 +103,7 @@ test('All Watches renderer continues to read and render the complete collection'
   assert.doesNotMatch(renderer, /filter\([^)]*unchanged/);
 });
 
-test('All Watches reuses the Home summary presentation without a Monitoring badge', async () => {
+test('All Watches reuses the validated summary presentation with a Watching badge', async () => {
   const [navigation, styles] = await Promise.all([
     readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
     readFile(new URL('../scss/pages/_watches.scss', import.meta.url), 'utf8'),
@@ -109,8 +111,8 @@ test('All Watches reuses the Home summary presentation without a Monitoring badg
   const renderer = navigation.match(/const renderWatchList = \(\) => \{[\s\S]*?const renderWatchDetail/)?.[0] || '';
 
   assert.match(renderer, /renderSummaryWatchCard\(\{/);
-  assert.match(renderer, /status = attentionIds\.has\(watch\.id\)[\s\S]*?newIds\.has\(watch\.id\)[\s\S]*?\? 'new'[\s\S]*?: null/);
-  assert.doesNotMatch(renderer, /statuses\.watching|monitoringStatusBadge|watch-row/);
+  assert.match(renderer, /const status = statusById\.get\(watch\.id\)/);
+  assert.doesNotMatch(renderer, /monitoringStatusBadge|watch-row/);
   assert.match(styles, /\.watch-list\s*\{[\s\S]*?display:\s*block/);
   assert.match(styles, /\.briefing-item\s*\{[\s\S]*?border-bottom:\s*1px solid var\(--color-divider\)/);
 });

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   createPreviewTestWatches,
@@ -46,6 +47,40 @@ test('loader is available locally and in Vercel previews, but not in production'
   assert.equal(isPreviewTestLoaderAvailable({ DEV: false, VITE_VERCEL_ENV: 'preview' }), true);
   assert.equal(isPreviewTestLoaderAvailable({ DEV: false, VITE_VERCEL_ENV: 'production' }), false);
   assert.equal(isPreviewTestLoaderAvailable({ DEV: false, VITE_VERCEL_ENV: '' }), false);
+});
+
+test('local development and Vercel previews bypass onboarding on every page load', async () => {
+  const navigation = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
+  const development = { DEV: true, VITE_VERCEL_ENV: '' };
+  const preview = { DEV: false, VITE_VERCEL_ENV: 'preview' };
+
+  assert.equal(isPreviewTestLoaderAvailable(development), true);
+  assert.equal(isPreviewTestLoaderAvailable(development), true);
+  assert.equal(isPreviewTestLoaderAvailable(preview), true);
+  assert.equal(isPreviewTestLoaderAvailable(preview), true);
+  assert.match(
+    navigation,
+    /if \(!isPreviewTestLoaderAvailable\(env\) && !hasCompletedOnboarding\(\)\)/,
+  );
+});
+
+test('production preserves onboarding routing and never renders the Test Data control', async () => {
+  const navigation = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
+  const production = { DEV: false, VITE_VERCEL_ENV: 'production' };
+
+  assert.equal(isPreviewTestLoaderAvailable(production), false);
+  assert.match(navigation, /if \(!isPreviewTestLoaderAvailable\(env\)/);
+  assert.match(navigation, /return getReplayIntroFlow\(\)/);
+});
+
+test('rerenders cannot append a duplicate Test Data control', async () => {
+  const navigation = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
+  const duplicateGuard = navigation.indexOf("shell.querySelector('.dev-reset-control')");
+  const controlCreation = navigation.indexOf("document.createElement('div')", duplicateGuard);
+
+  assert.ok(duplicateGuard >= 0);
+  assert.ok(controlCreation > duplicateGuard);
+  assert.match(navigation, /control\.className = 'dev-reset-control'/);
 });
 
 test('initial and repeated loads create exactly one copy of every fixture', () => withStorage([], () => {

@@ -14,7 +14,7 @@ test('application surfaces retain report storage and canonical status integratio
   assert.match(navigation, /const report = getLatestReport\(\)/);
   assert.doesNotMatch(navigation, /getReportById|searchParams\.get\('report'\)/);
   assert.match(navigation, /getCanonicalStatusMap\(watches, reports\)/);
-  assert.match(navigation, /getCanonicalWatchClassification\(watch, \{ reports: getReports\(\) \}\)/);
+  assert.match(navigation, /getWatchDetailPresentationSnapshot\(watch, \{[\s\S]*?reports: getReports\(\)/);
   assert.doesNotMatch(navigation, /queueMicrotask\(\(\) => markUpdatesAsRead/);
   assert.match(storage, /REPORTS_STORAGE_KEY = 'watchAssistant\.reports\.v1'/);
   assert.match(storage, /export const getReportById/);

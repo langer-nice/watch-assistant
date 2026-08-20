@@ -148,6 +148,61 @@ test('BODACC activation creates a baseline and repeated checks add exactly one s
   assert.deepEqual(lifecycle.companyRequests, [SIREN, SIREN, SIREN, SIREN]);
 });
 
+test('BODACC baseline comparison is order independent and suppresses historical notices', () => {
+  const baseline = {
+    id: 'company-watch', inputType: 'company', status: 'watching', monitoringSource: BODACC_SOURCE,
+    monitoringSnapshot: {
+      checkedAt: CHECKED_AT,
+      itemIds: ['CURRENT', 'OLD'],
+      items: [bodaccItem('CURRENT'), { ...bodaccItem('OLD'), publishedAt: '2020-01-01T00:00:00.000Z' }],
+    },
+  };
+  const reordered = applyFeedCheckResult(baseline, {
+    ...bodaccResponse([]),
+    items: [{ ...bodaccItem('OLD'), publishedAt: '2020-01-01T00:00:00.000Z' }, bodaccItem('CURRENT')],
+  }, { trustedSourceType: 'bodacc' });
+  assert.equal(reordered.outcome, 'no-new-items');
+  assert.deepEqual(reordered.matchedItems, []);
+
+  const historical = applyFeedCheckResult(baseline, {
+    ...bodaccResponse([]),
+    items: [{ ...bodaccItem('HISTORICAL'), publishedAt: '2020-01-02T00:00:00.000Z' }],
+  }, { trustedSourceType: 'bodacc' });
+  assert.equal(historical.outcome, 'no-new-items');
+  assert.deepEqual(historical.changes.updates || [], []);
+});
+
+test('BODACC recovers an invalid baseline without turning returned history into Updates', () => {
+  const watch = {
+    id: 'legacy-company-watch', inputType: 'company', status: 'watching',
+    monitoringSource: BODACC_SOURCE, monitoringSnapshot: { itemIds: ['OLD'] },
+  };
+  const result = applyFeedCheckResult(watch, bodaccResponse(['OLD', 'OTHER']), {
+    trustedSourceType: 'bodacc',
+  });
+  assert.equal(result.outcome, 'baseline');
+  assert.deepEqual(result.matchedItems, []);
+  assert.deepEqual(result.changes.updates || [], []);
+  assert.deepEqual(result.changes.monitoringSnapshot.itemIds, ['OLD', 'OTHER']);
+});
+
+test('BODACC deduplicates compatible notices and preserves source and detection dates', () => {
+  const prior = {
+    id: 'company-watch', inputType: 'company', status: 'watching', monitoringSource: BODACC_SOURCE,
+    monitoringSnapshot: { checkedAt: CHECKED_AT, itemIds: [], items: [] },
+  };
+  const notice = { ...bodaccItem('NEW'), publishedAt: '2026-08-05T00:00:00.000Z' };
+  const result = applyFeedCheckResult(prior, {
+    ...bodaccResponse([], '2026-08-05T12:00:00.000Z'),
+    items: [notice, { ...notice, id: 'ALTERNATE-ID' }],
+  }, { trustedSourceType: 'bodacc' });
+  assert.equal(result.matchedItems.length, 1);
+  assert.equal(result.changes.updates.length, 1);
+  assert.equal(result.changes.updates[0].publishedAt, '2026-08-05T00:00:00.000Z');
+  assert.equal(result.changes.updates[0].detectedAt, '2026-08-05T12:00:00.000Z');
+  assert.equal(result.changes.updates[0].timestamp, '2026-08-05T00:00:00.000Z');
+});
+
 test('Check Now still uses BODACC after a same-SIREN Company edit', async () => {
   const beforeEdit = {
     id: 'edited-company-watch',
@@ -222,7 +277,7 @@ test('a BODACC business event survives normalization without changing ID dedupli
   const watch = {
     id: 'company-watch',
     monitoringSource: BODACC_SOURCE,
-    monitoringSnapshot: { itemIds: [] },
+    monitoringSnapshot: { itemIds: [], items: [], checkedAt: CHECKED_AT },
   };
   const classifiedItem = {
     ...bodaccItem('CAPITAL'),
@@ -387,7 +442,7 @@ test('BODACC bypass requires a validated source and the dedicated trusted reques
   const watch = {
     id: 'company-watch',
     monitoringSource: BODACC_SOURCE,
-    monitoringSnapshot: { itemIds: [] },
+    monitoringSnapshot: { itemIds: [], items: [], checkedAt: CHECKED_AT },
   };
   const unrelated = bodaccItem('UNRELATED', 'Text with no narrative Watch identifiers');
 

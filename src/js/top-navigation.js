@@ -1,6 +1,7 @@
 import { t, translatePage } from './i18n.js';
 import { createLanguageControl } from './language-control.js';
 import { hasCompletedOnboarding } from './intro-flow.js';
+import { isPreviewTestLoaderAvailable } from './preview-test-watches.js';
 
 const HOME_DESTINATION = 'index.html?entry=navigation';
 
@@ -32,12 +33,12 @@ const profileIcon = `
   </svg>
 `;
 
-const getNavigationConfig = () => {
+const getNavigationConfig = (env) => {
   const params = new URLSearchParams(window.location.search);
   if (params.get('presentation') === 'modal') return null;
 
   if (document.querySelector('.page--home')) {
-    if (!hasCompletedOnboarding()) return null;
+    if (!isPreviewTestLoaderAvailable(env) && !hasCompletedOnboarding()) return null;
     return {
       pattern: 'none',
       activeSection: 'home',
@@ -124,8 +125,8 @@ const closePopover = (popover, trigger, { restoreFocus = true } = {}) => {
   if (restoreFocus) trigger?.focus({ preventScroll: true });
 };
 
-export const initTopNavigation = () => {
-  const config = getNavigationConfig();
+export const initTopNavigation = ({ env = import.meta.env } = {}) => {
+  const config = getNavigationConfig(env);
   const page = document.querySelector('.page');
   if (!config || !page || page.querySelector('.top-navigation')) return;
 

@@ -238,11 +238,11 @@
     "noChangesFound": "Aucun changement détecté.",
     "notCheckedYet": "Pas encore vérifiée",
     "checkFailedStatus": "Échec de la vérification",
-    "noNewUpdates": "Aucun changement détecté depuis le début de la surveillance.",
-    "noMatchingUpdates": "De nouvelles publications ont été vérifiées, mais aucune ne correspond à cette actualité",
+    "noNewUpdates": "Aucune nouvelle mise à jour trouvée.",
+    "noMatchingUpdates": "Aucune nouvelle mise à jour trouvée.",
     "newItemsFound": {
-      "one": "{count} nouvel article trouvé",
-      "other": "{count} nouveaux articles trouvés"
+      "one": "{count} nouvelle mise à jour trouvée.",
+      "other": "{count} nouvelles mises à jour trouvées."
     },
     "reviewUpdate": "Consulter la mise à jour",
     "reviewUpdates": "Consulter les mises à jour",

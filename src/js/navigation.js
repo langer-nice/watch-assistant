@@ -5,6 +5,8 @@ import {
   updateWatch,
   deleteWatch,
   getWatchById,
+  markUpdateAsRead,
+  markUpdatesAsRead,
   resetStoredWatches,
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
@@ -18,9 +20,12 @@ import {
   getCanonicalWatchClassification,
   WATCH_CLASSIFICATIONS,
 } from './report-status.js';
+import { getWatchStatusPresentation } from './watch-status-presentation.js';
+import { getWatchDetailPresentationSnapshot } from './watch-detail-presentation.js';
 import {
   generateReport,
   isReportGenerationInProgress,
+  refreshLatestReport,
 } from './report-service.js';
 import { getLanguage, t } from './i18n.js';
 import {
@@ -180,8 +185,6 @@ let detailConfirmationHideTimer = null;
 let detailCheckInProgress = false;
 let detailCheckErrorWatchId = null;
 let detailRevealedUpdateRoute = null;
-const detailDeferredReadUpdateIds = new Set();
-const getDeferredReadKey = (watchId, updateId) => `${watchId}\u0000${updateId}`;
 let firstMonitoringTimer = null;
 let firstMonitoringTransitionTimer = null;
 let editSheetCloseTimer = null;
@@ -994,18 +997,7 @@ const getHomeWatchTimestampText = (watch, latestUpdate) => {
   return watch.lastCheckedKey ? lastChecked : formatHomeWatchTimestamp(lastChecked);
 };
 
-const getSummaryCardStatus = (status) => {
-  if (status === 'attention') {
-    return { label: t('statuses.attention'), modifier: 'attention' };
-  }
-  if (status === 'updated') {
-    return { label: t('statuses.updated'), modifier: 'updated' };
-  }
-  if (status === 'new') {
-    return { label: t('home.newBadge'), modifier: 'stable' };
-  }
-  return null;
-};
+const getSummaryCardStatus = (status) => getWatchStatusPresentation(status, t);
 
 const renderSummaryWatchCard = ({
   watch,
@@ -1188,13 +1180,7 @@ const renderWatchList = () => {
       const storedTitle = getWatchDisplayTitle(watch);
       const title = hasMeaningfulText(storedTitle) ? storedTitle.trim() : t('common.newWatch');
       const isPaused = watch.status === 'paused';
-      const status = attentionIds.has(watch.id)
-        ? 'attention'
-        : updatedIds.has(watch.id)
-          ? 'updated'
-          : newIds.has(watch.id)
-            ? 'new'
-            : null;
+      const status = statusById.get(watch.id);
       const showCreationMetadata = group.type === 'last7Days';
       const creationMetadata = showCreationMetadata
         ? formatWatchCreationMetadata(getWatchCreationDate(watch), {
@@ -1268,6 +1254,22 @@ const renderWatchDetail = () => {
 
   const watchId = getWatchIdFromLocation(window.location);
   let watch = getWatchById(watchId);
+  const detailPresentation = getWatchDetailPresentationSnapshot(watch, {
+    reports: getReports(),
+  });
+  if (detailPresentation.updateId) {
+    try {
+      markUpdateAsRead(watch.id, detailPresentation.updateId);
+      refreshLatestReport({ watches: getWatches() });
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn('[Watch updates] Could not acknowledge displayed update', {
+          watchId: watch.id,
+          updateId: detailPresentation.updateId,
+        });
+      }
+    }
+  }
   if (
     watch?.monitoringState === 'preparing'
     && Date.parse(watch.firstCheckCompletesAt) <= Date.now()
@@ -1432,8 +1434,7 @@ const renderWatchDetail = () => {
   }
 
   if (canonicalStatusEl) {
-    const classification = getCanonicalWatchClassification(watch, { reports: getReports() });
-    const presentation = getSummaryCardStatus(classification);
+    const presentation = getSummaryCardStatus(detailPresentation.classification);
     canonicalStatusEl.textContent = presentation?.label || t('statuses.watching');
     canonicalStatusEl.className = presentation
       ? `status-label status-label--${presentation.modifier}`
@@ -1752,7 +1753,7 @@ const renderWatchDetail = () => {
   }
 
   const timeline = getWatchJourneyEvents(watch, {
-    currentUpdateId: latestMeaningfulUpdate?.id,
+    currentUpdateId: latestMeaningfulUpdate?.status === 'new' ? latestMeaningfulUpdate.id : null,
   })
     .map((item) => {
       const label = item.type === 'created'
@@ -1828,9 +1829,6 @@ const renderWatchDetail = () => {
   }
 
   const monitoringUpdates = getWatchUpdates(watch).reverse();
-  const displayedUnreadUpdateIds = monitoringUpdates
-    .filter(({ status: updateStatus }) => updateStatus === 'new')
-    .map(({ id }) => id);
   if (monitoringUpdatesListEl) {
     monitoringUpdatesListEl.innerHTML = monitoringUpdates
       .map((item, index) => {
@@ -1858,9 +1856,6 @@ const renderWatchDetail = () => {
   if (monitoringUpdatesEl) {
     monitoringUpdatesEl.hidden = monitoringUpdates.length === 0;
   }
-  displayedUnreadUpdateIds.forEach((updateId) => (
-    detailDeferredReadUpdateIds.delete(getDeferredReadKey(watch.id, updateId))
-  ));
 
   if (preparingEl) {
     preparingEl.hidden = !isPreparing;
@@ -1903,9 +1898,8 @@ const renderWatchDetail = () => {
           console.info('[Watch monitoring] Check requested', { watchId: watch.id });
         }
         const result = await watchCheckController.check(watch.id);
-        result.matchedItems.forEach(({ id }) => (
-          detailDeferredReadUpdateIds.add(getDeferredReadKey(watch.id, id))
-        ));
+        const displayedUpdateIds = result.matchedItems.map(({ id }) => id);
+        if (displayedUpdateIds.length) markUpdatesAsRead(watch.id, displayedUpdateIds);
         detailCheckErrorWatchId = null;
       } catch (error) {
         detailCheckErrorWatchId = watch.id;
@@ -1916,6 +1910,7 @@ const renderWatchDetail = () => {
           });
         }
       } finally {
+        refreshLatestReport({ watches: getWatches() });
         detailCheckInProgress = false;
         renderWatchDetail();
       }
@@ -2119,12 +2114,12 @@ function scheduleFirstMonitoringPass(watch, preparingEl) {
   }, remaining);
 }
 
-const renderDevTools = () => {
-  if (!isPreviewTestLoaderAvailable()) {
+const renderDevTools = ({ env = import.meta.env } = {}) => {
+  if (!isPreviewTestLoaderAvailable(env)) {
     return;
   }
 
-  if (import.meta.env.DEV) {
+  if (env.DEV) {
     window.watchAssistantResetDemo = () => {
       resetStoredWatches();
       localStorage.removeItem(ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -2135,7 +2130,7 @@ const renderDevTools = () => {
   }
 
   const shell = document.querySelector('.app-shell');
-  if (!shell) {
+  if (!shell || shell.querySelector('.dev-reset-control')) {
     return;
   }
 
@@ -4890,7 +4885,7 @@ export function initForm() {
   }
 }
 
-const resolveInitialHomeRoute = () => {
+const resolveInitialHomeRoute = (env = import.meta.env) => {
   if (!document.querySelector('.page--home')) return null;
 
   const homeUrl = new URL(window.location.href);
@@ -4902,7 +4897,9 @@ const resolveInitialHomeRoute = () => {
       `${homeUrl.pathname}${homeUrl.search}${homeUrl.hash}`,
     );
   }
-  if (!hasCompletedOnboarding()) return getReplayIntroFlow();
+  if (!isPreviewTestLoaderAvailable(env) && !hasCompletedOnboarding()) {
+    return getReplayIntroFlow();
+  }
   cancelOnboardingFirstWatch();
   return null;
 };

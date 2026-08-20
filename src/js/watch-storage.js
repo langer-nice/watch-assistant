@@ -1,7 +1,7 @@
 import { mockWatches } from './data/mock-watches.js';
 import { normalizeWatchCreationDate } from './watch-dates.js';
 import { migrateWatchModel } from './watch-model.js';
-import { hasMeaningfulWatchUpdate } from './report-status.js';
+import { getMeaningfulWatchUpdate, hasMeaningfulWatchUpdate } from './report-status.js';
 import {
   markUpdateAsRead as markStoredUpdateAsRead,
   markUpdatesAsRead as markStoredUpdatesAsRead,
@@ -235,6 +235,13 @@ export function markUpdateAsRead(watchId, updateId) {
   const watch = getWatchById(watchId);
   if (!watch) return null;
   return markStoredUpdateAsRead(watch, updateId, { persist: addWatch });
+}
+
+export function acknowledgeLatestWatchUpdate(watchId) {
+  const watch = getWatchById(watchId);
+  const latestUpdate = getMeaningfulWatchUpdate(watch)?.update;
+  if (!watch || latestUpdate?.status !== 'new') return watch;
+  return markStoredUpdateAsRead(watch, latestUpdate.id, { persist: addWatch });
 }
 
 export function markUpdatesAsRead(watchId, updateIds) {
