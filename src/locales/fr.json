@@ -612,6 +612,20 @@
       "sourceOne": "Espaces de coworking locaux"
     }
   },
+  "auth": {
+    "loading": "Vérification de votre session…",
+    "sending": "Envoi de votre lien de connexion sécurisé…",
+    "confirming": "Confirmation de votre connexion…",
+    "signedIn": "Connecté",
+    "signOut": "Se déconnecter",
+    "unavailable": "La connexion n’est pas configurée ici. Les données de test locales restent disponibles.",
+    "linkSent": "Consultez votre email et ouvrez le lien de connexion sécurisé.",
+    "useAnotherEmail": "Utiliser un autre email",
+    "emailLabel": "Email",
+    "emailPlaceholder": "vous@exemple.fr",
+    "sendMagicLink": "Recevoir un lien de connexion",
+    "error": "La connexion n’a pas abouti. Demandez un nouveau lien."
+  },
   "dev": {
     "reset": "Réinitialiser les données de démonstration",
     "only": "Développement uniquement",

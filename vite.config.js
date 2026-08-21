@@ -9,6 +9,9 @@ import { createPlanWatchMiddleware } from './server/plan-watch-api.js';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  if (env.VITE_SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('VITE_SUPABASE_SERVICE_ROLE_KEY is forbidden because VITE_ variables are bundled for browsers.');
+  }
   const middleware = createUrlWatchMiddleware({
     apiKey: process.env.OPENAI_API_KEY || env.OPENAI_API_KEY,
     model: process.env.OPENAI_MODEL || env.OPENAI_MODEL || 'gpt-5.6-luna',

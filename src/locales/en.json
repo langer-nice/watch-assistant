@@ -612,6 +612,20 @@
       "sourceOne": "Local coworking spaces"
     }
   },
+  "auth": {
+    "loading": "Checking your session…",
+    "sending": "Sending your secure sign-in link…",
+    "confirming": "Confirming your sign-in…",
+    "signedIn": "Signed in",
+    "signOut": "Sign out",
+    "unavailable": "Account sign-in is not configured here. Local Test Data remains available.",
+    "linkSent": "Check your email and open the secure sign-in link.",
+    "useAnotherEmail": "Use another email",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "sendMagicLink": "Email me a sign-in link",
+    "error": "We couldn't complete sign-in. Please request a new link."
+  },
   "dev": {
     "reset": "Reset demo data",
     "only": "Development only",
