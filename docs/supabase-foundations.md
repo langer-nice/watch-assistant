@@ -2,6 +2,8 @@
 
 PR1 adds Supabase Auth and an isolated database foundation without replacing the existing `localStorage` adapter. DEV and Vercel Preview Test Data continue to work when Supabase is not configured.
 
+Authenticated Company Watch persistence added by PR2 is documented in `docs/supabase-company-watches.md`.
+
 ## Environment
 
 Browser variables:
