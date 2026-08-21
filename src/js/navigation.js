@@ -183,6 +183,10 @@ import {
   isCompanyWatchServerMode,
   updateServerCompanyWatch,
 } from './company-watch-server-store.js';
+import {
+  formatHomeReportTimestamp,
+  resolveHomeReportTimestamp,
+} from './home-report-timestamp.js';
 
 let homeCreatedWatchId = null;
 let homeFirstWatchConfirmation = false;
@@ -2413,30 +2417,12 @@ const renderHomeSummary = () => {
   }
 
   if (briefingDate) {
-    const locale = getLanguage() === 'fr' ? 'fr-FR' : 'en-GB';
-    const storedTimestamp = homeReport.report?.completedAt || null;
-    const generatedAt = storedTimestamp ? new Date(storedTimestamp) : null;
-    const dateParts = generatedAt
-      ? new Intl.DateTimeFormat(locale, {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-      }).formatToParts(generatedAt)
-      : [];
-    const getDatePart = (type) => dateParts.find((part) => part.type === type)?.value || '';
-    const date = generatedAt
-      ? `${getDatePart('weekday')} ${getDatePart('day')} ${getDatePart('month')}`
-      : '';
-    const time = generatedAt
-      ? new Intl.DateTimeFormat(locale, {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(generatedAt)
-      : '';
-    const timestampText = generatedAt
-      ? `${date} · ${time}`
-      : t('home.briefingTimeUnavailable');
+    const storedTimestamp = resolveHomeReportTimestamp({
+      report: homeReport.report,
+      watches: getServerCompanyWatches(),
+    });
+    const timestampText = formatHomeReportTimestamp(storedTimestamp, getLanguage())
+      || t('home.briefingTimeUnavailable');
 
     if (storedTimestamp) {
       briefingDate.dateTime = storedTimestamp;
