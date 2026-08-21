@@ -77,6 +77,6 @@ export const initAuthUi = ({ env = import.meta.env, client: injectedClient } = {
   });
   document.addEventListener('i18n:languageChanged', () => render(auth.getState()));
 
-  auth.initialize();
-  return auth;
+  const ready = auth.initialize();
+  return { auth, client, ready };
 };
