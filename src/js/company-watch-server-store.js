@@ -1,20 +1,34 @@
 import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
 
 let accessToken = null;
+let authStateSource = null;
 let serverWatches = [];
 let hydrated = false;
 let hydrationError = null;
+const TRANSIENT_AUTH_STATES = new Set(['loading', 'confirming']);
 
 const notify = () => {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(WATCH_STORAGE_CHANGED_EVENT));
 };
 
+const getAccessToken = () => {
+  const state = authStateSource?.getState?.();
+  if (state?.status === 'authenticated') return state.session?.access_token || null;
+  if (TRANSIENT_AUTH_STATES.has(state?.status)) return accessToken;
+  return state ? null : accessToken;
+};
+
 const request = async (path, options = {}) => {
-  if (!accessToken) throw new Error('AUTH_REQUIRED');
+  const token = getAccessToken();
+  if (!token) {
+    const error = new Error('Authentication is required.');
+    error.code = 'AUTH_REQUIRED';
+    throw error;
+  }
   const response = await fetch(path, {
     ...options,
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${token}`,
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
     },
@@ -37,12 +51,12 @@ const replaceWatch = (watch) => {
   return watch;
 };
 
-export const isCompanyWatchServerMode = () => Boolean(accessToken);
+export const isCompanyWatchServerMode = () => Boolean(getAccessToken());
 export const getServerCompanyWatches = () => [...serverWatches];
 export const getCompanyWatchServerHydrationError = () => hydrationError;
 
 export const hydrateServerCompanyWatches = async () => {
-  if (!accessToken) {
+  if (!getAccessToken()) {
     serverWatches = [];
     hydrated = false;
     notify();
@@ -57,8 +71,12 @@ export const hydrateServerCompanyWatches = async () => {
 };
 
 export const configureCompanyWatchServerStore = async (auth) => {
+  authStateSource = auth || null;
   const applyState = async (state) => {
-    accessToken = state.session?.access_token || null;
+    if (TRANSIENT_AUTH_STATES.has(state.status)) return;
+    accessToken = state.status === 'authenticated'
+      ? state.session?.access_token || null
+      : null;
     if (state.status === 'authenticated') {
       try {
         await hydrateServerCompanyWatches();

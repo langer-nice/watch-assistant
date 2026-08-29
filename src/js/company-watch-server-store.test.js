@@ -33,11 +33,12 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
   try {
     const store = await import('./company-watch-server-store.js?authenticated-store');
     let subscriber = null;
+    let authState = {
+      status: 'authenticated',
+      session: { access_token: 'header.payload.signature' },
+    };
     const auth = {
-      getState: () => ({
-        status: 'authenticated',
-        session: { access_token: 'header.payload.signature' },
-      }),
+      getState: () => authState,
       subscribe: (callback) => { subscriber = callback; return () => {}; },
     };
 
@@ -79,7 +80,8 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
       'UPSTREAM_UNAVAILABLE',
     );
 
-    await subscriber({ status: 'anonymous', session: null });
+    authState = { status: 'anonymous', session: null };
+    await subscriber(authState);
     assert.equal(store.isCompanyWatchServerMode(), false);
     assert.deepEqual(store.getServerCompanyWatches(), []);
   } finally {
