@@ -13,7 +13,9 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
     ...initialWatch,
     lastCheckAttempt: { status: 'failed', code: 'UPSTREAM_UNAVAILABLE' },
   };
+  const updatedWatch = { ...initialWatch, whyFollowing: 'Updated note' };
   const requests = [];
+  let creationCount = 0;
   globalThis.fetch = async (path, options = {}) => {
     requests.push({ path, options });
     if (path.startsWith('/api/check-company-watch')) {
@@ -22,9 +24,19 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
       }), { status: 502, headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'request-check' } });
     }
     if (path.startsWith('/api/company-watch?')) {
+      if (options.method === 'PATCH') return Response.json({ watch: updatedWatch });
       return Response.json({ watch: failedWatch });
     }
     if (path === '/api/company-watches' && options.method === 'POST') {
+      creationCount += 1;
+      if (creationCount > 1) {
+        return Response.json({
+          code: 'ACTIVE_WATCH_EXISTS',
+          error: 'Duplicate.',
+          requestId: 'request-duplicate',
+          existingWatch: { id: initialWatch.id, title: initialWatch.title },
+        }, { status: 409 });
+      }
       return Response.json({ watch: initialWatch, outcome: 'baseline' }, { status: 201 });
     }
     return Response.json({ watches: [initialWatch] });
@@ -66,6 +78,30 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
       companyName: 'Company A',
     });
     assert.match(creationRequest.options.headers.Authorization, /^Bearer /u);
+
+    await assert.rejects(
+      store.createServerCompanyWatch({
+        title: 'Company A', request: 'Company A, SIREN 552100554',
+        company: { siren: '552100554', name: 'Company A' },
+      }),
+      ({ code, statusCode, existingWatch, requestId }) => (
+        code === 'ACTIVE_WATCH_EXISTS'
+        && statusCode === 409
+        && requestId === 'request-duplicate'
+        && existingWatch.id === initialWatch.id
+        && existingWatch.title === initialWatch.title
+      ),
+    );
+    assert.equal(store.getServerCompanyWatches().length, 1);
+
+    const updated = await store.updateServerCompanyWatch(initialWatch.id, { summary: 'Updated note' });
+    assert.equal(updated.whyFollowing, 'Updated note');
+    const updateRequest = requests.find(({ path, options }) => (
+      path === `/api/company-watch?id=${initialWatch.id}` && options.method === 'PATCH'
+    ));
+    assert.ok(updateRequest);
+    assert.deepEqual(JSON.parse(updateRequest.options.body), { summary: 'Updated note' });
+    assert.match(updateRequest.options.headers.Authorization, /^Bearer /u);
 
     await assert.rejects(
       store.checkServerCompanyWatch(initialWatch.id),

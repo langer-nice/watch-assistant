@@ -167,6 +167,12 @@ export const createCompanyWatchMiddleware = ({
     reply(error.statusCode || 500, {
       code: error.code || 'INTERNAL_ERROR',
       error: error.clientMessage || error.message,
+      ...(error.code === 'ACTIVE_WATCH_EXISTS' && error.existingWatch?.id ? {
+        existingWatch: {
+          id: error.existingWatch.id,
+          title: error.existingWatch.title,
+        },
+      } : {}),
     });
   }
 };

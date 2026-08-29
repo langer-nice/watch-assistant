@@ -216,7 +216,11 @@ test('server repository persists baseline, multi-session CRUD, soft delete, and 
   const database = createMemoryDatabase();
   const userA = '10000000-0000-4000-8000-00000000000a';
   const userB = '10000000-0000-4000-8000-00000000000b';
-  const repositoryA = createRepository(database, userA, async () => emptyBodacc());
+  let baselineFetches = 0;
+  const repositoryA = createRepository(database, userA, async () => {
+    baselineFetches += 1;
+    return emptyBodacc();
+  });
 
   const created = await repositoryA.create({
     siren: '552100554',
@@ -233,8 +237,14 @@ test('server repository persists baseline, multi-session CRUD, soft delete, and 
 
   await assert.rejects(
     repositoryA.create({ siren: '552100554', title: 'Duplicate' }),
-    ({ code, statusCode }) => code === 'ACTIVE_WATCH_EXISTS' && statusCode === 409,
+    ({ code, statusCode, existingWatch }) => (
+      code === 'ACTIVE_WATCH_EXISTS'
+      && statusCode === 409
+      && existingWatch.id === created.watch.id
+      && existingWatch.title === created.watch.title
+    ),
   );
+  assert.equal(baselineFetches, 1, 'a known duplicate must not fetch or persist another baseline');
   await assert.rejects(
     repositoryA.create({ siren: 'not-a-siren', title: 'Invalid' }),
     ({ code, statusCode }) => code === 'INVALID_SIREN' && statusCode === 400,

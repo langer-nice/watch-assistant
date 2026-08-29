@@ -39,6 +39,16 @@ const request = async (path, options = {}) => {
     error.code = body?.code || 'REQUEST_FAILED';
     error.requestId = body?.requestId || response.headers.get('X-Request-Id') || null;
     error.statusCode = response.status;
+    if (
+      error.code === 'ACTIVE_WATCH_EXISTS'
+      && typeof body?.existingWatch?.id === 'string'
+      && typeof body?.existingWatch?.title === 'string'
+    ) {
+      error.existingWatch = {
+        id: body.existingWatch.id,
+        title: body.existingWatch.title,
+      };
+    }
     throw error;
   }
   return body;

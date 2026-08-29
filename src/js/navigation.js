@@ -181,6 +181,7 @@ import {
   createServerCompanyWatch,
   deleteServerCompanyWatch,
   getServerCompanyWatches,
+  hydrateServerCompanyWatches,
   isCompanyWatchServerMode,
   updateServerCompanyWatch,
 } from './company-watch-server-store.js';
@@ -283,7 +284,7 @@ const closeWatchEditSheet = ({ updated = false } = {}) => {
 
   sheet.classList.add('is-closing');
   window.clearTimeout(editSheetCloseTimer);
-  editSheetCloseTimer = window.setTimeout(() => {
+  editSheetCloseTimer = window.setTimeout(async () => {
     sheet.close();
     sheet.classList.remove('is-closing', 'is-ready');
     sheet.style.removeProperty('--watch-edit-viewport-height');
@@ -292,6 +293,17 @@ const closeWatchEditSheet = ({ updated = false } = {}) => {
     document.body.classList.remove('is-watch-edit-open');
     document.body.style.removeProperty('--watch-edit-background-top');
     if (updated) {
+      if (isCompanyWatchServerMode()) {
+        try {
+          await hydrateServerCompanyWatches();
+        } catch (error) {
+          if (import.meta.env.DEV) {
+            console.warn('[Company Watches] Could not refresh the saved Watch.', {
+              code: error?.code,
+            });
+          }
+        }
+      }
       renderWatchDetail();
       scrollWindowImmediately(0);
       showWatchUpdatedConfirmation();
@@ -2624,6 +2636,10 @@ export function initForm() {
   const reviewCreate = document.querySelector('#urlReviewCreate');
   const reviewEdit = document.querySelector('#urlReviewEdit');
   const reviewCancel = document.querySelector('#urlReviewCancel');
+  const companyDuplicateNotice = document.querySelector('#companyDuplicateNotice');
+  const companyDuplicateCopy = document.querySelector('#companyDuplicateCopy');
+  const companyDuplicateOpen = document.querySelector('#companyDuplicateOpen');
+  const companyDuplicateCancel = document.querySelector('#companyDuplicateCancel');
   const clarification = document.querySelector('#requestClarification');
   const clarificationTitle = document.querySelector('#requestClarificationTitle');
   const clarificationIntro = document.querySelector('#requestClarificationIntro');
@@ -2664,9 +2680,12 @@ export function initForm() {
   const editWatchId = formParams.get('edit');
   let editingWatch = editWatchId ? getWatchById(editWatchId) : null;
   const isEditMode = Boolean(editingWatch);
-  const isModalEditMode = isEditMode
-    && formParams.get('presentation') === 'modal'
+  const isRequestedModalEditMode = formParams.get('presentation') === 'modal'
     && window.parent !== window;
+  const isModalEditMode = isEditMode && isRequestedModalEditMode;
+  const editingServerCompanyWatch = isEditMode
+    && editingWatch.inputType === 'company'
+    && isCompanyWatchServerMode();
   let pendingRequest = '';
   let pendingWhyFollowing = '';
   let pendingAnalysis = null;
@@ -2697,6 +2716,7 @@ export function initForm() {
   let pendingNavigationUrl = '';
   let editNavigationAllowed = false;
   let refreshEditSaveState = () => {};
+  let duplicateExistingWatch = null;
   let activeVoiceTooltip = null;
   let voiceTooltipDismissTimer = null;
   let voiceTooltipHideTimer = null;
@@ -2706,6 +2726,10 @@ export function initForm() {
   }
 
   if (editWatchId && !editingWatch) {
+    if (isRequestedModalEditMode) {
+      window.parent.postMessage({ type: 'watch-editor-close', watchId: editWatchId }, window.location.origin);
+      return;
+    }
     window.location.replace('watches.html');
     return;
   }
@@ -3324,13 +3348,22 @@ export function initForm() {
       });
     }
 
-    if (editingWatch.inputType === 'company' && isCompanyWatchServerMode()) {
-      editingWatch = await updateServerCompanyWatch(editingWatch.id, {
-        ...(changes.title ? { title: changes.title } : {}),
-        summary: changes.whyFollowing ?? editingWatch.whyFollowing ?? '',
-      });
-    } else {
-      updateWatch(editingWatch.id, changes);
+    try {
+      if (editingWatch.inputType === 'company' && isCompanyWatchServerMode()) {
+        editingWatch = await updateServerCompanyWatch(editingWatch.id, {
+          ...(changes.title ? { title: changes.title } : {}),
+          summary: changes.whyFollowing ?? editingWatch.whyFollowing ?? '',
+        });
+      } else {
+        updateWatch(editingWatch.id, changes);
+      }
+    } catch {
+      creationInProgress = false;
+      setCreationControlsDisabled(false);
+      if (watchError) watchError.textContent = t('newWatch.editSaveFailed');
+      refreshEditSaveState();
+      noteInput?.focus();
+      return;
     }
     editNavigationAllowed = true;
     if (isModalEditMode) {
@@ -3700,6 +3733,10 @@ export function initForm() {
       });
     }
     pendingAnalysis = analysis;
+    duplicateExistingWatch = null;
+    if (companyDuplicateNotice) companyDuplicateNotice.hidden = true;
+    if (companyDuplicateOpen) companyDuplicateOpen.hidden = false;
+    if (reviewCreate) reviewCreate.hidden = false;
     if (analysis?.isStory === false && hint) {
       hint.textContent = '';
       hint.hidden = true;
@@ -3763,6 +3800,34 @@ export function initForm() {
     setReviewEditing(failed);
     validateReviewSummary();
     if (!failed && !reviewEnhancementInProgress) review?.focus();
+  };
+
+  const showCompanyDuplicate = (existingWatch) => {
+    const hasSafeExistingWatch = Boolean(existingWatch?.id && existingWatch?.title);
+    creationInProgress = false;
+    duplicateExistingWatch = existingWatch || null;
+    setCreationControlsDisabled(false);
+    if (watchError) watchError.textContent = '';
+    if (companyDuplicateCopy) {
+      companyDuplicateCopy.textContent = t('newWatch.companyDuplicateCopy', {
+        title: existingWatch?.title || reviewTitle?.value || '',
+      });
+    }
+    if (companyDuplicateOpen) {
+      companyDuplicateOpen.hidden = !hasSafeExistingWatch;
+      if (hasSafeExistingWatch) companyDuplicateOpen.href = getWatchDetailHref(existingWatch.id);
+    }
+    if (companyDuplicateNotice) companyDuplicateNotice.hidden = false;
+    if (reviewCreate) {
+      reviewCreate.disabled = true;
+      reviewCreate.hidden = true;
+    }
+    if (reviewEdit) {
+      reviewEdit.hidden = false;
+      reviewEdit.disabled = false;
+    }
+    if (reviewCancel) reviewCancel.hidden = true;
+    companyDuplicateNotice?.focus?.();
   };
 
   const startCompanyReview = async (request, whyFollowing, siren, companyName = null) => {
@@ -3965,6 +4030,7 @@ export function initForm() {
     pendingWhyFollowing = '';
     pendingAnalysis = null;
     pendingNonArticleAnalysis = null;
+    duplicateExistingWatch = null;
     creationInProgress = false;
     form.classList.remove('is-analysing', 'is-reviewing');
     if (analysisSection) analysisSection.hidden = true;
@@ -3992,13 +4058,18 @@ export function initForm() {
     if (companyReviewAdministrativeStatus) companyReviewAdministrativeStatus.hidden = true;
     if (companyReviewStatus) companyReviewStatus.hidden = true;
     if (companyReviewWarning) companyReviewWarning.hidden = true;
+    if (companyDuplicateNotice) companyDuplicateNotice.hidden = true;
+    if (companyDuplicateOpen) companyDuplicateOpen.hidden = false;
     if (watchError) watchError.textContent = '';
     if (hint) {
       hint.textContent = '';
       hint.hidden = true;
     }
     [reviewCreate, reviewEdit, reviewCancel].forEach((control) => {
-      if (control) control.disabled = false;
+      if (control) {
+        control.disabled = false;
+        control.hidden = false;
+      }
     });
     keywordItems = [];
     keywordSourceRequest = '';
@@ -4755,6 +4826,10 @@ export function initForm() {
           createOptions,
         ));
       } catch (error) {
+        if (error?.code === 'ACTIVE_WATCH_EXISTS') {
+          showCompanyDuplicate(error.existingWatch);
+          return;
+        }
         resetUrlFlow({ clearInput: false });
         if (watchError) {
           const code = error?.code || 'CHECK_FAILED';
@@ -4770,6 +4845,10 @@ export function initForm() {
       clearInput: pendingAnalysis?.status === 'success',
       trackCancellation: true,
     });
+  });
+
+  companyDuplicateCancel?.addEventListener('click', () => {
+    editNavigationAllowed = true;
   });
 
   analysisCancel?.addEventListener('click', () => {
@@ -4844,6 +4923,15 @@ export function initForm() {
   }
 
   if (isEditMode) {
+    if (editingServerCompanyWatch && isModalEditMode) {
+      window.addEventListener(WATCH_STORAGE_CHANGED_EVENT, () => {
+        if (!isCompanyWatchServerMode()) {
+          editNavigationAllowed = true;
+          finishModalTransition('watch-editor-close');
+        }
+      });
+    }
+
     discardDialog?.addEventListener('cancel', () => {
       pendingNavigationUrl = '';
     });
@@ -4923,6 +5011,11 @@ export function initForm() {
     if (pendingAnalysis?.inputType === 'company') {
       renderReviewPresentation(pendingAnalysis);
       setReviewEditing(false);
+    }
+    if (duplicateExistingWatch && companyDuplicateCopy) {
+      companyDuplicateCopy.textContent = t('newWatch.companyDuplicateCopy', {
+        title: duplicateExistingWatch.title || reviewTitle?.value || '',
+      });
     }
     renderKeywords();
     if (!clarification?.hidden) renderClarificationActions();

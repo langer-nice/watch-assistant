@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createCompanyWatchMiddleware } from './company-watch-api.js';
+import { CompanyWatchRepositoryError } from './company-watch-repository.js';
 
 const createResponse = () => ({
   headers: {},
@@ -97,6 +98,31 @@ test('creation returns the persisted baseline outcome and rejects malformed bodi
   const malformed = await call(middleware, { method: 'POST', body: [] });
   assert.equal(malformed.statusCode, 400);
   assert.equal(malformed.body.code, 'INVALID_BODY');
+});
+
+test('duplicate creation returns only the authenticated user’s existing Watch identity', async () => {
+  const existingWatch = { id: '00000000-0000-4000-8000-00000000000a', title: 'Company A' };
+  const middleware = createCompanyWatchMiddleware({
+    logger: null,
+    createRequestId: () => 'request-duplicate',
+    authenticate: async () => ({ user: { id: 'user-a' }, client: { rls: true } }),
+    repositoryFactory: () => ({
+      create: async () => {
+        throw new CompanyWatchRepositoryError(
+          'ACTIVE_WATCH_EXISTS', 409, 'Duplicate.', { existingWatch },
+        );
+      },
+    }),
+  });
+
+  const response = await call(middleware, {
+    method: 'POST', body: { siren: '552100554', title: 'Company A' },
+  });
+
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.body.existingWatch, existingWatch);
+  assert.equal(response.body.requestId, 'request-duplicate');
+  assert.equal('userId' in response.body, false);
 });
 
 test('item and check routes expose only their supported methods', async () => {

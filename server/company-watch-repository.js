@@ -8,11 +8,12 @@ const WATCH_SELECT = '*, company_watch_snapshots(*)';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 export class CompanyWatchRepositoryError extends Error {
-  constructor(code, statusCode, message) {
+  constructor(code, statusCode, message, details = {}) {
     super(message);
     this.name = 'CompanyWatchRepositoryError';
     this.code = code;
     this.statusCode = statusCode;
+    this.existingWatch = details.existingWatch || null;
   }
 }
 
@@ -159,6 +160,22 @@ export const createCompanyWatchRepository = ({
     return (data || []).map(mapCompanyWatchRow);
   };
 
+  const findActiveBySiren = async (siren) => {
+    const { data, error } = await client.from('watches').select('id, title')
+      .eq('type', 'company_bodacc').eq('siren', siren).is('deleted_at', null).maybeSingle();
+    if (error) throwDatabaseError(error);
+    return data ? { id: data.id, title: data.title } : null;
+  };
+
+  const throwDuplicate = (existingWatch) => {
+    throw new CompanyWatchRepositoryError(
+      'ACTIVE_WATCH_EXISTS',
+      409,
+      'An active Company Watch already exists for this SIREN.',
+      { existingWatch },
+    );
+  };
+
   const completeCheck = async (watch, response) => {
     const result = applyFeedCheckResult(watch, response, { trustedSourceType: 'bodacc' });
     const latestChange = result.matchedItems[0] || null;
@@ -201,6 +218,9 @@ export const createCompanyWatchRepository = ({
     const request = cleanText(input.request, 500) || `Monitor company ${siren}`;
     const summary = cleanText(input.summary, 1000);
     const companyName = cleanText(input.companyName, 200);
+    onCompanyWatchStage('create-duplicate-check');
+    const existingWatch = await findActiveBySiren(siren);
+    if (existingWatch) throwDuplicate(existingWatch);
     onCompanyWatchStage('create-baseline-fetch');
     const response = await fetchCompanyData(siren, options);
     onCompanyWatchStage('create-watch-insert');
@@ -218,6 +238,9 @@ export const createCompanyWatchRepository = ({
       current_status: 'watching',
       check_started_at: new Date().toISOString(),
     }).select(WATCH_SELECT).single();
+    if (error?.code === '23505') {
+      throwDuplicate(await findActiveBySiren(siren));
+    }
     if (error) throwDatabaseError(error);
     const provisional = mapCompanyWatchRow(data);
     try {
