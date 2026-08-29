@@ -195,6 +195,7 @@ export const createCompanyWatchRepository = ({ client, user, ...options }) => {
     const request = cleanText(input.request, 500) || `Monitor company ${siren}`;
     const summary = cleanText(input.summary, 1000);
     const companyName = cleanText(input.companyName, 200);
+    const response = await fetchCompanyData(siren, options);
     const { data, error } = await client.from('watches').insert({
       user_id: user.id,
       type: 'company_bodacc',
@@ -212,12 +213,15 @@ export const createCompanyWatchRepository = ({ client, user, ...options }) => {
     if (error) throwDatabaseError(error);
     const provisional = mapCompanyWatchRow(data);
     try {
-      const response = await fetchCompanyData(siren, options);
       return await completeCheck(provisional, response);
     } catch (cause) {
-      await client.from('watches').update({
-        deleted_at: new Date().toISOString(), check_started_at: null,
-      }).eq('id', provisional.id);
+      const { data: removed, error: rollbackError } = await client.from('watches').delete()
+        .eq('id', provisional.id).select('id').maybeSingle();
+      if (rollbackError || !removed) {
+        throw new CompanyWatchRepositoryError(
+          'ROLLBACK_FAILED', 500, 'The failed Company Watch could not be rolled back.',
+        );
+      }
       throw cause;
     }
   };

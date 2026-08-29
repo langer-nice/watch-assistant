@@ -10,6 +10,7 @@ import {
   MEDIA_STORY_PLAN_ROUTES,
   normalizeWatchPlan,
   requestWatchPlan,
+  resolveFrenchCompanyPlan,
   UNSUPPORTED_WATCH_CAPABILITIES,
   WatchPlannerError,
 } from './watch-planner.js';
@@ -140,7 +141,7 @@ test('only the exact French BODACC decision enters the migrated Company pipeline
   assert.equal(isFrenchCompanyPlan({ ...frenchCompanyPlan, identifier: '123456789' }), false);
 });
 
-test('unaccepted Company decisions fail safely while non-Company requests keep their old route', () => {
+test('a locally validated SIREN enters Company review even when Planner is unavailable', () => {
   const companyRequest = 'Monitor company SIREN 905329314';
   const forgedPlans = [
     null,
@@ -157,8 +158,9 @@ test('unaccepted Company decisions fail safely while non-Company requests keep t
   forgedPlans.forEach((plan) => {
     assert.equal(
       getCompanyPlanRoute(companyRequest, plan),
-      COMPANY_PLAN_ROUTES.GUIDANCE,
+      COMPANY_PLAN_ROUTES.REVIEW,
     );
+    assert.equal(resolveFrenchCompanyPlan(companyRequest, plan).identifier, '905329314');
   });
 
   for (const request of [

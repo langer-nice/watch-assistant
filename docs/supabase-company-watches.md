@@ -46,7 +46,7 @@ The PR1 partial unique index on `(user_id, siren) where deleted_at is null` prev
 All routes require `Authorization: Bearer <Supabase access token>` and return `Cache-Control: no-store`.
 
 - `GET /api/company-watches`: list the authenticated user's active Company Watches.
-- `POST /api/company-watches`: create a provisional Watch, fetch its BODACC baseline, persist the snapshot, then return the ready Watch. A failed baseline soft-deletes the provisional row.
+- `POST /api/company-watches`: fetch the BODACC baseline, create a provisional Watch, persist the snapshot, then return the ready Watch. A baseline failure creates no row; a later persistence failure hard-deletes the unreturned provisional row and its cascaded snapshot.
 - `GET /api/company-watch?id=<uuid>`: load one owned Watch.
 - `PATCH /api/company-watch?id=<uuid>`: update title, summary or pause/resume state.
 - `DELETE /api/company-watch?id=<uuid>`: soft-delete one owned Watch.

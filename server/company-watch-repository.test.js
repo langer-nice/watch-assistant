@@ -60,7 +60,9 @@ test('Company Watch item IDs must be UUIDs', () => {
   ));
 });
 
-const createMemoryDatabase = () => ({ watches: [], snapshots: new Map(), nextId: 1 });
+const createMemoryDatabase = () => ({
+  watches: [], snapshots: new Map(), nextId: 1, completeError: null,
+});
 
 const createMemoryClient = (database, userId) => {
   const visibleRows = () => database.watches.filter((row) => row.user_id === userId);
@@ -106,6 +108,16 @@ const createMemoryClient = (database, userId) => {
         return { data: withSnapshot(row), error: null };
       }
 
+      if (state.action === 'delete') {
+        const rowIndex = database.watches.findIndex((row) => (
+          row.user_id === userId && matches(row)
+        ));
+        if (rowIndex < 0) return { data: null, error: null };
+        const [row] = database.watches.splice(rowIndex, 1);
+        database.snapshots.delete(row.id);
+        return { data: { id: row.id }, error: null };
+      }
+
       const rows = visibleRows().filter(matches).map(withSnapshot);
       if (one || maybe) return { data: rows[0] || null, error: null };
       return { data: rows, error: null };
@@ -114,6 +126,7 @@ const createMemoryClient = (database, userId) => {
       select() { return builder; },
       insert(payload) { state.action = 'insert'; state.payload = payload; return builder; },
       update(payload) { state.action = 'update'; state.payload = payload; return builder; },
+      delete() { state.action = 'delete'; return builder; },
       eq(key, value) { state.filters.push({ kind: 'eq', key, value }); return builder; },
       is(key, value) { state.filters.push({ kind: 'is', key, value }); return builder; },
       order() { return builder; },
@@ -141,6 +154,7 @@ const createMemoryClient = (database, userId) => {
       return { data: null, error: null };
     }
     assert.equal(name, 'complete_company_watch_check');
+    if (database.completeError) return { data: null, error: database.completeError };
     if (!row) return { data: null, error: { code: 'P0002' } };
     database.snapshots.set(row.id, {
       watch_id: row.id,
@@ -246,6 +260,36 @@ test('server repository persists baseline, multi-session CRUD, soft delete, and 
   assert.equal((await secondSessionA.list()).length, 0);
   const recreated = await secondSessionA.create({ siren: '552100554', title: 'Company A recreated' });
   assert.notEqual(recreated.watch.id, created.watch.id);
+});
+
+test('failed baseline and persistence leave no active Watch or snapshot and allow retry', async () => {
+  const database = createMemoryDatabase();
+  const userId = '10000000-0000-4000-8000-00000000000a';
+  let fetchImpl = async () => { throw new Error('BODACC unavailable'); };
+  let repository = createRepository(database, userId, (...args) => fetchImpl(...args));
+
+  await assert.rejects(
+    repository.create({ siren: '552100554', title: 'Company A' }),
+    ({ code }) => code === 'NETWORK_ERROR',
+  );
+  assert.equal(database.watches.length, 0);
+  assert.equal(database.snapshots.size, 0);
+
+  fetchImpl = async () => emptyBodacc();
+  database.completeError = { code: 'PGRST202' };
+  await assert.rejects(
+    repository.create({ siren: '552100554', title: 'Company A' }),
+    ({ code }) => code === 'DATABASE_ERROR',
+  );
+  assert.equal(database.watches.length, 0);
+  assert.equal(database.snapshots.size, 0);
+
+  database.completeError = null;
+  repository = createRepository(database, userId, async () => emptyBodacc());
+  const created = await repository.create({ siren: '552100554', title: 'Company A' });
+  assert.equal(created.result.outcome, 'baseline');
+  assert.equal(database.watches.length, 1);
+  assert.equal(database.snapshots.size, 1);
 });
 
 test('persistent checks retain the last valid snapshot, detect change once, and reject concurrency', async () => {

@@ -70,6 +70,21 @@ export const isFrenchCompanyPlan = (plan) => (
   && isValidSiren(plan.identifier)
 );
 
+export const resolveFrenchCompanyPlan = (request, plan) => {
+  if (isFrenchCompanyPlan(plan)) return plan;
+  const companyRequest = parseCompanyWatchRequest(request);
+  if (!companyRequest.valid) return null;
+  return {
+    strategy: 'official_company',
+    connector: 'bodacc',
+    country: 'FR',
+    identifier: companyRequest.siren,
+    confidence: 1,
+    needsClarification: false,
+    clarificationQuestion: null,
+  };
+};
+
 export const COMPANY_PLAN_ROUTES = Object.freeze({
   REVIEW: 'review',
   GUIDANCE: 'guidance',
@@ -77,7 +92,7 @@ export const COMPANY_PLAN_ROUTES = Object.freeze({
 });
 
 export const getCompanyPlanRoute = (request, plan) => {
-  if (isFrenchCompanyPlan(plan)) return COMPANY_PLAN_ROUTES.REVIEW;
+  if (resolveFrenchCompanyPlan(request, plan)) return COMPANY_PLAN_ROUTES.REVIEW;
   if (parseCompanyWatchRequest(request).recognized) return COMPANY_PLAN_ROUTES.GUIDANCE;
   return COMPANY_PLAN_ROUTES.CONTINUE;
 };

@@ -114,7 +114,7 @@ test('navigation keeps the Planner in front of Company edits and updates the exi
 
   assert.match(
     submitFlow,
-    /requestWatchPlan\(request\)[\s\S]*?getCompanyEditPlanOutcome\(editingWatch, watchPlan\)/,
+    /requestWatchPlan\(request\)[\s\S]*?resolveFrenchCompanyPlan\(request, watchPlan\)[\s\S]*?getCompanyEditPlanOutcome\(editingWatch, companyPlan\)/,
   );
   assert.match(
     submitFlow,

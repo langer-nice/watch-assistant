@@ -21,6 +21,7 @@ const call = async (middleware, { method = 'GET', url = '/api/company-watches', 
 test('Company Watch endpoints reject anonymous requests before repository access', async () => {
   let repositoryCreated = false;
   const middleware = createCompanyWatchMiddleware({
+    logger: null,
     repositoryFactory: () => { repositoryCreated = true; return {}; },
   });
 
@@ -40,6 +41,7 @@ test('authenticated collection requests use the verified user repository', async
   let repositoryUser = null;
   const watches = [{ id: 'watch-a', title: 'Company A' }];
   const middleware = createCompanyWatchMiddleware({
+    logger: null,
     authenticate: async () => ({ user, client: { rls: true }, token: 'verified-token' }),
     repositoryFactory: (context) => {
       repositoryUser = context.user;
@@ -58,6 +60,7 @@ test('creation returns the persisted baseline outcome and rejects malformed bodi
   let received = null;
   const watch = { id: 'watch-a', title: 'Company A' };
   const middleware = createCompanyWatchMiddleware({
+    logger: null,
     authenticate: async () => ({ user: { id: 'user-a' }, client: {} }),
     repositoryFactory: () => ({
       create: async (input) => {
@@ -82,6 +85,7 @@ test('creation returns the persisted baseline outcome and rejects malformed bodi
 
 test('item and check routes expose only their supported methods', async () => {
   const middleware = createCompanyWatchMiddleware({
+    logger: null,
     authenticate: async () => ({ user: { id: 'user-a' }, client: {} }),
     repositoryFactory: () => ({}),
   });

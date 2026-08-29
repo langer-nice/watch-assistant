@@ -254,7 +254,12 @@
       "timeout": "The monitoring source took too long to respond. Try again in a moment.",
       "unreadable": "The monitoring source returned a format Watch Assistant can’t read. Choose another source in Advanced settings.",
       "unreachable": "The monitoring source could not be reached. Check the source or try again later.",
-      "temporary": "A temporary service or network problem interrupted the check. Try again."
+      "temporary": "A temporary service or network problem interrupted the check. Try again.",
+      "authentication": "Your sign-in session is missing or expired. Sign in again, then retry.",
+      "duplicate": "An active Company Watch already exists for this SIREN.",
+      "invalidIdentifier": "Enter a valid 9-digit SIREN for this French company.",
+      "persistence": "The Company Watch could not be saved. Your existing Watches were not changed. Try again.",
+      "configuration": "Server persistence is not available in this environment. Try again when it is configured."
     },
     "monitoringUnavailable": "The monitoring source is temporarily unavailable. You can retry this check.",
     "newItems": "New articles",

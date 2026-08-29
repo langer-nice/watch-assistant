@@ -24,6 +24,9 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
     if (path.startsWith('/api/company-watch?')) {
       return Response.json({ watch: failedWatch });
     }
+    if (path === '/api/company-watches' && options.method === 'POST') {
+      return Response.json({ watch: initialWatch, outcome: 'baseline' }, { status: 201 });
+    }
     return Response.json({ watches: [initialWatch] });
   };
 
@@ -42,6 +45,26 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
     assert.equal(store.isCompanyWatchServerMode(), true);
     assert.equal(store.getServerCompanyWatches()[0].title, 'Company A');
     assert.match(requests[0].options.headers.Authorization, /^Bearer /u);
+
+    const created = await store.createServerCompanyWatch({
+      title: 'Company A',
+      request: 'Company A, SIREN 552100554',
+      whyFollowing: 'Pilot',
+      company: { siren: '552100554', name: 'Company A' },
+    });
+    assert.equal(created.id, initialWatch.id);
+    const creationRequest = requests.find(({ path, options }) => (
+      path === '/api/company-watches' && options.method === 'POST'
+    ));
+    assert.ok(creationRequest);
+    assert.deepEqual(JSON.parse(creationRequest.options.body), {
+      siren: '552100554',
+      title: 'Company A',
+      request: 'Company A, SIREN 552100554',
+      summary: 'Pilot',
+      companyName: 'Company A',
+    });
+    assert.match(creationRequest.options.headers.Authorization, /^Bearer /u);
 
     await assert.rejects(
       store.checkServerCompanyWatch(initialWatch.id),

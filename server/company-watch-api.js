@@ -56,6 +56,7 @@ const safeError = (cause) => {
 export const createCompanyWatchMiddleware = ({
   authenticate = authenticateSupabaseRequest,
   repositoryFactory = createCompanyWatchRepository,
+  logger = console,
   ...options
 } = {}) => async (request, response, next) => {
   const url = new URL(request.url || '/', 'http://localhost');
@@ -117,6 +118,12 @@ export const createCompanyWatchMiddleware = ({
     sendJson(response, 405, { code: 'METHOD_NOT_ALLOWED', error: 'Method not allowed.' });
   } catch (cause) {
     const error = safeError(cause);
+    logger?.warn?.('[Company Watches] Request failed.', {
+      method: request.method,
+      path: url.pathname,
+      code: error.code || 'INTERNAL_ERROR',
+      statusCode: error.statusCode || 500,
+    });
     sendJson(response, error.statusCode || 500, {
       code: error.code || 'INTERNAL_ERROR',
       error: error.clientMessage || error.message,

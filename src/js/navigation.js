@@ -122,6 +122,7 @@ import {
   getUnsupportedWatchCapability,
   MEDIA_STORY_PLAN_ROUTES,
   requestWatchPlan,
+  resolveFrenchCompanyPlan,
   UNSUPPORTED_WATCH_CAPABILITIES,
 } from './watch-planner.js';
 import { getCompanyWatchTitle } from './company-watch-title.js';
@@ -4463,9 +4464,10 @@ export function initForm() {
       planningInProgress = false;
     }
 
-    const companyPlanRoute = getCompanyPlanRoute(request, watchPlan);
+    const companyPlan = resolveFrenchCompanyPlan(request, watchPlan);
+    const companyPlanRoute = getCompanyPlanRoute(request, companyPlan);
     if (companyPlanRoute === COMPANY_PLAN_ROUTES.REVIEW) {
-      const companyEditOutcome = getCompanyEditPlanOutcome(editingWatch, watchPlan);
+      const companyEditOutcome = getCompanyEditPlanOutcome(editingWatch, companyPlan);
       if (companyEditOutcome === COMPANY_EDIT_PLAN_OUTCOMES.DIFFERENT_COMPANY) {
         if (watchError) watchError.textContent = t('newWatch.companyEditDifferentSiren');
         input?.focus();
@@ -4484,8 +4486,8 @@ export function initForm() {
       await startCompanyReview(
         request,
         whyFollowing,
-        watchPlan.identifier,
-        extractCompanyNameFromRequest(request, watchPlan.identifier),
+        companyPlan.identifier,
+        extractCompanyNameFromRequest(request, companyPlan.identifier),
       );
       return;
     }
@@ -4755,7 +4757,7 @@ export function initForm() {
       } catch (error) {
         resetUrlFlow({ clearInput: false });
         if (watchError) {
-          const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
+          const code = error?.code || 'CHECK_FAILED';
           watchError.textContent = t(getMonitoringFailureMessageKey(code));
         }
         input?.focus();

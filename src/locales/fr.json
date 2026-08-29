@@ -254,7 +254,12 @@
       "timeout": "La source de surveillance a mis trop de temps à répondre. Réessayez dans un instant.",
       "unreadable": "La source de surveillance a renvoyé un format que Watch Assistant ne peut pas lire. Choisissez une autre source dans les réglages avancés.",
       "unreachable": "La source de surveillance est inaccessible. Vérifiez la source ou réessayez plus tard.",
-      "temporary": "Un problème temporaire de service ou de réseau a interrompu la vérification. Réessayez."
+      "temporary": "Un problème temporaire de service ou de réseau a interrompu la vérification. Réessayez.",
+      "authentication": "Votre session est absente ou a expiré. Reconnectez-vous, puis réessayez.",
+      "duplicate": "Une Watch d’entreprise active existe déjà pour ce SIREN.",
+      "invalidIdentifier": "Saisissez un SIREN valide à 9 chiffres pour cette entreprise française.",
+      "persistence": "La Watch d’entreprise n’a pas pu être enregistrée. Vos Watches existantes n’ont pas été modifiées. Réessayez.",
+      "configuration": "La persistance serveur n’est pas disponible dans cet environnement. Réessayez lorsqu’elle sera configurée."
     },
     "monitoringUnavailable": "La source de surveillance est temporairement indisponible. Vous pouvez relancer la vérification.",
     "newItems": "Nouveaux articles",

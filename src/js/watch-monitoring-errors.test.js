@@ -28,6 +28,13 @@ const expectedCategories = {
   INVALID_REDIRECT: 'unreachable',
   CHECK_FAILED: 'temporary',
   INTERNAL_ERROR: 'temporary',
+  AUTH_REQUIRED: 'authentication',
+  INVALID_SESSION: 'authentication',
+  ACTIVE_WATCH_EXISTS: 'duplicate',
+  INVALID_SIREN: 'invalidIdentifier',
+  DATABASE_ERROR: 'persistence',
+  ROLLBACK_FAILED: 'persistence',
+  SERVER_NOT_CONFIGURED: 'configuration',
 };
 
 test('every supported monitoring failure code maps to its reliable category', () => {

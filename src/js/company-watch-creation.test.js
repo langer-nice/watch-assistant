@@ -15,7 +15,7 @@ const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 const SIREN = '552005969';
 const GARIBALDI_SIREN = '849703772';
 
-test('the reported GARIBALDI request enters Company review through the Planner', async () => {
+test('valid named-company SIRENs enter Company review even without monitoring wording', async () => {
   const navigation = await read('./navigation.js');
   const submitFlow = navigation.match(
     /form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/,
@@ -32,9 +32,16 @@ test('the reported GARIBALDI request enters Company review through the Planner',
     companyName: 'LE GARIBALDI',
     reason: null,
   });
+  assert.deepEqual(parseCompanyWatchRequest('CEMEX GRANULATS, SIREN 552005969.'), {
+    recognized: true,
+    valid: true,
+    siren: SIREN,
+    companyName: 'CEMEX GRANULATS',
+    reason: null,
+  });
   assert.match(
     companyBranch,
-    /requestWatchPlan\(request\)[\s\S]*?getCompanyPlanRoute\(request, watchPlan\)[\s\S]*?COMPANY_PLAN_ROUTES\.REVIEW[\s\S]*?startCompanyReview\([\s\S]*?watchPlan\.identifier,[\s\S]*?extractCompanyNameFromRequest\(request, watchPlan\.identifier\)/,
+    /requestWatchPlan\(request\)[\s\S]*?resolveFrenchCompanyPlan\(request, watchPlan\)[\s\S]*?getCompanyPlanRoute\(request, companyPlan\)[\s\S]*?COMPANY_PLAN_ROUTES\.REVIEW[\s\S]*?startCompanyReview\([\s\S]*?companyPlan\.identifier,[\s\S]*?extractCompanyNameFromRequest\(request, companyPlan\.identifier\)/,
   );
   assert.doesNotMatch(
     companyBranch,
@@ -78,26 +85,24 @@ test('Company Watch review is localized and identifies the SIREN and official BO
   assert.match(navigation, /reviewSource\.textContent = 'BODACC'/);
 });
 
-test('the Planner is the only route into Company review and remains before all other routes', async () => {
+test('the validated Company route remains before all other routes', async () => {
   const navigation = await read('./navigation.js');
   const submitFlow = navigation.match(
     /form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/,
   )?.[0] || '';
   const plannerIndex = submitFlow.indexOf('requestWatchPlan(request)');
+  const resolutionIndex = submitFlow.indexOf('resolveFrenchCompanyPlan(request, watchPlan)');
   const reviewIndex = submitFlow.indexOf('startCompanyReview(');
-  const routeIndex = submitFlow.indexOf('getCompanyPlanRoute(request, watchPlan)');
+  const routeIndex = submitFlow.indexOf('getCompanyPlanRoute(request, companyPlan)');
   const urlIndex = submitFlow.indexOf('if (isUrl(request))');
   const clarificationIndex = submitFlow.indexOf('clarifyWatchRequest(request');
 
-  assert.ok(plannerIndex >= 0 && plannerIndex < reviewIndex);
-  assert.ok(plannerIndex < routeIndex && routeIndex < reviewIndex && reviewIndex < urlIndex);
+  assert.ok(plannerIndex >= 0 && plannerIndex < resolutionIndex);
+  assert.ok(plannerIndex < resolutionIndex && resolutionIndex < routeIndex);
+  assert.ok(routeIndex < reviewIndex && reviewIndex < urlIndex);
   assert.ok(urlIndex < clarificationIndex);
   assert.equal((navigation.match(/await startCompanyReview\(/g) || []).length, 1);
   assert.match(submitFlow, /COMPANY_PLAN_ROUTES\.REVIEW[\s\S]*?startCompanyReview/);
-  assert.doesNotMatch(
-    submitFlow.slice(reviewIndex + 'startCompanyReview('.length),
-    /parseCompanyWatchRequest\(request\)[\s\S]*?startCompanyReview/,
-  );
   const companyBranch = submitFlow.slice(
     submitFlow.indexOf('let watchPlan = null'),
     submitFlow.indexOf('if (isUrl(request))'),
