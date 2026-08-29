@@ -23,6 +23,8 @@ const request = async (path, options = {}) => {
   if (!response.ok) {
     const error = new Error(body?.error || 'The Company Watch request failed.');
     error.code = body?.code || 'REQUEST_FAILED';
+    error.requestId = body?.requestId || response.headers.get('X-Request-Id') || null;
+    error.statusCode = response.status;
     throw error;
   }
   return body;

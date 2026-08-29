@@ -137,7 +137,12 @@ const fetchCompanyData = async (siren, options) => {
   return { ...monitoring, ...(company ? { company } : {}) };
 };
 
-export const createCompanyWatchRepository = ({ client, user, ...options }) => {
+export const createCompanyWatchRepository = ({
+  client,
+  user,
+  onCompanyWatchStage = () => {},
+  ...options
+}) => {
   const get = async (watchId) => {
     validateWatchId(watchId);
     const { data, error } = await client.from('watches').select(WATCH_SELECT)
@@ -190,12 +195,15 @@ export const createCompanyWatchRepository = ({ client, user, ...options }) => {
   };
 
   const create = async (input) => {
+    onCompanyWatchStage('create-validate');
     const siren = normalizeSiren(input.siren);
     const title = cleanText(input.title, 200, { required: true });
     const request = cleanText(input.request, 500) || `Monitor company ${siren}`;
     const summary = cleanText(input.summary, 1000);
     const companyName = cleanText(input.companyName, 200);
+    onCompanyWatchStage('create-baseline-fetch');
     const response = await fetchCompanyData(siren, options);
+    onCompanyWatchStage('create-watch-insert');
     const { data, error } = await client.from('watches').insert({
       user_id: user.id,
       type: 'company_bodacc',
@@ -213,8 +221,10 @@ export const createCompanyWatchRepository = ({ client, user, ...options }) => {
     if (error) throwDatabaseError(error);
     const provisional = mapCompanyWatchRow(data);
     try {
+      onCompanyWatchStage('create-baseline-persist');
       return await completeCheck(provisional, response);
     } catch (cause) {
+      onCompanyWatchStage('create-rollback');
       const { data: removed, error: rollbackError } = await client.from('watches').delete()
         .eq('id', provisional.id).select('id').maybeSingle();
       if (rollbackError || !removed) {
@@ -222,6 +232,7 @@ export const createCompanyWatchRepository = ({ client, user, ...options }) => {
           'ROLLBACK_FAILED', 500, 'The failed Company Watch could not be rolled back.',
         );
       }
+      onCompanyWatchStage('create-rollback-complete');
       throw cause;
     }
   };

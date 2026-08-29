@@ -20,8 +20,13 @@ const call = async (middleware, { method = 'GET', url = '/api/company-watches', 
 
 test('Company Watch endpoints reject anonymous requests before repository access', async () => {
   let repositoryCreated = false;
+  const entries = [];
   const middleware = createCompanyWatchMiddleware({
-    logger: null,
+    logger: {
+      info: (message, details) => entries.push({ level: 'info', message, details }),
+      warn: (message, details) => entries.push({ level: 'warn', message, details }),
+    },
+    createRequestId: () => 'request-anonymous',
     repositoryFactory: () => { repositoryCreated = true; return {}; },
   });
 
@@ -31,9 +36,18 @@ test('Company Watch endpoints reject anonymous requests before repository access
   assert.deepEqual(response.body, {
     code: 'AUTH_REQUIRED',
     error: 'Authentication is required.',
+    requestId: 'request-anonymous',
   });
   assert.equal(repositoryCreated, false);
   assert.equal(response.headers['Cache-Control'], 'no-store');
+  assert.equal(response.headers['X-Request-Id'], 'request-anonymous');
+  assert.equal(entries.some(({ level, details }) => (
+    level === 'warn'
+    && details.authenticated === false
+    && details.stage === 'authenticate'
+    && details.code === 'AUTH_REQUIRED'
+    && details.statusCode === 401
+  )), true);
 });
 
 test('authenticated collection requests use the verified user repository', async () => {
@@ -42,6 +56,7 @@ test('authenticated collection requests use the verified user repository', async
   const watches = [{ id: 'watch-a', title: 'Company A' }];
   const middleware = createCompanyWatchMiddleware({
     logger: null,
+    createRequestId: () => 'request-list',
     authenticate: async () => ({ user, client: { rls: true }, token: 'verified-token' }),
     repositoryFactory: (context) => {
       repositoryUser = context.user;
@@ -52,7 +67,7 @@ test('authenticated collection requests use the verified user repository', async
   const response = await call(middleware);
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.body, { watches });
+  assert.deepEqual(response.body, { watches, requestId: 'request-list' });
   assert.equal(repositoryUser, user);
 });
 
@@ -61,6 +76,7 @@ test('creation returns the persisted baseline outcome and rejects malformed bodi
   const watch = { id: 'watch-a', title: 'Company A' };
   const middleware = createCompanyWatchMiddleware({
     logger: null,
+    createRequestId: () => 'request-create',
     authenticate: async () => ({ user: { id: 'user-a' }, client: {} }),
     repositoryFactory: () => ({
       create: async (input) => {
@@ -86,6 +102,7 @@ test('creation returns the persisted baseline outcome and rejects malformed bodi
 test('item and check routes expose only their supported methods', async () => {
   const middleware = createCompanyWatchMiddleware({
     logger: null,
+    createRequestId: () => 'request-method',
     authenticate: async () => ({ user: { id: 'user-a' }, client: {} }),
     repositoryFactory: () => ({}),
   });
@@ -97,4 +114,52 @@ test('item and check routes expose only their supported methods', async () => {
   const check = await call(middleware, { method: 'GET', url: '/api/check-company-watch?id=watch-a' });
   assert.equal(check.statusCode, 405);
   assert.equal(check.headers.Allow, 'POST');
+});
+
+test('safe diagnostics correlate request stages and responses without user or payload data', async () => {
+  const entries = [];
+  const logger = {
+    info: (message, details) => entries.push({ level: 'info', message, details }),
+    warn: (message, details) => entries.push({ level: 'warn', message, details }),
+  };
+  const middleware = createCompanyWatchMiddleware({
+    logger,
+    createRequestId: () => 'request-diagnostic',
+    authenticate: async () => ({
+      user: { id: 'private-user-id' }, client: {}, token: 'private-token',
+    }),
+    repositoryFactory: ({ onCompanyWatchStage }) => ({
+      create: async () => {
+        onCompanyWatchStage('create-watch-insert');
+        throw new Error('database contained private payload text');
+      },
+    }),
+  });
+
+  const response = await call(middleware, {
+    method: 'POST',
+    body: { siren: 'private-siren', title: 'private-title' },
+  });
+
+  assert.equal(response.statusCode, 500);
+  assert.deepEqual(response.body, {
+    code: 'INTERNAL_ERROR',
+    error: 'The request could not be completed.',
+    requestId: 'request-diagnostic',
+  });
+  assert.equal(response.headers['X-Request-Id'], 'request-diagnostic');
+  assert.equal(entries[0].details.stage, 'request-arrival');
+  assert.equal(entries.some(({ details }) => (
+    details.authenticated === true && details.stage === 'authenticated'
+  )), true);
+  assert.equal(entries.some(({ details }) => (
+    details.stage === 'create-watch-insert'
+    && details.code === 'INTERNAL_ERROR'
+    && details.statusCode === 500
+  )), true);
+  assert.equal(entries.some(({ message, details }) => (
+    message === '[Company Watches] Response sent.' && details.statusCode === 500
+  )), true);
+  const serialized = JSON.stringify(entries);
+  assert.doesNotMatch(serialized, /private-user-id|private-token|private-siren|private-title|private payload/u);
 });

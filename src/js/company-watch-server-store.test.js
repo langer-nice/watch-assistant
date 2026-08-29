@@ -18,8 +18,8 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
     requests.push({ path, options });
     if (path.startsWith('/api/check-company-watch')) {
       return new Response(JSON.stringify({
-        code: 'UPSTREAM_UNAVAILABLE', error: 'The official source is unavailable.',
-      }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+        code: 'UPSTREAM_UNAVAILABLE', error: 'The official source is unavailable.', requestId: 'request-check',
+      }), { status: 502, headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'request-check' } });
     }
     if (path.startsWith('/api/company-watch?')) {
       return Response.json({ watch: failedWatch });
@@ -68,7 +68,11 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
 
     await assert.rejects(
       store.checkServerCompanyWatch(initialWatch.id),
-      ({ code }) => code === 'UPSTREAM_UNAVAILABLE',
+      ({ code, requestId, statusCode }) => (
+        code === 'UPSTREAM_UNAVAILABLE'
+        && requestId === 'request-check'
+        && statusCode === 502
+      ),
     );
     assert.equal(
       store.getServerCompanyWatches()[0].lastCheckAttempt.code,
