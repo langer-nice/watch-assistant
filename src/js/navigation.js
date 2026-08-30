@@ -177,6 +177,7 @@ import {
   getLatestCheckUpdates,
 } from './watch-update-presentation.js';
 import {
+  acceptPersistedServerCompanyWatch,
   checkServerCompanyWatch,
   createServerCompanyWatch,
   deleteServerCompanyWatch,
@@ -277,7 +278,7 @@ const scrollWindowImmediately = (top) => {
   document.documentElement.style.scrollBehavior = previousBehavior;
 };
 
-const closeWatchEditSheet = ({ updated = false } = {}) => {
+const closeWatchEditSheet = ({ updated = false, persistedWatch = null } = {}) => {
   const sheet = document.querySelector('#watchEditSheet');
   const frame = document.querySelector('#watchEditFrame');
   if (!sheet?.open || sheet.classList.contains('is-closing')) return;
@@ -295,13 +296,19 @@ const closeWatchEditSheet = ({ updated = false } = {}) => {
     if (updated) {
       if (isCompanyWatchServerMode()) {
         try {
-          await hydrateServerCompanyWatches();
+          if (persistedWatch) {
+            acceptPersistedServerCompanyWatch(persistedWatch);
+          } else {
+            await hydrateServerCompanyWatches();
+          }
         } catch (error) {
           if (import.meta.env.DEV) {
             console.warn('[Company Watches] Could not refresh the saved Watch.', {
               code: error?.code,
             });
           }
+          editSheetCloseTimer = null;
+          return;
         }
       }
       renderWatchDetail();
@@ -378,7 +385,7 @@ const initializeWatchEditSheet = () => {
       closeWatchEditSheet();
     }
     if (event.data.type === 'watch-editor-saved') {
-      closeWatchEditSheet({ updated: true });
+      closeWatchEditSheet({ updated: true, persistedWatch: event.data.watch || null });
     }
     if (event.data.type === 'watch-editor-state' && saveButton) {
       saveButton.disabled = !event.data.canSave;
@@ -3114,7 +3121,7 @@ export function initForm() {
     window.location.href = getCreatedWatchDetailHref(watch.id);
   };
 
-  const finishModalTransition = (messageType) => {
+  const finishModalTransition = (messageType, details = {}) => {
     const viewport = window.visualViewport;
     const focusedElement = document.activeElement instanceof HTMLElement
       ? document.activeElement
@@ -3133,6 +3140,7 @@ export function initForm() {
           window.parent.postMessage({
             type: messageType,
             watchId: editingWatch.id,
+            ...details,
           }, window.location.origin);
         });
       });
@@ -3353,6 +3361,7 @@ export function initForm() {
         editingWatch = await updateServerCompanyWatch(editingWatch.id, {
           ...(changes.title ? { title: changes.title } : {}),
           summary: changes.whyFollowing ?? editingWatch.whyFollowing ?? '',
+          category,
         });
       } else {
         updateWatch(editingWatch.id, changes);
@@ -3367,7 +3376,7 @@ export function initForm() {
     }
     editNavigationAllowed = true;
     if (isModalEditMode) {
-      finishModalTransition('watch-editor-saved');
+      finishModalTransition('watch-editor-saved', { watch: editingWatch });
       return;
     }
     window.location.href = `watch-detail.html?id=${encodeURIComponent(editingWatch.id)}&watchUpdated=${encodeURIComponent(editingWatch.id)}`;

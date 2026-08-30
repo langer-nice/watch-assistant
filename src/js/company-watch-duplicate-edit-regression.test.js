@@ -63,8 +63,11 @@ test('server Company modal edit hydrates auth without profile UI and closes inst
   );
   assert.match(updateFlow, /updateServerCompanyWatch\(editingWatch\.id/);
   assert.match(updateFlow, /summary: changes\.whyFollowing/);
+  assert.match(updateFlow, /summary: changes\.whyFollowing[\s\S]*?category,/);
   assert.match(updateFlow, /catch \{[\s\S]*?editSaveFailed[\s\S]*?return/);
-  assert.match(navigation, /if \(updated\)[\s\S]*?hydrateServerCompanyWatches\(\)[\s\S]*?renderWatchDetail\(\)/);
+  assert.match(navigation, /watch-editor-saved[\s\S]*?persistedWatch: event\.data\.watch/);
+  assert.match(navigation, /acceptPersistedServerCompanyWatch\(persistedWatch\)[\s\S]*?renderWatchDetail\(\)[\s\S]*?showWatchUpdatedConfirmation\(\)/);
+  assert.match(updateFlow, /finishModalTransition\('watch-editor-saved', \{ watch: editingWatch \}\)/);
   assert.match(navigation, /editingServerCompanyWatch && isModalEditMode[\s\S]*?WATCH_STORAGE_CHANGED_EVENT[\s\S]*?watch-editor-close/);
 });
 

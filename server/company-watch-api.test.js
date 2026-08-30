@@ -142,6 +142,41 @@ test('item and check routes expose only their supported methods', async () => {
   assert.equal(check.headers.Allow, 'POST');
 });
 
+test('authenticated PATCH forwards canonical category and returns the persisted category', async () => {
+  const user = { id: 'verified-user' };
+  let repositoryUser = null;
+  let received = null;
+  const persisted = { id: 'watch-a', category: 'finance' };
+  const middleware = createCompanyWatchMiddleware({
+    logger: null,
+    createRequestId: () => 'request-category',
+    authenticate: async () => ({ user, client: { rls: true } }),
+    repositoryFactory: (context) => {
+      repositoryUser = context.user;
+      return {
+        update: async (id, input) => {
+          received = { id, input };
+          return persisted;
+        },
+      };
+    },
+  });
+
+  const response = await call(middleware, {
+    method: 'PATCH',
+    url: '/api/company-watch?id=00000000-0000-4000-8000-00000000000a',
+    body: { category: 'finance', user_id: 'forged-user' },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(repositoryUser, user);
+  assert.deepEqual(received, {
+    id: '00000000-0000-4000-8000-00000000000a',
+    input: { category: 'finance', user_id: 'forged-user' },
+  });
+  assert.equal(response.body.watch.category, 'finance');
+});
+
 test('safe diagnostics correlate request stages and responses without user or payload data', async () => {
   const entries = [];
   const logger = {

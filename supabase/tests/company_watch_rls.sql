@@ -51,13 +51,17 @@ begin
     raise exception 'Company RLS failed: user B can read user A snapshot';
   end if;
 
-  update public.watches set title = 'Company B updated'
+  update public.watches set title = 'Company B updated', category = 'finance'
   where id = '20000000-0000-4000-8000-00000000000b';
   if not found then
     raise exception 'Company RLS failed: user B cannot update own Watch';
   end if;
+  if (select category from public.watches
+      where id = '20000000-0000-4000-8000-00000000000b') <> 'finance' then
+    raise exception 'Company category persistence failed for the owning user';
+  end if;
 
-  update public.watches set title = 'Cross-user update'
+  update public.watches set title = 'Cross-user update', category = 'news'
   where id = '20000000-0000-4000-8000-00000000000a';
   if found then
     raise exception 'Company RLS failed: user B modified user A Watch';
@@ -66,6 +70,17 @@ begin
   if public.claim_company_watch_check('20000000-0000-4000-8000-00000000000a') then
     raise exception 'Company RLS failed: user B claimed user A check';
   end if;
+end;
+$$;
+
+do $$
+begin
+  begin
+    update public.watches set category = 'Finance'
+    where id = '20000000-0000-4000-8000-00000000000b';
+    raise exception 'Company category constraint accepted a localized label';
+  exception when check_violation then null;
+  end;
 end;
 $$;
 

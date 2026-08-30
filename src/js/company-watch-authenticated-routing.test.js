@@ -183,6 +183,7 @@ test('authenticated CEMEX creation never falls back to the removed check-company
       request,
       summary: 'This Watch will follow relevant future reporting, including major developments and significant follow-up reporting.',
       companyName: 'CEMEX GRANULATS',
+      category: 'general',
     });
     assert.equal(storage.getItem('watchAssistant.watches'), null);
     assert.match(window.location.href, /watch-detail\.html\?id=00000000-0000-4000-8000-00000000000c/u);

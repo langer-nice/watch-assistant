@@ -30,6 +30,8 @@ The deployed anonymous `/api/check-company` route is removed. Authenticated Comp
 
 Migration `20260821120000_company_watch_persistence.sql` extends `public.watches` with the approved Company fields, monitoring state, latest check outcome, latest meaningful change and a short-lived check claim timestamp.
 
+Migration `20260830120000_company_watch_category.sql` adds the stable canonical `category` identifier used by the existing application taxonomy. Existing rows receive `general`; labels remain localized in the client and are never stored.
+
 `public.company_watch_snapshots` stores one current normalized BODACC snapshot per Watch:
 
 - source and check timestamp;
@@ -48,7 +50,7 @@ All routes require `Authorization: Bearer <Supabase access token>` and return `C
 - `GET /api/company-watches`: list the authenticated user's active Company Watches.
 - `POST /api/company-watches`: fetch the BODACC baseline, create a provisional Watch, persist the snapshot, then return the ready Watch. A baseline failure creates no row; a later persistence failure hard-deletes the unreturned provisional row and its cascaded snapshot.
 - `GET /api/company-watch?id=<uuid>`: load one owned Watch.
-- `PATCH /api/company-watch?id=<uuid>`: update title, summary or pause/resume state.
+- `PATCH /api/company-watch?id=<uuid>`: update title, summary, canonical category or pause/resume state. Unknown category identifiers are rejected.
 - `DELETE /api/company-watch?id=<uuid>`: soft-delete one owned Watch.
 - `POST /api/check-company-watch?id=<uuid>`: claim the check, query BODACC, compare against the persisted snapshot and atomically persist the result.
 
@@ -79,6 +81,16 @@ psql "$LOCAL_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/company_watch
 The Company SQL test proves own read/update, cross-user Watch and snapshot isolation, forged snapshot rejection, cross-user check-claim rejection and anonymous denial.
 
 ## Rollback
+
+To roll back only the additive category migration after deploying application code that no longer reads or writes it:
+
+```sql
+alter table public.watches
+  drop constraint if exists watches_category_check,
+  drop column if exists category;
+```
+
+This removes only the category values. It does not alter Watch ownership, BODACC snapshots, monitoring state or RLS policies.
 
 Back up the pilot data first. Roll back PR2 without touching PR1 Auth/profile foundations:
 

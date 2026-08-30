@@ -6,6 +6,23 @@ const migrationUrl = new URL(
   '../../supabase/migrations/20260821120000_company_watch_persistence.sql',
   import.meta.url,
 );
+const categoryMigrationUrl = new URL(
+  '../../supabase/migrations/20260830120000_company_watch_category.sql',
+  import.meta.url,
+);
+
+test('Company category migration is additive, canonical, and defaults legacy rows safely', async () => {
+  const sql = await readFile(categoryMigrationUrl, 'utf8');
+
+  assert.match(sql, /alter table public\.watches\s+add column category text not null default 'general'/i);
+  for (const category of [
+    'general', 'travel', 'news', 'property', 'price', 'events', 'entertainment', 'finance',
+  ]) {
+    assert.match(sql, new RegExp(`'${category}'`, 'i'));
+  }
+  assert.match(sql, /constraint watches_category_check/i);
+  assert.doesNotMatch(sql, /drop table|delete from|truncate/i);
+});
 
 test('Company snapshot schema is bounded, owner-scoped, and authenticated-only', async () => {
   const sql = await readFile(migrationUrl, 'utf8');

@@ -7,6 +7,7 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
     id: '00000000-0000-4000-8000-00000000000a',
     inputType: 'company',
     title: 'Company A',
+    category: 'general',
     createdAt: '2026-08-21T08:00:00.000Z',
   };
   const failedWatch = {
@@ -24,7 +25,19 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
       }), { status: 502, headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'request-check' } });
     }
     if (path.startsWith('/api/company-watch?')) {
-      if (options.method === 'PATCH') return Response.json({ watch: updatedWatch });
+      if (options.method === 'PATCH') {
+        const changes = JSON.parse(options.body);
+        if (changes.category === 'finance') {
+          return Response.json({ watch: { ...updatedWatch, category: 'finance' } });
+        }
+        if (changes.category === 'news') {
+          return Response.json({ watch: { ...updatedWatch, category: 'general' } });
+        }
+        if (changes.category === 'events') {
+          return Response.json({ code: 'DATABASE_ERROR', error: 'Save failed.' }, { status: 500 });
+        }
+        return Response.json({ watch: updatedWatch });
+      }
       return Response.json({ watch: failedWatch });
     }
     if (path === '/api/company-watches' && options.method === 'POST') {
@@ -76,6 +89,7 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
       request: 'Company A, SIREN 552100554',
       summary: 'Pilot',
       companyName: 'Company A',
+      category: 'general',
     });
     assert.match(creationRequest.options.headers.Authorization, /^Bearer /u);
 
@@ -102,6 +116,35 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
     assert.ok(updateRequest);
     assert.deepEqual(JSON.parse(updateRequest.options.body), { summary: 'Updated note' });
     assert.match(updateRequest.options.headers.Authorization, /^Bearer /u);
+
+    const finance = await store.updateServerCompanyWatch(initialWatch.id, { category: 'finance' });
+    assert.equal(finance.category, 'finance');
+    const categoryRequest = requests.find(({ path, options }) => (
+      path === `/api/company-watch?id=${initialWatch.id}`
+      && options.method === 'PATCH'
+      && JSON.parse(options.body).category === 'finance'
+    ));
+    assert.deepEqual(JSON.parse(categoryRequest.options.body), { category: 'finance' });
+    assert.equal(store.getServerCompanyWatches()[0].category, 'finance');
+
+    await assert.rejects(
+      store.updateServerCompanyWatch(initialWatch.id, { category: 'news' }),
+      ({ code }) => code === 'PERSISTED_CATEGORY_MISMATCH',
+    );
+    assert.equal(
+      store.getServerCompanyWatches()[0].category,
+      'finance',
+      'a mismatched response must not overwrite the accepted persisted category',
+    );
+    await assert.rejects(
+      store.updateServerCompanyWatch(initialWatch.id, { category: 'events' }),
+      ({ code, statusCode }) => code === 'DATABASE_ERROR' && statusCode === 500,
+    );
+    assert.equal(
+      store.getServerCompanyWatches()[0].category,
+      'finance',
+      'a failed PATCH must preserve the last accepted category',
+    );
 
     await assert.rejects(
       store.checkServerCompanyWatch(initialWatch.id),

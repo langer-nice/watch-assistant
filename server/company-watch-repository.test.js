@@ -11,6 +11,7 @@ const baseRow = {
   id: '00000000-0000-4000-8000-00000000000a',
   type: 'company_bodacc',
   title: 'Company A',
+  category: 'general',
   siren: '552100554',
   company_name: 'Company A',
   monitoring_state: 'monitoring',
@@ -39,9 +40,16 @@ test('persisted Company rows restore the canonical snapshot without reviving an 
 
   assert.equal(watch.inputType, 'company');
   assert.equal(watch.company.siren, '552100554');
+  assert.equal(watch.category, 'general');
   assert.deepEqual(watch.monitoringSnapshot.itemIds, ['bodacc-old']);
   assert.deepEqual(watch.updates, []);
   assert.equal(watch.unreadUpdateCount, 0);
+});
+
+test('legacy Company rows without a category hydrate safely as canonical General', () => {
+  const { category, ...legacyRow } = baseRow;
+  assert.equal(category, 'general');
+  assert.equal(mapCompanyWatchRow(legacyRow).category, 'general');
 });
 
 test('a persisted updated status restores exactly one presentable update', () => {
@@ -227,10 +235,12 @@ test('server repository persists baseline, multi-session CRUD, soft delete, and 
     title: 'Company A',
     request: 'Monitor Company A',
     summary: 'Pilot Company Watch',
+    category: 'general',
     user_id: userB,
   });
   assert.equal(created.result.outcome, 'baseline');
   assert.equal(created.watch.currentStatus, 'watching');
+  assert.equal(created.watch.category, 'general');
   assert.equal(created.watch.updates.length, 0);
   assert.deepEqual(created.watch.monitoringSnapshot.itemIds, []);
   assert.equal(database.watches[0].user_id, userA, 'browser-supplied ownership must be ignored');
@@ -256,10 +266,35 @@ test('server repository persists baseline, multi-session CRUD, soft delete, and 
   assert.equal((await secondSessionA.update(created.watch.id, { title: 'Company A updated' })).title,
     'Company A updated');
 
+  const immutableBeforeCategoryEdit = structuredClone(
+    database.watches.find(({ id }) => id === created.watch.id),
+  );
+  const snapshotBeforeCategoryEdit = structuredClone(database.snapshots.get(created.watch.id));
+  const categoryUpdated = await secondSessionA.update(created.watch.id, { category: 'finance' });
+  assert.equal(categoryUpdated.category, 'finance');
+  assert.equal((await secondSessionA.get(created.watch.id)).category, 'finance');
+  assert.equal((await secondSessionA.list())[0].category, 'finance');
+  const immutableAfterCategoryEdit = database.watches.find(({ id }) => id === created.watch.id);
+  for (const key of [
+    'siren', 'type', 'user_id', 'company_name', 'monitoring_state', 'current_status',
+    'last_checked_at', 'last_check_outcome',
+  ]) {
+    assert.deepEqual(immutableAfterCategoryEdit[key], immutableBeforeCategoryEdit[key], key);
+  }
+  assert.deepEqual(
+    database.snapshots.get(created.watch.id),
+    snapshotBeforeCategoryEdit,
+    'category editing must not replace the BODACC snapshot',
+  );
+  await assert.rejects(
+    secondSessionA.update(created.watch.id, { category: 'Finance' }),
+    ({ code, statusCode }) => code === 'INVALID_BODY' && statusCode === 400,
+  );
+
   const repositoryB = createRepository(database, userB, async () => emptyBodacc());
   await assert.rejects(repositoryB.get(created.watch.id), ({ code }) => code === 'WATCH_NOT_FOUND');
   await assert.rejects(
-    repositoryB.update(created.watch.id, { title: 'Forged update' }),
+    repositoryB.update(created.watch.id, { category: 'news' }),
     ({ code }) => code === 'WATCH_NOT_FOUND',
   );
   await assert.rejects(repositoryB.remove(created.watch.id), ({ code }) => code === 'WATCH_NOT_FOUND');

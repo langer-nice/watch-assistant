@@ -1,4 +1,5 @@
 import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
+import { SUPPORTED_WATCH_CATEGORIES } from './watch-category.js';
 
 let accessToken = null;
 let authStateSource = null;
@@ -61,6 +62,19 @@ const replaceWatch = (watch) => {
   return watch;
 };
 
+export const acceptPersistedServerCompanyWatch = (watch) => {
+  if (
+    !watch
+    || typeof watch.id !== 'string'
+    || !SUPPORTED_WATCH_CATEGORIES.includes(watch.category)
+  ) {
+    const error = new Error('The persisted Company Watch response is invalid.');
+    error.code = 'INVALID_PERSISTED_WATCH';
+    throw error;
+  }
+  return replaceWatch(watch);
+};
+
 export const isCompanyWatchServerMode = () => Boolean(getAccessToken());
 export const getServerCompanyWatches = () => [...serverWatches];
 export const getCompanyWatchServerHydrationError = () => hydrationError;
@@ -117,6 +131,7 @@ export const createServerCompanyWatch = async (watch) => {
       request: watch.request,
       summary: watch.whyFollowing || watch.monitoringSummary,
       companyName: watch.company?.name,
+      category: watch.category || 'general',
     }),
   });
   return replaceWatch(body.watch);
@@ -126,7 +141,15 @@ export const updateServerCompanyWatch = async (id, changes) => {
   const body = await request(`/api/company-watch?id=${encodeURIComponent(id)}`, {
     method: 'PATCH', body: JSON.stringify(changes),
   });
-  return replaceWatch(body.watch);
+  if (
+    Object.hasOwn(changes, 'category')
+    && body.watch?.category !== changes.category
+  ) {
+    const error = new Error('The saved Company Watch category did not match the request.');
+    error.code = 'PERSISTED_CATEGORY_MISMATCH';
+    throw error;
+  }
+  return acceptPersistedServerCompanyWatch(body.watch);
 };
 
 export const deleteServerCompanyWatch = async (id) => {

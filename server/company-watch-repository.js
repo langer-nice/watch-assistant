@@ -3,6 +3,7 @@ import { deriveCompanyStatus } from '../src/js/company-watch-status.js';
 import { normalizeAdministrativeStatus } from '../src/js/company-administrative-status.js';
 import { fetchBodaccAnnouncements, normalizeSiren } from './bodacc-api.js';
 import { fetchCompanyIdentity } from './company-directory-api.js';
+import { SUPPORTED_WATCH_CATEGORIES } from '../src/js/watch-category.js';
 
 const WATCH_SELECT = '*, company_watch_snapshots(*)';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -30,6 +31,13 @@ const cleanText = (value, maxLength, { required = false } = {}) => {
     throw new CompanyWatchRepositoryError('INVALID_BODY', 400, 'A required field is missing.');
   }
   return text ? text.slice(0, maxLength) : null;
+};
+
+const validateCategory = (value) => {
+  if (typeof value !== 'string' || !SUPPORTED_WATCH_CATEGORIES.includes(value)) {
+    throw new CompanyWatchRepositoryError('INVALID_BODY', 400, 'The Watch category is invalid.');
+  }
+  return value;
 };
 
 const getSnapshot = (row) => Array.isArray(row?.company_watch_snapshots)
@@ -65,6 +73,8 @@ export const mapCompanyWatchRow = (row) => {
     request: row.request || `Monitor company ${row.siren}`,
     whyFollowing: row.summary || '',
     title: row.title,
+    category: SUPPORTED_WATCH_CATEGORIES.includes(row.category) ? row.category : 'general',
+    categorySource: 'manual',
     inputType: 'company',
     company: {
       siren: row.siren,
@@ -218,6 +228,7 @@ export const createCompanyWatchRepository = ({
     const request = cleanText(input.request, 500) || `Monitor company ${siren}`;
     const summary = cleanText(input.summary, 1000);
     const companyName = cleanText(input.companyName, 200);
+    const category = Object.hasOwn(input, 'category') ? validateCategory(input.category) : 'general';
     onCompanyWatchStage('create-duplicate-check');
     const existingWatch = await findActiveBySiren(siren);
     if (existingWatch) throwDuplicate(existingWatch);
@@ -231,6 +242,7 @@ export const createCompanyWatchRepository = ({
       siren,
       request,
       summary,
+      category,
       company_name: companyName,
       administrative_status: 'unknown',
       company_status: 'unknown',
@@ -265,6 +277,7 @@ export const createCompanyWatchRepository = ({
     const changes = {};
     if (Object.hasOwn(input, 'title')) changes.title = cleanText(input.title, 200, { required: true });
     if (Object.hasOwn(input, 'summary')) changes.summary = cleanText(input.summary, 1000);
+    if (Object.hasOwn(input, 'category')) changes.category = validateCategory(input.category);
     if (Object.hasOwn(input, 'monitoringState')) {
       if (!['monitoring', 'paused'].includes(input.monitoringState)) {
         throw new CompanyWatchRepositoryError('INVALID_BODY', 400, 'The monitoring state is invalid.');
