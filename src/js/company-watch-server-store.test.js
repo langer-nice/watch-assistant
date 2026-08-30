@@ -93,6 +93,20 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
     });
     assert.match(creationRequest.options.headers.Authorization, /^Bearer /u);
 
+    const noNoteRequestStart = requests.length;
+    await assert.rejects(
+      store.createServerCompanyWatch({
+        title: 'Company A', request: 'Company A, SIREN 552100554',
+        monitoringSummary: 'This Watch will follow relevant future reporting.',
+        company: { siren: '552100554', name: 'Company A' },
+      }),
+      ({ code }) => code === 'ACTIVE_WATCH_EXISTS',
+    );
+    const noNoteRequest = requests.slice(noNoteRequestStart).find(({ path, options }) => (
+      path === '/api/company-watches' && options.method === 'POST'
+    ));
+    assert.equal(JSON.parse(noNoteRequest.options.body).summary, '');
+
     await assert.rejects(
       store.createServerCompanyWatch({
         title: 'Company A', request: 'Company A, SIREN 552100554',

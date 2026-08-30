@@ -129,7 +129,7 @@ export const createServerCompanyWatch = async (watch) => {
       siren: watch.company?.siren,
       title: watch.title,
       request: watch.request,
-      summary: watch.whyFollowing || watch.monitoringSummary,
+      summary: watch.whyFollowing || '',
       companyName: watch.company?.name,
       category: watch.category || 'general',
     }),

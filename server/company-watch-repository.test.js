@@ -52,6 +52,20 @@ test('legacy Company rows without a category hydrate safely as canonical General
   assert.equal(mapCompanyWatchRow(legacyRow).category, 'general');
 });
 
+test('legacy Company News rationale is suppressed while user-authored reasons are preserved', () => {
+  const legacy = mapCompanyWatchRow({
+    ...baseRow,
+    summary: 'This Watch will follow relevant future reporting, including major developments and significant follow-up reporting.',
+  });
+  const userAuthored = mapCompanyWatchRow({
+    ...baseRow,
+    summary: 'I need to follow changes affecting this supplier.',
+  });
+
+  assert.equal(legacy.whyFollowing, '');
+  assert.equal(userAuthored.whyFollowing, 'I need to follow changes affecting this supplier.');
+});
+
 test('a persisted updated status restores exactly one presentable update', () => {
   const watch = mapCompanyWatchRow({ ...baseRow, current_status: 'updated', last_check_outcome: 'changed' });
 

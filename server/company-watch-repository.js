@@ -1,6 +1,7 @@
 import { applyFeedCheckResult } from '../src/js/watch-monitoring.js';
 import { deriveCompanyStatus } from '../src/js/company-watch-status.js';
 import { normalizeAdministrativeStatus } from '../src/js/company-administrative-status.js';
+import { isLegacyCompanyNewsRationale } from '../src/js/company-watch-rationale.js';
 import { fetchBodaccAnnouncements, normalizeSiren } from './bodacc-api.js';
 import { fetchCompanyIdentity } from './company-directory-api.js';
 import { SUPPORTED_WATCH_CATEGORIES } from '../src/js/watch-category.js';
@@ -71,7 +72,7 @@ export const mapCompanyWatchRow = (row) => {
   return {
     id: row.id,
     request: row.request || `Monitor company ${row.siren}`,
-    whyFollowing: row.summary || '',
+    whyFollowing: isLegacyCompanyNewsRationale(row.summary) ? '' : row.summary || '',
     title: row.title,
     category: SUPPORTED_WATCH_CATEGORIES.includes(row.category) ? row.category : 'general',
     categorySource: 'manual',

@@ -177,6 +177,9 @@ import {
   getLatestCheckUpdates,
 } from './watch-update-presentation.js';
 import {
+  getWatchRationalePresentation,
+} from './company-watch-rationale.js';
+import {
   acceptPersistedServerCompanyWatch,
   checkServerCompanyWatch,
   createServerCompanyWatch,
@@ -832,7 +835,9 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
   const sourceStoryProfile = clonePlainData(
     urlAnalysis?.storyProfile || options.storyProfile || null,
   );
-  const storyProfile = isUrlRequest && !isStory
+  const storyProfile = isCompanyRequest
+    ? null
+    : isUrlRequest && !isStory
     ? null
     : isUrlRequest
     ? options.monitoringConceptsManuallyEdited === true && Array.isArray(storyFingerprint)
@@ -915,10 +920,12 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
       || null,
     structuredCriteria,
     ...structuredCriteria,
-    monitoringSummary: getAnalysisMonitoringScope(urlAnalysis, storyProfile)
-      || urlAnalysis?.summary
-      || options.monitoringSummary
-      || null,
+    monitoringSummary: isCompanyRequest
+      ? null
+      : getAnalysisMonitoringScope(urlAnalysis, storyProfile)
+        || urlAnalysis?.summary
+        || options.monitoringSummary
+        || null,
     monitoringSummaryKey: null,
     currentSituationKey: inferCurrentSituationKey(request, category, {
       isMediaStory: isUrlRequest && isStory,
@@ -1794,7 +1801,8 @@ const renderWatchDetail = () => {
     );
   }
 
-  const whyFollowing = localizeField(watch, 'whyFollowing');
+  const storedWhyFollowing = localizeField(watch, 'whyFollowing');
+  const whyFollowing = getWatchRationalePresentation(watch, storedWhyFollowing, t);
   const hasWhyFollowing = hasMeaningfulText(whyFollowing)
     && whyFollowing.trim() !== request?.trim();
   if (whyFollowingCopyEl) {

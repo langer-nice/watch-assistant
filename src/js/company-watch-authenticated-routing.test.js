@@ -181,7 +181,7 @@ test('authenticated CEMEX creation never falls back to the removed check-company
       siren: '552005969',
       title: 'CEMEX GRANULATS',
       request,
-      summary: 'This Watch will follow relevant future reporting, including major developments and significant follow-up reporting.',
+      summary: '',
       companyName: 'CEMEX GRANULATS',
       category: 'general',
     });
