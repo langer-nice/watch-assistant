@@ -240,7 +240,7 @@ test('Watch Detail reuses the existing source and monitoring controls for Compan
     read('../scss/pages/_watch-detail.scss'),
   ]);
   const sourceRendering = navigation.match(
-    /const companySiren = watch\.inputType === 'company'[\s\S]*?if \(originalSourceEl\)/,
+    /const companySiren = isCompanyWatch\(watch\)[\s\S]*?if \(originalSourceEl\)/,
   )?.[0] || '';
   const checkButton = styles.match(/\.watch-fact-check__button \{[\s\S]*?\n\}/)?.[0] || '';
 

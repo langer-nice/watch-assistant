@@ -179,6 +179,7 @@ import {
 import {
   getWatchRationalePresentation,
 } from './company-watch-rationale.js';
+import { isCompanyWatch } from './company-watch-classification.js';
 import {
   acceptPersistedServerCompanyWatch,
   checkServerCompanyWatch,
@@ -1316,7 +1317,7 @@ const renderWatchDetail = () => {
   const detailPresentation = getWatchDetailPresentationSnapshot(watch, {
     reports: getReports(),
   });
-  if (detailPresentation.updateId && !(watch?.inputType === 'company' && isCompanyWatchServerMode())) {
+  if (detailPresentation.updateId && !(isCompanyWatch(watch) && isCompanyWatchServerMode())) {
     try {
       markUpdateAsRead(watch.id, detailPresentation.updateId);
       refreshLatestReport({ watches: getWatches() });
@@ -1522,7 +1523,7 @@ const renderWatchDetail = () => {
     target.scrollIntoView({ block: 'start' });
   };
 
-  const administrativeStatusPresentation = watch.inputType === 'company'
+  const administrativeStatusPresentation = isCompanyWatch(watch)
     ? getAdministrativeStatusPresentation(watch.company?.administrativeStatus, t)
     : null;
   const hasCompanyAdministrativeStatus = Boolean(administrativeStatusPresentation?.known);
@@ -1544,7 +1545,7 @@ const renderWatchDetail = () => {
       : '';
   }
 
-  const companyStatusPresentation = watch.inputType === 'company'
+  const companyStatusPresentation = isCompanyWatch(watch)
     ? getCompanyStatusPresentation(watch.company?.status, t)
     : null;
   const showCompanyMonitoringStatus = Boolean(
@@ -1671,7 +1672,7 @@ const renderWatchDetail = () => {
     storyConceptsEl.hidden = watch.inputType !== 'url' || watch.isStory === false;
   }
 
-  const companySiren = watch.inputType === 'company'
+  const companySiren = isCompanyWatch(watch)
     && typeof watch.company?.siren === 'string'
     && /^\d{9}$/.test(watch.company.siren)
     ? watch.company.siren
@@ -1957,7 +1958,7 @@ const renderWatchDetail = () => {
         if (import.meta.env.DEV) {
           console.info('[Watch monitoring] Check requested', { watchId: watch.id });
         }
-        if (watch.inputType === 'company' && isCompanyWatchServerMode()) {
+        if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
           await checkServerCompanyWatch(watch.id);
         } else {
           const result = await watchCheckController.check(watch.id);
@@ -2061,7 +2062,7 @@ const renderWatchDetail = () => {
 
   const isPaused = watch.status === 'paused';
   const resumeWatch = () => {
-    if (watch.inputType === 'company' && isCompanyWatchServerMode()) {
+    if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
       void updateServerCompanyWatch(watch.id, { monitoringState: 'monitoring' })
         .then(() => renderWatchDetail());
     } else {
@@ -2086,7 +2087,7 @@ const renderWatchDetail = () => {
     pauseResumeEl.onclick = isPaused
       ? resumeWatch
       : () => {
-        if (watch.inputType === 'company' && isCompanyWatchServerMode()) {
+        if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
           void updateServerCompanyWatch(watch.id, { monitoringState: 'paused' })
             .then(() => renderWatchDetail());
         } else {
@@ -2108,7 +2109,7 @@ const renderWatchDetail = () => {
   if (deleteConfirmEl) {
     deleteConfirmEl.onclick = async (event) => {
       event.preventDefault();
-      if (watch.inputType === 'company' && isCompanyWatchServerMode()) {
+      if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
         await deleteServerCompanyWatch(watch.id);
       } else {
         deleteWatch(watch.id);
@@ -3093,7 +3094,7 @@ export function initForm() {
   };
 
   const completeWatchCreation = async (watch) => {
-    if (watch.inputType === 'company' && isCompanyWatchServerMode()) {
+    if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
       const createdWatch = await createServerCompanyWatch(watch);
       trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, { input_type: 'company' });
       sessionStorage.removeItem('watchAssistant.newWatchId');
@@ -3365,7 +3366,7 @@ export function initForm() {
     }
 
     try {
-      if (editingWatch.inputType === 'company' && isCompanyWatchServerMode()) {
+      if (isCompanyWatch(editingWatch) && isCompanyWatchServerMode()) {
         editingWatch = await updateServerCompanyWatch(editingWatch.id, {
           ...(changes.title ? { title: changes.title } : {}),
           summary: changes.whyFollowing ?? editingWatch.whyFollowing ?? '',

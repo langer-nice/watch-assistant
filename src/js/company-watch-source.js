@@ -1,3 +1,5 @@
+import { getCompanyWatchIdentity } from './company-watch-classification.js';
+
 const BODACC_HOSTNAME = 'www.bodacc.fr';
 
 const normalizeOfficialBodaccUrl = (value) => {
@@ -26,9 +28,7 @@ const getVerifiedPublicationUrl = (item, siren) => {
 };
 
 export const getCompanyBodaccUrl = (watch) => {
-  const siren = watch?.inputType === 'company' && /^\d{9}$/.test(watch.company?.siren || '')
-    ? watch.company.siren
-    : null;
+  const siren = getCompanyWatchIdentity(watch)?.siren || null;
   if (!siren) return null;
 
   const items = Array.isArray(watch.monitoringSnapshot?.items)

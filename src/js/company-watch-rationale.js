@@ -1,18 +1,13 @@
-export const LEGACY_COMPANY_NEWS_RATIONALE = 'This Watch will follow relevant future reporting, including major developments and significant follow-up reporting.';
-
-export const isLegacyCompanyNewsRationale = (value) => (
-  typeof value === 'string' && value.trim() === LEGACY_COMPANY_NEWS_RATIONALE
-);
-
-const cleanIdentityPart = (value) => (
-  typeof value === 'string' && value.trim() ? value.trim() : ''
-);
+import {
+  getCompanyWatchIdentity,
+  isCompanyWatch,
+} from './company-watch-classification.js';
 
 export const getCompanyWatchRationale = (watch, translate = () => '') => {
-  if (watch?.inputType !== 'company') return null;
+  const identity = getCompanyWatchIdentity(watch);
+  if (!identity) return null;
 
-  const companyName = cleanIdentityPart(watch.company?.name);
-  const siren = cleanIdentityPart(watch.company?.siren);
+  const { companyName, siren } = identity;
   const identityKey = companyName && siren
     ? 'detail.companyRationaleIdentityNameAndSiren'
     : companyName
@@ -26,8 +21,6 @@ export const getCompanyWatchRationale = (watch, translate = () => '') => {
 };
 
 export const getWatchRationalePresentation = (watch, storedValue, translate = () => '') => {
-  if (watch?.inputType !== 'company') return storedValue;
-  return cleanIdentityPart(storedValue) && !isLegacyCompanyNewsRationale(storedValue)
-    ? storedValue
-    : getCompanyWatchRationale(watch, translate);
+  if (!isCompanyWatch(watch)) return storedValue;
+  return getCompanyWatchRationale(watch, translate);
 };

@@ -5,8 +5,6 @@ import test from 'node:test';
 import {
   getCompanyWatchRationale,
   getWatchRationalePresentation,
-  isLegacyCompanyNewsRationale,
-  LEGACY_COMPANY_NEWS_RATIONALE,
 } from './company-watch-rationale.js';
 import { createPreviewTestWatches } from './preview-test-watches.js';
 
@@ -49,23 +47,19 @@ test('Company rationale is localized from the same canonical company identity', 
   assert.deepEqual(watch.company, { name: 'CEMEX GRANULATS', siren: '552005969' });
 });
 
-test('legacy News fallback is replaced for Company Watches without rewriting user content', async () => {
+test('Company rationale always derives from canonical data without mutating stored notes', async () => {
   const en = await loadMessages('en');
   const translate = createTranslate(en);
   const company = createCompanyWatch();
   const userReason = 'I need to follow changes affecting this supplier.';
   const newsWatch = { inputType: 'url' };
+  const arbitraryLegacy = 'An arbitrary historical system rationale in English.';
 
-  assert.equal(isLegacyCompanyNewsRationale(LEGACY_COMPANY_NEWS_RATIONALE), true);
-  assert.match(
-    getWatchRationalePresentation(company, LEGACY_COMPANY_NEWS_RATIONALE, translate),
-    /official BODACC announcements/u,
-  );
-  assert.equal(getWatchRationalePresentation(company, userReason, translate), userReason);
-  assert.equal(
-    getWatchRationalePresentation(newsWatch, LEGACY_COMPANY_NEWS_RATIONALE, translate),
-    LEGACY_COMPANY_NEWS_RATIONALE,
-  );
+  assert.match(getWatchRationalePresentation(company, arbitraryLegacy, translate), /official BODACC announcements/u);
+  assert.match(getWatchRationalePresentation(company, userReason, translate), /official BODACC announcements/u);
+  assert.equal(company.whyFollowing, undefined);
+  assert.equal(userReason, 'I need to follow changes affecting this supplier.');
+  assert.equal(getWatchRationalePresentation(newsWatch, arbitraryLegacy, translate), arbitraryLegacy);
 });
 
 test('missing Company identity uses safe localized fallbacks without fabrication', async () => {
@@ -74,6 +68,8 @@ test('missing Company identity uses safe localized fallbacks without fabrication
     createCompanyWatch({ name: '' }),
     createCompanyWatch({ siren: '' }),
     createCompanyWatch({ name: '', siren: '' }),
+    { ...createCompanyWatch({ name: '' }), title: 'Persisted Company Title' },
+    { ...createCompanyWatch({ name: '', siren: '' }), title: '', monitoringSource: null },
   ];
 
   for (const watch of cases) {
@@ -84,17 +80,25 @@ test('missing Company identity uses safe localized fallbacks without fabrication
       assert.doesNotMatch(rationale, /future reporting|follow-up reporting/u);
     }
   }
+  assert.match(
+    getCompanyWatchRationale(cases.at(-2), createTranslate(en)),
+    /Persisted Company Title/u,
+  );
 });
 
-test('local Preview Company data uses the same localized rationale contract', async () => {
+test('local Preview CEMEX and ORANGE data use the same localized rationale contract', async () => {
   const [en, fr] = await Promise.all(['en', 'fr'].map(loadMessages));
-  const company = createPreviewTestWatches(new Date('2026-08-30T12:00:00.000Z'))
-    .find(({ inputType }) => inputType === 'company');
+  const companies = createPreviewTestWatches(new Date('2026-08-30T12:00:00.000Z'))
+    .filter(({ inputType }) => inputType === 'company');
 
-  const english = getWatchRationalePresentation(company, company.whyFollowing, createTranslate(en));
-  const french = getWatchRationalePresentation(company, company.whyFollowing, createTranslate(fr));
-  assert.match(english, /ACME France \(SIREN 552005969\)/u);
-  assert.match(french, /ACME France \(SIREN 552005969\)/u);
-  assert.match(english, /official BODACC announcements/u);
-  assert.match(french, /annonces officielles publiées au BODACC/u);
+  assert.equal(companies.length, 2);
+  for (const company of companies) {
+    const english = getWatchRationalePresentation(company, company.whyFollowing, createTranslate(en));
+    const french = getWatchRationalePresentation(company, company.whyFollowing, createTranslate(fr));
+    assert.match(english, new RegExp(`${company.company.name} \\(SIREN ${company.company.siren}\\)`, 'u'));
+    assert.match(french, new RegExp(`${company.company.name} \\(SIREN ${company.company.siren}\\)`, 'u'));
+    assert.match(english, /official BODACC announcements/u);
+    assert.match(french, /annonces officielles publiées au BODACC/u);
+    assert.doesNotMatch(french, /future reporting|follow-up reporting/u);
+  }
 });

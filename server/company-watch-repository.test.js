@@ -52,7 +52,7 @@ test('legacy Company rows without a category hydrate safely as canonical General
   assert.equal(mapCompanyWatchRow(legacyRow).category, 'general');
 });
 
-test('legacy Company News rationale is suppressed while user-authored reasons are preserved', () => {
+test('repository preserves stored Company rationale data without deciding presentation precedence', () => {
   const legacy = mapCompanyWatchRow({
     ...baseRow,
     summary: 'This Watch will follow relevant future reporting, including major developments and significant follow-up reporting.',
@@ -62,7 +62,10 @@ test('legacy Company News rationale is suppressed while user-authored reasons ar
     summary: 'I need to follow changes affecting this supplier.',
   });
 
-  assert.equal(legacy.whyFollowing, '');
+  assert.equal(
+    legacy.whyFollowing,
+    'This Watch will follow relevant future reporting, including major developments and significant follow-up reporting.',
+  );
   assert.equal(userAuthored.whyFollowing, 'I need to follow changes affecting this supplier.');
 });
 
