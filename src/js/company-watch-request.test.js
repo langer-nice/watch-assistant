@@ -92,15 +92,15 @@ test('recognizes a valid standalone SIREN without requiring UI-specific intent',
   }
 });
 
-test('a valid SIREN inside non-Company prose stays in the normal Watch flow', () => {
+test('a valid SIREN is sufficient while ordinary News requests stay in the normal flow', () => {
   for (const request of [`Reference ${SIREN}`, `The number is ${SIREN}`]) {
-    assert.deepEqual(parseCompanyWatchRequest(request), {
-      recognized: false,
-      valid: false,
-      siren: null,
-      companyName: null,
-      reason: null,
-    });
+    const parsed = parseCompanyWatchRequest(request);
+    assert.equal(parsed.recognized, true);
+    assert.equal(parsed.valid, true);
+    assert.equal(parsed.siren, SIREN);
+  }
+  for (const request of ['Monitor technology news', 'Surveille les actualités de Nice']) {
+    assert.equal(parseCompanyWatchRequest(request).recognized, false);
   }
 });
 

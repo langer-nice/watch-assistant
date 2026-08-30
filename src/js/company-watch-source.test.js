@@ -55,7 +55,7 @@ test('Company source reuses the existing media external-link component', async (
     read('../../watch-detail.html'),
   ]);
   const sourceRendering = navigation.match(
-    /const companySiren = watch\.inputType === 'company'[\s\S]*?if \(originalSourceEl\)/,
+    /const companySiren = isCompanyWatch\(watch\)[\s\S]*?if \(originalSourceEl\)/,
   )?.[0] || '';
 
   assert.match(detailHtml, /class="detail-card__source-link"[\s\S]*?id="watchSourceLink"/);

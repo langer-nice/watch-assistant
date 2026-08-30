@@ -6,6 +6,11 @@ import {
   markUpdateAsRead as markStoredUpdateAsRead,
   markUpdatesAsRead as markStoredUpdatesAsRead,
 } from './watch-updates.js';
+import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
+import {
+  getServerCompanyWatches,
+  isCompanyWatchServerMode,
+} from './company-watch-server-store.js';
 
 const STORAGE_KEY = 'watchAssistant.watches';
 const DELETED_WATCHES_STORAGE_KEY = 'watchAssistant.deletedWatchIds';
@@ -15,7 +20,7 @@ const HTML_ENTITY_MIGRATION_VERSION = '1';
 const REPORT_STATUS_MIGRATION_KEY = 'watchAssistant.reportStatusMigrationVersion';
 const REPORT_STATUS_MIGRATION_VERSION = '2';
 const creationDateWarnings = new Set();
-export const WATCH_STORAGE_CHANGED_EVENT = 'watchassistant:watcheschanged';
+export { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
 
 const notifyWatchStorageChanged = () => {
   if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
@@ -177,7 +182,12 @@ export function getWatches() {
   const stored = getStoredWatches();
   const deletedIds = new Set(getDeletedWatchIds());
   const demoIds = new Set(mockWatches.map((watch) => watch.id));
-  return stored.filter((watch) => !deletedIds.has(watch.id) && !demoIds.has(watch.id));
+  const local = stored.filter((watch) => !deletedIds.has(watch.id) && !demoIds.has(watch.id));
+  if (!isCompanyWatchServerMode()) return local;
+  const retainedLocal = local.filter((watch) => (
+    watch.inputType !== 'company' || String(watch.id).startsWith('preview-test-')
+  ));
+  return [...retainedLocal, ...getServerCompanyWatches()];
 }
 
 export function getDemoWatches() {
@@ -187,9 +197,13 @@ export function getDemoWatches() {
 export function getUserCreatedWatches() {
   const demoIds = new Set(mockWatches.map((watch) => watch.id));
   const deletedIds = new Set(getDeletedWatchIds());
-  return getStoredWatches().filter(
+  const local = getStoredWatches().filter(
     (watch) => !demoIds.has(watch.id) && !deletedIds.has(watch.id),
   );
+  if (!isCompanyWatchServerMode()) return local;
+  return local.filter((watch) => (
+    watch.inputType !== 'company' || String(watch.id).startsWith('preview-test-')
+  ));
 }
 
 export function hydrateWatchStorage() {

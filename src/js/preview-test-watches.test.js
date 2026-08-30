@@ -123,7 +123,7 @@ test('explicit reset replaces existing data and creates a canonical consistent r
     }
     assert.equal(report.counts.attention, 1);
     assert.equal(report.counts.updated, 2);
-    assert.equal(report.counts.watching, 2);
+    assert.equal(report.counts.watching, 3);
     assert.equal(report.counts.new, 0);
   });
 });

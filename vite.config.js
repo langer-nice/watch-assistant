@@ -6,6 +6,7 @@ import { createCheckWatchMiddleware } from './server/check-watch-api.js';
 import { createMonitoringSourceMiddleware } from './server/monitoring-source-api.js';
 import { createCheckCompanyMiddleware } from './server/bodacc-api.js';
 import { createPlanWatchMiddleware } from './server/plan-watch-api.js';
+import { createCompanyWatchMiddleware } from './server/company-watch-api.js';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -24,6 +25,7 @@ export default defineConfig(({ mode }) => {
   const monitoringSourceMiddleware = createMonitoringSourceMiddleware();
   const checkCompanyMiddleware = createCheckCompanyMiddleware();
   const planWatchMiddleware = createPlanWatchMiddleware();
+  const companyWatchMiddleware = createCompanyWatchMiddleware({ env });
   const urlWatchPlugin = {
     name: 'url-watch-prototype-api',
     configureServer(server) {
@@ -33,6 +35,7 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use(monitoringSourceMiddleware);
       server.middlewares.use(checkCompanyMiddleware);
       server.middlewares.use(planWatchMiddleware);
+      server.middlewares.use(companyWatchMiddleware);
     },
     configurePreviewServer(server) {
       server.middlewares.use(middleware);
@@ -41,6 +44,7 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use(monitoringSourceMiddleware);
       server.middlewares.use(checkCompanyMiddleware);
       server.middlewares.use(planWatchMiddleware);
+      server.middlewares.use(companyWatchMiddleware);
     },
   };
 

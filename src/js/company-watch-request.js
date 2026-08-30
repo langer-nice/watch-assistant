@@ -98,9 +98,9 @@ export const parseCompanyWatchRequest = (request) => {
     && hasValidSiren
     && isLikelyCompanyNameLookup(request, sirenCandidates[0]);
   const inferredCompanyMonitoring = intent.monitoring
+    || hasValidSiren
     || standaloneSiren
-    || namedCompanyLookup
-    || (intent.explicitCompany && hasValidSiren);
+    || namedCompanyLookup;
   if (!inferredCompanyMonitoring) {
     return { recognized: false, valid: false, siren: null, companyName: null, reason: null };
   }

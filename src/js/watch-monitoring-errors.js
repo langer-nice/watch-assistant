@@ -6,6 +6,11 @@ const FAILURE_MESSAGE_KEYS = Object.freeze({
   unreadable: 'detail.checkFailure.unreadable',
   unreachable: 'detail.checkFailure.unreachable',
   temporary: 'detail.checkFailure.temporary',
+  authentication: 'detail.checkFailure.authentication',
+  duplicate: 'detail.checkFailure.duplicate',
+  invalidIdentifier: 'detail.checkFailure.invalidIdentifier',
+  persistence: 'detail.checkFailure.persistence',
+  configuration: 'detail.checkFailure.configuration',
   generic: 'detail.checkFailed',
 });
 
@@ -30,6 +35,13 @@ const FAILURE_CATEGORY_BY_CODE = new Map([
   ['INVALID_REDIRECT', 'unreachable'],
   ['CHECK_FAILED', 'temporary'],
   ['INTERNAL_ERROR', 'temporary'],
+  ['AUTH_REQUIRED', 'authentication'],
+  ['INVALID_SESSION', 'authentication'],
+  ['ACTIVE_WATCH_EXISTS', 'duplicate'],
+  ['INVALID_SIREN', 'invalidIdentifier'],
+  ['DATABASE_ERROR', 'persistence'],
+  ['ROLLBACK_FAILED', 'persistence'],
+  ['SERVER_NOT_CONFIGURED', 'configuration'],
 ]);
 
 export const getMonitoringFailureCategory = (code) => (

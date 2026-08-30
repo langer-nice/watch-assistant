@@ -53,30 +53,32 @@ const renderAuthState = (root, state) => {
 
 export const initAuthUi = ({ env = import.meta.env, client: injectedClient } = {}) => {
   const root = document.querySelector('[data-auth-root]');
-  if (!root || root.dataset.authInitialized === 'true') return null;
+  if (root?.dataset.authInitialized === 'true') return null;
 
   const { client } = injectedClient
     ? { client: injectedClient }
     : createSupabaseBrowserClient({ env });
   const auth = createAuthSession({ client, location: window.location });
-  root.dataset.authInitialized = 'true';
+  if (root) {
+    root.dataset.authInitialized = 'true';
 
-  const render = (state) => renderAuthState(root, state);
-  auth.subscribe(render);
+    const render = (state) => renderAuthState(root, state);
+    auth.subscribe(render);
 
-  root.addEventListener('submit', async (event) => {
-    const form = event.target.closest('[data-auth-form]');
-    if (!form) return;
-    event.preventDefault();
-    const email = new FormData(form).get('email');
-    await auth.sendMagicLink(String(email || ''));
-  });
-  root.addEventListener('click', async (event) => {
-    if (event.target.closest('[data-auth-sign-out]')) await auth.signOut();
-    if (event.target.closest('[data-auth-retry]')) renderAuthState(root, { status: 'anonymous' });
-  });
-  document.addEventListener('i18n:languageChanged', () => render(auth.getState()));
+    root.addEventListener('submit', async (event) => {
+      const form = event.target.closest('[data-auth-form]');
+      if (!form) return;
+      event.preventDefault();
+      const email = new FormData(form).get('email');
+      await auth.sendMagicLink(String(email || ''));
+    });
+    root.addEventListener('click', async (event) => {
+      if (event.target.closest('[data-auth-sign-out]')) await auth.signOut();
+      if (event.target.closest('[data-auth-retry]')) renderAuthState(root, { status: 'anonymous' });
+    });
+    document.addEventListener('i18n:languageChanged', () => render(auth.getState()));
+  }
 
-  auth.initialize();
-  return auth;
+  const ready = auth.initialize();
+  return { auth, client, ready };
 };

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   getCategoryPendingSituationKey,
@@ -60,4 +61,18 @@ test('Watch Detail pending copy follows the normalized stored category', () => {
   assert.equal(getCategoryPendingSituationKey('news'), 'watchData.pendingSituations.news');
   assert.equal(getCategoryPendingSituationKey('Actualité'), 'watchData.pendingSituations.news');
   assert.equal(getCategoryPendingSituationKey('price'), 'watchData.pendingSituations.price');
+});
+
+test('one canonical Finance value renders through each locale without mutating storage', async () => {
+  const category = 'finance';
+  const [en, fr] = await Promise.all([
+    readFile(new URL('../locales/en.json', import.meta.url), 'utf8').then(JSON.parse),
+    readFile(new URL('../locales/fr.json', import.meta.url), 'utf8').then(JSON.parse),
+  ]);
+
+  assert.equal(en.categories[category], 'Finance');
+  assert.equal(fr.categories[category], 'Finance');
+  assert.equal(en.categories.general, 'General');
+  assert.equal(fr.categories.general, 'Général');
+  assert.equal(category, 'finance');
 });

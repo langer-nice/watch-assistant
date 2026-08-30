@@ -159,7 +159,7 @@ test('every preview fixture has one mutually exclusive status shared by live vie
   assert.equal(total, watches.length);
   assert.deepEqual(
     entries.map(({ classification }) => classification),
-    ['updated', 'watching', 'attention', 'updated', 'watching'],
+    ['updated', 'watching', 'attention', 'updated', 'watching', 'watching'],
   );
 });
 

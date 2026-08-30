@@ -122,6 +122,7 @@ import {
   getUnsupportedWatchCapability,
   MEDIA_STORY_PLAN_ROUTES,
   requestWatchPlan,
+  resolveFrenchCompanyPlan,
   UNSUPPORTED_WATCH_CAPABILITIES,
 } from './watch-planner.js';
 import { getCompanyWatchTitle } from './company-watch-title.js';
@@ -175,6 +176,24 @@ import {
   getCurrentSituationPresentation,
   getLatestCheckUpdates,
 } from './watch-update-presentation.js';
+import {
+  getWatchRationalePresentation,
+} from './company-watch-rationale.js';
+import { isCompanyWatch } from './company-watch-classification.js';
+import {
+  acceptPersistedServerCompanyWatch,
+  checkServerCompanyWatch,
+  createServerCompanyWatch,
+  deleteServerCompanyWatch,
+  getServerCompanyWatches,
+  hydrateServerCompanyWatches,
+  isCompanyWatchServerMode,
+  updateServerCompanyWatch,
+} from './company-watch-server-store.js';
+import {
+  formatHomeReportTimestamp,
+  resolveHomeReportTimestamp,
+} from './home-report-timestamp.js';
 
 let homeCreatedWatchId = null;
 let homeFirstWatchConfirmation = false;
@@ -263,14 +282,14 @@ const scrollWindowImmediately = (top) => {
   document.documentElement.style.scrollBehavior = previousBehavior;
 };
 
-const closeWatchEditSheet = ({ updated = false } = {}) => {
+const closeWatchEditSheet = ({ updated = false, persistedWatch = null } = {}) => {
   const sheet = document.querySelector('#watchEditSheet');
   const frame = document.querySelector('#watchEditFrame');
   if (!sheet?.open || sheet.classList.contains('is-closing')) return;
 
   sheet.classList.add('is-closing');
   window.clearTimeout(editSheetCloseTimer);
-  editSheetCloseTimer = window.setTimeout(() => {
+  editSheetCloseTimer = window.setTimeout(async () => {
     sheet.close();
     sheet.classList.remove('is-closing', 'is-ready');
     sheet.style.removeProperty('--watch-edit-viewport-height');
@@ -279,6 +298,23 @@ const closeWatchEditSheet = ({ updated = false } = {}) => {
     document.body.classList.remove('is-watch-edit-open');
     document.body.style.removeProperty('--watch-edit-background-top');
     if (updated) {
+      if (isCompanyWatchServerMode()) {
+        try {
+          if (persistedWatch) {
+            acceptPersistedServerCompanyWatch(persistedWatch);
+          } else {
+            await hydrateServerCompanyWatches();
+          }
+        } catch (error) {
+          if (import.meta.env.DEV) {
+            console.warn('[Company Watches] Could not refresh the saved Watch.', {
+              code: error?.code,
+            });
+          }
+          editSheetCloseTimer = null;
+          return;
+        }
+      }
       renderWatchDetail();
       scrollWindowImmediately(0);
       showWatchUpdatedConfirmation();
@@ -353,7 +389,7 @@ const initializeWatchEditSheet = () => {
       closeWatchEditSheet();
     }
     if (event.data.type === 'watch-editor-saved') {
-      closeWatchEditSheet({ updated: true });
+      closeWatchEditSheet({ updated: true, persistedWatch: event.data.watch || null });
     }
     if (event.data.type === 'watch-editor-state' && saveButton) {
       saveButton.disabled = !event.data.canSave;
@@ -800,7 +836,9 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
   const sourceStoryProfile = clonePlainData(
     urlAnalysis?.storyProfile || options.storyProfile || null,
   );
-  const storyProfile = isUrlRequest && !isStory
+  const storyProfile = isCompanyRequest
+    ? null
+    : isUrlRequest && !isStory
     ? null
     : isUrlRequest
     ? options.monitoringConceptsManuallyEdited === true && Array.isArray(storyFingerprint)
@@ -883,10 +921,12 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
       || null,
     structuredCriteria,
     ...structuredCriteria,
-    monitoringSummary: getAnalysisMonitoringScope(urlAnalysis, storyProfile)
-      || urlAnalysis?.summary
-      || options.monitoringSummary
-      || null,
+    monitoringSummary: isCompanyRequest
+      ? null
+      : getAnalysisMonitoringScope(urlAnalysis, storyProfile)
+        || urlAnalysis?.summary
+        || options.monitoringSummary
+        || null,
     monitoringSummaryKey: null,
     currentSituationKey: inferCurrentSituationKey(request, category, {
       isMediaStory: isUrlRequest && isStory,
@@ -933,15 +973,24 @@ export const createWatchObject = (request, whyFollowing = '', urlAnalysis = null
 
 const getHomeReport = () => {
   const report = getLatestReport();
+  const serverCompanyWatches = getServerCompanyWatches();
   if (!report) {
+    const statusById = getCanonicalStatusMap(serverCompanyWatches, []);
+    const select = (classification) => serverCompanyWatches.filter((watch) => (
+      statusById.get(watch.id) === classification
+    ));
+    const attentionWatches = select(WATCH_CLASSIFICATIONS.ATTENTION);
+    const updatedWatches = select(WATCH_CLASSIFICATIONS.UPDATED);
+    const newlyCreatedWatches = select(WATCH_CLASSIFICATIONS.NEW);
+    const quietWatches = select(WATCH_CLASSIFICATIONS.WATCHING);
     return {
       report: null,
-      watches: [],
-      statusById: new Map(),
-      attentionWatches: [],
-      updatedWatches: [],
-      newlyCreatedWatches: [],
-      quietWatches: [],
+      watches: [...attentionWatches, ...newlyCreatedWatches, ...updatedWatches],
+      statusById,
+      attentionWatches,
+      updatedWatches,
+      newlyCreatedWatches,
+      quietWatches,
       totalChecked: 0,
     };
   }
@@ -954,7 +1003,9 @@ const getHomeReport = () => {
     reportCheckedAt: entry.checkedAt,
     reportFailureCode: entry.failureCode,
   }));
-  const byId = new Map(snapshots.map((watch) => [watch.id, watch]));
+  const reportIds = new Set(snapshots.map(({ id }) => id));
+  const serverOnly = serverCompanyWatches.filter(({ id }) => !reportIds.has(id));
+  const byId = new Map([...snapshots, ...serverOnly].map((watch) => [watch.id, watch]));
   const select = (classification) => report.entries
     .filter((entry) => entry.classification === classification)
     .map((entry) => byId.get(entry.watchId));
@@ -962,13 +1013,22 @@ const getHomeReport = () => {
   const newWatches = select(WATCH_CLASSIFICATIONS.NEW);
   const updatedWatches = select(WATCH_CLASSIFICATIONS.UPDATED);
   const quietWatches = select(WATCH_CLASSIFICATIONS.WATCHING);
+  const serverStatusById = getCanonicalStatusMap(serverOnly, []);
+  serverOnly.forEach((watch) => {
+    const classification = serverStatusById.get(watch.id);
+    if (classification === WATCH_CLASSIFICATIONS.ATTENTION) attentionWatches.push(watch);
+    else if (classification === WATCH_CLASSIFICATIONS.UPDATED) updatedWatches.push(watch);
+    else if (classification === WATCH_CLASSIFICATIONS.NEW) newWatches.push(watch);
+    else quietWatches.push(watch);
+  });
 
   return {
     report,
     watches: [...attentionWatches, ...newWatches, ...updatedWatches],
-    statusById: new Map(report.entries.map(({ watchId, classification }) => (
-      [watchId, classification]
-    ))),
+    statusById: new Map([
+      ...report.entries.map(({ watchId, classification }) => [watchId, classification]),
+      ...serverStatusById,
+    ]),
     attentionWatches,
     updatedWatches,
     newlyCreatedWatches: newWatches,
@@ -1257,7 +1317,7 @@ const renderWatchDetail = () => {
   const detailPresentation = getWatchDetailPresentationSnapshot(watch, {
     reports: getReports(),
   });
-  if (detailPresentation.updateId) {
+  if (detailPresentation.updateId && !(isCompanyWatch(watch) && isCompanyWatchServerMode())) {
     try {
       markUpdateAsRead(watch.id, detailPresentation.updateId);
       refreshLatestReport({ watches: getWatches() });
@@ -1463,7 +1523,7 @@ const renderWatchDetail = () => {
     target.scrollIntoView({ block: 'start' });
   };
 
-  const administrativeStatusPresentation = watch.inputType === 'company'
+  const administrativeStatusPresentation = isCompanyWatch(watch)
     ? getAdministrativeStatusPresentation(watch.company?.administrativeStatus, t)
     : null;
   const hasCompanyAdministrativeStatus = Boolean(administrativeStatusPresentation?.known);
@@ -1485,7 +1545,7 @@ const renderWatchDetail = () => {
       : '';
   }
 
-  const companyStatusPresentation = watch.inputType === 'company'
+  const companyStatusPresentation = isCompanyWatch(watch)
     ? getCompanyStatusPresentation(watch.company?.status, t)
     : null;
   const showCompanyMonitoringStatus = Boolean(
@@ -1612,7 +1672,7 @@ const renderWatchDetail = () => {
     storyConceptsEl.hidden = watch.inputType !== 'url' || watch.isStory === false;
   }
 
-  const companySiren = watch.inputType === 'company'
+  const companySiren = isCompanyWatch(watch)
     && typeof watch.company?.siren === 'string'
     && /^\d{9}$/.test(watch.company.siren)
     ? watch.company.siren
@@ -1742,7 +1802,8 @@ const renderWatchDetail = () => {
     );
   }
 
-  const whyFollowing = localizeField(watch, 'whyFollowing');
+  const storedWhyFollowing = localizeField(watch, 'whyFollowing');
+  const whyFollowing = getWatchRationalePresentation(watch, storedWhyFollowing, t);
   const hasWhyFollowing = hasMeaningfulText(whyFollowing)
     && whyFollowing.trim() !== request?.trim();
   if (whyFollowingCopyEl) {
@@ -1897,9 +1958,13 @@ const renderWatchDetail = () => {
         if (import.meta.env.DEV) {
           console.info('[Watch monitoring] Check requested', { watchId: watch.id });
         }
-        const result = await watchCheckController.check(watch.id);
-        const displayedUpdateIds = result.matchedItems.map(({ id }) => id);
-        if (displayedUpdateIds.length) markUpdatesAsRead(watch.id, displayedUpdateIds);
+        if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
+          await checkServerCompanyWatch(watch.id);
+        } else {
+          const result = await watchCheckController.check(watch.id);
+          const displayedUpdateIds = result.matchedItems.map(({ id }) => id);
+          if (displayedUpdateIds.length) markUpdatesAsRead(watch.id, displayedUpdateIds);
+        }
         detailCheckErrorWatchId = null;
       } catch (error) {
         detailCheckErrorWatchId = watch.id;
@@ -1997,11 +2062,16 @@ const renderWatchDetail = () => {
 
   const isPaused = watch.status === 'paused';
   const resumeWatch = () => {
-    updateWatch(watch.id, {
-      status: watch.statusBeforePause || 'watching',
-      statusBeforePause: null,
-    });
-    renderWatchDetail();
+    if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
+      void updateServerCompanyWatch(watch.id, { monitoringState: 'monitoring' })
+        .then(() => renderWatchDetail());
+    } else {
+      updateWatch(watch.id, {
+        status: watch.statusBeforePause || 'watching',
+        statusBeforePause: null,
+      });
+      renderWatchDetail();
+    }
   };
   if (pausedResumeEl) {
     pausedResumeEl.onclick = resumeWatch;
@@ -2017,11 +2087,16 @@ const renderWatchDetail = () => {
     pauseResumeEl.onclick = isPaused
       ? resumeWatch
       : () => {
-        updateWatch(watch.id, {
-          status: 'paused',
-          statusBeforePause: watch.status,
-        });
-        renderWatchDetail();
+        if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
+          void updateServerCompanyWatch(watch.id, { monitoringState: 'paused' })
+            .then(() => renderWatchDetail());
+        } else {
+          updateWatch(watch.id, {
+            status: 'paused',
+            statusBeforePause: watch.status,
+          });
+          renderWatchDetail();
+        }
       };
   }
 
@@ -2032,9 +2107,13 @@ const renderWatchDetail = () => {
     };
   }
   if (deleteConfirmEl) {
-    deleteConfirmEl.onclick = (event) => {
+    deleteConfirmEl.onclick = async (event) => {
       event.preventDefault();
-      deleteWatch(watch.id);
+      if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
+        await deleteServerCompanyWatch(watch.id);
+      } else {
+        deleteWatch(watch.id);
+      }
       deleteDialogEl?.close();
       window.location.href = 'watches.html';
     };
@@ -2334,24 +2413,23 @@ const renderHomeSummary = () => {
   }
 
   const homeReport = getHomeReport();
-  const hasUserCreatedWatches = getUserCreatedWatches().length > 0;
+  const hasLocalUserCreatedWatches = getUserCreatedWatches().length > 0;
+  const hasUserCreatedWatches = hasLocalUserCreatedWatches || getServerCompanyWatches().length > 0;
   const hasReport = Boolean(homeReport.report);
   const hasHomeItems = homeReport.watches.length > 0;
   const hasQuietItems = homeReport.quietWatches.length > 0;
   if (briefingReport) briefingReport.hidden = !hasUserCreatedWatches && !hasReport;
-  if (briefingFeed) {
-    briefingFeed.hidden = !hasReport || (!hasHomeItems && !hasQuietItems);
-  }
+  if (briefingFeed) briefingFeed.hidden = !hasHomeItems && !hasQuietItems;
   if (emptyState) emptyState.hidden = hasUserCreatedWatches || hasReport;
   if (caughtUpState) {
     caughtUpState.hidden = !hasReport || hasHomeItems || hasQuietItems;
   }
-  if (allQuiet) allQuiet.hidden = !hasReport || !hasQuietItems;
+  if (allQuiet) allQuiet.hidden = !hasQuietItems;
 
   if (generateReportButton) {
     const generating = isReportGenerationInProgress();
     const generateLabel = t(generating ? 'home.generatingReport' : 'home.generateReport');
-    generateReportButton.disabled = generating || !hasUserCreatedWatches;
+    generateReportButton.disabled = generating || !hasLocalUserCreatedWatches;
     generateReportButton.setAttribute('aria-label', generateLabel);
     generateReportButton.setAttribute('title', generateLabel);
     generateReportButton.toggleAttribute('aria-busy', generating);
@@ -2368,30 +2446,12 @@ const renderHomeSummary = () => {
   }
 
   if (briefingDate) {
-    const locale = getLanguage() === 'fr' ? 'fr-FR' : 'en-GB';
-    const storedTimestamp = homeReport.report?.completedAt || null;
-    const generatedAt = storedTimestamp ? new Date(storedTimestamp) : null;
-    const dateParts = generatedAt
-      ? new Intl.DateTimeFormat(locale, {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-      }).formatToParts(generatedAt)
-      : [];
-    const getDatePart = (type) => dateParts.find((part) => part.type === type)?.value || '';
-    const date = generatedAt
-      ? `${getDatePart('weekday')} ${getDatePart('day')} ${getDatePart('month')}`
-      : '';
-    const time = generatedAt
-      ? new Intl.DateTimeFormat(locale, {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(generatedAt)
-      : '';
-    const timestampText = generatedAt
-      ? `${date} · ${time}`
-      : t('home.briefingTimeUnavailable');
+    const storedTimestamp = resolveHomeReportTimestamp({
+      report: homeReport.report,
+      watches: getServerCompanyWatches(),
+    });
+    const timestampText = formatHomeReportTimestamp(storedTimestamp, getLanguage())
+      || t('home.briefingTimeUnavailable');
 
     if (storedTimestamp) {
       briefingDate.dateTime = storedTimestamp;
@@ -2592,6 +2652,10 @@ export function initForm() {
   const reviewCreate = document.querySelector('#urlReviewCreate');
   const reviewEdit = document.querySelector('#urlReviewEdit');
   const reviewCancel = document.querySelector('#urlReviewCancel');
+  const companyDuplicateNotice = document.querySelector('#companyDuplicateNotice');
+  const companyDuplicateCopy = document.querySelector('#companyDuplicateCopy');
+  const companyDuplicateOpen = document.querySelector('#companyDuplicateOpen');
+  const companyDuplicateCancel = document.querySelector('#companyDuplicateCancel');
   const clarification = document.querySelector('#requestClarification');
   const clarificationTitle = document.querySelector('#requestClarificationTitle');
   const clarificationIntro = document.querySelector('#requestClarificationIntro');
@@ -2632,9 +2696,12 @@ export function initForm() {
   const editWatchId = formParams.get('edit');
   let editingWatch = editWatchId ? getWatchById(editWatchId) : null;
   const isEditMode = Boolean(editingWatch);
-  const isModalEditMode = isEditMode
-    && formParams.get('presentation') === 'modal'
+  const isRequestedModalEditMode = formParams.get('presentation') === 'modal'
     && window.parent !== window;
+  const isModalEditMode = isEditMode && isRequestedModalEditMode;
+  const editingServerCompanyWatch = isEditMode
+    && editingWatch.inputType === 'company'
+    && isCompanyWatchServerMode();
   let pendingRequest = '';
   let pendingWhyFollowing = '';
   let pendingAnalysis = null;
@@ -2665,6 +2732,7 @@ export function initForm() {
   let pendingNavigationUrl = '';
   let editNavigationAllowed = false;
   let refreshEditSaveState = () => {};
+  let duplicateExistingWatch = null;
   let activeVoiceTooltip = null;
   let voiceTooltipDismissTimer = null;
   let voiceTooltipHideTimer = null;
@@ -2674,6 +2742,10 @@ export function initForm() {
   }
 
   if (editWatchId && !editingWatch) {
+    if (isRequestedModalEditMode) {
+      window.parent.postMessage({ type: 'watch-editor-close', watchId: editWatchId }, window.location.origin);
+      return;
+    }
     window.location.replace('watches.html');
     return;
   }
@@ -3022,6 +3094,19 @@ export function initForm() {
   };
 
   const completeWatchCreation = async (watch) => {
+    if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
+      const createdWatch = await createServerCompanyWatch(watch);
+      trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, { input_type: 'company' });
+      sessionStorage.removeItem('watchAssistant.newWatchId');
+      if (isOnboardingFirstWatch()) {
+        completeOnboardingFirstWatch(createdWatch.id);
+        window.location.href = 'index.html';
+        return;
+      }
+      markOnboardingCompleted();
+      window.location.href = getCreatedWatchDetailHref(createdWatch.id);
+      return;
+    }
     addWatch(watch);
     try {
       await activateWatchMonitoring(watch.id, {
@@ -3045,7 +3130,7 @@ export function initForm() {
     window.location.href = getCreatedWatchDetailHref(watch.id);
   };
 
-  const finishModalTransition = (messageType) => {
+  const finishModalTransition = (messageType, details = {}) => {
     const viewport = window.visualViewport;
     const focusedElement = document.activeElement instanceof HTMLElement
       ? document.activeElement
@@ -3064,6 +3149,7 @@ export function initForm() {
           window.parent.postMessage({
             type: messageType,
             watchId: editingWatch.id,
+            ...details,
           }, window.location.origin);
         });
       });
@@ -3279,10 +3365,27 @@ export function initForm() {
       });
     }
 
-    updateWatch(editingWatch.id, changes);
+    try {
+      if (isCompanyWatch(editingWatch) && isCompanyWatchServerMode()) {
+        editingWatch = await updateServerCompanyWatch(editingWatch.id, {
+          ...(changes.title ? { title: changes.title } : {}),
+          summary: changes.whyFollowing ?? editingWatch.whyFollowing ?? '',
+          category,
+        });
+      } else {
+        updateWatch(editingWatch.id, changes);
+      }
+    } catch {
+      creationInProgress = false;
+      setCreationControlsDisabled(false);
+      if (watchError) watchError.textContent = t('newWatch.editSaveFailed');
+      refreshEditSaveState();
+      noteInput?.focus();
+      return;
+    }
     editNavigationAllowed = true;
     if (isModalEditMode) {
-      finishModalTransition('watch-editor-saved');
+      finishModalTransition('watch-editor-saved', { watch: editingWatch });
       return;
     }
     window.location.href = `watch-detail.html?id=${encodeURIComponent(editingWatch.id)}&watchUpdated=${encodeURIComponent(editingWatch.id)}`;
@@ -3648,6 +3751,10 @@ export function initForm() {
       });
     }
     pendingAnalysis = analysis;
+    duplicateExistingWatch = null;
+    if (companyDuplicateNotice) companyDuplicateNotice.hidden = true;
+    if (companyDuplicateOpen) companyDuplicateOpen.hidden = false;
+    if (reviewCreate) reviewCreate.hidden = false;
     if (analysis?.isStory === false && hint) {
       hint.textContent = '';
       hint.hidden = true;
@@ -3713,6 +3820,34 @@ export function initForm() {
     if (!failed && !reviewEnhancementInProgress) review?.focus();
   };
 
+  const showCompanyDuplicate = (existingWatch) => {
+    const hasSafeExistingWatch = Boolean(existingWatch?.id && existingWatch?.title);
+    creationInProgress = false;
+    duplicateExistingWatch = existingWatch || null;
+    setCreationControlsDisabled(false);
+    if (watchError) watchError.textContent = '';
+    if (companyDuplicateCopy) {
+      companyDuplicateCopy.textContent = t('newWatch.companyDuplicateCopy', {
+        title: existingWatch?.title || reviewTitle?.value || '',
+      });
+    }
+    if (companyDuplicateOpen) {
+      companyDuplicateOpen.hidden = !hasSafeExistingWatch;
+      if (hasSafeExistingWatch) companyDuplicateOpen.href = getWatchDetailHref(existingWatch.id);
+    }
+    if (companyDuplicateNotice) companyDuplicateNotice.hidden = false;
+    if (reviewCreate) {
+      reviewCreate.disabled = true;
+      reviewCreate.hidden = true;
+    }
+    if (reviewEdit) {
+      reviewEdit.hidden = false;
+      reviewEdit.disabled = false;
+    }
+    if (reviewCancel) reviewCancel.hidden = true;
+    companyDuplicateNotice?.focus?.();
+  };
+
   const startCompanyReview = async (request, whyFollowing, siren, companyName = null) => {
     const monitoringSource = createBodaccMonitoringSource(siren);
     if (!monitoringSource) return false;
@@ -3731,7 +3866,17 @@ export function initForm() {
     if (review) review.hidden = true;
 
     try {
-      const baseline = await requestCompanyCheck(monitoringSource.siren);
+      const baseline = isCompanyWatchServerMode()
+        ? {
+          checkedAt: null,
+          items: [],
+          company: {
+            siren: monitoringSource.siren,
+            officialName: companyName,
+            administrativeStatus: 'unknown',
+          },
+        }
+        : await requestCompanyCheck(monitoringSource.siren);
       if (requestId !== urlAnalysisRequestId) return true;
       const company = {
         siren: monitoringSource.siren,
@@ -3903,6 +4048,7 @@ export function initForm() {
     pendingWhyFollowing = '';
     pendingAnalysis = null;
     pendingNonArticleAnalysis = null;
+    duplicateExistingWatch = null;
     creationInProgress = false;
     form.classList.remove('is-analysing', 'is-reviewing');
     if (analysisSection) analysisSection.hidden = true;
@@ -3930,13 +4076,18 @@ export function initForm() {
     if (companyReviewAdministrativeStatus) companyReviewAdministrativeStatus.hidden = true;
     if (companyReviewStatus) companyReviewStatus.hidden = true;
     if (companyReviewWarning) companyReviewWarning.hidden = true;
+    if (companyDuplicateNotice) companyDuplicateNotice.hidden = true;
+    if (companyDuplicateOpen) companyDuplicateOpen.hidden = false;
     if (watchError) watchError.textContent = '';
     if (hint) {
       hint.textContent = '';
       hint.hidden = true;
     }
     [reviewCreate, reviewEdit, reviewCancel].forEach((control) => {
-      if (control) control.disabled = false;
+      if (control) {
+        control.disabled = false;
+        control.hidden = false;
+      }
     });
     keywordItems = [];
     keywordSourceRequest = '';
@@ -4402,9 +4553,10 @@ export function initForm() {
       planningInProgress = false;
     }
 
-    const companyPlanRoute = getCompanyPlanRoute(request, watchPlan);
+    const companyPlan = resolveFrenchCompanyPlan(request, watchPlan);
+    const companyPlanRoute = getCompanyPlanRoute(request, companyPlan);
     if (companyPlanRoute === COMPANY_PLAN_ROUTES.REVIEW) {
-      const companyEditOutcome = getCompanyEditPlanOutcome(editingWatch, watchPlan);
+      const companyEditOutcome = getCompanyEditPlanOutcome(editingWatch, companyPlan);
       if (companyEditOutcome === COMPANY_EDIT_PLAN_OUTCOMES.DIFFERENT_COMPANY) {
         if (watchError) watchError.textContent = t('newWatch.companyEditDifferentSiren');
         input?.focus();
@@ -4423,8 +4575,8 @@ export function initForm() {
       await startCompanyReview(
         request,
         whyFollowing,
-        watchPlan.identifier,
-        extractCompanyNameFromRequest(request, watchPlan.identifier),
+        companyPlan.identifier,
+        extractCompanyNameFromRequest(request, companyPlan.identifier),
       );
       return;
     }
@@ -4692,9 +4844,13 @@ export function initForm() {
           createOptions,
         ));
       } catch (error) {
+        if (error?.code === 'ACTIVE_WATCH_EXISTS') {
+          showCompanyDuplicate(error.existingWatch);
+          return;
+        }
         resetUrlFlow({ clearInput: false });
         if (watchError) {
-          const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
+          const code = error?.code || 'CHECK_FAILED';
           watchError.textContent = t(getMonitoringFailureMessageKey(code));
         }
         input?.focus();
@@ -4707,6 +4863,10 @@ export function initForm() {
       clearInput: pendingAnalysis?.status === 'success',
       trackCancellation: true,
     });
+  });
+
+  companyDuplicateCancel?.addEventListener('click', () => {
+    editNavigationAllowed = true;
   });
 
   analysisCancel?.addEventListener('click', () => {
@@ -4781,6 +4941,15 @@ export function initForm() {
   }
 
   if (isEditMode) {
+    if (editingServerCompanyWatch && isModalEditMode) {
+      window.addEventListener(WATCH_STORAGE_CHANGED_EVENT, () => {
+        if (!isCompanyWatchServerMode()) {
+          editNavigationAllowed = true;
+          finishModalTransition('watch-editor-close');
+        }
+      });
+    }
+
     discardDialog?.addEventListener('cancel', () => {
       pendingNavigationUrl = '';
     });
@@ -4860,6 +5029,11 @@ export function initForm() {
     if (pendingAnalysis?.inputType === 'company') {
       renderReviewPresentation(pendingAnalysis);
       setReviewEditing(false);
+    }
+    if (duplicateExistingWatch && companyDuplicateCopy) {
+      companyDuplicateCopy.textContent = t('newWatch.companyDuplicateCopy', {
+        title: duplicateExistingWatch.title || reviewTitle?.value || '',
+      });
     }
     renderKeywords();
     if (!clarification?.hidden) renderClarificationActions();
