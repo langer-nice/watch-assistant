@@ -184,10 +184,13 @@ export function getWatches() {
   const demoIds = new Set(mockWatches.map((watch) => watch.id));
   const local = stored.filter((watch) => !deletedIds.has(watch.id) && !demoIds.has(watch.id));
   if (!isCompanyWatchServerMode()) return local;
+  const serverWatches = getServerCompanyWatches();
+  const serverIds = new Set(serverWatches.map(({ id }) => id));
   const retainedLocal = local.filter((watch) => (
-    watch.inputType !== 'company' || String(watch.id).startsWith('preview-test-')
+    !serverIds.has(watch.id)
+    && (watch.inputType !== 'company' || String(watch.id).startsWith('preview-test-'))
   ));
-  return [...retainedLocal, ...getServerCompanyWatches()];
+  return [...retainedLocal, ...serverWatches];
 }
 
 export function getDemoWatches() {

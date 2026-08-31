@@ -6,6 +6,10 @@ let authStateSource = null;
 let serverWatches = [];
 let hydrated = false;
 let hydrationError = null;
+let authGeneration = 0;
+let latestHydrationRequest = 0;
+let authIdentity = null;
+let unsubscribeAuth = null;
 const TRANSIENT_AUTH_STATES = new Set(['loading', 'confirming']);
 
 const notify = () => {
@@ -19,8 +23,7 @@ const getAccessToken = () => {
   return state ? null : accessToken;
 };
 
-const request = async (path, options = {}) => {
-  const token = getAccessToken();
+const request = async (path, options = {}, token = getAccessToken()) => {
   if (!token) {
     const error = new Error('Authentication is required.');
     error.code = 'AUTH_REQUIRED';
@@ -62,64 +65,118 @@ const replaceWatch = (watch) => {
   return watch;
 };
 
-export const acceptPersistedServerCompanyWatch = (watch) => {
+const normalizePersistedWatch = (watch) => {
   if (
     !watch
     || typeof watch.id !== 'string'
+    || watch.inputType !== 'company'
     || !SUPPORTED_WATCH_CATEGORIES.includes(watch.category)
   ) {
     const error = new Error('The persisted Company Watch response is invalid.');
     error.code = 'INVALID_PERSISTED_WATCH';
     throw error;
   }
-  return replaceWatch(watch);
+  return {
+    ...watch,
+    whyFollowing: typeof watch.whyFollowing === 'string' ? watch.whyFollowing : '',
+  };
 };
+
+export const acceptPersistedServerCompanyWatch = (watch) => (
+  replaceWatch(normalizePersistedWatch(watch))
+);
 
 export const isCompanyWatchServerMode = () => Boolean(getAccessToken());
 export const getServerCompanyWatches = () => [...serverWatches];
 export const getCompanyWatchServerHydrationError = () => hydrationError;
 
 export const hydrateServerCompanyWatches = async () => {
-  if (!getAccessToken()) {
+  const token = getAccessToken();
+  if (!token) {
     serverWatches = [];
     hydrated = false;
+    hydrationError = null;
     notify();
     return [];
   }
-  const body = await request('/api/company-watches');
-  serverWatches = body.watches || [];
-  hydrated = true;
-  hydrationError = null;
-  notify();
+  const generation = authGeneration;
+  const hydrationRequest = ++latestHydrationRequest;
+  try {
+    const body = await request('/api/company-watches', {}, token);
+    if (
+      generation !== authGeneration
+      || hydrationRequest !== latestHydrationRequest
+      || token !== getAccessToken()
+    ) return getServerCompanyWatches();
+    if (!Array.isArray(body?.watches)) {
+      const error = new Error('The Company Watch list response is invalid.');
+      error.code = 'INVALID_PERSISTED_WATCHES';
+      throw error;
+    }
+    serverWatches = body.watches.map(normalizePersistedWatch);
+    hydrated = true;
+    hydrationError = null;
+    notify();
+  } catch (error) {
+    if (
+      generation === authGeneration
+      && hydrationRequest === latestHydrationRequest
+      && token === getAccessToken()
+    ) {
+      hydrationError = error;
+      notify();
+    }
+    throw error;
+  }
   return getServerCompanyWatches();
 };
 
 export const configureCompanyWatchServerStore = async (auth) => {
+  unsubscribeAuth?.();
+  unsubscribeAuth = null;
   authStateSource = auth || null;
   const applyState = async (state) => {
     if (TRANSIENT_AUTH_STATES.has(state.status)) return;
-    accessToken = state.status === 'authenticated'
-      ? state.session?.access_token || null
+    const nextAccessToken = state.status === 'authenticated'
+      ? state.session?.access_token || null : null;
+    const nextIdentity = nextAccessToken
+      ? state.session?.user?.id || nextAccessToken
       : null;
-    if (state.status === 'authenticated') {
-      try {
-        await hydrateServerCompanyWatches();
-      } catch (error) {
-        serverWatches = [];
-        hydrated = false;
-        hydrationError = error;
-        notify();
-        console.warn('[Company Watches] Server hydration failed.', { code: error?.code });
-      }
-    } else if (!['loading', 'confirming'].includes(state.status)) {
+    const identityChanged = nextIdentity !== authIdentity;
+    const tokenChanged = nextAccessToken !== accessToken;
+
+    if (!nextAccessToken) {
+      accessToken = null;
+      authIdentity = null;
+      authGeneration += 1;
+      latestHydrationRequest += 1;
+      serverWatches = [];
+      hydrated = false;
+      hydrationError = null;
+      notify();
+      return;
+    }
+
+    accessToken = nextAccessToken;
+    authIdentity = nextIdentity;
+    if (identityChanged) {
+      authGeneration += 1;
+      latestHydrationRequest += 1;
       serverWatches = [];
       hydrated = false;
       hydrationError = null;
       notify();
     }
+    if (identityChanged || tokenChanged || !hydrated) {
+      try {
+        await hydrateServerCompanyWatches();
+      } catch (error) {
+        console.warn('[Company Watches] Server hydration failed.', { code: error?.code });
+      }
+    }
   };
   await applyState(auth?.getState?.() || { status: 'unavailable' });
-  auth?.subscribe?.((state) => { void applyState(state); });
+  unsubscribeAuth = auth?.subscribe?.((state) => { void applyState(state); }) || null;
 };
 
 export const createServerCompanyWatch = async (watch) => {
