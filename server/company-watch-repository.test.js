@@ -324,6 +324,35 @@ test('server repository persists baseline, multi-session CRUD, soft delete, and 
   assert.notEqual(recreated.watch.id, created.watch.id);
 });
 
+test('list restores every active owned Watch with nullable fields and preserves account isolation', async () => {
+  const database = createMemoryDatabase();
+  const userA = '10000000-0000-4000-8000-00000000000a';
+  const userB = '10000000-0000-4000-8000-00000000000b';
+  const repositoryA = createRepository(database, userA, async () => emptyBodacc());
+  const repositoryB = createRepository(database, userB, async () => emptyBodacc());
+
+  const cemex = await repositoryA.create({
+    siren: '552005969', title: 'CEMEX GRANULATS', summary: null,
+  });
+  const total = await repositoryA.create({
+    siren: '542051180', title: 'TOTALENERGIES SE', summary: null,
+  });
+  const removed = await repositoryA.create({
+    siren: '380129866', title: 'ORANGE', summary: null,
+  });
+  await repositoryA.remove(removed.watch.id);
+  await repositoryB.create({ siren: '552005969', title: 'Other account Company' });
+
+  const restoredA = await createRepository(database, userA, async () => emptyBodacc()).list();
+  assert.deepEqual(restoredA.map(({ id }) => id), [cemex.watch.id, total.watch.id]);
+  assert.deepEqual(restoredA.map(({ whyFollowing }) => whyFollowing), ['', '']);
+  assert.equal(restoredA.some(({ id }) => id === removed.watch.id), false);
+  assert.equal(restoredA.some(({ title }) => title === 'Other account Company'), false);
+
+  const restoredB = await createRepository(database, userB, async () => emptyBodacc()).list();
+  assert.deepEqual(restoredB.map(({ title }) => title), ['Other account Company']);
+});
+
 test('failed baseline and persistence leave no active Watch or snapshot and allow retry', async () => {
   const database = createMemoryDatabase();
   const userId = '10000000-0000-4000-8000-00000000000a';
