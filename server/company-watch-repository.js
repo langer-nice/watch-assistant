@@ -209,7 +209,7 @@ export const createCompanyWatchRepository = ({
       p_administrative_status: administrativeStatus,
       p_company_status: companyStatus,
       p_outcome: result.outcome,
-      p_current_status: latestChange ? 'updated' : 'watching',
+      p_current_status: latestChange ? 'updated' : watch.currentStatus || 'watching',
       p_last_change_item_id: latestChange?.id || null,
       p_last_change_title: latestChange?.title || null,
       p_last_change_url: latestChange?.url || null,
@@ -274,6 +274,16 @@ export const createCompanyWatchRepository = ({
 
   const update = async (watchId, input) => {
     validateWatchId(watchId);
+    if (Object.hasOwn(input, 'acknowledgeUpdateId')) {
+      const updateId = cleanText(input.acknowledgeUpdateId, 500, { required: true });
+      const { data, error } = await client.from('watches').update({ current_status: 'watching' })
+        .eq('id', watchId).eq('current_status', 'updated')
+        .eq('last_change_item_id', updateId).is('deleted_at', null)
+        .select(WATCH_SELECT).maybeSingle();
+      if (error) throwDatabaseError(error);
+      if (data) return mapCompanyWatchRow(data);
+      return get(watchId);
+    }
     const changes = {};
     if (Object.hasOwn(input, 'title')) changes.title = cleanText(input.title, 200, { required: true });
     if (Object.hasOwn(input, 'summary')) changes.summary = cleanText(input.summary, 1000);

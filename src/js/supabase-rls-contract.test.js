@@ -45,6 +45,7 @@ test('browser code never reads or embeds a service-role value', async () => {
   assert.doesNotMatch(client, /SUPABASE_SERVICE_ROLE_KEY\s*\?\?|SUPABASE_SERVICE_ROLE_KEY\s*\|\|/);
   assert.match(env, /^SUPABASE_URL=https:\/\//m);
   assert.match(env, /^SUPABASE_ANON_KEY=/m);
-  assert.doesNotMatch(env, /^SUPABASE_SERVICE_ROLE_KEY=/m);
+  assert.match(env, /^SUPABASE_SERVICE_ROLE_KEY=/m);
+  assert.doesNotMatch(env, /^VITE_SUPABASE_SERVICE_ROLE_KEY=/m);
   assert.match(vite, /VITE_SUPABASE_SERVICE_ROLE_KEY is forbidden/);
 });

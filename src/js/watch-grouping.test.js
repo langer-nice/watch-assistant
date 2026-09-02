@@ -185,11 +185,11 @@ test('Needs attention keeps precedence when the Watch also has an unread Update'
 
 test('uses the previous seven local calendar days before historical months', () => {
   const groups = groupWatches([
-    { id: 'yesterday', createdAt: '2026-07-22T10:00:00+02:00', status: 'watching' },
-    { id: 'seven-days', createdAt: '2026-07-16T00:00:00+02:00', status: 'watching' },
-    { id: 'eight-days', createdAt: '2026-07-15T23:59:59+02:00', status: 'watching' },
+    { id: 'yesterday', createdAt: new Date(2026, 6, 22, 10), status: 'watching' },
+    { id: 'seven-days', createdAt: new Date(2026, 6, 16), status: 'watching' },
+    { id: 'eight-days', createdAt: new Date(2026, 6, 15, 23, 59, 59), status: 'watching' },
     { id: 'unknown', status: 'watching' },
-  ], options);
+  ], { ...options, now: new Date(2026, 6, 23, 12) });
 
   assert.deepEqual(groups.map((group) => group.type), [
     'last7Days',
