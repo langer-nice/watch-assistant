@@ -1317,7 +1317,18 @@ const renderWatchDetail = () => {
   const detailPresentation = getWatchDetailPresentationSnapshot(watch, {
     reports: getReports(),
   });
-  if (detailPresentation.updateId && !(isCompanyWatch(watch) && isCompanyWatchServerMode())) {
+  if (detailPresentation.updateId && isCompanyWatch(watch) && isCompanyWatchServerMode()) {
+    void updateServerCompanyWatch(watch.id, {
+      acknowledgeUpdateId: detailPresentation.updateId,
+    }).catch((error) => {
+      if (import.meta.env.DEV) {
+        console.warn('[Watch updates] Could not acknowledge displayed Company update', {
+          watchId: watch.id,
+          code: error?.code,
+        });
+      }
+    });
+  } else if (detailPresentation.updateId) {
     try {
       markUpdateAsRead(watch.id, detailPresentation.updateId);
       refreshLatestReport({ watches: getWatches() });

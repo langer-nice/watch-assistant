@@ -404,9 +404,9 @@ test('persistent checks retain the last valid snapshot, detect change once, and 
 
   const repeated = await repository.check(created.id);
   assert.equal(repeated.result.outcome, 'no-new-items');
-  assert.equal(repeated.watch.currentStatus, 'watching');
+  assert.equal(repeated.watch.currentStatus, 'updated');
   assert.deepEqual(repeated.watch.monitoringSnapshot.itemIds, ['bodacc-change-1']);
-  assert.equal(repeated.watch.updates.length, 0);
+  assert.equal(repeated.watch.updates.length, 1);
 
   const beforeFailure = structuredClone(database.snapshots.get(created.id));
   response = () => { throw new Error('BODACC unavailable'); };
