@@ -30,8 +30,10 @@ Configure these as **server-side Production** variables in the Vercel project se
 deployment containing this migration and code becomes active:
 
 - `SUPABASE_URL`: the Supabase project URL.
-- `SUPABASE_SERVICE_ROLE_KEY`: the Supabase service-role key; never prefix it with `VITE_` or expose it
-  to browser code.
+- `SUPABASE_SERVICE_ROLE_KEY`: the application variable for a modern Supabase Secret API key
+  (`sb_secret_...`, preferred) or the compatible legacy `service_role` key. Despite the variable's
+  legacy name, either value is passed only to the server-side Supabase client and operates as the
+  privileged `service_role`. Never prefix it with `VITE_` or expose it to browser code.
 - `CRON_SECRET`: a high-entropy random value. Vercel automatically places this value in the cron
   request's Bearer authorization header.
 
@@ -41,16 +43,22 @@ authenticated callers and are granted only to `service_role`; RLS stays enabled 
 
 ## Migration and idempotency
 
-Apply migrations in timestamp order before deploying the application. The V1 migration creates
-`company_watch_snapshot_history` and two service-role-only functions. It does not modify or delete
-existing Watch or current-snapshot data.
+Apply migrations in timestamp order before deploying the application. Before opening a new SQL
+query, verify in the Supabase migration history and schema that
+`20260902120000_automatic_company_monitoring.sql` has not already been applied. This migration is
+intentionally one-time-only: a second complete execution stops at its first `create table` statement.
+Do not rerun it after an interrupted or uncertain execution; inspect the schema first. The migration
+creates `company_watch_snapshot_history` and two service-role-only functions. It does not modify or
+delete existing Watch or current-snapshot data.
 
-The completion function locks each Watch row. It compares canonical normalized JSON with the current
-snapshot inside the transaction, records distinct old/new snapshots in append-only history, updates
-the current snapshot, and transitions to `updated` only when content differs. A unique
-Watch/content-hash index and row lock make repeated or overlapping runs idempotent. No-change checks
-advance `last_checked_at` without clearing a previously unread `updated` state. A failure stores only a
-bounded error code and leaves the last valid snapshot intact; the next daily run retries it.
+The completion function locks each Watch row and verifies that its current snapshot still matches the
+version read before the BODACC request. A stale overlapping completion is skipped. Snapshot-content
+changes control append-only history, while only the existing canonical `matching-items` decision can
+transition the Watch to `updated`. A unique Watch/content-hash index prevents duplicate history.
+No-change checks advance `last_checked_at` without clearing a previously unread `updated` state. The
+failure function performs the same version check, so a late failure cannot overwrite a concurrent
+success. A valid failure stores only a bounded error code and leaves the last valid snapshot intact;
+the next daily run retries it.
 
 ## Operations
 

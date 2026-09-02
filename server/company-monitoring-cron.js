@@ -22,6 +22,10 @@ const safeCode = (error) => typeof error?.code === 'string'
   ? error.code.replace(/[^A-Z0-9_-]/giu, '').slice(0, 100) || 'CHECK_FAILED'
   : 'CHECK_FAILED';
 
+const getSnapshotRow = (row) => (Array.isArray(row?.company_watch_snapshots)
+  ? row.company_watch_snapshots[0] || null
+  : row?.company_watch_snapshots || null);
+
 const loadEligibleWatches = async (client, pageSize = COMPANY_MONITORING_PAGE_SIZE) => {
   const watches = [];
   for (let start = 0; ; start += pageSize) {
@@ -41,9 +45,13 @@ const loadEligibleWatches = async (client, pageSize = COMPANY_MONITORING_PAGE_SI
 
 const persistFailure = async (client, watches, error) => {
   const code = safeCode(error);
-  await Promise.all(watches.map(async ({ id }) => {
+  await Promise.all(watches.map(async (row) => {
+    const snapshot = getSnapshotRow(row);
     const { error: rpcError } = await client.rpc('record_scheduled_company_watch_failure', {
-      p_watch_id: id, p_error_code: code,
+      p_watch_id: row.id,
+      p_error_code: code,
+      p_expected_checked_at: snapshot?.checked_at || null,
+      p_expected_items: snapshot?.items || null,
     });
     if (rpcError) throw new Error('A scheduled check failure could not be recorded.');
   }));
@@ -51,6 +59,7 @@ const persistFailure = async (client, watches, error) => {
 
 const persistResult = async (client, row, response) => {
   const watch = mapCompanyWatchRow(row);
+  const previousSnapshot = getSnapshotRow(row);
   const result = applyFeedCheckResult(watch, response, { trustedSourceType: 'bodacc' });
   const latestChange = result.matchedItems[0] || null;
   const companyStatus = result.changes.company?.status
@@ -66,6 +75,8 @@ const persistResult = async (client, row, response) => {
     p_source_url: snapshot.source?.url,
     p_item_ids: snapshot.itemIds,
     p_items: snapshot.items,
+    p_expected_checked_at: previousSnapshot?.checked_at || null,
+    p_expected_items: previousSnapshot?.items || null,
     p_company_name: result.changes.company?.name || response.company?.officialName || null,
     p_administrative_status: administrativeStatus,
     p_company_status: companyStatus,
@@ -78,7 +89,10 @@ const persistResult = async (client, row, response) => {
     p_last_change_published_at: latestChange?.publishedAt || null,
   });
   if (error) throw Object.assign(new Error('The scheduled result could not be persisted.'), { code: 'DATABASE_ERROR' });
-  return data === true;
+  if (!['changed', 'unchanged', 'skipped'].includes(data)) {
+    throw Object.assign(new Error('The scheduled result was invalid.'), { code: 'DATABASE_ERROR' });
+  }
+  return data;
 };
 
 const mapBounded = async (entries, concurrency, worker) => {
@@ -123,7 +137,9 @@ export const runCompanyMonitoring = async ({
     }
     for (const watch of watches) {
       try {
-        if (await persistResult(client, watch, response)) changed += 1;
+        const persistence = await persistResult(client, watch, response);
+        if (persistence === 'changed') changed += 1;
+        else if (persistence === 'skipped') skipped += 1;
         else unchanged += 1;
       } catch (error) {
         failed += 1;
