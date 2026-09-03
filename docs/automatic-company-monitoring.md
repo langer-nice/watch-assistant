@@ -43,13 +43,45 @@ authenticated callers and are granted only to `service_role`; RLS stays enabled 
 
 ## Migration and idempotency
 
-Apply migrations in timestamp order before deploying the application. Before opening a new SQL
-query, verify in the Supabase migration history and schema that
-`20260902120000_automatic_company_monitoring.sql` has not already been applied. This migration is
-intentionally one-time-only: a second complete execution stops at its first `create table` statement.
-Do not rerun it after an interrupted or uncertain execution; inspect the schema first. The migration
-creates `company_watch_snapshot_history` and two service-role-only functions. It does not modify or
-delete existing Watch or current-snapshot data.
+Apply migrations in timestamp order before deploying the application:
+
+1. `20260902120000_automatic_company_monitoring.sql` creates
+   `company_watch_snapshot_history` and the two service-role-only write functions. It is intentionally
+   one-time-only: a second complete execution stops at its first `create table` statement. Before
+   opening a new SQL query, verify in the Supabase migration history and schema whether it has already
+   been applied. Do not rerun it after an interrupted or uncertain execution; inspect the schema first.
+2. `20260903120000_company_monitoring_service_role_read_grants.sql` grants the scheduled client only
+   the direct table reads it needs: `SELECT` on `public.watches` and
+   `public.company_watch_snapshots`. Repeating these `GRANT SELECT` statements is safe and does not
+   alter data. Scheduled writes remain exclusively behind the existing `security definer` functions.
+
+Neither migration modifies or deletes existing Watch or current-snapshot data.
+
+### Service-role table grants
+
+A service-role key bypasses RLS, but PostgreSQL still checks table privileges before evaluating RLS.
+If the read grants above are missing, the initial PostgREST request for eligible Watches fails before
+any BODACC request or persistence RPC. The observed signature was HTTP `403`, PostgreSQL code `42501`,
+and `permission denied for table watches`.
+
+Verify the correction without reading row data:
+
+```sql
+select
+  has_table_privilege('service_role', 'public.watches', 'SELECT')
+    as watches_select,
+  has_table_privilege('service_role', 'public.company_watch_snapshots', 'SELECT')
+    as snapshots_select,
+  has_table_privilege('service_role', 'public.watches', 'UPDATE')
+    as watches_update,
+  has_table_privilege('service_role', 'public.company_watch_snapshot_history', 'SELECT')
+    as history_select;
+```
+
+After applying the corrective migration, the first two values must be `true` and the last two must
+remain `false`. Do not replace a modern Supabase Secret API key (`sb_secret_...`) with a legacy JWT
+service-role key: both map to PostgreSQL `service_role`, so changing key formats does not repair a
+missing table grant.
 
 The completion function locks each Watch row and verifies that its current snapshot still matches the
 version read before the BODACC request. A stale overlapping completion is skipped. Snapshot-content
