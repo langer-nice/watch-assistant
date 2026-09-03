@@ -35,14 +35,16 @@ const baseRow = {
   }],
 };
 
-test('persisted Company rows restore the canonical snapshot without reviving an old update', () => {
+test('persisted Company rows restore the snapshot and acknowledged last change without reviving unread state', () => {
   const watch = mapCompanyWatchRow(baseRow);
 
   assert.equal(watch.inputType, 'company');
   assert.equal(watch.company.siren, '552100554');
   assert.equal(watch.category, 'general');
   assert.deepEqual(watch.monitoringSnapshot.itemIds, ['bodacc-old']);
-  assert.deepEqual(watch.updates, []);
+  assert.equal(watch.updates.length, 1);
+  assert.equal(watch.updates[0].id, 'bodacc-old');
+  assert.equal(watch.updates[0].status, 'read');
   assert.equal(watch.unreadUpdateCount, 0);
 });
 

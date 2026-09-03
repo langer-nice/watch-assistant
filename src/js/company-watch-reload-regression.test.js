@@ -16,7 +16,7 @@ const deferred = () => {
   return { promise, resolve };
 };
 
-const remoteWatch = ({ id, title, siren, whyFollowing = '' }) => ({
+const remoteWatch = ({ id, title, siren, whyFollowing = '', ...overrides }) => ({
   id,
   inputType: 'company',
   title,
@@ -28,6 +28,7 @@ const remoteWatch = ({ id, title, siren, whyFollowing = '' }) => ({
   monitoringState: 'monitoring',
   createdAt: '2026-08-31T08:00:00.000Z',
   company: { siren, name: title },
+  ...overrides,
 });
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
@@ -52,8 +53,17 @@ test('a stale authenticated load cannot overwrite a newer restored session', asy
     id: 'preview-test-company', inputType: 'company', title: 'Preview Company',
     status: 'watching', currentStatus: 'watching', createdAt: '2026-08-28T08:00:00.000Z',
   };
+  const localOrangeDuplicate = {
+    id: '30000000-0000-4000-8000-000000000003', inputType: 'company',
+    title: 'Old local ORANGE', status: 'watching', currentStatus: 'watching',
+    createdAt: '2026-08-27T08:00:00.000Z',
+    company: { siren: '380129866', name: 'Old local ORANGE' },
+    updates: [],
+  };
   const storage = createStorage({
-    'watchAssistant.watches': JSON.stringify([localNews, localDuplicate, previewCompany]),
+    'watchAssistant.watches': JSON.stringify([
+      localNews, localDuplicate, localOrangeDuplicate, previewCompany,
+    ]),
   });
   const browserWindow = new EventTarget();
   browserWindow.dispatchEvent = EventTarget.prototype.dispatchEvent.bind(browserWindow);
@@ -116,6 +126,13 @@ test('a stale authenticated load cannot overwrite a newer restored session', asy
         id: '30000000-0000-4000-8000-000000000003',
         title: 'ORANGE',
         siren: '380129866',
+        lastCheckOutcome: { type: 'no-new-items', checkedAt: '2026-09-04T06:00:00.000Z' },
+        lastCheckAttempt: { status: 'succeeded', attemptedAt: '2026-09-04T06:00:00.000Z' },
+        updates: [{
+          id: 'A20260160287', status: 'read', sourceTitle: 'ORANGE STORE sale',
+          summary: 'Stored business-sale change', timestamp: '2026-08-23T00:00:00.000Z',
+        }],
+        unreadUpdateCount: 0,
       }),
     ];
     requests[1].pending.resolve(Response.json({ watches: currentRows }));
@@ -169,6 +186,13 @@ test('a stale authenticated load cannot overwrite a newer restored session', asy
       '',
       'a nullable database summary remains a safe empty rationale field',
     );
+    const orange = displayed.filter(({ id }) => id === localOrangeDuplicate.id);
+    assert.equal(orange.length, 1, 'the server Company Watch must replace its local duplicate once');
+    assert.equal(orange[0].title, 'ORANGE');
+    assert.equal(orange[0].currentStatus, 'watching');
+    assert.equal(orange[0].updates.length, 1);
+    assert.equal(orange[0].updates[0].id, 'A20260160287');
+    assert.equal(orange[0].updates[0].status, 'read');
   } finally {
     for (const [key, descriptor] of Object.entries(originalGlobals)) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor);
