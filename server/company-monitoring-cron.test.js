@@ -27,11 +27,12 @@ const response = (items = []) => ({
 });
 
 const createClient = (rows, { persistence = () => 'unchanged' } = {}) => {
-  const calls = { completed: [], failures: [], ranges: [] };
-  const from = () => {
+  const calls = { completed: [], failures: [], fromTables: [], ranges: [], selections: [] };
+  const from = (table) => {
+    calls.fromTables.push(table);
     const state = { filters: [] };
     const builder = {
-      select() { return builder; },
+      select(columns) { calls.selections.push(columns); return builder; },
       eq(key, value) { state.filters.push([key, value]); return builder; },
       is(key, value) { state.filters.push([key, value]); return builder; },
       order() { return builder; },
@@ -107,6 +108,11 @@ test('selection excludes paused, deleted, and unsupported Watches and paginates'
   ]);
   const summary = await runCompanyMonitoring({ client, pageSize: 1, fetchCompany: async () => response() });
   assert.equal(summary.totalEligibleWatches, 1);
+  assert.deepEqual(client.calls.fromTables, ['watches', 'watches']);
+  assert.deepEqual(client.calls.selections, [
+    '*, company_watch_snapshots(*)',
+    '*, company_watch_snapshots(*)',
+  ]);
   assert.deepEqual(client.calls.completed.map(({ p_watch_id }) => p_watch_id), ['a']);
   assert.deepEqual(client.calls.ranges, [[0, 0], [1, 1]]);
 });
