@@ -47,7 +47,8 @@ const getSnapshot = (row) => Array.isArray(row?.company_watch_snapshots)
 export const mapCompanyWatchRow = (row) => {
   if (!row) return null;
   const snapshot = getSnapshot(row);
-  const lastChange = row.current_status === 'updated' && row.last_change_item_id ? {
+  const hasUnreadLastChange = row.current_status === 'updated';
+  const lastChange = row.last_change_item_id ? {
     id: row.last_change_item_id,
     timestamp: row.last_change_published_at || row.last_checked_at,
     publishedAt: row.last_change_published_at,
@@ -56,7 +57,7 @@ export const mapCompanyWatchRow = (row) => {
     sourceTitle: row.last_change_title,
     sourceName: 'BODACC',
     summary: row.last_change_summary,
-    status: 'new',
+    status: hasUnreadLastChange ? 'new' : 'read',
     rawMonitoringResult: {
       id: row.last_change_item_id,
       eventType: row.last_change_event_type,
@@ -121,7 +122,7 @@ export const mapCompanyWatchRow = (row) => {
     updates: lastChange ? [lastChange] : [],
     candidateUpdates: lastChange ? [{ ...lastChange.rawMonitoringResult, status: 'candidate' }] : [],
     monitoringUpdates: lastChange ? [{ ...lastChange.rawMonitoringResult, status: 'candidate' }] : [],
-    unreadUpdateCount: lastChange ? 1 : 0,
+    unreadUpdateCount: lastChange && hasUnreadLastChange ? 1 : 0,
     lastUpdated: lastChange?.timestamp || null,
     latestUpdateAt: lastChange ? row.last_checked_at : null,
   };
