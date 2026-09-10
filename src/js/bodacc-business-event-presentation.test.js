@@ -5,6 +5,7 @@ import {
   getBodaccBusinessEventLabel,
   getBodaccBusinessEventTranslationKey,
   getCurrentSituationPresentation,
+  isBodaccBusinessEvent,
 } from './watch-update-presentation.js';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
@@ -40,6 +41,7 @@ test('BODACC business events resolve to localized labels without hardcoded UI co
   );
   assert.equal(en.detail.businessEvents.capital_increase, 'Capital increased');
   assert.equal(fr.detail.businessEvents.capital_increase, 'Augmentation du capital');
+  assert.equal(isBodaccBusinessEvent(classified), true);
 });
 
 test('Current Situation uses the event label and preserves the official description', () => {
@@ -59,6 +61,7 @@ test('Current Situation uses the event label and preserves the official descript
 test('unknown and non-BODACC events preserve the existing presentation', () => {
   const unknown = update('unknown_change');
   assert.equal(getBodaccBusinessEventTranslationKey(unknown), null);
+  assert.equal(isBodaccBusinessEvent(unknown), false);
   assert.equal(getBodaccBusinessEventLabel(unknown, () => 'must not be used'), '');
   assert.equal(
     getCurrentSituationPresentation({ updates: [unknown] }).title,
@@ -70,4 +73,5 @@ test('unknown and non-BODACC events preserve the existing presentation', () => {
     rawMonitoringResult: { source: 'Example News', eventType: 'capital_increase' },
   };
   assert.equal(getBodaccBusinessEventTranslationKey(unrelated), null);
+  assert.equal(isBodaccBusinessEvent(unrelated), false);
 });

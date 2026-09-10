@@ -175,6 +175,7 @@ import {
   getBodaccBusinessEventLabel,
   getCurrentSituationPresentation,
   getLatestCheckUpdates,
+  isBodaccBusinessEvent,
 } from './watch-update-presentation.js';
 import {
   getWatchRationalePresentation,
@@ -1609,7 +1610,9 @@ const renderWatchDetail = () => {
     currentSituation,
   );
   if (companyEventNoticeEl) {
-    companyEventNoticeEl.hidden = !hasCurrentSituation || !isCompanyWatch(watch);
+    companyEventNoticeEl.hidden = !hasCurrentSituation
+      || !isCompanyWatch(watch)
+      || !isBodaccBusinessEvent(latestMeaningfulUpdate);
   }
   if (currentUpdateTitleEl) {
     currentUpdateTitleEl.textContent = currentUpdate.title;

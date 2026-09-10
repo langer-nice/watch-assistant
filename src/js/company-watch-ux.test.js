@@ -25,7 +25,7 @@ test('unknown BODACC monitoring status is omitted while the latest official even
   assert.match(detailRenderer, /hasCurrentSituation = setOptionalField/);
   assert.match(
     detailRenderer,
-    /companyEventNoticeEl\.hidden = !hasCurrentSituation \|\| !isCompanyWatch\(watch\)/,
+    /companyEventNoticeEl\.hidden = !hasCurrentSituation[\s\S]*?\|\| !isCompanyWatch\(watch\)[\s\S]*?\|\| !isBodaccBusinessEvent\(latestMeaningfulUpdate\)/,
   );
 });
 
