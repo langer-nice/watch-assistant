@@ -1365,6 +1365,7 @@ const renderWatchDetail = () => {
   const primaryEl = document.querySelector('#watchPrimary');
   const currentSituationEl = document.querySelector('#watchCurrentSituation');
   const currentSituationContainerEl = document.querySelector('#current-situation');
+  const companyEventNoticeEl = document.querySelector('#watchCompanyEventNotice');
   const companyAdministrativeStatusEl = document.querySelector('#watchCompanyAdministrativeStatus');
   const companyAdministrativeStatusBadgeEl = document.querySelector('#watchCompanyAdministrativeStatusBadge');
   const companyAdministrativeStatusDescriptionEl = document.querySelector('#watchCompanyAdministrativeStatusDescription');
@@ -1607,6 +1608,9 @@ const renderWatchDetail = () => {
     currentSituationEl,
     currentSituation,
   );
+  if (companyEventNoticeEl) {
+    companyEventNoticeEl.hidden = !hasCurrentSituation || !isCompanyWatch(watch);
+  }
   if (currentUpdateTitleEl) {
     currentUpdateTitleEl.textContent = currentUpdate.title;
     currentUpdateTitleEl.hidden = !currentUpdate.title;

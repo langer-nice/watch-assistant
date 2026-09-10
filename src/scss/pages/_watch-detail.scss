@@ -121,6 +121,13 @@ body.is-watch-edit-open {
   overflow-wrap: anywhere;
 }
 
+.detail-current-update .detail-current-update__notice {
+  margin-top: var(--space-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
 .detail-current-update__link,
 .watch-fact-check__review,
 .timeline__article-link {
