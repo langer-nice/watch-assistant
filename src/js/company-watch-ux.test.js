@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
-test('unknown BODACC monitoring status is omitted while Current Situation remains', async () => {
+test('unknown BODACC monitoring status is omitted while the latest official event remains', async () => {
   const [navigation, detailHtml] = await Promise.all([
     read('./navigation.js'),
     read('../../watch-detail.html'),
@@ -20,8 +20,31 @@ test('unknown BODACC monitoring status is omitted while Current Situation remain
   assert.match(detailRenderer, /shouldShowCompanyMonitoringStatus/);
   assert.match(detailRenderer, /showCompanyMonitoringStatus/);
   assert.match(detailHtml, /id="current-situation"/);
+  assert.match(detailHtml, /id="watchCompanyEventNotice"/);
   assert.match(detailRenderer, /const currentSituation = currentUpdate\.summary/);
   assert.match(detailRenderer, /hasCurrentSituation = setOptionalField/);
+  assert.match(
+    detailRenderer,
+    /companyEventNoticeEl\.hidden = !hasCurrentSituation \|\| !isCompanyWatch\(watch\)/,
+  );
+});
+
+test('the latest official event heading and Company clarification are localized', async () => {
+  const [english, french] = await Promise.all([
+    read('../locales/en.json').then(JSON.parse),
+    read('../locales/fr.json').then(JSON.parse),
+  ]);
+
+  assert.equal(english.detail.currentSituation, 'Latest official event detected');
+  assert.equal(french.detail.currentSituation, 'Dernier événement officiel détecté');
+  assert.equal(
+    english.detail.companyEventNotice,
+    'This announcement concerns an event recorded for the company or one of its establishments. It does not necessarily mean that the company has ceased trading.',
+  );
+  assert.equal(
+    french.detail.companyEventNotice,
+    'Cette annonce concerne un événement enregistré pour l’entreprise ou l’un de ses établissements. Elle ne signifie pas nécessairement que l’entreprise a cessé son activité.',
+  );
 });
 
 test('administrative badges reuse the shared status-label styles without a Company variant', async () => {
