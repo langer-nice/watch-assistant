@@ -37,6 +37,17 @@ deployment containing this migration and code becomes active:
 - `CRON_SECRET`: a high-entropy random value. Vercel automatically places this value in the cron
   request's Bearer authorization header.
 
+Email Notifications V1 also requires these **server-side Production-only** values:
+
+- `WATCH_EMAIL_NOTIFICATIONS_ENABLED=true`: explicit delivery switch; every other value disables it.
+- `RESEND_API_KEY`: a Resend sending API key. Never use a `VITE_` prefix.
+- `WATCH_EMAIL_FROM`: the complete From value, such as
+  `Watch Assistant <notifications@watch.example>`.
+- `WATCH_APP_BASE_URL`: the canonical HTTPS Production origin used for Watch Detail links.
+
+The sender domain must be verified in Resend before Production sending. Preview and Development
+deployments do not send even if the switch is accidentally enabled. Tests use a fully mocked sender.
+
 Do not replace the service role with the anonymous key. User routes continue to authenticate with the
 anonymous key plus a user JWT and remain subject to RLS. The scheduled SQL functions reject anon and
 authenticated callers and are granted only to `service_role`; RLS stays enabled on every table.
@@ -54,6 +65,9 @@ Apply migrations in timestamp order before deploying the application:
    the direct table reads it needs: `SELECT` on `public.watches` and
    `public.company_watch_snapshots`. Repeating these `GRANT SELECT` statements is safe and does not
    alter data. Scheduled writes remain exclusively behind the existing `security definer` functions.
+3. `20260911120000_company_watch_email_notifications.sql` creates the service-role-only email outbox,
+   adds a versioned atomic scheduled-completion RPC that enqueues genuine new events without dropping
+   the deployed V1 RPC, and adds the delivery RPCs.
 
 Neither migration modifies or deletes existing Watch or current-snapshot data.
 
@@ -92,10 +106,37 @@ failure function performs the same version check, so a late failure cannot overw
 success. A valid failure stores only a bounded error code and leaves the last valid snapshot intact;
 the next daily run retries it.
 
+## Email Notifications V1
+
+An outbox row is inserted in the same transaction that changes a scheduled Company Watch to
+`updated`, and only when a prior valid baseline exists, the canonical outcome is `matching-items`, and
+the result has a new official BODACC item ID. Baselines, no-new-items, no-matching-items, stale or
+failed checks, manual Check now, repeated IDs, and corrections to an existing ID do not enqueue mail.
+The Watch update commits before any external request, so provider failure cannot roll it back.
+
+The unique `(watch_id, user_id, channel, source_event_id)` constraint is the durable duplicate guard.
+One service-role-only RPC atomically claims a pending row. A second RPC, called immediately before the
+provider request, records the submission boundary and increments the attempt count. A claim abandoned
+before that boundary is safely reclaimable after 30 minutes. A claim abandoned after the boundary is
+marked `failed` with `EMAIL_DELIVERY_OUTCOME_UNKNOWN` rather than resent, preserving at-most-once
+delivery. Resend also receives a deterministic SHA-256-based idempotency key. A definite provider or
+recipient failure is terminally recorded as `failed` with a bounded safe code.
+
+When delivery is disabled, the processor does not query or repeatedly claim the outbox. Unique pending
+rows continue to accumulate so genuine events are not discarded. After enablement, the daily job drains
+the oldest pending rows in batches of 25 with at most three concurrent deliveries; a large disabled
+backlog can therefore take multiple daily runs to clear.
+
+Recipients are resolved only on the server from Supabase Auth's service-role admin API, and only a
+verified Watch-owner email is accepted. `profiles.locale` selects French or English, with English as
+the fallback. Recipient email is not stored in the outbox. No per-user email preference exists in the
+current product, so V1 uses the global Production switch instead of adding an unexposed settings UI.
+
 ## Operations
 
 A successful response contains only `runId`, eligible Watch and unique-SIREN totals, checked, changed,
-unchanged, failed and skipped counts, `durationMs`, and `status`. Controlled per-SIREN failures return
+unchanged, failed and skipped counts, aggregate notification counts/status, `durationMs`, and `status`.
+Controlled per-SIREN failures return
 `200` with `partial-success`; fatal configuration/database failures return `500`. Runtime logs use the
 same safe operational fields and contain no Watch rows, user emails, tokens, or secrets.
 
@@ -115,3 +156,45 @@ but its endpoint can be called manually after setting the three variables for th
 and pointing it at an isolated local/test Supabase project. Inspect execution under the Vercel project’s
 **Logs** view, filter by `/api/cron/company-monitoring` and the response `runId`, and never paste keys
 into log searches.
+
+## Production setup checklist
+
+1. Apply `20260911120000_company_watch_email_notifications.sql` to Supabase and confirm it appears in
+   migration history. The existing completion RPC remains available during this step.
+2. In Resend, verify a dedicated sending domain or subdomain using its SPF and DKIM records and create
+   a least-privilege sending key. In Vercel Production, configure `RESEND_API_KEY`, `WATCH_EMAIL_FROM`,
+   and `WATCH_APP_BASE_URL`, but keep `WATCH_EMAIL_NOTIFICATIONS_ENABLED=false`.
+3. Merge and deploy the application code. Confirm the daily schedule is still `0 6 * * *`, Preview
+   reports email delivery disabled, no real address or secret appears in logs, and the cron function
+   has enough duration for the bounded BODACC checks plus at most 25 emails in groups of three.
+4. Complete the controlled validation below while Production sending remains disabled.
+5. Set `WATCH_EMAIL_NOTIFICATIONS_ENABLED=true` in Production and redeploy. Removing the variable or
+   setting it to `false` is the delivery kill switch.
+
+## Safe end-to-end validation
+
+Use an isolated Supabase test project and a Resend-owned test recipient/address. Do not alter a real
+Watch snapshot or insert a fabricated BODACC item into Production: doing so would create a false
+user-visible event. In the isolated project, create a verified test account with a known
+`profiles.locale` and create its Company Watch through the normal application flow so the real initial
+BODACC baseline is saved. From a local integration harness, call `runCompanyMonitoring` with that
+isolated service client, an injected BODACC fetch returning one normalized event with a unique
+synthetic ID, and an injected notification processor whose sender is either fully mocked or restricted
+to the owned test inbox. Confirm one Updated transition, one outbox row, the expected locale and detail
+link, and a `sent` row with one attempt. Invoke the identical harness again and concurrently twice;
+confirm the Watch's existing Last Change remains stable and no second outbox row or message appears.
+Repeat with the sender returning a controlled error and confirm the Watch update still commits, the row
+is `failed` with a safe code, and a second Watch is still processed. After Production enablement, wait
+for a genuine BODACC event instead of manufacturing one, and correlate only aggregate cron counts and
+the resulting owned Watch state.
+
+Treat any nonzero notification `failedCount` as an operational alert. Failed rows and
+`EMAIL_DELIVERY_OUTCOME_UNKNOWN` are intentionally terminal in V1 and require service-role operator
+review; do not reset or resend them automatically. An aggregate privacy-safe inspection query is:
+
+```sql
+select status, last_error_code, count(*)
+from public.company_watch_notifications
+group by status, last_error_code
+order by status, last_error_code;
+```

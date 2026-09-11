@@ -22,6 +22,13 @@ npm install
 - `npm run build` — builds production assets into `dist/`
 - `npm run preview` — previews the production build locally
 
+## Scheduled Company Watch email
+
+Email Notifications V1 uses a server-only Resend integration and a Supabase outbox. Setup and safe
+operational guidance are in
+[`docs/automatic-company-monitoring.md`](docs/automatic-company-monitoring.md). Delivery remains off
+unless all required Production values are present and the explicit switch is `true`.
+
 ## URL Watch prototype
 
 URL-based Watch suggestions use two development-server endpoints: one reads only

@@ -102,6 +102,86 @@ end;
 $$;
 
 reset role;
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+
+insert into public.company_watch_notifications (
+  id, watch_id, user_id, source_event_id, company_name, event
+) values (
+  '30000000-0000-4000-8000-00000000000a',
+  '20000000-0000-4000-8000-00000000000a',
+  '10000000-0000-4000-8000-00000000000a',
+  'event-a', 'Company A', '{"title":"Official event","source":"BODACC"}'::jsonb
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-00000000000b', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+begin
+  begin
+    perform 1 from public.company_watch_notifications limit 1;
+    raise exception 'Notification RLS failed: browser role can read the outbox';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.company_watch_notifications (
+      watch_id, user_id, source_event_id, company_name, event
+    ) values (
+      '20000000-0000-4000-8000-00000000000b',
+      '10000000-0000-4000-8000-00000000000b',
+      'forged-event', 'Company B', '{"title":"Forged"}'::jsonb
+    );
+    raise exception 'Notification RLS failed: browser role can create email jobs';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.claim_company_watch_email_notification(
+      '30000000-0000-4000-8000-00000000000a',
+      '40000000-0000-4000-8000-00000000000a'
+    );
+    raise exception 'Notification RLS failed: browser role can claim email jobs';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.begin_company_watch_email_submission(
+      '30000000-0000-4000-8000-00000000000a',
+      '40000000-0000-4000-8000-00000000000a'
+    );
+    raise exception 'Notification RLS failed: browser role can begin email submission';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.complete_company_watch_email_notification(
+      '30000000-0000-4000-8000-00000000000a',
+      '40000000-0000-4000-8000-00000000000a',
+      'forged-provider-id'
+    );
+    raise exception 'Notification RLS failed: browser role can complete email jobs';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.fail_company_watch_email_notification(
+      '30000000-0000-4000-8000-00000000000a',
+      '40000000-0000-4000-8000-00000000000a',
+      'FORGED_FAILURE'
+    );
+    raise exception 'Notification RLS failed: browser role can fail email jobs';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.get_company_watch_notification_locale(
+      '10000000-0000-4000-8000-00000000000a'
+    );
+    raise exception 'Notification RLS failed: browser role can inspect another locale';
+  exception when insufficient_privilege then null;
+  end;
+end;
+$$;
+
+reset role;
 set local role anon;
 select set_config('request.jwt.claim.sub', '', true);
 
@@ -115,6 +195,11 @@ begin
   begin
     perform 1 from public.company_watch_snapshots limit 1;
     raise exception 'Company RLS failed: anonymous role can read snapshots';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform 1 from public.company_watch_notifications limit 1;
+    raise exception 'Notification RLS failed: anonymous role can read the outbox';
   exception when insufficient_privilege then null;
   end;
 end;

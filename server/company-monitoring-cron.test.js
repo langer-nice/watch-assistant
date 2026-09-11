@@ -45,7 +45,7 @@ const createClient = (rows, { persistence = () => 'unchanged' } = {}) => {
     return builder;
   };
   const rpc = async (name, params) => {
-    if (name === 'complete_scheduled_company_watch_check') {
+    if (name === 'complete_scheduled_company_watch_check_v2') {
       calls.completed.push(params);
       return { data: persistence(params), error: null };
     }
@@ -146,6 +146,32 @@ test('nullable summaries persist safely and database result controls changed/ide
   assert.equal(noChangeClient.calls.completed[0].p_watch_id, 'a');
 });
 
+test('every genuine new event is passed atomically to the notification outbox', async () => {
+  const client = createClient([watch('a')], { persistence: () => 'changed' });
+  const items = [
+    { id: 'new-1', title: 'First', publishedAt: '2026-09-02', source: 'BODACC' },
+    { id: 'new-2', title: 'Second', publishedAt: '2026-09-02', source: 'BODACC' },
+  ];
+  await runCompanyMonitoring({ client, fetchCompany: async () => response(items) });
+  assert.deepEqual(client.calls.completed[0].p_notification_items.map(({ id }) => id), ['new-1', 'new-2']);
+});
+
+test('notification processing failure cannot roll back a successful Watch update', async () => {
+  const client = createClient([watch('a')], { persistence: () => 'changed' });
+  const summary = await runCompanyMonitoring({
+    client,
+    fetchCompany: async () => response([{
+      id: 'new', title: 'New', publishedAt: '2026-09-02', source: 'BODACC',
+    }]),
+    notificationProcessor: async () => { throw new Error('recipient@example.test'); },
+  });
+  assert.equal(summary.changedCount, 1);
+  assert.equal(summary.failedCount, 0);
+  assert.deepEqual(summary.notifications, {
+    status: 'failed', pendingCount: 0, sentCount: 0, failedCount: 0,
+  });
+});
+
 test('canonical no-change content differences cannot fabricate an Updated transition', async () => {
   const correctedItem = {
     id: 'old', title: 'Corrected text', publishedAt: '2026-08-31', source: 'BODACC',
@@ -176,7 +202,7 @@ test('overlapping runs reject a stale completion using the snapshot version they
   const releaseOlderPromise = new Promise((resolve) => { releaseOlder = resolve; });
   const client = createClient([initial]);
   client.rpc = async (name, params) => {
-    if (name !== 'complete_scheduled_company_watch_check') return { data: true, error: null };
+    if (name !== 'complete_scheduled_company_watch_check_v2') return { data: true, error: null };
     if (params.p_last_change_item_id === 'older') {
       olderReachedPersistence();
       await releaseOlderPromise;
@@ -240,7 +266,7 @@ test('a lost completion response cannot overwrite the committed success with an 
   client.rpc = async (name, params) => {
     const versionMatches = params.p_expected_checked_at === storedSnapshot.checked_at
       && JSON.stringify(params.p_expected_items) === JSON.stringify(storedSnapshot.items);
-    if (name === 'complete_scheduled_company_watch_check') {
+    if (name === 'complete_scheduled_company_watch_check_v2') {
       assert.equal(versionMatches, true);
       storedSnapshot = {
         checked_at: params.p_checked_at,
