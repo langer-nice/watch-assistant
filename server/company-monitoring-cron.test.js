@@ -45,7 +45,7 @@ const createClient = (rows, { persistence = () => 'unchanged' } = {}) => {
     return builder;
   };
   const rpc = async (name, params) => {
-    if (name === 'complete_scheduled_company_watch_check') {
+    if (name === 'complete_scheduled_company_watch_check_v2') {
       calls.completed.push(params);
       return { data: persistence(params), error: null };
     }
@@ -202,7 +202,7 @@ test('overlapping runs reject a stale completion using the snapshot version they
   const releaseOlderPromise = new Promise((resolve) => { releaseOlder = resolve; });
   const client = createClient([initial]);
   client.rpc = async (name, params) => {
-    if (name !== 'complete_scheduled_company_watch_check') return { data: true, error: null };
+    if (name !== 'complete_scheduled_company_watch_check_v2') return { data: true, error: null };
     if (params.p_last_change_item_id === 'older') {
       olderReachedPersistence();
       await releaseOlderPromise;
@@ -266,7 +266,7 @@ test('a lost completion response cannot overwrite the committed success with an 
   client.rpc = async (name, params) => {
     const versionMatches = params.p_expected_checked_at === storedSnapshot.checked_at
       && JSON.stringify(params.p_expected_items) === JSON.stringify(storedSnapshot.items);
-    if (name === 'complete_scheduled_company_watch_check') {
+    if (name === 'complete_scheduled_company_watch_check_v2') {
       assert.equal(versionMatches, true);
       storedSnapshot = {
         checked_at: params.p_checked_at,

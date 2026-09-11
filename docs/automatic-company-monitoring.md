@@ -66,7 +66,8 @@ Apply migrations in timestamp order before deploying the application:
    `public.company_watch_snapshots`. Repeating these `GRANT SELECT` statements is safe and does not
    alter data. Scheduled writes remain exclusively behind the existing `security definer` functions.
 3. `20260911120000_company_watch_email_notifications.sql` creates the service-role-only email outbox,
-   extends atomic scheduled completion to enqueue genuine new events, and adds the delivery RPCs.
+   adds a versioned atomic scheduled-completion RPC that enqueues genuine new events without dropping
+   the deployed V1 RPC, and adds the delivery RPCs.
 
 Neither migration modifies or deletes existing Watch or current-snapshot data.
 
@@ -114,10 +115,17 @@ failed checks, manual Check now, repeated IDs, and corrections to an existing ID
 The Watch update commits before any external request, so provider failure cannot roll it back.
 
 The unique `(watch_id, user_id, channel, source_event_id)` constraint is the durable duplicate guard.
-One service-role-only RPC atomically claims a pending row and increments its attempt count. A claimed
-row is not automatically reclaimed in V1, favoring the at-most-once requirement if a process loses the
-provider response. Resend also receives a deterministic SHA-256-based idempotency key. A definite
-provider or recipient failure is terminally recorded as `failed` with a bounded safe code.
+One service-role-only RPC atomically claims a pending row. A second RPC, called immediately before the
+provider request, records the submission boundary and increments the attempt count. A claim abandoned
+before that boundary is safely reclaimable after 30 minutes. A claim abandoned after the boundary is
+marked `failed` with `EMAIL_DELIVERY_OUTCOME_UNKNOWN` rather than resent, preserving at-most-once
+delivery. Resend also receives a deterministic SHA-256-based idempotency key. A definite provider or
+recipient failure is terminally recorded as `failed` with a bounded safe code.
+
+When delivery is disabled, the processor does not query or repeatedly claim the outbox. Unique pending
+rows continue to accumulate so genuine events are not discarded. After enablement, the daily job drains
+the oldest pending rows in batches of 25 with at most three concurrent deliveries; a large disabled
+backlog can therefore take multiple daily runs to clear.
 
 Recipients are resolved only on the server from Supabase Auth's service-role admin API, and only a
 verified Watch-owner email is accepted. `profiles.locale` selects French or English, with English as
@@ -151,18 +159,17 @@ into log searches.
 
 ## Production setup checklist
 
-1. In Resend, add a dedicated sending domain or subdomain and publish the SPF and DKIM records it
-   provides. Wait until the domain is fully verified.
-2. Create a least-privilege Resend sending API key. Do not put it in `.env`, browser configuration, or
-   any variable whose name begins with `VITE_`.
-3. Apply `20260911120000_company_watch_email_notifications.sql` to Supabase and confirm it appears in
-   migration history before deploying application code that sends `p_notification_items`.
-4. In Vercel Production only, configure `RESEND_API_KEY`, `WATCH_EMAIL_FROM`, and
-   `WATCH_APP_BASE_URL`. Keep `WATCH_EMAIL_NOTIFICATIONS_ENABLED=false` for the first deployment.
-5. Deploy and confirm the existing daily schedule is still `0 6 * * *`, Preview reports email delivery
-   disabled, and no real address or secret appears in logs.
-6. Complete the controlled validation below, then set `WATCH_EMAIL_NOTIFICATIONS_ENABLED=true` in
-   Production and redeploy. Removing the variable or setting it to `false` is the delivery kill switch.
+1. Apply `20260911120000_company_watch_email_notifications.sql` to Supabase and confirm it appears in
+   migration history. The existing completion RPC remains available during this step.
+2. In Resend, verify a dedicated sending domain or subdomain using its SPF and DKIM records and create
+   a least-privilege sending key. In Vercel Production, configure `RESEND_API_KEY`, `WATCH_EMAIL_FROM`,
+   and `WATCH_APP_BASE_URL`, but keep `WATCH_EMAIL_NOTIFICATIONS_ENABLED=false`.
+3. Merge and deploy the application code. Confirm the daily schedule is still `0 6 * * *`, Preview
+   reports email delivery disabled, no real address or secret appears in logs, and the cron function
+   has enough duration for the bounded BODACC checks plus at most 25 emails in groups of three.
+4. Complete the controlled validation below while Production sending remains disabled.
+5. Set `WATCH_EMAIL_NOTIFICATIONS_ENABLED=true` in Production and redeploy. Removing the variable or
+   setting it to `false` is the delivery kill switch.
 
 ## Safe end-to-end validation
 
@@ -180,3 +187,14 @@ Repeat with the sender returning a controlled error and confirm the Watch update
 is `failed` with a safe code, and a second Watch is still processed. After Production enablement, wait
 for a genuine BODACC event instead of manufacturing one, and correlate only aggregate cron counts and
 the resulting owned Watch state.
+
+Treat any nonzero notification `failedCount` as an operational alert. Failed rows and
+`EMAIL_DELIVERY_OUTCOME_UNKNOWN` are intentionally terminal in V1 and require service-role operator
+review; do not reset or resend them automatically. An aggregate privacy-safe inspection query is:
+
+```sql
+select status, last_error_code, count(*)
+from public.company_watch_notifications
+group by status, last_error_code
+order by status, last_error_code;
+```

@@ -60,6 +60,7 @@ test('configuration is fail-closed when disabled, incomplete, or on Preview', ()
   assert.equal(getCompanyWatchEmailConfig(complete), null);
   assert.equal(getCompanyWatchEmailConfig({ ...complete, VERCEL_ENV: 'preview' }), null);
   assert.equal(getCompanyWatchEmailConfig({ ...complete, VERCEL_ENV: 'development' }), null);
+  assert.equal(getCompanyWatchEmailConfig({ ...complete, VERCEL_ENV: 'production', NODE_ENV: 'test' }), null);
   assert.deepEqual(getCompanyWatchEmailConfig({ ...complete, VERCEL_ENV: 'production' }), {
     apiKey: 're_placeholder', from: 'Watch Assistant <watch@example.test>',
     baseUrl: 'https://watch.example/',
@@ -89,4 +90,15 @@ test('Resend request includes text, HTML, and a deterministic idempotency key', 
   assert.equal(key, createNotificationIdempotencyKey({
     watchId: 'watch-1', userId: 'user-1', sourceEventId: 'event-1',
   }));
+});
+
+test('an indeterminate provider transport failure is normalized without response detail', async () => {
+  await assert.rejects(sendWithResend({
+    apiKey: 're_not_real', from: 'Watch <watch@example.test>', to: 'owner@example.test',
+    subject: 'Subject', html: '<p>HTML</p>', text: 'Text', idempotencyKey: 'stable-key',
+  }, { fetchImpl: async () => { throw new Error('socket token=secret'); } }), (error) => {
+    assert.equal(error.code, 'EMAIL_DELIVERY_OUTCOME_UNKNOWN');
+    assert.doesNotMatch(error.message, /socket|secret/u);
+    return true;
+  });
 });

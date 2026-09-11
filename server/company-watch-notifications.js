@@ -7,7 +7,8 @@ import {
   sendWithResend,
 } from './company-watch-email.js';
 
-const MAX_NOTIFICATIONS_PER_RUN = 200;
+const MAX_NOTIFICATIONS_PER_RUN = 25;
+const NOTIFICATION_CONCURRENCY = 3;
 
 const safeCode = (error) => typeof error?.code === 'string'
   ? error.code.replace(/[^A-Z0-9_-]/giu, '').slice(0, 100) || 'EMAIL_DELIVERY_FAILED'
@@ -18,7 +19,6 @@ const loadPendingNotifications = async (client) => {
     .select('id')
     .eq('channel', 'email')
     .eq('status', 'pending')
-    .eq('attempt_count', 0)
     .order('created_at')
     .range(0, MAX_NOTIFICATIONS_PER_RUN - 1);
   if (error) throw Object.assign(new Error('Notification outbox could not be loaded.'), { code: 'DATABASE_ERROR' });
@@ -32,6 +32,16 @@ const claimNotification = async (client, id, claimToken) => {
   });
   if (error) throw Object.assign(new Error('Notification could not be claimed.'), { code: 'DATABASE_ERROR' });
   return data;
+};
+
+const beginSubmission = async (client, id, claimToken) => {
+  const { data, error } = await client.rpc('begin_company_watch_email_submission', {
+    p_notification_id: id,
+    p_claim_token: claimToken,
+  });
+  if (error || data !== true) {
+    throw Object.assign(new Error('Notification submission could not be started.'), { code: 'DATABASE_ERROR' });
+  }
 };
 
 const loadRecipient = async (client, userId) => {
@@ -61,6 +71,13 @@ const recordFailure = async (client, notificationId, claimToken, error) => {
   });
 };
 
+const mapBounded = async (entries, concurrency, worker) => {
+  let cursor = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, entries.length) }, async () => {
+    while (cursor < entries.length) await worker(entries[cursor++]);
+  }));
+};
+
 export const processCompanyWatchEmailNotifications = async ({
   client,
   env = process.env,
@@ -72,14 +89,14 @@ export const processCompanyWatchEmailNotifications = async ({
 
   const pending = await loadPendingNotifications(client);
   let sentCount = 0; let failedCount = 0; let skippedCount = 0;
-  for (const { id } of pending) {
+  await mapBounded(pending, NOTIFICATION_CONCURRENCY, async ({ id }) => {
     const claimToken = createClaimToken();
     let notification;
     try {
       notification = await claimNotification(client, id, claimToken);
       if (!notification) {
         skippedCount += 1;
-        continue;
+        return;
       }
       const recipient = await loadRecipient(client, notification.user_id);
       const content = renderCompanyWatchEmail({
@@ -89,6 +106,7 @@ export const processCompanyWatchEmailNotifications = async ({
         event: notification.event,
         baseUrl: config.baseUrl,
       });
+      await beginSubmission(client, id, claimToken);
       const delivered = await sender({
         ...config,
         to: recipient.email,
@@ -117,7 +135,7 @@ export const processCompanyWatchEmailNotifications = async ({
         try { await recordFailure(client, id, claimToken, error); } catch { /* Preserve other recipients. */ }
       }
     }
-  }
+  });
   return {
     status: failedCount ? 'partial-success' : 'success',
     pendingCount: pending.length,

@@ -43,11 +43,21 @@ const createClient = (initial, { users = {}, locales = {} } = {}) => {
     }
     const row = rows.get(params.p_notification_id);
     if (name === 'claim_company_watch_email_notification') {
-      if (!row || row.status !== 'pending' || row.attempt_count !== 0 || row.claim_token) {
+      if (row?.stale && row.submission_started_at) {
+        row.status = 'failed'; row.last_error_code = 'EMAIL_DELIVERY_OUTCOME_UNKNOWN';
         return { data: null, error: null };
       }
-      row.attempt_count += 1; row.claim_token = params.p_claim_token; calls.claims.push(params);
+      if (!row || row.status !== 'pending' || (row.claim_token && !row.stale)) {
+        return { data: null, error: null };
+      }
+      row.claim_token = params.p_claim_token; row.stale = false; calls.claims.push(params);
       return { data: structuredClone(row), error: null };
+    }
+    if (name === 'begin_company_watch_email_submission') {
+      if (row?.claim_token !== params.p_claim_token || row.status !== 'pending'
+        || row.submission_started_at) return { data: false, error: null };
+      row.submission_started_at = '2026-09-11T06:00:00Z'; row.attempt_count += 1;
+      return { data: true, error: null };
     }
     if (name === 'complete_company_watch_email_notification') {
       if (row?.claim_token !== params.p_claim_token || row.status !== 'pending') {
@@ -94,6 +104,35 @@ test('overlapping processors atomically claim one event and send only once', asy
   await Promise.all([run('claim-a'), run('claim-b')]);
   assert.equal(sends.length, 1); assert.equal(store.rows.get('one').attempt_count, 1);
   assert.equal(store.rows.get('one').status, 'sent');
+});
+
+test('a stale pre-submission claim is safely recovered and delivered', async () => {
+  const row = notification('one');
+  row.claim_token = 'abandoned-claim'; row.stale = true;
+  const store = createClient([row]);
+  let sends = 0;
+  const result = await processCompanyWatchEmailNotifications({
+    client: store.client, env: enabledEnv, createClaimToken: () => 'recovery-claim',
+    sender: async () => { sends += 1; return { id: 'message-one' }; },
+  });
+  assert.equal(result.sentCount, 1); assert.equal(sends, 1);
+  assert.equal(store.rows.get('one').attempt_count, 1);
+  assert.equal(store.rows.get('one').status, 'sent');
+});
+
+test('a stale post-submission claim becomes an observable terminal ambiguity without resending', async () => {
+  const row = notification('one');
+  row.claim_token = 'abandoned-claim'; row.stale = true;
+  row.submission_started_at = '2026-09-10T06:00:00Z'; row.attempt_count = 1;
+  const store = createClient([row]);
+  let sends = 0;
+  const result = await processCompanyWatchEmailNotifications({
+    client: store.client, env: enabledEnv, createClaimToken: () => 'recovery-claim',
+    sender: async () => { sends += 1; return { id: 'unexpected' }; },
+  });
+  assert.equal(result.sentCount, 0); assert.equal(result.skippedCount, 1); assert.equal(sends, 0);
+  assert.equal(store.rows.get('one').status, 'failed');
+  assert.equal(store.rows.get('one').last_error_code, 'EMAIL_DELIVERY_OUTCOME_UNKNOWN');
 });
 
 test('a provider failure is safely recorded and does not block another recipient', async () => {

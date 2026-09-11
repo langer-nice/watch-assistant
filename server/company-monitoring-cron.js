@@ -69,7 +69,7 @@ const persistResult = async (client, row, response) => {
     result.changes.company?.administrativeStatus || response.company?.administrativeStatus,
   );
   const snapshot = result.changes.monitoringSnapshot;
-  const { data, error } = await client.rpc('complete_scheduled_company_watch_check', {
+  const { data, error } = await client.rpc('complete_scheduled_company_watch_check_v2', {
     p_watch_id: row.id,
     p_checked_at: snapshot.checkedAt,
     p_source_title: snapshot.source?.title,

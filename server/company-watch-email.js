@@ -69,6 +69,7 @@ const cleanText = (value, maxLength) => {
 };
 
 const normalizeLocale = (value) => (value === 'fr' ? 'fr' : 'en');
+const RESEND_TIMEOUT_MS = 10_000;
 
 const formatDate = (value, locale) => {
   const date = new Date(value);
@@ -93,6 +94,7 @@ const validateBaseUrl = (value) => {
 
 export const getCompanyWatchEmailConfig = (env = process.env) => {
   if (env?.WATCH_EMAIL_NOTIFICATIONS_ENABLED !== 'true') return null;
+  if (env?.NODE_ENV === 'test') return null;
   if (env?.VERCEL_ENV !== 'production') return null;
   const apiKey = String(env?.RESEND_API_KEY || '').trim();
   const rawFrom = String(env?.WATCH_EMAIL_FROM || '');
@@ -145,16 +147,30 @@ export const renderCompanyWatchEmail = ({ locale, watchId, companyName, event, b
 
 export const sendWithResend = async ({ apiKey, from, to, subject, html, text, idempotencyKey }, {
   fetchImpl = fetch,
+  timeoutMs = RESEND_TIMEOUT_MS,
 } = {}) => {
-  const response = await fetchImpl('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'Idempotency-Key': idempotencyKey,
-    },
-    body: JSON.stringify({ from, to: [to], subject, html, text }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  timeout.unref?.();
+  let response;
+  try {
+    response = await fetchImpl('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify({ from, to: [to], subject, html, text }),
+      signal: controller.signal,
+    });
+  } catch {
+    const error = new Error('Transactional email provider outcome is unknown.');
+    error.code = 'EMAIL_DELIVERY_OUTCOME_UNKNOWN';
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
   const body = await response.json().catch(() => null);
   if (!response.ok || typeof body?.id !== 'string') {
     const error = new Error('Transactional email provider rejected the request.');

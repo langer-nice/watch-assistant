@@ -15,7 +15,15 @@ create table public.company_watch_notifications (
   provider_message_id text check (provider_message_id is null or char_length(provider_message_id) <= 200),
   claim_token uuid,
   claimed_at timestamptz,
+  submission_started_at timestamptz,
   constraint company_watch_notifications_event_object_check check (jsonb_typeof(event) = 'object'),
+  constraint company_watch_notifications_claim_state_check check (
+    (claim_token is null and claimed_at is null and submission_started_at is null)
+    or (claim_token is not null and claimed_at is not null)
+  ),
+  constraint company_watch_notifications_submission_state_check check (
+    submission_started_at is null or attempt_count > 0
+  ),
   constraint company_watch_notifications_delivery_state_check check (
     (status = 'sent' and sent_at is not null and provider_message_id is not null)
     or (status <> 'sent' and sent_at is null)
@@ -26,18 +34,13 @@ create table public.company_watch_notifications (
 
 create index company_watch_notifications_pending_idx
   on public.company_watch_notifications (created_at)
-  where status = 'pending' and attempt_count = 0;
+  where status = 'pending';
 
 alter table public.company_watch_notifications enable row level security;
 revoke all on table public.company_watch_notifications from public, anon, authenticated;
 grant select, insert, update on table public.company_watch_notifications to service_role;
 
-drop function public.complete_scheduled_company_watch_check(
-  uuid, timestamptz, text, text, text[], jsonb, timestamptz, jsonb, text, text, text, text,
-  text, text, text, text, text, timestamptz
-);
-
-create function public.complete_scheduled_company_watch_check(
+create function public.complete_scheduled_company_watch_check_v2(
   p_watch_id uuid,
   p_checked_at timestamptz,
   p_source_title text,
@@ -167,11 +170,11 @@ begin
 end;
 $$;
 
-revoke all on function public.complete_scheduled_company_watch_check(
+revoke all on function public.complete_scheduled_company_watch_check_v2(
   uuid, timestamptz, text, text, text[], jsonb, timestamptz, jsonb, text, text, text, text,
   text, text, text, text, text, timestamptz, jsonb
 ) from public, anon, authenticated;
-grant execute on function public.complete_scheduled_company_watch_check(
+grant execute on function public.complete_scheduled_company_watch_check_v2(
   uuid, timestamptz, text, text, text[], jsonb, timestamptz, jsonb, text, text, text, text,
   text, text, text, text, text, timestamptz, jsonb
 ) to service_role;
@@ -207,9 +210,21 @@ begin
     raise exception 'Notification delivery requires service role' using errcode = '42501';
   end if;
   update public.company_watch_notifications
-  set claim_token = p_claim_token, claimed_at = timezone('utc', now()), attempt_count = attempt_count + 1
+  set status = 'failed', last_error_code = 'EMAIL_DELIVERY_OUTCOME_UNKNOWN'
   where id = p_notification_id and channel = 'email' and status = 'pending'
-    and attempt_count = 0 and claim_token is null
+    and submission_started_at is not null
+    and claimed_at < timezone('utc', now()) - interval '30 minutes';
+  if found then return null; end if;
+
+  update public.company_watch_notifications
+  set claim_token = p_claim_token, claimed_at = timezone('utc', now())
+  where id = p_notification_id and channel = 'email' and status = 'pending'
+    and p_claim_token is not null
+    and submission_started_at is null
+    and (
+      claim_token is null
+      or claimed_at < timezone('utc', now()) - interval '30 minutes'
+    )
   returning * into claimed;
   if claimed.id is null then return null; end if;
   return jsonb_build_object(
@@ -220,6 +235,29 @@ begin
     'company_name', claimed.company_name,
     'event', claimed.event
   );
+end;
+$$;
+
+create or replace function public.begin_company_watch_email_submission(
+  p_notification_id uuid,
+  p_claim_token uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare started boolean := false;
+begin
+  if auth.role() <> 'service_role' then
+    raise exception 'Notification delivery requires service role' using errcode = '42501';
+  end if;
+  update public.company_watch_notifications
+  set submission_started_at = timezone('utc', now()), attempt_count = attempt_count + 1
+  where id = p_notification_id and status = 'pending' and claim_token = p_claim_token
+    and submission_started_at is null
+  returning true into started;
+  return coalesce(started, false);
 end;
 $$;
 
@@ -242,6 +280,7 @@ begin
   set status = 'sent', sent_at = timezone('utc', now()),
       provider_message_id = left(p_provider_message_id, 200), last_error_code = null
   where id = p_notification_id and status = 'pending' and claim_token = p_claim_token
+    and submission_started_at is not null and attempt_count > 0
     and p_provider_message_id is not null and char_length(p_provider_message_id) > 0
   returning true into completed;
   return coalesce(completed, false);
@@ -273,6 +312,8 @@ $$;
 
 revoke all on function public.claim_company_watch_email_notification(uuid, uuid)
   from public, anon, authenticated;
+revoke all on function public.begin_company_watch_email_submission(uuid, uuid)
+  from public, anon, authenticated;
 revoke all on function public.complete_company_watch_email_notification(uuid, uuid, text)
   from public, anon, authenticated;
 revoke all on function public.fail_company_watch_email_notification(uuid, uuid, text)
@@ -280,6 +321,7 @@ revoke all on function public.fail_company_watch_email_notification(uuid, uuid, 
 revoke all on function public.get_company_watch_notification_locale(uuid)
   from public, anon, authenticated;
 grant execute on function public.claim_company_watch_email_notification(uuid, uuid) to service_role;
+grant execute on function public.begin_company_watch_email_submission(uuid, uuid) to service_role;
 grant execute on function public.complete_company_watch_email_notification(uuid, uuid, text) to service_role;
 grant execute on function public.fail_company_watch_email_notification(uuid, uuid, text) to service_role;
 grant execute on function public.get_company_watch_notification_locale(uuid) to service_role;
