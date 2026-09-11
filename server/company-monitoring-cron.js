@@ -5,6 +5,7 @@ import { deriveCompanyStatus } from '../src/js/company-watch-status.js';
 import { normalizeAdministrativeStatus } from '../src/js/company-administrative-status.js';
 import { fetchBodaccAnnouncements, normalizeSiren } from './bodacc-api.js';
 import { mapCompanyWatchRow } from './company-watch-repository.js';
+import { processCompanyWatchEmailNotifications } from './company-watch-notifications.js';
 import { createSupabaseServiceClient, requireCronSecret } from './supabase-service.js';
 
 export const COMPANY_MONITORING_CRON_ENDPOINT = '/api/cron/company-monitoring';
@@ -87,6 +88,7 @@ const persistResult = async (client, row, response) => {
     p_last_change_summary: latestChange?.excerpt || null,
     p_last_change_event_type: latestChange?.eventType || null,
     p_last_change_published_at: latestChange?.publishedAt || null,
+    p_notification_items: result.matchedItems,
   });
   if (error) throw Object.assign(new Error('The scheduled result could not be persisted.'), { code: 'DATABASE_ERROR' });
   if (!['changed', 'unchanged', 'skipped'].includes(data)) {
@@ -110,6 +112,8 @@ export const runCompanyMonitoring = async ({
   fetchCompany = (siren) => fetchBodaccAnnouncements(siren),
   pageSize = COMPANY_MONITORING_PAGE_SIZE,
   concurrency = COMPANY_MONITORING_CONCURRENCY,
+  env = process.env,
+  notificationProcessor = processCompanyWatchEmailNotifications,
 } = {}) => {
   const rows = await loadEligibleWatches(client, pageSize);
   const groups = new Map();
@@ -147,6 +151,12 @@ export const runCompanyMonitoring = async ({
       }
     }
   });
+  let notifications = { status: 'disabled', pendingCount: 0, sentCount: 0, failedCount: 0 };
+  try {
+    notifications = await notificationProcessor({ client, env });
+  } catch {
+    notifications = { status: 'failed', pendingCount: 0, sentCount: 0, failedCount: 0 };
+  }
   return {
     totalEligibleWatches: rows.length,
     uniqueSirens: groups.size,
@@ -155,6 +165,7 @@ export const runCompanyMonitoring = async ({
     unchangedCount: unchanged,
     failedCount: failed,
     skippedCount: skipped,
+    notifications,
     status: failed ? 'partial-success' : 'success',
   };
 };
@@ -185,7 +196,7 @@ export const createCompanyMonitoringCronHandler = ({
     return;
   }
   try {
-    const summary = await runner({ client: clientFactory({ env }), ...options });
+    const summary = await runner({ client: clientFactory({ env }), env, ...options });
     const result = { runId, ...summary, durationMs: Math.max(0, now() - startedAt) };
     logger.info?.('[Company monitoring cron] Run completed.', result);
     sendJson(response, 200, result);

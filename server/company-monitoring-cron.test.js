@@ -146,6 +146,32 @@ test('nullable summaries persist safely and database result controls changed/ide
   assert.equal(noChangeClient.calls.completed[0].p_watch_id, 'a');
 });
 
+test('every genuine new event is passed atomically to the notification outbox', async () => {
+  const client = createClient([watch('a')], { persistence: () => 'changed' });
+  const items = [
+    { id: 'new-1', title: 'First', publishedAt: '2026-09-02', source: 'BODACC' },
+    { id: 'new-2', title: 'Second', publishedAt: '2026-09-02', source: 'BODACC' },
+  ];
+  await runCompanyMonitoring({ client, fetchCompany: async () => response(items) });
+  assert.deepEqual(client.calls.completed[0].p_notification_items.map(({ id }) => id), ['new-1', 'new-2']);
+});
+
+test('notification processing failure cannot roll back a successful Watch update', async () => {
+  const client = createClient([watch('a')], { persistence: () => 'changed' });
+  const summary = await runCompanyMonitoring({
+    client,
+    fetchCompany: async () => response([{
+      id: 'new', title: 'New', publishedAt: '2026-09-02', source: 'BODACC',
+    }]),
+    notificationProcessor: async () => { throw new Error('recipient@example.test'); },
+  });
+  assert.equal(summary.changedCount, 1);
+  assert.equal(summary.failedCount, 0);
+  assert.deepEqual(summary.notifications, {
+    status: 'failed', pendingCount: 0, sentCount: 0, failedCount: 0,
+  });
+});
+
 test('canonical no-change content differences cannot fabricate an Updated transition', async () => {
   const correctedItem = {
     id: 'old', title: 'Corrected text', publishedAt: '2026-08-31', source: 'BODACC',
