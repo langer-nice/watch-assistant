@@ -25,6 +25,10 @@ export const getBodaccBusinessEventTranslationKey = (update) => {
     : null;
 };
 
+export const isBodaccBusinessEvent = (update) => (
+  getBodaccBusinessEventTranslationKey(update) !== null
+);
+
 export const getBodaccBusinessEventLabel = (update, translate = () => '') => {
   const key = getBodaccBusinessEventTranslationKey(update);
   return key ? translate(key) : '';
