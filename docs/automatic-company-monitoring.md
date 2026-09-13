@@ -212,9 +212,12 @@ with a Vercel Production environment and the existing complete Resend configurat
 (or incompletely configured), scheduled snapshots advance but notification intent is deliberately
 not enqueued, so enabling the flag cannot release an old backlog. English is the fallback locale.
 
-Safe activation order: (1) add `MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED=false` to Production,
-(2) apply the new migration, (3) deploy the code, (4) run an authorized synthetic scheduled check
-with a mocked/test recipient and confirm aggregate logs, then (5) set the flag to `true` and redeploy.
+Safe activation order, for a separately authorized operator: (1) keep
+`MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED=false` in Production, (2) verify PR #17 migrations are
+already recorded and apply the new migration exactly once, (3) deploy the reviewed code, (4) validate
+with synthetic feeds and a mocked sender only in an isolated database, (5) observe genuine Production
+baselines with sending still disabled, then (6) explicitly authorize activation, set the flag to
+`true` and redeploy. Never manufacture events or call a mocked harness against Production.
 Code deployed before the migration reports media monitoring as unavailable while Company monitoring
 continues. Rollback is performed by setting the media flag to `false`; do not roll back the migration.
 
@@ -268,3 +271,64 @@ soft deletion, unsupported edits and explicit conflict resolution. PostgreSQL's 
 function substitutes for the unavailable optional `pgcrypto` extension in this local harness; no
 Supabase service is contacted. Production email transport is blocked under `NODE_ENV=test`, while
 email rendering/delivery-contract tests use explicit mocked senders or HTTP implementations.
+
+### Production-readiness corrections and operating limits
+
+A durable `media_watch_seen_articles` ledger records canonical URL hashes and stable feed-ID hashes
+for every observed item, including baseline, nonmatching and disabled observations. It survives the
+20-item snapshot rotation and definition edits. A repeated URL with tracking parameters or a corrected
+feed GUID cannot become new after disappearing from the snapshot. Distinct URLs with the same title
+remain distinct. Known publication dates at or before the first scheduled baseline are excluded;
+items without dates rely on their observed identities. The system cannot determine an undisclosed
+publication date or recognize an article whose publisher changes both its URL and stable ID.
+
+The scheduled completion transaction decides which matching identities are truly new and atomically
+writes Watch state, the snapshot, identities and outbox rows. The browser hydrates the latest scheduled
+article without changing its original detection timestamp or erasing local history/read state, and
+retains a more recent manual check timestamp. Detail reports synchronization and the actual server-side
+email availability flag separately; a saved Watch does not imply that email is enabled.
+
+The media stage processes at most 50 Watches, with pages of at most 50, three concurrent feed checks
+and a 45-second stage deadline. Least-recently-checked Watches are selected first; failed checks record
+an attempt so one failing Watch cannot permanently monopolize the batch. Delivery processes at most
+25 jobs in groups of three, sharing the media stage deadline (30 seconds when run independently).
+Individual asynchronous operations have an eight-second budget. A deadline stops further operations;
+an already submitted database/provider request can finish after its caller times out, so transaction
+versions, leases and the durable submission boundary remain essential.
+
+This bounds the new media stage, not the pre-existing Company stage: that stage still processes all
+eligible Company Watches before media. Before production activation, verify the combined endpoint's
+configured duration and observed Company workload leave room for media; no Vercel duration setting or
+schedule is changed here. A daily batch of 50 also limits how frequently larger media populations are
+checked. Monitor aggregate eligible/failed/skipped/deadline counts and agree capacity before expanding
+usage. The identity ledger grows with observed articles; do not prune it without a replacement durable
+historical-identity strategy.
+
+Every media cron run cancels unsubmitted pending jobs when email is disabled and terminalizes expired
+post-submission claims as `EMAIL_DELIVERY_OUTCOME_UNKNOWN`. Fresh claimed jobs do not block selection of
+other pending jobs. Claims abandoned before submission are reclaimable after 30 minutes. Completion
+failure or timeout after contacting the provider is uncertain delivery and must never be automatically
+resent. Review terminal failures with aggregate status/error counts; do not reset their status to pending.
+Disabling requires at least one disabled cron maintenance pass before re-enabling to cancel pre-existing
+unsubmitted work; it cannot recall a request whose submission has already started.
+
+### Recreating an unowned legacy Watch
+
+Sign in to the intended account and keep the old local Watch. Open **New Watch**, copy its request and
+source/matching concepts, and create the replacement explicitly. Confirm the new Watch shows that it
+is synced, reload its Detail page and verify its definition. Only then decide whether to delete the old
+local copy. The replacement intentionally has a new UUID; the old Watch is never silently reassigned,
+overwritten or deleted. If synchronization fails, retain both local copies and use **Retry sync**.
+
+### Deployment-state checks
+
+- New code before migration: media API failures leave the journal and local Watch intact; media cron
+  reports unavailable independently of Company success. No media submission is possible.
+- Migration before new code: existing Company functions/grants remain usable; migration statements
+  do not manufacture snapshots, notification jobs or email. The media migration is one transactional
+  operation, not a replayable repair script; uncertain execution requires inspecting migration history.
+- New code with media email disabled: persistence and baselines work; observed identities advance,
+  new email intent is discarded and old unsubmitted jobs are cancelled on the next maintenance pass.
+- Enabled: only exact lowercase `true`, `VERCEL_ENV=production`, non-test execution and complete valid
+  server-only email configuration permit sending. The Company flag does not enable media email.
+  Preview, Development and the automated test transport remain blocked.

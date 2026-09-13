@@ -1,3 +1,4 @@
+import { addUpdateToWatch } from './watch-updates.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
 import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
 
@@ -8,6 +9,7 @@ let generation = 0;
 let latestRead = 0;
 let identity = null;
 let rows = [];
+let emailEnabled = false;
 let running = null;
 let rerun = false;
 const session = () => {
@@ -46,7 +48,7 @@ export const prepareMediaWatch = (watch, previous) => {
       const remote = rows.find((row) => row.id === watch.id);
       write(user, watch.id, {
         definition, revision: existing?.revision ?? Number(remote?.media_revision ?? 0),
-        mutation: crypto.randomUUID(), pending: true, deleted: false,
+        mutation: crypto.randomUUID(), baseMutation: existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: false,
       });
     }
     queueMicrotask(() => { void synchronizeMediaWatches(); });
@@ -62,7 +64,7 @@ export const prepareMediaWatch = (watch, previous) => {
         };
         write(user, watch.id, { definition: { ...definition, monitoring_state: 'paused' },
           revision: existing?.revision ?? Number(remote.media_revision), mutation: crypto.randomUUID(),
-          pending: true, deleted: false, localOnly: true });
+          baseMutation: existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: false, localOnly: true });
         queueMicrotask(() => { void synchronizeMediaWatches(); });
       } catch { /* Preserve local data if browser storage is unavailable. */ }
     }
@@ -80,7 +82,7 @@ export const queueMediaWatchDeletion = (watch) => {
   write(user, watch.id, {
     definition: existing?.definition || mediaWatchDefinition(watch),
     revision: existing?.revision ?? Number(remote?.media_revision ?? 0),
-    mutation: crypto.randomUUID(), pending: true, deleted: true,
+    mutation: crypto.randomUUID(), baseMutation: existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: true,
   });
   queueMicrotask(() => { void synchronizeMediaWatches(); });
 };
@@ -91,6 +93,10 @@ export const getMediaServerWatches = () => (owner() && owner() === identity ? ro
   monitoringSource: row.monitoring_source, feedUrl: row.monitoring_source.url,
   status: row.monitoring_state === 'paused' ? 'paused' : row.current_status,
   createdAt: row.created_at,
+  lastChecked: row.last_checked_at || null,
+  updates: row.last_change_item_id ? [{ id: row.last_change_item_id, timestamp: row.media_last_change_detected_at,
+    sourceTitle: row.last_change_title, sourceUrl: row.last_change_url, summary: row.last_change_summary,
+    publishedAt: row.last_change_published_at, status: 'new' }] : [],
   mediaPersistence: { ownerId: owner() },
 }));
 export const mergeMediaWatches = (local) => {
@@ -104,7 +110,14 @@ export const mergeMediaWatches = (local) => {
     const remote = getMediaServerWatches().find((watch) => watch.id === row.id);
     // Never replace a local Watch with uncertain ownership.
     if (!merged.has(row.id) || merged.get(row.id).mediaPersistence?.ownerId === user) {
-      merged.set(row.id, { ...merged.get(row.id), ...remote });
+      const localWatch = merged.get(row.id);
+      let hydrated = { ...localWatch, ...remote, updates: localWatch?.updates || [] };
+      // A scheduled hydration must not erase a more recent manual check on this device.
+      if (Date.parse(localWatch?.lastChecked) > (Date.parse(remote.lastChecked) || 0)) {
+        hydrated.lastChecked = localWatch.lastChecked;
+      }
+      for (const update of remote.updates) hydrated = addUpdateToWatch(hydrated, update);
+      merged.set(row.id, hydrated);
     }
   }
   return [...merged.values()];
@@ -118,8 +131,8 @@ export const getMediaPersistenceState = (watch) => {
   const remote = rows.find((row) => row.id === watch.id);
   if (job?.conflict) return { status: 'conflict', remoteTitle: remote?.title || '', remoteRequest: remote?.watch_definition?.request || '', revision: Number(remote?.media_revision) };
   if (job?.pending) return { status: 'pending' };
-  if (job?.localOnly || !job) return { status: 'local-only' };
-  return { status: 'saved' };
+  if (job?.localOnly || (!job && !remote)) return { status: 'local-only' };
+  return { status: 'saved', emailEnabled };
 };
 
 export const keepLocalMediaChanges = async (id, reviewedRevision) => {
@@ -154,9 +167,9 @@ export const synchronizeMediaWatches = async () => {
           const current = read(user, job.definition.id);
           if (current?.mutation === job.mutation) {
             write(user, job.definition.id, { ...current, revision: watch.media_revision, pending: false });
-          } else if (current && current.revision === job.revision) {
+          } else if (current && current.revision === job.revision && current.baseMutation === job.mutation) {
             // Only a confirmed predecessor can advance an edit/deletion queued during this request.
-            write(user, job.definition.id, { ...current, revision: watch.media_revision });
+            write(user, job.definition.id, { ...current, revision: watch.media_revision, baseMutation: null });
             rerun = true;
           }
         } catch (error) {
@@ -171,8 +184,14 @@ export const synchronizeMediaWatches = async () => {
       const body = await request(token);
       if (fresh() && readId === latestRead) {
         rows = body.watches;
+        emailEnabled = body.emailEnabled === true;
         for (const row of rows) {
           const current = read(user, row.id);
+          if (current?.pending && current.baseMutation && current.baseMutation === row.media_mutation_id) {
+            write(user, row.id, { ...current, revision: Number(row.media_revision), baseMutation: null, conflict: false });
+            rerun = true;
+            continue;
+          }
           // An explicit deletion can retry against a newer definition without overwriting it.
           if (current?.deleted && current.conflict) {
             write(user, row.id, { ...current, revision: Number(row.media_revision),
@@ -201,7 +220,7 @@ export const configureMediaWatchServerStore = async (auth) => {
     const next = owner();
     generation += 1;
     latestRead += 1;
-    if (next !== identity) { rows = []; identity = next; notify(); }
+    if (next !== identity) { rows = []; emailEnabled = false; identity = next; notify(); }
     // Recover owned local definitions whose pending record was never written; never adopt unowned legacy data.
     try {
       const local = JSON.parse(localStorage.getItem('watchAssistant.watches') || '[]');

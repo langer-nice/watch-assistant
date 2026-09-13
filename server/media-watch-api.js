@@ -1,3 +1,4 @@
+import { getMediaWatchEmailConfig } from './media-watch-email.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
 import { mediaWatchDefinition } from '../src/js/media-watch-definition.js';
 
@@ -15,13 +16,13 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
       const watches = [];
       for (let start = 0; ; start += 100) {
         const { data, error } = await client.from('watches')
-          .select('id,title,watch_definition,monitoring_source,monitoring_state,current_status,created_at,deleted_at,media_revision,media_mutation_id')
+          .select('id,title,watch_definition,monitoring_source,monitoring_state,current_status,created_at,deleted_at,media_revision,media_mutation_id,last_checked_at,media_last_change_detected_at,last_change_item_id,last_change_title,last_change_url,last_change_summary,last_change_published_at')
           .eq('user_id', user.id).eq('type', 'media_news').order('id').range(start, start + 99);
         if (error) throw new Error('DATABASE_ERROR');
         watches.push(...data);
         if (data.length < 100) break;
       }
-      return send(200, { watches });
+      return send(200, { watches, emailEnabled: Boolean(getMediaWatchEmailConfig(options.env || process.env)) });
     }
     if (request.method !== 'POST') return send(405, { code: 'METHOD_NOT_ALLOWED' });
     let raw = request.body;

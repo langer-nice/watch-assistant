@@ -12,9 +12,9 @@ alter table public.watches add constraint watches_type_shape_check check (
 create table public.media_watch_snapshots (
   watch_id uuid primary key references public.watches(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
-  checked_at timestamptz not null, source_title text, source_url text,
+  checked_at timestamptz not null, baseline_at timestamptz not null, source_title text, source_url text,
   item_ids text[] not null default '{}', items jsonb not null default '[]'::jsonb,
-  created_at timestamptz not null default timezone('utc', now()), updated_at timestamptz not null default timezone('utc', now()),
+  created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
   check (jsonb_typeof(items) = 'array' and jsonb_array_length(items) <= 20 and cardinality(item_ids) <= 20)
 );
 create trigger media_watch_snapshots_set_updated_at before update on public.media_watch_snapshots
@@ -24,11 +24,21 @@ revoke all on table public.media_watch_snapshots from public, anon, authenticate
 grant select on table public.media_watch_snapshots to authenticated, service_role;
 create policy media_watch_snapshots_select_own on public.media_watch_snapshots for select to authenticated using (user_id = (select auth.uid()));
 
+-- Compact, durable identities prevent reappearing baseline/disabled articles from becoming new.
+create table public.media_watch_seen_articles (
+ watch_id uuid not null references public.watches(id) on delete cascade,
+ article_key text not null check (article_key ~ '^(url|id):[0-9a-f]{64}$'),
+ primary key(watch_id,article_key)
+);
+alter table public.media_watch_seen_articles enable row level security;
+revoke all on table public.media_watch_seen_articles from public,anon,authenticated;
+
 create table public.media_watch_notifications (
  id uuid primary key default gen_random_uuid(), watch_id uuid not null references public.watches(id) on delete cascade,
  user_id uuid not null references auth.users(id) on delete cascade, source_article_id text not null check (char_length(source_article_id) between 1 and 1000),
- watch_title text not null check (char_length(watch_title) between 1 and 200), article jsonb not null check (jsonb_typeof(article) = 'object'),
- status text not null default 'pending' check (status in ('pending','sent','failed')), created_at timestamptz not null default timezone('utc', now()),
+ watch_title text not null check (char_length(watch_title) between 1 and 200), article jsonb not null check (jsonb_typeof(article) = 'object' and octet_length(article::text)<=12000),
+ article_position integer not null default 0 check (article_position between 0 and 20),
+ status text not null default 'pending' check (status in ('pending','sent','failed')), created_at timestamptz not null default now(),
  sent_at timestamptz, attempt_count integer not null default 0, last_error_code text, provider_message_id text,
  claim_token uuid, claimed_at timestamptz, submission_started_at timestamptz,
  unique (watch_id, user_id, source_article_id),
@@ -44,7 +54,8 @@ grant select, insert, update on table public.media_watch_notifications to servic
 -- Browser writes carry a compare-and-swap revision and retry identity. RLS remains active.
 alter table public.watches
   add column media_revision bigint not null default 0,
-  add column media_mutation_id uuid;
+  add column media_mutation_id uuid,
+  add column media_last_change_detected_at timestamptz;
 
 create function public.valid_media_definition(source jsonb, definition jsonb)
 returns boolean language plpgsql immutable set search_path = '' as $$
@@ -57,7 +68,7 @@ begin
    or octet_length(source::text) > 4000 or octet_length(definition::text) > 8000
    or source - array['type','url','query'] <> '{}'::jsonb
    or source->>'type' is distinct from 'feed'
-   or coalesce(source->>'url','') !~ '^https?://[^/@[:space:]]+[^[:space:]]*$'
+   or coalesce(source->>'url','') !~ '^https?://[^/@[:space:]?#]+([/?#][^[:space:]]*)?$'
    or char_length(source->>'url') > 2048
    or (source ? 'query' and (jsonb_typeof(source->'query') <> 'string' or char_length(source->>'query') not between 1 and 500))
  then return false; end if;
@@ -143,7 +154,7 @@ begin
   insert into public.watches(id,user_id,type,title,monitoring_source,watch_definition,monitoring_state,current_status,media_revision,media_mutation_id,deleted_at)
    values(p_id,auth.uid(),'media_news',p_title,p_source,p_definition,p_state,
      case when p_state='paused' then 'paused' else 'watching' end,1,p_mutation,
-     case when p_deleted then timezone('utc',now()) else null end)
+     case when p_deleted then now() else null end)
    on conflict(id) do nothing;
  end if;
  select * into target from public.watches where id=p_id and user_id=auth.uid() and type='media_news' for update;
@@ -154,7 +165,7 @@ begin
  end if;
  update public.watches set title=p_title,monitoring_source=p_source,watch_definition=p_definition,
    monitoring_state=p_state,current_status=case when p_state='paused' then 'paused' else 'watching' end,
-   media_mutation_id=p_mutation,deleted_at=case when p_deleted then timezone('utc',now()) else null end
+   media_mutation_id=p_mutation,deleted_at=case when p_deleted then now() else null end
   where id=p_id and user_id=auth.uid() and type='media_news' returning * into target;
  return to_jsonb(target);
 end $$;
@@ -163,34 +174,102 @@ grant execute on function public.persist_media_watch(uuid,text,jsonb,jsonb,text,
 
 create function public.complete_scheduled_media_watch_check(p_watch_id uuid, p_checked_at timestamptz, p_source_title text, p_source_url text, p_item_ids text[], p_items jsonb, p_expected_checked_at timestamptz, p_expected_items jsonb, p_outcome text, p_notification_items jsonb, p_enqueue_notifications boolean, p_expected_revision bigint)
 returns text language plpgsql security definer set search_path = '' as $$
-declare target public.watches%rowtype; previous public.media_watch_snapshots%rowtype; item jsonb; article_id text;
+declare
+ target public.watches%rowtype; previous public.media_watch_snapshots%rowtype;
+ item jsonb; identity_key text; known boolean; matching boolean; published timestamptz;
+ changes integer := 0; latest jsonb;
 begin
- if auth.role() <> 'service_role' then raise exception 'Scheduled monitoring requires service role' using errcode='42501'; end if;
- if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) > 20 or cardinality(p_item_ids) > 20 or jsonb_typeof(p_notification_items) <> 'array' or jsonb_array_length(p_notification_items) > 20 then raise exception 'Invalid media snapshot' using errcode='22023'; end if;
+ if auth.role() is distinct from 'service_role' then raise exception 'Scheduled monitoring requires service role' using errcode='42501'; end if;
+ if p_checked_at is null or p_items is null or p_item_ids is null or p_notification_items is null
+   or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) > 20 or cardinality(p_item_ids) > 20
+   or jsonb_typeof(p_notification_items) <> 'array' or jsonb_array_length(p_notification_items) > 20
+   or octet_length(p_items::text) > 120000 or octet_length(p_notification_items::text) > 120000
+ then raise exception 'Invalid media snapshot' using errcode='22023'; end if;
  select * into target from public.watches where id=p_watch_id and type='media_news' and deleted_at is null and monitoring_state='monitoring' for update;
  if target.id is null or target.media_revision is distinct from p_expected_revision then return 'skipped'; end if;
  select * into previous from public.media_watch_snapshots where watch_id=p_watch_id;
- if previous.watch_id is null then if p_expected_checked_at is not null or p_expected_items is not null then return 'skipped'; end if;
- elsif previous.checked_at is distinct from p_expected_checked_at or previous.items is distinct from p_expected_items then return 'skipped'; end if;
- insert into public.media_watch_snapshots(watch_id,user_id,checked_at,source_title,source_url,item_ids,items) values(target.id,target.user_id,p_checked_at,p_source_title,p_source_url,coalesce(p_item_ids,'{}'),p_items)
- on conflict(watch_id) do update set checked_at=excluded.checked_at,source_title=excluded.source_title,source_url=excluded.source_url,item_ids=excluded.item_ids,items=excluded.items;
- update public.watches set last_checked_at=p_checked_at,last_check_outcome=p_outcome,last_check_error_code=null,current_status=case when p_outcome='matching-items' then 'updated' else current_status end,check_started_at=null where id=target.id;
- -- Disabled means discard notification intent at commit time, preventing a later historical backlog.
- if previous.watch_id is not null and p_outcome='matching-items' and p_enqueue_notifications then
-  for item in select value from jsonb_array_elements(p_notification_items) loop
-   article_id := nullif(btrim(item->>'id'),'');
-   if article_id is not null then insert into public.media_watch_notifications(watch_id,user_id,source_article_id,watch_title,article)
-    values(target.id,target.user_id,left(article_id,1000),left(target.title,200),jsonb_build_object('title',item->>'title','url',item->>'url','summary',item->>'excerpt','publishedAt',item->>'publishedAt','source',coalesce(item->>'source',p_source_title))) on conflict do nothing; end if;
-  end loop;
+ if previous.watch_id is null then
+  if p_expected_checked_at is not null or p_expected_items is not null then return 'skipped'; end if;
+ elsif previous.checked_at is distinct from p_expected_checked_at or previous.items is distinct from p_expected_items
+   or p_checked_at < previous.checked_at then return 'skipped';
  end if;
- return case when p_outcome='matching-items' then 'changed' else 'unchanged' end;
+ -- Remember every observed identity, including baseline, nonmatching and disabled observations.
+ -- This ledger is independent of the rotating, bounded snapshot and survives definition edits.
+ for item in select value from jsonb_array_elements(p_items) loop
+  if jsonb_typeof(item->'identityKeys') is distinct from 'array' then raise exception 'Missing article identity' using errcode='22023'; end if;
+  if jsonb_array_length(item->'identityKeys') not between 1 and 2 then raise exception 'Invalid article identity' using errcode='22023'; end if;
+  for identity_key in select jsonb_array_elements_text(item->'identityKeys') loop
+   if identity_key !~ '^(url|id):[0-9a-f]{64}$' then raise exception 'Invalid article identity' using errcode='22023'; end if;
+  end loop;
+  select exists(select 1 from public.media_watch_seen_articles s where s.watch_id=target.id
+    and s.article_key in (select jsonb_array_elements_text(item->'identityKeys'))) into known;
+  insert into public.media_watch_seen_articles(watch_id,article_key)
+   select target.id,jsonb_array_elements_text(item->'identityKeys') on conflict do nothing;
+  published := null;
+  begin published := nullif(item->>'publishedAt','')::timestamptz;
+  exception when invalid_datetime_format or datetime_field_overflow then continue; end;
+  matching := previous.watch_id is not null and not known
+    and (published is null or published > previous.baseline_at)
+    and exists(select 1 from jsonb_array_elements(p_notification_items) candidate
+      where candidate->>'id'=item->>'id');
+  if matching then
+   changes := changes + 1;
+   if latest is null then latest := item; end if;
+   if p_enqueue_notifications then
+    insert into public.media_watch_notifications(watch_id,user_id,source_article_id,watch_title,article_position,article)
+     values(target.id,target.user_id,item->'identityKeys'->>0,left(target.title,200),changes,
+      jsonb_build_object('title',item->>'title','url',item->>'url','summary',item->>'excerpt','publishedAt',item->>'publishedAt','source',coalesce(item->>'source',p_source_title)))
+     on conflict do nothing;
+   end if;
+  end if;
+ end loop;
+ insert into public.media_watch_snapshots(watch_id,user_id,checked_at,baseline_at,source_title,source_url,item_ids,items)
+  values(target.id,target.user_id,p_checked_at,coalesce(previous.baseline_at,p_checked_at),p_source_title,p_source_url,p_item_ids,p_items)
+  on conflict(watch_id) do update set checked_at=excluded.checked_at,source_title=excluded.source_title,source_url=excluded.source_url,item_ids=excluded.item_ids,items=excluded.items;
+ update public.watches set last_checked_at=p_checked_at,
+  last_check_outcome=case when previous.watch_id is null then 'baseline' when changes>0 then 'matching-items' else 'no-new-items' end,
+  last_check_error_code=null,current_status=case when changes>0 then 'updated' else current_status end,check_started_at=null,
+  media_last_change_detected_at=case when latest is not null then p_checked_at else media_last_change_detected_at end,
+  last_change_item_id=case when latest is not null then latest->'identityKeys'->>0 else last_change_item_id end,
+  last_change_title=case when latest is not null then latest->>'title' else last_change_title end,
+  last_change_url=case when latest is not null then latest->>'url' else last_change_url end,
+  last_change_summary=case when latest is not null then latest->>'excerpt' else last_change_summary end,
+  last_change_published_at=case when latest is not null then nullif(latest->>'publishedAt','')::timestamptz else last_change_published_at end
+ where id=target.id;
+ return case when changes>0 then 'changed' else 'unchanged' end;
 end $$;
 
-create function public.get_media_watch_notification_locale(p_user_id uuid) returns text language plpgsql security definer set search_path='' as $$ declare value text; begin if auth.role()<>'service_role' then raise exception 'Notification delivery requires service role' using errcode='42501'; end if; select locale into value from public.profiles where id=p_user_id; return case when value='fr' then 'fr' else 'en' end; end $$;
-create function public.claim_media_watch_email_notification(p_notification_id uuid,p_claim_token uuid) returns jsonb language plpgsql security definer set search_path='' as $$ declare claimed public.media_watch_notifications%rowtype; begin if auth.role()<>'service_role' then raise exception 'Notification delivery requires service role' using errcode='42501'; end if; update public.media_watch_notifications set status='failed',last_error_code='EMAIL_DELIVERY_OUTCOME_UNKNOWN' where id=p_notification_id and status='pending' and submission_started_at is not null and claimed_at < timezone('utc',now())-interval '30 minutes'; if found then return null; end if; update public.media_watch_notifications set claim_token=p_claim_token,claimed_at=timezone('utc',now()) where id=p_notification_id and status='pending' and exists (select 1 from public.watches w where w.id=media_watch_notifications.watch_id and w.type='media_news' and w.deleted_at is null and w.monitoring_state='monitoring') and p_claim_token is not null and submission_started_at is null and (claim_token is null or claimed_at < timezone('utc',now())-interval '30 minutes') returning * into claimed; if claimed.id is null then return null; end if; return jsonb_build_object('id',claimed.id,'watch_id',claimed.watch_id,'user_id',claimed.user_id,'source_article_id',claimed.source_article_id,'watch_title',claimed.watch_title,'article',claimed.article); end $$;
-create function public.begin_media_watch_email_submission(p_notification_id uuid,p_claim_token uuid) returns boolean language plpgsql security definer set search_path='' as $$ declare done boolean:=false; begin if auth.role()<>'service_role' then raise exception 'Notification delivery requires service role' using errcode='42501'; end if; update public.media_watch_notifications set submission_started_at=timezone('utc',now()),attempt_count=attempt_count+1 where id=p_notification_id and status='pending' and claim_token=p_claim_token and submission_started_at is null returning true into done; return coalesce(done,false); end $$;
-create function public.complete_media_watch_email_notification(p_notification_id uuid,p_claim_token uuid,p_provider_message_id text) returns boolean language plpgsql security definer set search_path='' as $$ declare done boolean:=false; begin if auth.role()<>'service_role' then raise exception 'Notification delivery requires service role' using errcode='42501'; end if; update public.media_watch_notifications set status='sent',sent_at=timezone('utc',now()),provider_message_id=left(p_provider_message_id,200) where id=p_notification_id and status='pending' and claim_token=p_claim_token and submission_started_at is not null and nullif(p_provider_message_id,'') is not null returning true into done; return coalesce(done,false); end $$;
-create function public.fail_media_watch_email_notification(p_notification_id uuid,p_claim_token uuid,p_error_code text) returns boolean language plpgsql security definer set search_path='' as $$ declare done boolean:=false; begin if auth.role()<>'service_role' then raise exception 'Notification delivery requires service role' using errcode='42501'; end if; update public.media_watch_notifications set status='failed',last_error_code=left(coalesce(p_error_code,'EMAIL_DELIVERY_FAILED'),100) where id=p_notification_id and status='pending' and claim_token=p_claim_token returning true into done; return coalesce(done,false); end $$;
+create function public.fail_scheduled_media_watch_check(p_watch_id uuid,p_revision bigint,p_expected_checked_at timestamptz)
+returns void language plpgsql security definer set search_path='' as $$
+begin
+ if auth.role() is distinct from 'service_role' then raise exception 'Scheduled monitoring requires service role' using errcode='42501'; end if;
+ update public.watches w set last_checked_at=now(),last_check_error_code='MEDIA_CHECK_FAILED'
+ where w.id=p_watch_id and w.type='media_news' and w.media_revision=p_revision
+ and (select s.checked_at from public.media_watch_snapshots s where s.watch_id=w.id) is not distinct from p_expected_checked_at;
+end $$;
+revoke all on function public.fail_scheduled_media_watch_check(uuid,bigint,timestamptz) from public,anon,authenticated;
+grant execute on function public.fail_scheduled_media_watch_check(uuid,bigint,timestamptz) to service_role;
+
+create function public.maintain_media_watch_notifications(p_enabled boolean)
+returns void language plpgsql security definer set search_path='' as $$
+begin
+ if auth.role() is distinct from 'service_role' then raise exception 'Notification maintenance requires service role' using errcode='42501'; end if;
+ if p_enabled is null then raise exception 'Missing notification mode' using errcode='22023'; end if;
+ update public.media_watch_notifications set status='failed',last_error_code='EMAIL_DELIVERY_OUTCOME_UNKNOWN'
+  where status='pending' and submission_started_at is not null and claimed_at < now()-interval '30 minutes';
+ if not p_enabled then
+  update public.media_watch_notifications set status='failed',last_error_code='EMAIL_DISABLED'
+   where status='pending' and submission_started_at is null;
+ end if;
+end $$;
+revoke all on function public.maintain_media_watch_notifications(boolean) from public,anon,authenticated;
+grant execute on function public.maintain_media_watch_notifications(boolean) to service_role;
+
+create function public.get_media_watch_notification_locale(p_user_id uuid) returns text language plpgsql security definer set search_path='' as $$ declare value text; begin if auth.role() is distinct from 'service_role' then raise exception 'Notification delivery requires service role' using errcode='42501'; end if; select locale into value from public.profiles where id=p_user_id; return case when value='fr' then 'fr' else 'en' end; end $$;
+create function public.claim_media_watch_email_notification(p_notification_id uuid,p_claim_token uuid) returns jsonb language plpgsql security definer set search_path='' as $$ declare claimed public.media_watch_notifications%rowtype; begin if auth.role() is distinct from 'service_role' then raise exception 'Notification delivery requires service role' using errcode='42501'; end if; update public.media_watch_notifications set status='failed',last_error_code='EMAIL_DELIVERY_OUTCOME_UNKNOWN' where id=p_notification_id and status='pending' and submission_started_at is not null and claimed_at < now()-interval '30 minutes'; if found then return null; end if; update public.media_watch_notifications set claim_token=p_claim_token,claimed_at=now() where id=p_notification_id and status='pending' and exists (select 1 from public.watches w where w.id=media_watch_notifications.watch_id and w.type='media_news' and w.deleted_at is null and w.monitoring_state='monitoring') and p_claim_token is not null and submission_started_at is null and (claim_token is null or claimed_at < now()-interval '30 minutes') returning * into claimed; if claimed.id is null then return null; end if; return jsonb_build_object('id',claimed.id,'watch_id',claimed.watch_id,'user_id',claimed.user_id,'source_article_id',claimed.source_article_id,'watch_title',claimed.watch_title,'article',claimed.article); end $$;
+create function public.begin_media_watch_email_submission(p_notification_id uuid,p_claim_token uuid) returns boolean language plpgsql security definer set search_path='' as $$ declare done boolean:=false; begin if auth.role() is distinct from 'service_role' then raise exception 'Notification delivery requires service role' using errcode='42501'; end if; update public.media_watch_notifications set submission_started_at=now(),attempt_count=attempt_count+1 where id=p_notification_id and status='pending' and claim_token=p_claim_token and submission_started_at is null returning true into done; return coalesce(done,false); end $$;
+create function public.complete_media_watch_email_notification(p_notification_id uuid,p_claim_token uuid,p_provider_message_id text) returns boolean language plpgsql security definer set search_path='' as $$ declare done boolean:=false; begin if auth.role() is distinct from 'service_role' then raise exception 'Notification delivery requires service role' using errcode='42501'; end if; update public.media_watch_notifications set status='sent',sent_at=now(),provider_message_id=left(p_provider_message_id,200) where id=p_notification_id and status='pending' and claim_token=p_claim_token and submission_started_at is not null and nullif(p_provider_message_id,'') is not null returning true into done; return coalesce(done,false); end $$;
+create function public.fail_media_watch_email_notification(p_notification_id uuid,p_claim_token uuid,p_error_code text) returns boolean language plpgsql security definer set search_path='' as $$ declare done boolean:=false; begin if auth.role() is distinct from 'service_role' then raise exception 'Notification delivery requires service role' using errcode='42501'; end if; update public.media_watch_notifications set status='failed',last_error_code=left(coalesce(p_error_code,'EMAIL_DELIVERY_FAILED'),100) where id=p_notification_id and status='pending' and claim_token=p_claim_token returning true into done; return coalesce(done,false); end $$;
 
 revoke all on function public.complete_scheduled_media_watch_check(uuid,timestamptz,text,text,text[],jsonb,timestamptz,jsonb,text,jsonb,boolean,bigint) from public,anon,authenticated;
 revoke all on function public.get_media_watch_notification_locale(uuid) from public,anon,authenticated;

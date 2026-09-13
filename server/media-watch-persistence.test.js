@@ -49,17 +49,18 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
   const rpcCalls = [];
   const client = (role, user) => ({
     from(table) {
-      assert.equal(table, 'watches');
-      const conditions = []; const args = []; let snapshots = false;
+      assert.ok(['watches','media_watch_notifications'].includes(table));
+      const conditions = []; const args = []; const ordering = []; let snapshots = false;
       const q = {
         select(fields) { snapshots = fields.includes('media_watch_snapshots'); return q; },
-        eq(column, value) { assert.ok(['user_id','type','monitoring_state'].includes(column)); args.push(value); conditions.push(`w.${column}=$${args.length}`); return q; },
+        eq(column, value) { assert.ok(['user_id','type','monitoring_state','status','watch_id'].includes(column)); args.push(value); conditions.push(`w.${column}=$${args.length}`); return q; },
         is(column, value) { assert.equal(column, 'deleted_at'); assert.equal(value, null); conditions.push('w.deleted_at is null'); return q; },
-        order(column) { assert.equal(column, 'id'); return q; },
+        order(column, options) { assert.ok(['id','last_checked_at','created_at','watch_id','article_position'].includes(column)); ordering.push(`w.${column}${options?.nullsFirst ? ' nulls first' : ''}`); return q; },
+        or(value) { const cutoff=value.split('claimed_at.lt.')[1]; args.push(cutoff); conditions.push(`(w.claim_token is null or w.claimed_at < $${args.length}::timestamptz)`); return q; },
         async range(start, end) {
           try {
             const result = await scoped(role, user, `select w.* ${snapshots ? ", (select coalesce(jsonb_agg(s),'[]'::jsonb) from public.media_watch_snapshots s where s.watch_id=w.id) as media_watch_snapshots" : ''}
-              from public.watches w ${conditions.length ? `where ${conditions.join(' and ')}` : ''} order by w.id limit ${end-start+1} offset ${start}`, args);
+              from public.${table} w ${conditions.length ? `where ${conditions.join(' and ')}` : ''} order by ${ordering.join(',') || 'w.id'} limit ${end-start+1} offset ${start}`, args);
             return { data: result.rows, error: null };
           } catch (error) { return { data: null, error }; }
         },
@@ -67,7 +68,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       return q;
     },
     async rpc(name, params) {
-      assert.ok(['persist_media_watch','complete_scheduled_media_watch_check'].includes(name));
+      assert.ok(['persist_media_watch','complete_scheduled_media_watch_check','fail_scheduled_media_watch_check','maintain_media_watch_notifications','get_media_watch_notification_locale','claim_media_watch_email_notification','begin_media_watch_email_submission','complete_media_watch_email_notification','fail_media_watch_email_notification'].includes(name));
       rpcCalls.push({ role, name, params });
       const entries = Object.entries(params);
       try {
@@ -88,7 +89,8 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     for (const fn of listeners) fn(state);
   };
   let offline = false; let holdGet = null; let holdPost = null;
-  const middleware = createMediaWatchMiddleware({ authenticate: async (request) => {
+  const apiEnv = {};
+  const middleware = createMediaWatchMiddleware({ env: apiEnv, authenticate: async (request) => {
     const id = request.headers.authorization.replace('Bearer ', '');
     if (![USER_A, USER_B].includes(id)) throw Object.assign(new Error('Invalid token'), { statusCode: 401 });
     return { user: { id }, client: client('authenticated', id) };
@@ -143,9 +145,10 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.equal(await count('watches'), 1);
     });
     const service = client('service_role', null);
-    const run = (items) => runMediaMonitoring({ client: service, env: { MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED: 'true', VERCEL_ENV: 'production', RESEND_API_KEY: 'fake', WATCH_EMAIL_FROM: 'x@example.test', WATCH_APP_BASE_URL: 'https://watch.example' },
-      fetchFeed: async () => ({ checkedAt: new Date().toISOString(), source: { title: 'News', url: watch.monitoringSource.url }, items }),
-      notificationProcessor: async () => ({ status: 'disabled' }) });
+    let feedTick = 0;
+    const run = (items, overrides = {}) => runMediaMonitoring({ client: service, env: { MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED: 'true', VERCEL_ENV: 'production', RESEND_API_KEY: 'fake', WATCH_EMAIL_FROM: 'x@example.test', WATCH_APP_BASE_URL: 'https://watch.example' },
+      fetchFeed: async () => ({ checkedAt: new Date(Date.UTC(2026,8,13,0,0,feedTick++)).toISOString(), source: { title: 'News', url: watch.monitoringSource.url }, items }),
+      notificationProcessor: async () => ({ status: 'disabled' }), ...overrides });
     await t.test('actual cron query finds browser-persisted row; first check only baselines; next article enqueues once', async () => {
       const first = await run([article('old')]); assert.equal(first.failedCount, 0); assert.equal(first.totalEligibleWatches, 1);
       assert.equal(await count('media_watch_snapshots'), 1); assert.equal(await count('media_watch_notifications'), 0);
@@ -155,6 +158,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     await t.test('manual local check data cannot write snapshots or enqueue; definition edits invalidate old cron work', async () => {
       watches.updateWatch(watch.id, { monitoringSnapshot: { items: [article('manual')] }, lastChecked: new Date().toISOString() });
       await flush(); assert.equal(await count('media_watch_notifications'), 1);
+      assert.equal(watches.getWatchById(watch.id).lastChecked, watches.getStoredWatches().find(w=>w.id===watch.id).lastChecked);
       const stale = rpcCalls.findLast((call) => call.name === 'complete_scheduled_media_watch_check').params;
       watches.updateWatch(watch.id, { request: 'Tell me when SpaceX is mentioned in the media.', mediaMention: { subjects: ['SpaceX'], matchMode: 'all' } }); await flush();
       assert.equal(await count('media_watch_snapshots'), 0);
@@ -248,6 +252,26 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.ok((await db.query('select deleted_at from public.watches where id=$1',[pending.id])).rows[0].deleted_at);
       await store.configureMediaWatchServerStore(auth); await flush(); assert.equal(watches.getWatchById(pending.id),null);
     });
+    await t.test('a lost acknowledgement can advance only the mutation that a queued edit actually follows', async () => {
+      let release; let entered; const ready=new Promise(resolve=>{entered=resolve;});
+      holdPost=()=>new Promise(resolve=>{release=()=>{resolve();};entered();}).then(()=>{throw new Error('lost ancestor response');});
+      const pending=makeWatch(); watches.addWatch(pending); await ready;
+      watches.updateWatch(pending.id,{title:'Edit after lost acknowledgement'}); release(); await flush();
+      const row=(await db.query('select title,media_revision from public.watches where id=$1',[pending.id])).rows[0];
+      assert.equal(row.title,'Edit after lost acknowledgement');assert.equal(Number(row.media_revision),2);
+    });
+    await t.test('an unrelated concurrent journal is not silently rebased by a stale successful response', async () => {
+      const pending=makeWatch(); watches.addWatch(pending); await flush();
+      let release; let entered; const ready=new Promise(resolve=>{entered=resolve;});
+      holdPost=()=>new Promise(resolve=>{release=resolve;entered();});
+      watches.updateWatch(pending.id,{title:'Confirmed remote edit'}); await ready;
+      const key=`watchAssistant.mediaSync.${USER_A}.${pending.id}`;
+      const current=JSON.parse(localStorage.getItem(key));
+      localStorage.setItem(key,JSON.stringify({...current,mutation:randomUUID(),baseMutation:randomUUID(),definition:{...current.definition,title:'Unrelated tab edit'}}));
+      release();await flush();
+      assert.equal((await db.query('select title from public.watches where id=$1',[pending.id])).rows[0].title,'Confirmed remote edit');
+      assert.equal(JSON.parse(localStorage.getItem(key)).conflict,true);
+    });
     await t.test('browser API rejects oversized, malformed, unrecognized type and forged definitions', async () => {
       const job={definition:{id:randomUUID(),title:'Invalid',watch_definition:{inputType:'company'},monitoring_source:{}},revision:0,mutation:randomUUID(),deleted:false};
       const send=body=>fetch('/api/media-watches',{method:'POST',headers:{Authorization:`Bearer ${USER_A}`},body:JSON.stringify(body)});
@@ -288,7 +312,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
         await store.keepLocalMediaChanges(changed.id,state.revision); await flush();
         assert.equal((await db.query('select title from public.watches where id=$1',[changed.id])).rows[0].title,'My reviewed local title');
         renderMediaPersistenceNotice(watches.getWatchById(changed.id),document.querySelector('h1'),'en');
-        assert.equal(document.getElementById('watchMediaPersistenceNotice'),null);
+        assert.match(document.getElementById('watchMediaPersistenceNotice').textContent,/notifications are disabled/);
       } finally { if(originalDocument===undefined) delete globalThis.document; else globalThis.document=originalDocument; }
     });
     await t.test('URL story Watches preserve their matching concepts through the real persistence path', async () => {
@@ -302,6 +326,103 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.deepEqual(row.watch_definition.storyProfile.concepts,[concept]);
       await store.configureMediaWatchServerStore(auth); await flush();
       assert.deepEqual(watches.getWatchById(story.id).storyProfile.concepts,[concept]);
+    });
+    await t.test('baseline and disabled identities survive snapshot rotation and canonical URL corrections', async () => {
+      const current=makeWatch(); watches.addWatch(current); await flush();
+      const jobs=async()=> (await db.query('select * from public.media_watch_notifications where watch_id=$1 order by article_position',[current.id])).rows;
+      const old={...article('baseline-history'),publishedAt:'2026-09-12T12:00:00Z'};
+      await run([old]); await run([]); await run([{...old,id:'changed-guid',url:old.url+'?utm_source=retry'}]);
+      assert.equal((await jobs()).length,0);
+      const disabledArticle=article('disabled-history');
+      await run([disabledArticle],{env:{MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED:'false'}});
+      await run([]); await run([{...disabledArticle,id:'corrected-guid',title:'Elon Musk corrected title',url:disabledArticle.url+'#top'}]);
+      assert.equal((await jobs()).length,0);
+      const first=article('fresh-a'); const second={...article('fresh-b'),title:first.title,excerpt:first.excerpt};
+      await run([first,{...first,id:'variant-guid',url:first.url+'?utm_medium=email'},second]);
+      assert.equal((await jobs()).length,2);
+      assert.deepEqual((await jobs()).map(row=>row.article_position),[1,2]);
+      const before=watches.getWatchById(current.id); await flush();
+      const evidence=watches.getWatchById(current.id).updates[0];
+      assert.ok(evidence.sourceTitle); const timestamp=evidence.timestamp;
+      await run([]); await flush();
+      assert.equal(watches.getWatchById(current.id).updates[0].timestamp,timestamp);
+      assert.equal((await jobs()).length,2);
+      await assert.rejects(scoped('authenticated',USER_A,'select * from public.media_watch_seen_articles'));
+    });
+    await t.test('SQL claims recover before submission and become terminal after uncertain submission', async () => {
+      const current=makeWatch(); watches.addWatch(current); await flush();
+      await run([]); await run([article('recovery-a'),article('recovery-b')]);
+      const jobs=(await db.query('select id from public.media_watch_notifications where watch_id=$1 order by article_position',[current.id])).rows;
+      assert.equal(jobs.length,2);
+      const firstToken=randomUUID(); const secondToken=randomUUID();
+      const claim=(id,token)=>service.rpc('claim_media_watch_email_notification',{p_notification_id:id,p_claim_token:token});
+      assert.ok((await claim(jobs[0].id,firstToken)).data);
+      assert.equal((await claim(jobs[0].id,secondToken)).data,null);
+      await db.query("update public.media_watch_notifications set claimed_at=now()-interval '31 minutes' where id=$1",[jobs[0].id]);
+      assert.ok((await claim(jobs[0].id,secondToken)).data);
+      assert.equal((await service.rpc('begin_media_watch_email_submission',{p_notification_id:jobs[0].id,p_claim_token:firstToken})).data,false);
+      assert.equal((await service.rpc('begin_media_watch_email_submission',{p_notification_id:jobs[0].id,p_claim_token:secondToken})).data,true);
+      await db.query("update public.media_watch_notifications set claimed_at=now()-interval '31 minutes' where id=$1",[jobs[0].id]);
+      assert.equal((await claim(jobs[0].id,randomUUID())).data,null);
+      const terminal=(await db.query('select status,last_error_code from public.media_watch_notifications where id=$1',[jobs[0].id])).rows[0];
+      assert.equal(terminal.status,'failed'); assert.equal(terminal.last_error_code,'EMAIL_DELIVERY_OUTCOME_UNKNOWN');
+      const {processMediaWatchEmailNotifications}=await import('./media-watch-notifications.js');
+      const deliver={...service,from:table=>service.from(table).eq('watch_id',current.id),
+        auth:{admin:{getUserById:async id=>({data:{user:{id,email:'verified@example.test',email_confirmed_at:'2026-01-01'}},error:null})}}};
+      let sends=0;
+      const result=await processMediaWatchEmailNotifications({client:deliver,
+        env:{MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED:'true',VERCEL_ENV:'production',RESEND_API_KEY:'fake',WATCH_EMAIL_FROM:'x@example.test',WATCH_APP_BASE_URL:'https://watch.example'},
+        sender:async input=>{sends++;assert.equal(input.to,'verified@example.test');assert.match(input.text,/recovery-b/);return{id:'mock-provider'};}});
+      assert.equal(result.sentCount,1);assert.equal(sends,1);
+      assert.equal((await db.query('select status from public.media_watch_notifications where id=$1',[jobs[1].id])).rows[0].status,'sent');
+    });
+    await t.test('remote-only hydration reports server persistence without adopting legacy data', async () => {
+      const current=makeWatch(); watches.addWatch(current); await flush();
+      localStorage.removeItem(`watchAssistant.mediaSync.${USER_A}.${current.id}`);
+      localStorage.setItem('watchAssistant.watches',JSON.stringify(watches.getStoredWatches().filter(w=>w.id!==current.id)));
+      await store.configureMediaWatchServerStore(auth);await flush();
+      assert.equal(store.getMediaPersistenceState(watches.getWatchById(current.id)).status,'saved');
+      assert.equal(store.getMediaPersistenceState(watches.getWatchById(current.id)).emailEnabled,false);
+    });
+    await t.test('saved notice reflects the server email gate without exposing configuration',async()=>{
+      const current=makeWatch();watches.addWatch(current);await flush();
+      Object.assign(apiEnv,{MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED:'true',VERCEL_ENV:'production',RESEND_API_KEY:'fake',WATCH_EMAIL_FROM:'x@example.test',WATCH_APP_BASE_URL:'https://watch.example'});
+      const originalDocument=globalThis.document;
+      try{
+        await flush();assert.equal(store.getMediaPersistenceState(watches.getWatchById(current.id)).emailEnabled,true);
+        const {document}=parseHTML('<html><body><h1>Watch</h1></body></html>');globalThis.document=document;
+        const {renderMediaPersistenceNotice}=await import('../src/js/media-watch-persistence-notice.js');
+        renderMediaPersistenceNotice(watches.getWatchById(current.id),document.querySelector('h1'),'en');
+        assert.match(document.body.textContent,/enabled for new matching articles after the first automatic check/);
+        const body=await (await fetch('/api/media-watches',{headers:{Authorization:`Bearer ${USER_A}`}})).json();
+        assert.equal(body.emailEnabled,true);assert.equal(JSON.stringify(body).includes('RESEND_API_KEY'),false);
+      }finally{for(const key of Object.keys(apiEnv))delete apiEnv[key];if(originalDocument===undefined)delete globalThis.document;else globalThis.document=originalDocument;await flush();}
+    });
+    await t.test('disabled maintenance discards unsubmitted backlog and terminalizes expired submission claims',async()=>{
+      const current=makeWatch();watches.addWatch(current);await flush();await run([]);await run([article('disable-a'),article('disable-b')]);
+      const jobs=(await db.query('select id from public.media_watch_notifications where watch_id=$1 order by article_position',[current.id])).rows;
+      const token=randomUUID();
+      await service.rpc('claim_media_watch_email_notification',{p_notification_id:jobs[0].id,p_claim_token:token});
+      await service.rpc('begin_media_watch_email_submission',{p_notification_id:jobs[0].id,p_claim_token:token});
+      await db.query("update public.media_watch_notifications set claimed_at=now()-interval '31 minutes' where id=$1",[jobs[0].id]);
+      await service.rpc('maintain_media_watch_notifications',{p_enabled:false});
+      const errors=(await db.query('select last_error_code from public.media_watch_notifications where watch_id=$1 order by article_position',[current.id])).rows;
+      assert.deepEqual(errors.map(row=>row.last_error_code),['EMAIL_DELIVERY_OUTCOME_UNKNOWN','EMAIL_DISABLED']);
+      await service.rpc('maintain_media_watch_notifications',{p_enabled:true});
+      assert.equal((await db.query("select count(*)::int as n from public.media_watch_notifications where watch_id=$1 and status='pending'",[current.id])).rows[0].n,0);
+    });
+    await t.test('failed outbox constraints roll back Watch, snapshot and identity ledger together',async()=>{
+      const current=makeWatch();watches.addWatch(current);await flush();await run([]);
+      const before=(await db.query('select * from public.media_watch_snapshots where watch_id=$1',[current.id])).rows[0];
+      const last=rpcCalls.findLast(call=>call.name==='complete_scheduled_media_watch_check'&&call.params.p_watch_id===current.id).params;
+      const {mediaArticleIdentityKeys}=await import('./media-article-identity.js');
+      const oversized={...article('atomic-failure'),excerpt:'x'.repeat(16000)};oversized.identityKeys=mediaArticleIdentityKeys(oversized);
+      const result=await service.rpc('complete_scheduled_media_watch_check',{...last,p_checked_at:new Date(Date.parse(before.checked_at)+1000).toISOString(),p_expected_checked_at:before.checked_at,p_expected_items:before.items,p_item_ids:[oversized.id],p_items:[oversized],p_notification_items:[oversized],p_outcome:'matching-items'});
+      assert.ok(result.error);
+      assert.deepEqual((await db.query('select * from public.media_watch_snapshots where watch_id=$1',[current.id])).rows[0],before);
+      assert.equal((await db.query('select count(*)::int as n from public.media_watch_seen_articles where watch_id=$1',[current.id])).rows[0].n,0);
+      assert.equal((await db.query('select count(*)::int as n from public.media_watch_notifications where watch_id=$1',[current.id])).rows[0].n,0);
+      await assert.rejects(scoped('authenticated',USER_A, "update public.watches set monitoring_source=jsonb_set(monitoring_source,'{url}',to_jsonb('https://user:password@news.example/rss'::text)) where id=$1",[current.id]));
     });
     await t.test('migration replay rolls back safely and all notification functions stay inaccessible to browser roles', async () => {
       await assert.rejects(db.exec(await readFile(new URL('20260913120000_media_watch_email_notifications.sql',directory),'utf8')));
