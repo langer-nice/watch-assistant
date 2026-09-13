@@ -198,3 +198,73 @@ from public.company_watch_notifications
 group by status, last_error_code
 order by status, last_error_code;
 ```
+
+## Media/news Watch email notifications (V2)
+
+The existing daily cron also checks server-persisted `media_news` Watches. The
+`20260913120000_media_watch_email_notifications.sql` migration adds their bounded snapshots and a
+separate service-role-only outbox. Each canonical feed article produces at most one outbox row and
+one email; a check with several new articles preserves feed order and produces one email per article.
+Manual checks never use this outbox, and the first scheduled check only establishes a baseline.
+
+Delivery is separately gated by `MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED=true`, exact case, together
+with a Vercel Production environment and the existing complete Resend configuration. When disabled
+(or incompletely configured), scheduled snapshots advance but notification intent is deliberately
+not enqueued, so enabling the flag cannot release an old backlog. English is the fallback locale.
+
+Safe activation order: (1) add `MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED=false` to Production,
+(2) apply the new migration, (3) deploy the code, (4) run an authorized synthetic scheduled check
+with a mocked/test recipient and confirm aggregate logs, then (5) set the flag to `true` and redeploy.
+Code deployed before the migration reports media monitoring as unavailable while Company monitoring
+continues. Rollback is performed by setting the media flag to `false`; do not roll back the migration.
+
+### Authenticated media persistence
+
+Media mention and URL story Watches now use the actual browser `addWatch`/`updateWatch`/`deleteWatch`
+path to synchronize with `/api/media-watches`. The API authenticates the bearer token and uses the
+user-scoped Supabase client and RLS, never a service-role client. The existing Watch UUID is the
+server primary key, so Detail and email links remain stable. Only the bounded request, category,
+feed URL/query, subject/all-subject matching rule or story concepts, title and paused state are
+sent. Feed URL locale parameters are preserved; email language comes from the owner's profile.
+Browser snapshots, fetched article history, recipient addresses and other browser state are not uploaded.
+
+A per-owner, per-Watch durable journal retains pending edits and deletion tombstones. Database
+revisions prevent old requests and overlapping tabs from replacing newer definitions; mutation IDs
+make retries after a lost response idempotent. Only acknowledgement of the exact mutation can mark
+it saved. Authentication generations prevent old responses from being applied after sign-out,
+account changes or token changes. Online, focus, authentication, storage events and the Detail retry
+button retry unavailable persistence. The local Watch remains available when schema support or
+network access is missing. Deletion is an owner-scoped soft deletion and can never be resurrected
+by a stale creation retry.
+
+Owned local Watches can recover missing synchronization records. Legacy browser-only Watches have
+no reliable ownership provenance: they are **not** assigned to whoever next signs in, and remain
+local with an explicit Detail notice. This includes older Watches such as an existing Elon Musk
+Watch if it lacks ownership metadata. Non-UUID legacy records also remain local. The application
+does not guess ownership or automatically replace their IDs. Company Watches and other browser-only
+Watch types are excluded from this media synchronization path.
+
+Conflicting edits remain stored locally and are shown in Detail. “Keep my local changes” is an
+explicit resolution against the displayed server revision; a newer concurrent write still causes
+a conflict. Unsupported monitoring-definition edits pause the last valid server definition and
+retain the edited local copy. A subsequent valid media definition can resume monitoring. The
+server baseline is invalidated when source or matching rules change; a revision check also rejects
+cron results fetched for older definitions. Pending, unsubmitted notifications for changed Watches
+are cancelled. A submission already started may finish; it is never automatically retried.
+
+Browser persistence has no enqueue or delivery permission, and browser roles cannot modify the
+scheduled snapshots. The first scheduled check establishes a baseline, later matching articles
+are eligible for the separate outbox, and manual checks only update browser history. The migration
+is transactional: replay fails and rolls back rather than leaving partially changed privileges.
+It has not been applied to any Supabase environment as part of this implementation.
+
+### Local regression coverage
+
+`npm test` includes a development-only PGlite PostgreSQL runtime. It runs the real migration chain
+with local auth-role shims, then drives real browser storage and synchronization through the API
+middleware and SQL/RLS into the real cron query and scheduled completion RPC. It covers baseline,
+outbox uniqueness, ownership, malformed data, missing schema, retries, concurrent/stale requests,
+soft deletion, unsupported edits and explicit conflict resolution. PostgreSQL's built-in UUID
+function substitutes for the unavailable optional `pgcrypto` extension in this local harness; no
+Supabase service is contacted. Production email transport is blocked under `NODE_ENV=test`, while
+email rendering/delivery-contract tests use explicit mocked senders or HTTP implementations.

@@ -1,3 +1,4 @@
+import { configureMediaWatchServerStore } from './media-watch-server-store.js';
 import { initApp } from './navigation.js';
 import { initializeLanguage } from './i18n.js';
 import { initTopNavigation } from './top-navigation.js';
@@ -16,6 +17,7 @@ const start = async () => {
   if (authUi) {
     await authUi.ready;
     await configureCompanyWatchServerStore(authUi.auth);
+    await configureMediaWatchServerStore(authUi.auth);
   }
   initApp();
 };
