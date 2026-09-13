@@ -198,3 +198,137 @@ from public.company_watch_notifications
 group by status, last_error_code
 order by status, last_error_code;
 ```
+
+## Media/news Watch email notifications (V2)
+
+The existing daily cron also checks server-persisted `media_news` Watches. The
+`20260913120000_media_watch_email_notifications.sql` migration adds their bounded snapshots and a
+separate service-role-only outbox. Each canonical feed article produces at most one outbox row and
+one email; a check with several new articles preserves feed order and produces one email per article.
+Manual checks never use this outbox, and the first scheduled check only establishes a baseline.
+
+Delivery is separately gated by `MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED=true`, exact case, together
+with a Vercel Production environment and the existing complete Resend configuration. When disabled
+(or incompletely configured), scheduled snapshots advance but notification intent is deliberately
+not enqueued, so enabling the flag cannot release an old backlog. English is the fallback locale.
+
+Safe activation order, for a separately authorized operator: (1) keep
+`MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED=false` in Production, (2) verify PR #17 migrations are
+already recorded and apply the new migration exactly once, (3) deploy the reviewed code, (4) validate
+with synthetic feeds and a mocked sender only in an isolated database, (5) observe genuine Production
+baselines with sending still disabled, then (6) explicitly authorize activation, set the flag to
+`true` and redeploy. Never manufacture events or call a mocked harness against Production.
+Code deployed before the migration reports media monitoring as unavailable while Company monitoring
+continues. Rollback is performed by setting the media flag to `false`; do not roll back the migration.
+
+### Authenticated media persistence
+
+Media mention and URL story Watches now use the actual browser `addWatch`/`updateWatch`/`deleteWatch`
+path to synchronize with `/api/media-watches`. The API authenticates the bearer token and uses the
+user-scoped Supabase client and RLS, never a service-role client. The existing Watch UUID is the
+server primary key, so Detail and email links remain stable. Only the bounded request, category,
+feed URL/query, subject/all-subject matching rule or story concepts, title and paused state are
+sent. Feed URL locale parameters are preserved; email language comes from the owner's profile.
+Browser snapshots, fetched article history, recipient addresses and other browser state are not uploaded.
+
+A per-owner, per-Watch durable journal retains pending edits and deletion tombstones. Database
+revisions prevent old requests and overlapping tabs from replacing newer definitions; mutation IDs
+make retries after a lost response idempotent. Only acknowledgement of the exact mutation can mark
+it saved. Authentication generations prevent old responses from being applied after sign-out,
+account changes or token changes. Online, focus, authentication, storage events and the Detail retry
+button retry unavailable persistence. The local Watch remains available when schema support or
+network access is missing. Deletion is an owner-scoped soft deletion and can never be resurrected
+by a stale creation retry.
+
+Owned local Watches can recover missing synchronization records. Legacy browser-only Watches have
+no reliable ownership provenance: they are **not** assigned to whoever next signs in, and remain
+local with an explicit Detail notice. This includes older Watches such as an existing Elon Musk
+Watch if it lacks ownership metadata. Non-UUID legacy records also remain local. The application
+does not guess ownership or automatically replace their IDs. Company Watches and other browser-only
+Watch types are excluded from this media synchronization path.
+
+Conflicting edits remain stored locally and are shown in Detail. “Keep my local changes” is an
+explicit resolution against the displayed server revision; a newer concurrent write still causes
+a conflict. Unsupported monitoring-definition edits pause the last valid server definition and
+retain the edited local copy. A subsequent valid media definition can resume monitoring. The
+server baseline is invalidated when source or matching rules change; a revision check also rejects
+cron results fetched for older definitions. Pending, unsubmitted notifications for changed Watches
+are cancelled. A submission already started may finish; it is never automatically retried.
+
+Browser persistence has no enqueue or delivery permission, and browser roles cannot modify the
+scheduled snapshots. The first scheduled check establishes a baseline, later matching articles
+are eligible for the separate outbox, and manual checks only update browser history. The migration
+is transactional: replay fails and rolls back rather than leaving partially changed privileges.
+It has not been applied to any Supabase environment as part of this implementation.
+
+### Local regression coverage
+
+`npm test` includes a development-only PGlite PostgreSQL runtime. It runs the real migration chain
+with local auth-role shims, then drives real browser storage and synchronization through the API
+middleware and SQL/RLS into the real cron query and scheduled completion RPC. It covers baseline,
+outbox uniqueness, ownership, malformed data, missing schema, retries, concurrent/stale requests,
+soft deletion, unsupported edits and explicit conflict resolution. PostgreSQL's built-in UUID
+function substitutes for the unavailable optional `pgcrypto` extension in this local harness; no
+Supabase service is contacted. Production email transport is blocked under `NODE_ENV=test`, while
+email rendering/delivery-contract tests use explicit mocked senders or HTTP implementations.
+
+### Production-readiness corrections and operating limits
+
+A durable `media_watch_seen_articles` ledger records canonical URL hashes and stable feed-ID hashes
+for every observed item, including baseline, nonmatching and disabled observations. It survives the
+20-item snapshot rotation and definition edits. A repeated URL with tracking parameters or a corrected
+feed GUID cannot become new after disappearing from the snapshot. Distinct URLs with the same title
+remain distinct. Known publication dates at or before the first scheduled baseline are excluded;
+items without dates rely on their observed identities. The system cannot determine an undisclosed
+publication date or recognize an article whose publisher changes both its URL and stable ID.
+
+The scheduled completion transaction decides which matching identities are truly new and atomically
+writes Watch state, the snapshot, identities and outbox rows. The browser hydrates the latest scheduled
+article without changing its original detection timestamp or erasing local history/read state, and
+retains a more recent manual check timestamp. Detail reports synchronization and the actual server-side
+email availability flag separately; a saved Watch does not imply that email is enabled.
+
+The media stage processes at most 50 Watches, with pages of at most 50, three concurrent feed checks
+and a 45-second stage deadline. Least-recently-checked Watches are selected first; failed checks record
+an attempt so one failing Watch cannot permanently monopolize the batch. Delivery processes at most
+25 jobs in groups of three, sharing the media stage deadline (30 seconds when run independently).
+Individual asynchronous operations have an eight-second budget. A deadline stops further operations;
+an already submitted database/provider request can finish after its caller times out, so transaction
+versions, leases and the durable submission boundary remain essential.
+
+This bounds the new media stage, not the pre-existing Company stage: that stage still processes all
+eligible Company Watches before media. Before production activation, verify the combined endpoint's
+configured duration and observed Company workload leave room for media; no Vercel duration setting or
+schedule is changed here. A daily batch of 50 also limits how frequently larger media populations are
+checked. Monitor aggregate eligible/failed/skipped/deadline counts and agree capacity before expanding
+usage. The identity ledger grows with observed articles; do not prune it without a replacement durable
+historical-identity strategy.
+
+Every media cron run cancels unsubmitted pending jobs when email is disabled and terminalizes expired
+post-submission claims as `EMAIL_DELIVERY_OUTCOME_UNKNOWN`. Fresh claimed jobs do not block selection of
+other pending jobs. Claims abandoned before submission are reclaimable after 30 minutes. Completion
+failure or timeout after contacting the provider is uncertain delivery and must never be automatically
+resent. Review terminal failures with aggregate status/error counts; do not reset their status to pending.
+Disabling requires at least one disabled cron maintenance pass before re-enabling to cancel pre-existing
+unsubmitted work; it cannot recall a request whose submission has already started.
+
+### Recreating an unowned legacy Watch
+
+Sign in to the intended account and keep the old local Watch. Open **New Watch**, copy its request and
+source/matching concepts, and create the replacement explicitly. Confirm the new Watch shows that it
+is synced, reload its Detail page and verify its definition. Only then decide whether to delete the old
+local copy. The replacement intentionally has a new UUID; the old Watch is never silently reassigned,
+overwritten or deleted. If synchronization fails, retain both local copies and use **Retry sync**.
+
+### Deployment-state checks
+
+- New code before migration: media API failures leave the journal and local Watch intact; media cron
+  reports unavailable independently of Company success. No media submission is possible.
+- Migration before new code: existing Company functions/grants remain usable; migration statements
+  do not manufacture snapshots, notification jobs or email. The media migration is one transactional
+  operation, not a replayable repair script; uncertain execution requires inspecting migration history.
+- New code with media email disabled: persistence and baselines work; observed identities advance,
+  new email intent is discarded and old unsubmitted jobs are cancelled on the next maintenance pass.
+- Enabled: only exact lowercase `true`, `VERCEL_ENV=production`, non-test execution and complete valid
+  server-only email configuration permit sending. The Company flag does not enable media email.
+  Preview, Development and the automated test transport remain blocked.

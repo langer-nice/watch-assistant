@@ -1,3 +1,4 @@
+import { prepareMediaWatch, queueMediaWatchDeletion, mergeMediaWatches } from './media-watch-server-store.js';
 import { mockWatches } from './data/mock-watches.js';
 import { normalizeWatchCreationDate } from './watch-dates.js';
 import { migrateWatchModel } from './watch-model.js';
@@ -182,7 +183,7 @@ export function getWatches() {
   const stored = getStoredWatches();
   const deletedIds = new Set(getDeletedWatchIds());
   const demoIds = new Set(mockWatches.map((watch) => watch.id));
-  const local = stored.filter((watch) => !deletedIds.has(watch.id) && !demoIds.has(watch.id));
+  const local = mergeMediaWatches(stored.filter((watch) => !deletedIds.has(watch.id) && !demoIds.has(watch.id)));
   if (!isCompanyWatchServerMode()) return local;
   const serverWatches = getServerCompanyWatches();
   const serverIds = new Set(serverWatches.map(({ id }) => id));
@@ -200,9 +201,9 @@ export function getDemoWatches() {
 export function getUserCreatedWatches() {
   const demoIds = new Set(mockWatches.map((watch) => watch.id));
   const deletedIds = new Set(getDeletedWatchIds());
-  const local = getStoredWatches().filter(
+  const local = mergeMediaWatches(getStoredWatches().filter(
     (watch) => !demoIds.has(watch.id) && !deletedIds.has(watch.id),
-  );
+  ));
   if (!isCompanyWatchServerMode()) return local;
   return local.filter((watch) => (
     watch.inputType !== 'company' || String(watch.id).startsWith('preview-test-')
@@ -217,8 +218,9 @@ export function hydrateWatchStorage() {
 }
 
 export function addWatch(watch) {
-  const normalizedWatch = migrateWatchModel(watch).watch;
   const stored = getStoredWatches();
+  const previous = stored.find((item) => item.id === watch.id);
+  const normalizedWatch = prepareMediaWatch(migrateWatchModel(watch).watch, previous);
   const existingIndex = stored.findIndex((item) => item.id === normalizedWatch.id);
   if (existingIndex >= 0) {
     stored[existingIndex] = normalizedWatch;
@@ -268,6 +270,7 @@ export function markUpdatesAsRead(watchId, updateIds) {
 }
 
 export function deleteWatch(id) {
+  queueMediaWatchDeletion(getWatchById(id));
   const stored = getStoredWatches().filter((watch) => watch.id !== id);
   saveWatches(stored);
 

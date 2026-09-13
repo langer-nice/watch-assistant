@@ -1,3 +1,4 @@
+import { renderMediaPersistenceNotice } from './media-watch-persistence-notice.js';
 import {
   getWatches,
   getUserCreatedWatches,
@@ -1429,6 +1430,8 @@ const renderWatchDetail = () => {
   const deleteDialogEl = document.querySelector('#watchDeleteDialog');
   const deleteCancelEl = document.querySelector('#watchDeleteCancel');
   const deleteConfirmEl = document.querySelector('#watchDeleteConfirm');
+
+  renderMediaPersistenceNotice(watch, titleEl, getLanguage());
 
   const hideDetailContent = () => {
     [

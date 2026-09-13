@@ -6,6 +6,7 @@ import { normalizeAdministrativeStatus } from '../src/js/company-administrative-
 import { fetchBodaccAnnouncements, normalizeSiren } from './bodacc-api.js';
 import { mapCompanyWatchRow } from './company-watch-repository.js';
 import { processCompanyWatchEmailNotifications } from './company-watch-notifications.js';
+import { runMediaMonitoring } from './media-monitoring-cron.js';
 import { createSupabaseServiceClient, requireCronSecret } from './supabase-service.js';
 
 export const COMPANY_MONITORING_CRON_ENDPOINT = '/api/cron/company-monitoring';
@@ -177,6 +178,7 @@ export const createCompanyMonitoringCronHandler = ({
   logger = console,
   now = () => Date.now(),
   createRunId = randomUUID,
+  mediaRunner = runMediaMonitoring,
   ...options
 } = {}) => async (request, response) => {
   const runId = createRunId();
@@ -196,8 +198,11 @@ export const createCompanyMonitoringCronHandler = ({
     return;
   }
   try {
-    const summary = await runner({ client: clientFactory({ env }), env, ...options });
-    const result = { runId, ...summary, durationMs: Math.max(0, now() - startedAt) };
+    const client = clientFactory({ env });
+    const summary = await runner({ client, env, ...options });
+    let media;
+    try { media = await mediaRunner({ client, env, ...options }); } catch { media = { status: 'unavailable' }; }
+    const result = { runId, ...summary, media, durationMs: Math.max(0, now() - startedAt) };
     logger.info?.('[Company monitoring cron] Run completed.', result);
     sendJson(response, 200, result);
   } catch (error) {

@@ -149,6 +149,9 @@ export const sendWithResend = async ({ apiKey, from, to, subject, html, text, id
   fetchImpl = fetch,
   timeoutMs = RESEND_TIMEOUT_MS,
 } = {}) => {
+  if (process.env.NODE_ENV === 'test' && fetchImpl === globalThis.fetch) {
+    throw Object.assign(new Error('Real email transport is disabled in tests.'), { code: 'TEST_EMAIL_TRANSPORT_DISABLED' });
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   timeout.unref?.();
