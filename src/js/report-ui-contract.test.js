@@ -11,7 +11,7 @@ test('application surfaces retain report storage and canonical status integratio
     read('../../watch-detail.html'),
     read('./report-storage.js'),
   ]);
-  assert.match(navigation, /const report = getLatestReport\(\)/);
+  assert.match(navigation, /report: getLatestReport\(\)/);
   assert.doesNotMatch(navigation, /getReportById|searchParams\.get\('report'\)/);
   assert.match(navigation, /getCanonicalStatusMap\(watches, reports\)/);
   assert.match(navigation, /getWatchDetailPresentationSnapshot\(watch, \{[\s\S]*?reports: getReports\(\)/);

@@ -1,4 +1,5 @@
 import { HOME_NEW_WATCH_WINDOW_MS, isUserActionRequired } from './watch-grouping.js';
+import { getWatchCreationDate } from './watch-dates.js';
 import { getUnreadUpdates } from './watch-updates.js';
 
 export const WATCH_CLASSIFICATIONS = Object.freeze({
@@ -51,7 +52,8 @@ export const getMeaningfulWatchUpdate = (watch) => {
 export const hasMeaningfulWatchUpdate = (watch) => Boolean(getMeaningfulWatchUpdate(watch));
 
 export const isRecentlyCreatedWatch = (watch, now = new Date()) => {
-  const createdAt = Date.parse(watch?.createdAt);
+  if (!watch || typeof watch !== 'object') return false;
+  const createdAt = getWatchCreationDate(watch)?.getTime();
   const nowAt = now instanceof Date ? now.getTime() : Date.parse(now);
   const age = nowAt - createdAt;
   return createdAt > 0 && Number.isFinite(nowAt) && age >= 0 && age < HOME_NEW_WATCH_WINDOW_MS;

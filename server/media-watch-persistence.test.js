@@ -126,6 +126,19 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.equal(await count('media_watch_snapshots'), 0); assert.equal(await count('media_watch_notifications'), 0);
       assert.equal(watches.getStoredWatches()[0].id, watch.id);
     });
+    await t.test('Home uses the actual API-hydrated media creation timestamp after a completed report', async () => {
+      const {selectHomeReport}=await import('../src/js/home-report.js');
+      const row=(await db.query('select created_at from public.watches where id=$1',[watch.id])).rows[0];
+      const now=new Date(new Date(row.created_at).getTime()+3*60*1000);
+      const hydrated=watches.getWatchById(watch.id);
+      assert.equal(new Date(hydrated.createdAt).getTime(),new Date(row.created_at).getTime());
+      const report={entries:[{watchId:watch.id,title:watch.title,category:'news',classification:'watching'}],counts:{completed:1}};
+      const result=selectHomeReport({report,watches:watches.getWatches(),serverWatches:store.getMediaServerWatches(),now});
+      assert.deepEqual(result.newlyCreatedWatches.map(w=>w.id),[watch.id]);
+      assert.equal(result.totalChecked,1);
+      await store.configureMediaWatchServerStore(auth);await flush();
+      assert.equal(selectHomeReport({report,watches:watches.getWatches(),serverWatches:store.getMediaServerWatches(),now}).newlyCreatedWatches.length,1);
+    });
     await t.test('reload and repeated sync are idempotent; ownership-free legacy and other types stay local', async () => {
       await store.configureMediaWatchServerStore(auth); await flush();
       const legacy = makeWatch();

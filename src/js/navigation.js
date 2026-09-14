@@ -1,3 +1,5 @@
+import { selectHomeReport } from './home-report.js';
+import { getMediaServerWatches } from './media-watch-server-store.js';
 import { renderMediaPersistenceNotice } from './media-watch-persistence-notice.js';
 import {
   getWatches,
@@ -973,71 +975,12 @@ export const createWatchObject = (request, whyFollowing = '', urlAnalysis = null
   };
 };
 
-const getHomeReport = () => {
-  const report = getLatestReport();
-  const serverCompanyWatches = getServerCompanyWatches();
-  if (!report) {
-    const statusById = getCanonicalStatusMap(serverCompanyWatches, []);
-    const select = (classification) => serverCompanyWatches.filter((watch) => (
-      statusById.get(watch.id) === classification
-    ));
-    const attentionWatches = select(WATCH_CLASSIFICATIONS.ATTENTION);
-    const updatedWatches = select(WATCH_CLASSIFICATIONS.UPDATED);
-    const newlyCreatedWatches = select(WATCH_CLASSIFICATIONS.NEW);
-    const quietWatches = select(WATCH_CLASSIFICATIONS.WATCHING);
-    return {
-      report: null,
-      watches: [...attentionWatches, ...newlyCreatedWatches, ...updatedWatches],
-      statusById,
-      attentionWatches,
-      updatedWatches,
-      newlyCreatedWatches,
-      quietWatches,
-      totalChecked: 0,
-    };
-  }
-  const snapshots = report.entries.map((entry) => ({
-    id: entry.watchId,
-    title: entry.title,
-    category: entry.category,
-    reportUpdateTitle: entry.updateTitle,
-    reportSummary: entry.summary,
-    reportCheckedAt: entry.checkedAt,
-    reportFailureCode: entry.failureCode,
-  }));
-  const reportIds = new Set(snapshots.map(({ id }) => id));
-  const serverOnly = serverCompanyWatches.filter(({ id }) => !reportIds.has(id));
-  const byId = new Map([...snapshots, ...serverOnly].map((watch) => [watch.id, watch]));
-  const select = (classification) => report.entries
-    .filter((entry) => entry.classification === classification)
-    .map((entry) => byId.get(entry.watchId));
-  const attentionWatches = select(WATCH_CLASSIFICATIONS.ATTENTION);
-  const newWatches = select(WATCH_CLASSIFICATIONS.NEW);
-  const updatedWatches = select(WATCH_CLASSIFICATIONS.UPDATED);
-  const quietWatches = select(WATCH_CLASSIFICATIONS.WATCHING);
-  const serverStatusById = getCanonicalStatusMap(serverOnly, []);
-  serverOnly.forEach((watch) => {
-    const classification = serverStatusById.get(watch.id);
-    if (classification === WATCH_CLASSIFICATIONS.ATTENTION) attentionWatches.push(watch);
-    else if (classification === WATCH_CLASSIFICATIONS.UPDATED) updatedWatches.push(watch);
-    else if (classification === WATCH_CLASSIFICATIONS.NEW) newWatches.push(watch);
-    else quietWatches.push(watch);
-  });
-
-  return {
-    report,
-    watches: [...attentionWatches, ...newWatches, ...updatedWatches],
-    statusById: new Map([
-      ...report.entries.map(({ watchId, classification }) => [watchId, classification]),
-      ...serverStatusById,
-    ]),
-    attentionWatches,
-    updatedWatches,
-    newlyCreatedWatches: newWatches,
-    quietWatches,
-    totalChecked: report.counts.completed,
-  };
-};
+const getHomeServerWatches = () => [...getServerCompanyWatches(), ...getMediaServerWatches()];
+const getHomeReport = () => selectHomeReport({
+  report: getLatestReport(),
+  watches: getWatches(),
+  serverWatches: getHomeServerWatches(),
+});
 
 const formatHomeWatchTimestamp = (value) => {
   const date = parseTimestampValue(value);
