@@ -12,10 +12,10 @@ const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 const expectedLegalExamples = {
   en: {
     professional: [
-      'A home or building is declared unfit for habitation.',
-      'Habitability, heating, ventilation or safety standards change.',
-      'A court decision clarifies a landlord’s obligations.',
-      'Tax or business regulations change.',
+      'A company you follow appears in a new BODACC notice.',
+      'A regulation affecting your area of practice changes.',
+      'A court decision relevant to your practice is published.',
+      'An authority announces a new requirement or deadline.',
     ],
     personal: [
       'A new direct flight to a destination is announced.',
@@ -25,10 +25,10 @@ const expectedLegalExamples = {
   },
   fr: {
     professional: [
-      'Un logement ou un immeuble est déclaré impropre à l’habitation.',
-      'Les normes d’habitabilité, de chauffage, de ventilation ou de sécurité évoluent.',
-      'Une décision de justice précise les obligations d’un propriétaire.',
-      'Les règles fiscales ou commerciales évoluent.',
+      'Une entreprise que vous suivez fait l’objet d’une nouvelle annonce au BODACC.',
+      'Une réglementation concernant votre domaine évolue.',
+      'Une décision de justice susceptible d’affecter votre pratique est publiée.',
+      'Une autorité publie une nouvelle obligation ou échéance.',
     ],
     personal: [
       'Une nouvelle liaison aérienne vers une destination est annoncée.',
@@ -150,7 +150,7 @@ test('legal composer decorates the existing input with a localized accessible no
   assert.equal(document.querySelector('#newWatchInput'), input);
   assert.equal(localStorage.getItem('watchAssistant.watches'), null);
   setLanguage('fr');
-  assert.match(document.querySelector('#onboardingRequestNotice').textContent, /informations publiques/);
+  assert.equal(document.querySelector('#onboardingRequestNotice').textContent, 'Watch Assistant surveille les informations publiques. Ne saisissez aucune information confidentielle sur vos clients ou vos dossiers.');
   assert.match(document.querySelector('.watch-composer__helper').textContent, /Décrivez/);
   window.location = new URL('https://watch.example/flow-3.html?flow=4&lang=fr');
   assert.equal(getJourneyFromLocation().id, 'legal-professionals');
@@ -195,9 +195,12 @@ for (const language of ['en', 'fr']) {
         assert.equal(screens[0].querySelector('h1').textContent, messages.flow3.promiseHeadline);
         screens[0].querySelector('[data-flow-3-next]').click();
         await settle();
+        assert.equal(screens[1].querySelector('h1').textContent, language === 'fr' ? 'Que vérifiez-vous sans arrêt ?' : 'What do you keep checking?');
+        assert.equal(screens[1].querySelector('[data-flow-3-next]').textContent.replace(/\s+/g, ' ').trim(), language === 'fr' ? 'Continuer →' : 'Continue →');
         const examples = [...screens[1].querySelectorAll('li')].map((item) => item.textContent);
         screens[1].querySelector('[data-flow-3-next]').click();
         await settle();
+        assert.equal(screens[2].hidden, false, 'Continue opens the final explanation');
         const final = copy(screens[2]);
         for (const { key, text } of [...intro, ...final]) {
           assert.ok(!key.startsWith('legalOnboarding.'));
@@ -223,6 +226,13 @@ for (const language of ['en', 'fr']) {
     assert.equal(professional.length, 4);
     assert.equal(personal.length, 3);
     assert.equal(rendered[1].examples.length, 7);
+    assert.deepEqual(rendered[1].examples.slice(0, 4), professional);
+    assert.deepEqual(rendered[1].examples.slice(4), personal);
+    assert.match(rendered[1].examples[0], /BODACC/);
+    assert.equal(rendered[1].examples[2], language === 'fr'
+      ? 'Une décision de justice susceptible d’affecter votre pratique est publiée.'
+      : 'A court decision relevant to your practice is published.');
+    assert.doesNotMatch(rendered[1].examples.join(' '), /habitation|habitability|heating|ventilation|landlord|propriétaire|règles fiscales|tax or business|employment tribunal|prud[’']hom/i);
     assert.deepEqual(rendered[1].examples, [...professional, ...personal]);
     assert.deepEqual(rendered[1].examples, getJourneyExamples(getOnboardingJourneys()[3], language));
   });
