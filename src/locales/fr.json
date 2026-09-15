@@ -448,6 +448,15 @@
     "takeItFromHere": "Nous nous occupons de la suite.",
     "openAssistant": "Ouvrir Watch Assistant"
   },
+  "legalOnboarding": {
+    "promiseHeadline": "Vous vérifiez entre deux dossiers ?",
+    "promiseSupporting": "Annonces officielles. Actualités. Encore une source.",
+    "solutionOpening": "Les changements importants n’attendent pas votre disponibilité.",
+    "solutionWatch": "Dites-nous quoi surveiller.",
+    "solutionRelief": "Nous vous signalerons les changements significatifs, au travail comme au quotidien.",
+    "confidentialityNotice": "Watch Assistant surveille les informations publiques. Ne saisissez aucune information confidentielle sur vos clients ou vos dossiers.",
+    "requestHelper": "Décrivez ce que vous souhaitez savoir et à quel moment cela compte. Vous pouvez aussi coller une URL publique."
+  },
   "flow3": {
     "promiseHeadline": "Dites-nous ce qui compte...",
     "promiseSupporting": "Nous veillerons pour vous.",

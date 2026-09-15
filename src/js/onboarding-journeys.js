@@ -75,6 +75,39 @@ const journeys = [
       ],
     },
   },
+  {
+    id: 'legal-professionals',
+    label: 'Legal Professionals',
+    copy: {
+      promiseHeadline: 'legalOnboarding.promiseHeadline',
+      promiseSupporting: 'legalOnboarding.promiseSupporting',
+      solutionOpening: 'legalOnboarding.solutionOpening',
+      solutionWatch: 'legalOnboarding.solutionWatch',
+      solutionRelief: 'legalOnboarding.solutionRelief',
+    },
+    requestNotice: 'legalOnboarding.confidentialityNotice',
+    requestHelper: 'legalOnboarding.requestHelper',
+    examples: {
+      en: [
+        'A property company appears in an official notice.',
+        'A planning application or property development moves forward.',
+        'A regulation affecting real estate changes.',
+        'A court decision could affect your area of practice.',
+        'A new direct flight to a destination is announced.',
+        'Ticket sales for a sporting event are announced.',
+        'A significant development affects a company or investment you follow.',
+      ],
+      fr: [
+        'Une société immobilière apparaît dans une annonce officielle.',
+        'Une demande d’urbanisme ou un projet immobilier avance.',
+        'Une réglementation touchant l’immobilier évolue.',
+        'Une décision de justice pourrait concerner votre pratique.',
+        'Un nouveau vol direct vers une destination est annoncé.',
+        'La mise en vente de billets pour un événement sportif est annoncée.',
+        'Un fait marquant touche une entreprise ou un investissement que vous suivez.',
+      ],
+    },
+  },
 ];
 
 const journeysById = new Map(journeys.map((journey) => [journey.id, journey]));
@@ -95,6 +128,11 @@ const flowMappings = [
     id: '3',
     journeyId: 'coworking-owner',
     description: 'Personalized onboarding for a Monaco coworking space owner.',
+  },
+  {
+    id: '4',
+    journeyId: 'legal-professionals',
+    description: 'Personalized onboarding for lawyers and legal professionals.',
   },
 ];
 const flowsById = new Map(flowMappings.map((flow) => [flow.id, flow]));
