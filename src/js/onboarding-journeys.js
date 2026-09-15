@@ -75,6 +75,32 @@ const journeys = [
       ],
     },
   },
+  {
+    id: 'legal-professionals',
+    label: 'Legal Professionals',
+    requestNotice: 'legalOnboarding.confidentialityNotice',
+    requestHelper: 'legalOnboarding.requestHelper',
+    examples: {
+      en: [
+        'A home or building is declared unfit for habitation.',
+        'Habitability, heating, ventilation or safety standards change.',
+        'A court decision clarifies a landlord’s obligations.',
+        'Tax or business regulations change.',
+        'A new direct flight to a destination is announced.',
+        'Your favourite band announces a European tour.',
+        'Registration opens for an activity your children would enjoy.',
+      ],
+      fr: [
+        'Un logement ou un immeuble est déclaré impropre à l’habitation.',
+        'Les normes d’habitabilité, de chauffage, de ventilation ou de sécurité évoluent.',
+        'Une décision de justice précise les obligations d’un propriétaire.',
+        'Les règles fiscales ou commerciales évoluent.',
+        'Une nouvelle liaison aérienne vers une destination est annoncée.',
+        'Votre groupe préféré annonce une tournée européenne.',
+        'Les inscriptions ouvrent pour une activité qui intéresse vos enfants.',
+      ],
+    },
+  },
 ];
 
 const journeysById = new Map(journeys.map((journey) => [journey.id, journey]));
@@ -95,6 +121,11 @@ const flowMappings = [
     id: '3',
     journeyId: 'coworking-owner',
     description: 'Personalized onboarding for a Monaco coworking space owner.',
+  },
+  {
+    id: '4',
+    journeyId: 'legal-professionals',
+    description: 'Personalized onboarding for lawyers and legal professionals.',
   },
 ];
 const flowsById = new Map(flowMappings.map((flow) => [flow.id, flow]));

@@ -7,6 +7,7 @@ import { getLanguage, setLanguage, t } from './i18n.js';
 import { mountOnboardingLanguageControl } from './language-control.js';
 import { initializeFlowLanguage } from './flow-language-gate.js';
 import { getJourneyExamples, getJourneyFromLocation } from './onboarding-journeys.js';
+import { configureJourneyPresentation } from './onboarding-presentation.js';
 import {
   initializeAnalytics,
   PRODUCT_EVENTS,
@@ -21,6 +22,7 @@ const screens = [...document.querySelectorAll('[data-flow-3-screen]')];
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const activeJourney = getJourneyFromLocation();
+configureJourneyPresentation(document, activeJourney);
 const examplesList = document.querySelector('[data-flow-3-examples]');
 
 let activeScreenIndex = 0;

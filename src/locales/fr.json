@@ -448,6 +448,10 @@
     "takeItFromHere": "Nous nous occupons de la suite.",
     "openAssistant": "Ouvrir Watch Assistant"
   },
+  "legalOnboarding": {
+    "confidentialityNotice": "Watch Assistant surveille les informations publiques. Ne saisissez aucune information confidentielle sur vos clients ou vos dossiers.",
+    "requestHelper": "Décrivez ce que vous souhaitez savoir et à quel moment cela compte. Vous pouvez aussi coller une URL publique."
+  },
   "flow3": {
     "promiseHeadline": "Dites-nous ce qui compte...",
     "promiseSupporting": "Nous veillerons pour vous.",

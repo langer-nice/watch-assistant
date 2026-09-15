@@ -54,7 +54,7 @@ const createStorage = () => {
   };
 };
 
-const withBrowserForm = async ({ request, language = 'en', fetchImpl }, assertion) => {
+const withBrowserForm = async ({ request, language = 'en', search = '', fetchImpl }, assertion) => {
   const originalGlobals = Object.fromEntries(
     ['window', 'document', 'localStorage', 'sessionStorage', 'fetch', 'navigator']
       .map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
@@ -87,7 +87,7 @@ const withBrowserForm = async ({ request, language = 'en', fetchImpl }, assertio
   ]);
   const storage = createStorage();
   storage.setItem('watchAssistant.language', language);
-  let currentLocation = new URL('http://localhost/new-watch.html');
+  let currentLocation = new URL(`http://localhost/new-watch.html${search}`);
   const location = {
     get href() { return currentLocation.href; },
     set href(value) { currentLocation = new URL(value, currentLocation); },
@@ -395,3 +395,45 @@ for (const request of [
     });
   });
 }
+
+test('legal first Watch uses shared planning, clarification, source validation and creation', async () => {
+  const request = 'Tell me when new regulations affecting Monaco real estate are announced.';
+  await withBrowserForm({
+    request,
+    search: '?onboarding=first-watch&flow=4',
+    fetchImpl: async (path) => {
+      if (path.startsWith('/api/plan-watch')) return {
+        ok: true, json: async () => ({ strategy: 'web_search', connector: 'web_ai',
+          country: null, identifier: null, confidence: 0.5,
+          needsClarification: false, clarificationQuestion: null }),
+      };
+      if (path === '/api/request-clarification') return {
+        ok: true, json: async () => ({ type: 'clear', needsClarification: false }),
+      };
+      if (path === '/api/monitoring-source') return {
+        ok: true, json: async () => ({ monitoringSource: {
+          url: 'https://example.com/public-announcements.xml', type: 'rss',
+          title: 'Public announcements', discovery: 'automatic',
+        } }),
+      };
+      if (path === '/api/check-watch') return {
+        ok: true, json: async () => ({ checkedAt: '2026-09-15T10:00:00.000Z',
+          source: { title: 'Public announcements', url: 'https://example.com/public-announcements.xml' }, items: [] }),
+      };
+      throw new Error(`Unexpected request: ${path}`);
+    },
+  }, async ({ calls, storage, window }) => {
+    assert.deepEqual(calls.map(({ path }) => path), [
+      '/api/plan-watch?scope=migrated_routes', '/api/request-clarification',
+      '/api/monitoring-source', '/api/check-watch',
+    ]);
+    assert.equal(JSON.parse(calls[0].options.body).request, request);
+    const watches = JSON.parse(storage.getItem('watchAssistant.watches'));
+    assert.equal(watches.length, 1);
+    assert.equal(watches[0].request, request);
+    assert.equal(watches[0].updates.length, 0);
+    assert.equal(storage.getItem('watchAssistant.firstWatchConfirmation'), watches[0].id);
+    assert.equal(storage.getItem('watchAssistant.onboardingCompleted'), 'true');
+    assert.equal(window.location.href, 'http://localhost/index.html');
+  });
+});

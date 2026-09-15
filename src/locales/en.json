@@ -448,6 +448,10 @@
     "takeItFromHere": "We’ll take it from here.",
     "openAssistant": "Open Watch Assistant"
   },
+  "legalOnboarding": {
+    "confidentialityNotice": "Watch Assistant monitors publicly available information. Do not enter confidential client or case information.",
+    "requestHelper": "Describe what you want to know and when it matters. You can also paste a public URL."
+  },
   "flow3": {
     "promiseHeadline": "Tell us what matters...",
     "promiseSupporting": "We’ll watch it for you.",

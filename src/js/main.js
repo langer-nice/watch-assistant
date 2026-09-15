@@ -6,8 +6,10 @@ import { initIntroReplayLink } from './intro-flow.js';
 import { initializeAnalytics } from './analytics.js';
 import { initAuthUi } from './auth-ui.js';
 import { configureCompanyWatchServerStore } from './company-watch-server-store.js';
+import { configureOnboardingRequest } from './onboarding-presentation.js';
 
 initializeAnalytics();
+configureOnboardingRequest();
 initializeLanguage();
 initIntroReplayLink();
 initTopNavigation();
