@@ -8,6 +8,35 @@ import { configureJourneyPresentation, configureOnboardingRequest } from './onbo
 
 register('./test-support/json-module-loader.js', import.meta.url);
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
+// Exact approved copy: four professional examples followed by three personal examples.
+const expectedLegalExamples = {
+  en: {
+    professional: [
+      'A home or building is declared unfit for habitation.',
+      'Habitability, heating, ventilation or safety standards change.',
+      'A court decision clarifies a landlord’s obligations.',
+      'Tax or business regulations change.',
+    ],
+    personal: [
+      'A new direct flight to a destination is announced.',
+      'Your favourite band announces a European tour.',
+      'Registration opens for an activity your children would enjoy.',
+    ],
+  },
+  fr: {
+    professional: [
+      'Un logement ou un immeuble est déclaré impropre à l’habitation.',
+      'Les normes d’habitabilité, de chauffage, de ventilation ou de sécurité évoluent.',
+      'Une décision de justice précise les obligations d’un propriétaire.',
+      'Les règles fiscales ou commerciales évoluent.',
+    ],
+    personal: [
+      'Une nouvelle liaison aérienne vers une destination est annoncée.',
+      'Votre groupe préféré annonce une tournée européenne.',
+      'Les inscriptions ouvrent pour une activité qui intéresse vos enfants.',
+    ],
+  },
+};
 const storage = () => {
   const values = new Map();
   return { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: (key) => values.delete(key) };
@@ -85,8 +114,9 @@ test('legal direct route uses language gate and the same three editorial screens
   assert.equal(active().querySelector('h1').textContent, 'What do you keep checking?');
   assert.equal(active().querySelectorAll('li').length, 7);
   assert.equal(document.querySelectorAll('input, select, textarea').length, 0);
-  const examples = active().textContent;
-  for (const phrase of ['official notice', 'planning application', 'real estate', 'court decision', 'direct flight', 'sporting event', 'investment']) assert.ok(examples.includes(phrase));
+  assert.deepEqual([...active().querySelectorAll('li')].map((item) => item.textContent), [
+    ...expectedLegalExamples.en.professional, ...expectedLegalExamples.en.personal,
+  ]);
   active().querySelector('[data-flow-3-next]').click();
   await settle();
   assert.equal(active().getAttribute('data-flow-3-screen'), '2');
@@ -189,6 +219,11 @@ for (const language of ['en', 'fr']) {
     assert.deepEqual(rendered[1].intro, rendered[0].intro);
     assert.deepEqual(rendered[1].final, rendered[0].final);
     assert.notDeepEqual(rendered[1].examples, rendered[0].examples);
+    const { professional, personal } = expectedLegalExamples[language];
+    assert.equal(professional.length, 4);
+    assert.equal(personal.length, 3);
+    assert.equal(rendered[1].examples.length, 7);
+    assert.deepEqual(rendered[1].examples, [...professional, ...personal]);
     assert.deepEqual(rendered[1].examples, getJourneyExamples(getOnboardingJourneys()[3], language));
   });
 }
