@@ -78,13 +78,6 @@ const journeys = [
   {
     id: 'legal-professionals',
     label: 'Legal Professionals',
-    copy: {
-      promiseHeadline: 'legalOnboarding.promiseHeadline',
-      promiseSupporting: 'legalOnboarding.promiseSupporting',
-      solutionOpening: 'legalOnboarding.solutionOpening',
-      solutionWatch: 'legalOnboarding.solutionWatch',
-      solutionRelief: 'legalOnboarding.solutionRelief',
-    },
     requestNotice: 'legalOnboarding.confidentialityNotice',
     requestHelper: 'legalOnboarding.requestHelper',
     examples: {

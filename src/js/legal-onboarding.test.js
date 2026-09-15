@@ -78,7 +78,7 @@ test('legal direct route uses language gate and the same three editorial screens
   assert.equal(window.location.search, '?flow=4&lang=en');
   const active = () => document.querySelector('[data-flow-3-screen]:not([hidden])');
   assert.equal(active().getAttribute('data-flow-3-screen'), '0');
-  assert.equal(active().querySelector('h1').textContent, 'Keep checking between tasks?');
+  assert.equal(active().querySelector('h1').textContent, 'Tell us what matters...');
   active().querySelector('[data-flow-3-next]').click();
   await settle();
   assert.equal(active().getAttribute('data-flow-3-screen'), '1');
@@ -145,3 +145,50 @@ test('original flows keep their copy, markup and first-Watch destination; normal
     assert.equal(composer.toString(), composerBefore);
   }
 });
+
+
+for (const language of ['en', 'fr']) {
+  test(`Sales & Marketing and Legal Professionals share exact core keys and rendered copy in ${language}`, async (t) => {
+    const rendered = [];
+    const messages = JSON.parse(await read(`../locales/${language}.json`));
+    for (const flow of ['2', '4']) {
+      await t.test(`flow ${flow}`, async (t) => {
+        const { document, localStorage, sessionStorage } = browser(t, await read('../../flow-3.html'), `https://watch.example/flow-3.html?flow=${flow}&lang=${language}`);
+        await import(`./flow-3.js?shared-copy=${language}-${flow}`);
+        await settle();
+        const screens = [...document.querySelectorAll('[data-flow-3-screen]')];
+        const copy = (screen) => [...screen.querySelectorAll('[data-i18n], [data-flow-3-i18n]')].map((element) => ({
+          key: element.getAttribute('data-i18n') || element.getAttribute('data-flow-3-i18n'),
+          text: element.textContent,
+        }));
+        const intro = copy(screens[0]);
+        assert.equal(screens[0].querySelector('h1').textContent, messages.flow3.promiseHeadline);
+        screens[0].querySelector('[data-flow-3-next]').click();
+        await settle();
+        const examples = [...screens[1].querySelectorAll('li')].map((item) => item.textContent);
+        screens[1].querySelector('[data-flow-3-next]').click();
+        await settle();
+        const final = copy(screens[2]);
+        for (const { key, text } of [...intro, ...final]) {
+          assert.ok(!key.startsWith('legalOnboarding.'));
+          assert.equal(text, key.split('.').reduce((value, part) => value[part], messages));
+        }
+        for (const key of ['promiseHeadline', 'promiseSupporting', 'solutionOpening', 'solutionWatch', 'solutionRelief']) {
+          assert.equal(messages.legalOnboarding[key], undefined, 'Audience-specific core copy must not return');
+        }
+        screens[2].querySelector('[data-onboarding-first-watch]').click();
+        assert.equal(sessionStorage.getItem('watchAssistant.onboardingFirstWatch'), 'true');
+        for (const index of [0, 2]) {
+          screens[index].querySelector('[data-onboarding-skip]').click();
+          assert.equal(localStorage.getItem('watchAssistant.onboardingCompleted'), 'true');
+          assert.equal(sessionStorage.getItem('watchAssistant.onboardingFirstWatch'), null);
+        }
+        rendered.push({ intro, final, examples });
+      });
+    }
+    assert.deepEqual(rendered[1].intro, rendered[0].intro);
+    assert.deepEqual(rendered[1].final, rendered[0].final);
+    assert.notDeepEqual(rendered[1].examples, rendered[0].examples);
+    assert.deepEqual(rendered[1].examples, getJourneyExamples(getOnboardingJourneys()[3], language));
+  });
+}

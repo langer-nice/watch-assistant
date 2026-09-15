@@ -1,15 +1,7 @@
 import { getJourneyFromLocation, getOnboardingFlows } from './onboarding-journeys.js';
 
-// Optional audience copy uses the existing translation and animation machinery.
+// Core introduction and explanation always use the shared flow3 translations.
 export const configureJourneyPresentation = (root, journey) => {
-  Object.entries(journey.copy || {}).forEach(([key, translation]) => {
-    ['data-i18n', 'data-flow-3-i18n'].forEach((attribute) => {
-      root.querySelectorAll(`[${attribute}="flow3.${key}"]`).forEach((element) => {
-        element.setAttribute(attribute, translation);
-      });
-    });
-  });
-
   if (journey.requestNotice) {
     const flow = getOnboardingFlows().find((candidate) => candidate.journeyId === journey.id);
     const link = root.querySelector('[data-onboarding-first-watch]');

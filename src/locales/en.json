@@ -449,11 +449,6 @@
     "openAssistant": "Open Watch Assistant"
   },
   "legalOnboarding": {
-    "promiseHeadline": "Keep checking between tasks?",
-    "promiseSupporting": "Public notices. News. One more source.",
-    "solutionOpening": "Important changes can arrive while you’re busy.",
-    "solutionWatch": "Tell us what to watch.",
-    "solutionRelief": "We’ll report meaningful changes, for work or everyday life.",
     "confidentialityNotice": "Watch Assistant monitors publicly available information. Do not enter confidential client or case information.",
     "requestHelper": "Describe what you want to know and when it matters. You can also paste a public URL."
   },

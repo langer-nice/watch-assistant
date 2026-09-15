@@ -68,19 +68,25 @@ Sales & Marketing is the template because it naturally mixes professional and
 personal examples. All three existing audiences actually share this structure.
 The legal version keeps its gate, three screens, seven bullets and all buttons.
 
-1. **Promise:** “Keep checking between tasks?” / “Public notices. News. One more source.”
+1. **Promise:** Uses the exact shared `flow3.promiseHeadline` and
+   `flow3.promiseSupporting` keys, as Sales & Marketing does.
 2. **Examples:** “What do you keep checking?” Seven examples cover official property
    company notices, planning/property developments, real-estate regulation, court
    decisions, direct-flight announcements, sporting-event ticket-sale announcements
    and significant company/investment developments. No inventory or price claims.
-3. **Solution:** “Important changes can arrive while you’re busy.” / “Tell us what
-   to watch.” / “We’ll report meaningful changes, for work or everyday life.”
+3. **Watch explanation:** Uses the exact shared `flow3.solutionOpening`,
+   `flow3.solutionWatch` and `flow3.solutionRelief` keys, as Sales & Marketing does.
+   French: “Une Watch est une veille personnalisée.” / “Elle surveille pour vous
+   un sujet qui vous intéresse.” / “Et vous prévient lorsqu’il se passe quelque
+   chose d’important.” English retains the existing shared wording from the audit.
 4. **Existing composer:** `new-watch.html?onboarding=first-watch&flow=4`. Guidance:
    “Describe what you want to know and when it matters. You can also paste a public
    URL.” The accessible inline notice reads: “Watch Assistant monitors publicly
    available information. Do not enter confidential client or case information.”
 
-The new optional configuration remaps only audience-specific translation keys.
+Core copy is never remapped by audience. All brand, introduction, explanation
+and button strings come from the existing shared localization keys. Only the
+middle examples are personalized within the three-screen introduction.
 The audience travels to the composer in its URL, so refreshing or returning via
 browser history retains the notice. English and French are supported. Normal
 creation, editing and the three existing first-Watch routes stay unchanged.
@@ -100,7 +106,7 @@ creation, editing and the three existing first-Watch routes stay unchanged.
   credential scanner or personal-data scanner. Existing security/privacy tests
   run as part of the full suite.
 
-### Recorded results
+### Initial implementation results
 
 - All **825 tests passed**, with no skipped or failed tests.
 - Production build passed; its existing Sass legacy-API deprecation warning remains.
@@ -156,3 +162,31 @@ flight prices, stock quotes or ticket inventory are introduced. The existing
 pipeline may ask for clarification or reject a request without a supported public
 source. The local environment has no provider credentials; live provider coverage
 cannot be established by the mocked integration test.
+
+
+## Shared-copy correction
+
+Removed the five legal-specific introduction/explanation keys in both locales,
+plus the configuration and code that remapped them. The shared `flow3` translations
+are unchanged, including their existing punctuation. Legal examples, composer
+notice/guidance, routes and behaviors are preserved.
+
+Regression tests render Sales & Marketing and Legal Professionals in both English
+and French, compare every introductory/final translation key and rendered string,
+check that obsolete legal keys are absent, and exercise Continue, Skip and the
+first-Watch action. The example arrays must remain distinct.
+
+To validate this correction manually, open `flow-3.html?flow=2&lang=fr` and
+`flow-3.html?flow=4&lang=fr` in two tabs at the same window size. Compare the
+introduction, advance through the distinct example lists, and compare the final
+explanation and buttons. Repeat with `lang=en`, then repeat on mobile. Scroll the
+legal examples, use each Skip link, and follow Create my first Watch to confirm
+the existing composer and confidentiality notice.
+
+Correction validation: 15 focused onboarding tests and all 831 repository tests
+passed. Production build, tracked JavaScript syntax checks and diff checks passed;
+no separate lint/type-check command is configured. Browser screenshots of the
+introduction and final screen were byte-identical across both audiences in all
+eight comparisons (English/French × 1440×900/390×844 × introduction/final).
+The middle legal list remains distinct and scrollable, with unchanged typography,
+buttons and no horizontal overflow. Browser error checks were empty.
