@@ -78,10 +78,10 @@ test('a total page failure keeps the recognized source and URL and cannot create
     /const startUrlAnalysis = async[\s\S]*?const resetUrlFlow/,
   )?.[0] || '';
   const createHandler = navigation.match(
-    /reviewCreate\?\.addEventListener\('click'[\s\S]*?reviewCancel\?\.addEventListener/,
+    /editor\.listen\(reviewCreate, 'click'[\s\S]*?editor\.listen\(reviewCancel, /,
   )?.[0] || '';
   const cancelHandler = navigation.match(
-    /reviewCancel\?\.addEventListener\('click'[\s\S]*?analysisCancel\?\.addEventListener/,
+    /editor\.listen\(reviewCancel, 'click'[\s\S]*?editor\.listen\(analysisCancel, /,
   )?.[0] || '';
 
   assert.match(analysisFlow, /source: error\.partialAnalysis\?\.source/);

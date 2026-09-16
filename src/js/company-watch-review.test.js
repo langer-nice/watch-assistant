@@ -48,7 +48,7 @@ test('Company Review keeps the name, SIREN and BODACC source while creation stor
     /const startCompanyReview[\s\S]*?const startUrlAnalysis/,
   )?.[0] || '';
   const createHandler = navigation.match(
-    /reviewCreate\?\.addEventListener\('click',[\s\S]*?reviewCancel\?\.addEventListener/,
+    /editor\.listen\(reviewCreate, 'click',[\s\S]*?editor\.listen\(reviewCancel, /,
   )?.[0] || '';
 
   assert.match(reviewPresentation, /getWatchDisplayTitle\(analysis\)/);

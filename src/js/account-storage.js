@@ -15,6 +15,7 @@ export const isValidOwnerId = (value) => typeof value === 'string'
   && /^[a-zA-Z0-9_-]{1,128}$/.test(value);
 export const getAccountOwner = () => ownerId;
 export const getAccountEpoch = () => epoch;
+export const isAccountStorageResolved = () => scope !== null;
 export const accountStorageKey = (base, owner = ownerId) => isValidOwnerId(owner)
   ? `${base}.account.${encodeURIComponent(owner)}` : null;
 export const localWatchStorageKey = (base) => scope === 'guest'

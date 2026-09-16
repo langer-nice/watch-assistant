@@ -157,3 +157,92 @@ src/js/watch-status-lifecycle.test.js
 src/js/watch-storage.js
 src/js/watch-storage.test.js
 ```
+
+## Editor correction after the merge review (PR #22 remains open)
+
+The merge review at `d2ba033c5aa6f87909bf54f9b831caa79754086d`
+reproduced an additional blocker with synthetic accounts: the standalone editor
+retained A's request and private note after sign-out and B sign-in. The scoped
+store was empty for B, but `initForm` still held A's Watch object, edit ID, form
+values, review/clarification configuration, initial edit snapshot and callbacks.
+The account-change handler refreshed collection/detail views without invalidating
+this separate editor lifetime. Four new DOM regressions failed before the fix.
+
+The correction binds each editor to one resolved account-storage epoch:
+
+- On auth loss, unknown auth, owner/scope change or pagehide, it synchronously
+  disables and scrubs controls (including detached/default values), removes
+  review/error/link content, closes dialogs, clears editor variables and URL edit
+  references, detaches listeners, aborts URL analysis and destroys dictation.
+- The document restarts at a blank New Watch page after auth resolves. It waits
+  through signing-out so navigation cannot interrupt completion of logout.
+  Same-owner token refresh preserves the current draft. Anonymous creation remains
+  available in the existing isolated guest scope.
+- All submit/review/navigation handlers and async continuation boundaries require
+  the original editor epoch. Planner, clarification, source analysis/enhancement,
+  concept regeneration, company saves and local activation cannot publish a stale
+  response or save the old form into the next account. Requests already sent are
+  not retroactively undone; their responses are ignored after invalidation.
+- Pagehide removes sensitive state before freezing. Persisted pageshow requires
+  a blank restart and auth re-resolution. Browser form autocomplete/restoration is
+  disabled for this form. Reload and fresh history documents use the existing
+  ownership-gated stores before form initialization.
+- The Watch Detail edit sheet uses the same form in an iframe. Its parent now
+  immediately removes the iframe source and closes the sheet on account changes;
+  delayed close/hydration callbacks and iframe save messages are epoch-gated.
+
+Adjacent form audit: the only Watch create/edit form is `newWatchForm`, used both
+standalone and in the detail iframe. No separate autosave/draft storage was found.
+The known new-Watch session pointers were already cleared by the account-storage
+boundary. Auth-menu email entry rerenders with auth state and does not contain
+Watch content. Broader onboarding and unrelated UI behavior remain outside scope.
+
+Correction files:
+
+- `src/js/editor-session.js`: reusable editor lifetime and synchronous DOM scrub.
+- `src/js/account-storage.js`: expose whether the scope is resolved.
+- `src/js/navigation.js`: clear retained editor state, guard callbacks/async work,
+  and close/invalidate the parent edit sheet.
+- `new-watch.html`: disable browser restoration of account-specific form drafts.
+- `src/js/editor-account-isolation.test.js`: nine real-DOM regressions covering
+  immediate sign-out, A/B and return to A, unresolved auth, detached submissions,
+  delayed planner and server hydration, restoration, create drafts and same-owner save.
+- Ten existing test files: adapt source assertions to the guarded listener API;
+  the cross-analysis fixture now explicitly resolves anonymous auth. Their original
+  product assertions remain intact.
+- This document: root cause, boundary audit and validation evidence.
+
+Correction validation:
+
+- Editor suite: **9 passed, 0 failed, 0 skipped**.
+- Combined editor/account/auth/report/Home/company-store/Watch-storage selection:
+  **52 passed, 0 failed, 0 skipped**.
+- Complete suite: **851 passed, 0 failed, 0 skipped**.
+- Production build, JavaScript syntax checks and `git diff --check`: passed.
+- Synthetic Chromium: immediate sign-out, direct A → B, same-user token refresh,
+  reload, Back/Forward, pagehide + persisted pageshow, returning A, delayed A server
+  hydration and detached B submission all passed. Same-owner note saving and new
+  text Watch creation passed with synthetic API responses. Home, All Watches and
+  Watch Detail loaded. Embedded editor cleared on A → B, and a stale iframe save
+  message was ignored. No browser runtime errors were recorded.
+- Browser cache restoration was exercised with explicit persisted lifecycle events
+  plus real Back/Forward; this does not claim every browser chose a physical bfcache
+  hit. Real Supabase auth and Safari remain David's manual preview checks.
+- No production data or APIs were mutated. No migrations/RLS, notification/Resend,
+  cron, monitoring algorithms, media matching, report counts, onboarding content,
+  credentials or debug artifacts were changed. Local fixture responses and browser
+  instrumentation were synthetic; temporary browser scripts were not committed.
+
+David's additional Preview checklist (use two controlled test accounts):
+
+1. In A, open an existing Watch editor and enter a distinct private note. Leave it
+   open while signing out or switching to B in another tab. It must blank immediately
+   when that tab receives the auth transition; B must never see or submit A's values.
+2. Repeat using the Watch Detail edit sheet. It should close on the transition.
+3. Under B, reload and use Back/Forward; reopen A's former edit URL. No A content
+   should appear, including during loading. Repeat in Safari if available.
+4. Switch accounts while analysis/save is pending. Old results must not reappear.
+5. Return to A and reopen the owned Watch. Verify normal editing/saving and then
+   Home, All Watches and account-scoped reports. Same-user refresh should retain
+   unsaved edits while the editor remains open.
+6. Do not merge until this corrected Preview passes the manual editor checks.

@@ -1,3 +1,4 @@
+import { createEditorSession } from './editor-session.js';
 import { ACCOUNT_STORAGE_CHANGED_EVENT, getAccountEpoch } from './account-storage.js';
 import { selectHomeReport } from './home-report.js';
 import { getMediaServerWatches } from './media-watch-server-store.js';
@@ -301,6 +302,7 @@ const scrollWindowImmediately = (top) => {
 };
 
 const closeWatchEditSheet = ({ updated = false, persistedWatch = null } = {}) => {
+  const epoch = getAccountEpoch();
   const sheet = document.querySelector('#watchEditSheet');
   const frame = document.querySelector('#watchEditFrame');
   if (!sheet?.open || sheet.classList.contains('is-closing')) return;
@@ -308,6 +310,7 @@ const closeWatchEditSheet = ({ updated = false, persistedWatch = null } = {}) =>
   sheet.classList.add('is-closing');
   window.clearTimeout(editSheetCloseTimer);
   editSheetCloseTimer = window.setTimeout(async () => {
+    if (epoch !== getAccountEpoch()) return;
     sheet.close();
     sheet.classList.remove('is-closing', 'is-ready');
     sheet.style.removeProperty('--watch-edit-viewport-height');
@@ -322,6 +325,7 @@ const closeWatchEditSheet = ({ updated = false, persistedWatch = null } = {}) =>
             acceptPersistedServerCompanyWatch(persistedWatch);
           } else {
             await hydrateServerCompanyWatches();
+            if (epoch !== getAccountEpoch()) return;
           }
         } catch (error) {
           if (import.meta.env.DEV) {
@@ -399,7 +403,9 @@ const initializeWatchEditSheet = () => {
   window.addEventListener('resize', updateSheetViewport);
 
   window.addEventListener('message', (event) => {
-    if (event.origin !== window.location.origin || event.source !== frame.contentWindow) return;
+    if (!sheet.open || !frame.hasAttribute('src')
+      || sheet.dataset.accountEpoch !== String(getAccountEpoch())
+      || event.origin !== window.location.origin || event.source !== frame.contentWindow) return;
     const currentWatchId = new URLSearchParams(window.location.search).get('id');
     if (event.data?.watchId !== currentWatchId) return;
 
@@ -427,6 +433,7 @@ const openWatchEditSheet = (watchId) => {
   editSheetBackgroundScrollY = window.scrollY;
   document.body.style.setProperty('--watch-edit-background-top', `${-editSheetBackgroundScrollY}px`);
   document.body.classList.add('is-watch-edit-open');
+  sheet.dataset.accountEpoch = String(getAccountEpoch());
   frame.src = `new-watch.html?edit=${encodeURIComponent(watchId)}&presentation=modal`;
   sheet.classList.remove('is-closing', 'is-ready');
   sheet.showModal();
@@ -2676,13 +2683,13 @@ export function initForm() {
   const keepEditingButton = document.querySelector('#editKeepEditing');
   const discardChangesButton = document.querySelector('#editDiscardChanges');
   const formParams = new URLSearchParams(window.location.search);
-  const editWatchId = formParams.get('edit');
+  let editWatchId = formParams.get('edit');
   let editingWatch = editWatchId ? getWatchById(editWatchId) : null;
-  const isEditMode = Boolean(editingWatch);
-  const isRequestedModalEditMode = formParams.get('presentation') === 'modal'
+  let isEditMode = Boolean(editingWatch);
+  let isRequestedModalEditMode = formParams.get('presentation') === 'modal'
     && window.parent !== window;
-  const isModalEditMode = isEditMode && isRequestedModalEditMode;
-  const editingServerCompanyWatch = isEditMode
+  let isModalEditMode = isEditMode && isRequestedModalEditMode;
+  let editingServerCompanyWatch = isEditMode
     && editingWatch.inputType === 'company'
     && isCompanyWatchServerMode();
   let pendingRequest = '';
@@ -2724,6 +2731,36 @@ export function initForm() {
     return;
   }
 
+  const editor = createEditorSession({
+    form,
+    onInvalidate: () => {
+      editNavigationAllowed = true;
+      form.voiceDictationCleanup?.();
+      urlAnalysisController?.abort();
+      urlAnalysisController = null;
+      urlAnalysisRequestId += 1;
+      [noteCollapseTimer, keywordRegenerationTimer, voiceTooltipDismissTimer, voiceTooltipHideTimer]
+        .forEach(timer => window.clearTimeout(timer));
+      editingWatch = null;
+      editWatchId = null;
+      isEditMode = isRequestedModalEditMode = isModalEditMode = editingServerCompanyWatch = false;
+      for (const key of [...formParams.keys()]) formParams.delete(key);
+      pendingRequest = pendingWhyFollowing = pendingClarificationWhyFollowing = '';
+      pendingClarificationOriginal = pendingClarificationSuggestion = keywordSourceRequest = '';
+      pendingNavigationUrl = '';
+      pendingAnalysis = pendingNonArticleAnalysis = duplicateExistingWatch = initialEditState = null;
+      keywordItems = [];
+      editingConceptIndex = activeVoiceTooltip = urlAnalysisProgressKey = null;
+      pendingClarificationType = CLARIFICATION_TYPES.CLEAR;
+      pendingClarificationHasSuggestion = keywordsManuallyEdited = false;
+      analysisInProgress = planningInProgress = clarificationInProgress = creationInProgress = false;
+      reviewEnhancementInProgress = conceptRegenerationInProgress = false;
+      categorySource = 'inferred';
+      refreshEditSaveState = () => {};
+    },
+  });
+  if (!editor.isCurrent()) return;
+
   if (editWatchId && !editingWatch) {
     if (isRequestedModalEditMode) {
       window.parent.postMessage({ type: 'watch-editor-close', watchId: editWatchId }, window.location.origin);
@@ -2751,7 +2788,7 @@ export function initForm() {
     });
     composer?.classList.toggle('is-listening', listening);
   };
-  const voiceDictation = Recognition && input && voiceStart
+  let voiceDictation = Recognition && input && voiceStart
     ? createVoiceDictationController({
       input,
       Recognition,
@@ -2774,6 +2811,7 @@ export function initForm() {
   };
   const destroyVoiceDictation = () => {
     voiceDictation?.destroy();
+    voiceDictation = null;
     voiceStart?.removeEventListener('click', handleVoiceToggle);
     window.removeEventListener('pagehide', destroyVoiceDictation);
     if (form.voiceDictationCleanup === destroyVoiceDictation) {
@@ -2781,8 +2819,8 @@ export function initForm() {
     }
   };
   form.voiceDictationCleanup = destroyVoiceDictation;
-  voiceStart?.addEventListener('click', handleVoiceToggle);
-  window.addEventListener('pagehide', destroyVoiceDictation, { once: true });
+  editor.listen(voiceStart, 'click', handleVoiceToggle);
+  editor.listen(window, 'pagehide', destroyVoiceDictation, { once: true });
   if (voiceDictation) renderVoiceState(false);
 
   if (!isEditMode) {
@@ -2816,8 +2854,8 @@ export function initForm() {
     };
 
     updateEditViewport();
-    window.visualViewport?.addEventListener('resize', updateEditViewport);
-    window.addEventListener('resize', updateEditViewport);
+    editor.listen(window.visualViewport, 'resize', updateEditViewport);
+    editor.listen(window, 'resize', updateEditViewport);
   }
 
   const hasMeaningfulRequest = () => hasMeaningfulText(input?.value || '');
@@ -2850,6 +2888,7 @@ export function initForm() {
   });
 
   const renderKeywords = () => {
+    if (!editor.isCurrent()) return;
     if (!keywordChipsEl) return;
     keywordChipsEl.innerHTML = keywordItems
       .map((item, index) => {
@@ -3077,8 +3116,10 @@ export function initForm() {
   };
 
   const completeWatchCreation = async (watch) => {
+    if (!editor.isCurrent()) return;
     if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
       const createdWatch = await createServerCompanyWatch(watch);
+      if (!editor.isCurrent()) return;
       trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, { input_type: 'company' });
       sessionStorage.removeItem('watchAssistant.newWatchId');
       if (isOnboardingFirstWatch()) {
@@ -3094,9 +3135,11 @@ export function initForm() {
     try {
       await activateWatchMonitoring(watch.id, {
         checkController: watchCheckController,
-        saveWatch: updateWatch,
+        saveWatch: (id, changes) => editor.isCurrent() ? updateWatch(id, changes) : null,
       });
+      if (!editor.isCurrent()) return;
     } catch (error) {
+      if (!editor.isCurrent()) return;
       deleteWatch(watch.id);
       throw error;
     }
@@ -3114,6 +3157,7 @@ export function initForm() {
   };
 
   const finishModalTransition = (messageType, details = {}) => {
+    if (!editor.isCurrent()) return;
     const viewport = window.visualViewport;
     const focusedElement = document.activeElement instanceof HTMLElement
       ? document.activeElement
@@ -3122,6 +3166,7 @@ export function initForm() {
     let fallbackTimer = null;
 
     const notifyParent = () => {
+      if (!editor.isCurrent()) return;
       if (settled) return;
       settled = true;
       if (fallbackTimer !== null) window.clearTimeout(fallbackTimer);
@@ -3129,6 +3174,7 @@ export function initForm() {
       document.documentElement.style.removeProperty('--edit-visual-viewport-height');
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
+          if (!editor.isCurrent()) return;
           window.parent.postMessage({
             type: messageType,
             watchId: editingWatch.id,
@@ -3142,7 +3188,7 @@ export function initForm() {
       window.requestAnimationFrame(notifyParent);
     };
 
-    viewport?.addEventListener('resize', handleViewportResize, { once: true });
+    editor.listen(viewport, 'resize', handleViewportResize, { once: true });
     focusedElement?.blur();
     // Safari occasionally omits the final visualViewport resize event after a programmatic blur.
     fallbackTimer = window.setTimeout(notifyParent, viewport ? 360 : 0);
@@ -3157,6 +3203,7 @@ export function initForm() {
       useRequestAsTitle = false,
     } = {},
   ) => {
+    if (!editor.isCurrent()) return;
     if (!validateFeedUrl({ focus: true })) {
       creationInProgress = false;
       setCreationControlsDisabled(false);
@@ -3189,6 +3236,7 @@ export function initForm() {
     const monitoringSummary = requestChanged && !urlAnalysis
       ? await generateMonitoringSummary(request)
       : null;
+    if (!editor.isCurrent()) return;
     const derivedData = deriveWatchData(request, urlAnalysis, {
       category,
       categorySource,
@@ -3350,15 +3398,18 @@ export function initForm() {
 
     try {
       if (isCompanyWatch(editingWatch) && isCompanyWatchServerMode()) {
-        editingWatch = await updateServerCompanyWatch(editingWatch.id, {
+        const savedWatch = await updateServerCompanyWatch(editingWatch.id, {
           ...(changes.title ? { title: changes.title } : {}),
           summary: changes.whyFollowing ?? editingWatch.whyFollowing ?? '',
           category,
         });
+        if (!editor.isCurrent()) return;
+        editingWatch = savedWatch;
       } else {
         updateWatch(editingWatch.id, changes);
       }
     } catch {
+      if (!editor.isCurrent()) return;
       creationInProgress = false;
       setCreationControlsDisabled(false);
       if (watchError) watchError.textContent = t('newWatch.editSaveFailed');
@@ -3366,6 +3417,7 @@ export function initForm() {
       noteInput?.focus();
       return;
     }
+    if (!editor.isCurrent()) return;
     editNavigationAllowed = true;
     if (isModalEditMode) {
       finishModalTransition('watch-editor-saved', { watch: editingWatch });
@@ -3397,6 +3449,7 @@ export function initForm() {
       createdAsWrittenAfterClarityWarning,
     } = {},
   ) => {
+    if (!editor.isCurrent()) return;
     const selectedRequest = preserveOriginalWording ? request : request.trim();
     if (!selectedRequest.trim() || creationInProgress) return;
 
@@ -3417,7 +3470,9 @@ export function initForm() {
         createOptions.monitoringSource = await requestMonitoringSource(selectedRequest, {
           language: getLanguage(),
         });
+        if (!editor.isCurrent()) return;
       } catch {
+        if (!editor.isCurrent()) return;
         creationInProgress = false;
         setCreationControlsDisabled(false);
         setSubmitLabel();
@@ -3432,7 +3487,9 @@ export function initForm() {
         return;
       }
     }
+    if (!editor.isCurrent()) return;
     const monitoringSummary = await generateMonitoringSummary(selectedRequest);
+    if (!editor.isCurrent()) return;
     const watch = createWatchObject(
       selectedRequest,
       whyFollowing,
@@ -3446,6 +3503,7 @@ export function initForm() {
     try {
       await completeWatchCreation(watch);
     } catch {
+      if (!editor.isCurrent()) return;
       creationInProgress = false;
       setCreationControlsDisabled(false);
       setSubmitLabel();
@@ -3667,6 +3725,7 @@ export function initForm() {
   };
 
   const renderReviewPresentation = (analysis) => {
+    if (!editor.isCurrent()) return;
     const isCompanyReview = analysis?.inputType === 'company';
     const isNonStoryPage = analysis?.isStory === false;
     const failed = analysis?.status !== 'success';
@@ -3724,6 +3783,7 @@ export function initForm() {
   };
 
   const showReview = (analysis) => {
+    if (!editor.isCurrent()) return;
     const failed = analysis?.status !== 'success';
     if (!reviewEnhancementInProgress) {
       trackProductEvent(
@@ -3804,6 +3864,7 @@ export function initForm() {
   };
 
   const showCompanyDuplicate = (existingWatch) => {
+    if (!editor.isCurrent()) return;
     const hasSafeExistingWatch = Boolean(existingWatch?.id && existingWatch?.title);
     creationInProgress = false;
     duplicateExistingWatch = existingWatch || null;
@@ -3832,6 +3893,7 @@ export function initForm() {
   };
 
   const startCompanyReview = async (request, whyFollowing, siren, companyName = null) => {
+    if (!editor.isCurrent()) return;
     const monitoringSource = createBodaccMonitoringSource(siren);
     if (!monitoringSource) return false;
     const requestId = urlAnalysisRequestId + 1;
@@ -3860,7 +3922,7 @@ export function initForm() {
           },
         }
         : await requestCompanyCheck(monitoringSource.siren);
-      if (requestId !== urlAnalysisRequestId) return true;
+      if (!editor.isCurrent() || requestId !== urlAnalysisRequestId) return true;
       const company = {
         siren: monitoringSource.siren,
         name: baseline.company?.officialName || companyName,
@@ -3885,7 +3947,7 @@ export function initForm() {
         storyFingerprint: [],
       });
     } catch (error) {
-      if (requestId !== urlAnalysisRequestId) return true;
+      if (!editor.isCurrent() || requestId !== urlAnalysisRequestId) return true;
       resetUrlFlow({ clearInput: false });
       if (watchError) {
         const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
@@ -3903,6 +3965,7 @@ export function initForm() {
   };
 
   const startUrlAnalysis = async (request, whyFollowing) => {
+    if (!editor.isCurrent()) return;
     urlAnalysisController?.abort();
     const requestId = urlAnalysisRequestId + 1;
     const controller = new AbortController();
@@ -3925,6 +3988,7 @@ export function initForm() {
     }
 
     const showProgress = () => {
+      if (!editor.isCurrent()) return;
       urlAnalysisProgressKey = 'newWatch.urlProcessingButton';
       if (processingMessage) {
         processingMessage.textContent = t(urlAnalysisProgressKey);
@@ -3936,6 +4000,7 @@ export function initForm() {
     try {
       // Yield once so the browser paints the disabled button and processing state.
       await new Promise((resolve) => window.requestAnimationFrame(resolve));
+      if (!editor.isCurrent()) return;
       const analysis = await analyseUrl(request, {
         onProgress: showProgress,
         signal: controller.signal,
@@ -3947,12 +4012,12 @@ export function initForm() {
           if (urlAnalysisController === controller) urlAnalysisController = null;
         });
       }
-      if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
+      if (!editor.isCurrent() || requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
       const resolvedAnalysis = await resolveUrlMonitoringSource(analysis, {
         language: getLanguage(),
         signal: controller.signal,
       });
-      if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
+      if (!editor.isCurrent() || requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
       if (requiresNonArticleClarification(resolvedAnalysis.pageType)) {
         showClarification(request, {
           type: CLARIFICATION_TYPES.CLARIFICATION_REQUIRED,
@@ -3967,7 +4032,7 @@ export function initForm() {
       if (enhancement) {
         void enhancement.then((enhancedAnalysis) => {
           if (
-            !enhancedAnalysis
+            !editor.isCurrent() || !enhancedAnalysis
             || requestId !== urlAnalysisRequestId
             || controller.signal.aborted
             || pendingAnalysis !== resolvedAnalysis
@@ -3989,7 +4054,7 @@ export function initForm() {
         });
       }
     } catch (error) {
-      if (requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
+      if (!editor.isCurrent() || requestId !== urlAnalysisRequestId || controller.signal.aborted) return;
       if (error instanceof SourceDiscoveryError) {
         resetUrlFlow({ clearInput: false });
         if (watchError) watchError.textContent = t('newWatch.monitoringSourceUnsupported');
@@ -4005,7 +4070,7 @@ export function initForm() {
         sourceUrl: error.partialAnalysis?.sourceUrl || request,
       });
     } finally {
-      if (requestId !== urlAnalysisRequestId) return;
+      if (!editor.isCurrent() || requestId !== urlAnalysisRequestId) return;
       analysisInProgress = false;
       urlAnalysisProgressKey = null;
       if (!enhancement && urlAnalysisController === controller) urlAnalysisController = null;
@@ -4252,6 +4317,7 @@ export function initForm() {
   };
 
   const regenerateLegacyUrlConcepts = async () => {
+    if (!editor.isCurrent()) return;
     if (!isEditMode || editingWatch.inputType !== 'url') return;
     const forceRegeneration = import.meta.env?.DEV
       && formParams.get('forceConceptRegeneration') === '1';
@@ -4277,6 +4343,7 @@ export function initForm() {
     setConceptRegenerationLoading(true);
     try {
       const analysis = await analyseUrl(sourceUrl);
+      if (!editor.isCurrent()) return;
       const changes = createRegeneratedFingerprintChanges(
         analysis,
         MONITORING_CONCEPTS_VERSION,
@@ -4291,9 +4358,10 @@ export function initForm() {
       renderKeywords();
       initialEditState = JSON.stringify(getEditState());
     } catch (error) {
+      if (!editor.isCurrent()) return;
       console.warn('[Story Fingerprint] Existing Watch regeneration failed.', error);
     } finally {
-      setConceptRegenerationLoading(false);
+      if (editor.isCurrent()) setConceptRegenerationLoading(false);
     }
   };
 
@@ -4330,6 +4398,7 @@ export function initForm() {
   };
 
   const returnToWatchDetails = (destination = backEl?.href) => {
+    if (!editor.isCurrent()) return;
     editNavigationAllowed = true;
     if (isModalEditMode) {
       finishModalTransition('watch-editor-close');
@@ -4361,7 +4430,7 @@ export function initForm() {
     requestDiscardConfirmation(destination);
   };
 
-  input?.addEventListener('input', (event) => {
+  editor.listen(input, 'input', (event) => {
     if (
       !isEditMode
       && event.inputType !== 'insertFromPaste'
@@ -4373,13 +4442,13 @@ export function initForm() {
     resizeInput();
     scheduleKeywordRegeneration();
   });
-  input?.addEventListener('paste', (event) => {
+  editor.listen(input, 'paste', (event) => {
     const pastedValue = event.clipboardData?.getData('text')?.trim() || '';
     if (!isEditMode && isUrl(pastedValue)) {
       trackProductEventOnce(PRODUCT_EVENTS.URL_PASTED);
     }
   });
-  input?.addEventListener('keydown', (event) => {
+  editor.listen(input, 'keydown', (event) => {
     if (
       event.key === 'Enter'
       && (event.metaKey || event.ctrlKey)
@@ -4391,12 +4460,12 @@ export function initForm() {
     }
   });
 
-  watchClear?.addEventListener('click', () => {
+  editor.listen(watchClear, 'click', () => {
     if (!input) return;
     resetUrlFlow({ clearInput: true });
   });
 
-  keywordChipsEl?.addEventListener('click', (event) => {
+  editor.listen(keywordChipsEl, 'click', (event) => {
     const rename = event.target.closest('[data-concept-rename]');
     const remove = event.target.closest('[data-keyword-remove]');
     if (rename) {
@@ -4409,7 +4478,7 @@ export function initForm() {
     }
   });
 
-  keywordChipsEl?.addEventListener('keydown', (event) => {
+  editor.listen(keywordChipsEl, 'keydown', (event) => {
     const editor = event.target.closest('[data-concept-edit]');
     if (!editor || !['Enter', 'Escape'].includes(event.key)) return;
     event.preventDefault();
@@ -4420,32 +4489,32 @@ export function initForm() {
     );
   });
 
-  keywordChipsEl?.addEventListener('focusout', (event) => {
+  editor.listen(keywordChipsEl, 'focusout', (event) => {
     const editor = event.target.closest('[data-concept-edit]');
     if (!editor) return;
     finishConceptRename(Number(editor.dataset.conceptEdit), editor.value);
   });
 
-  keywordAddEl?.addEventListener('click', addKeyword);
-  keywordInputEl?.addEventListener('keydown', (event) => {
+  editor.listen(keywordAddEl, 'click', addKeyword);
+  editor.listen(keywordInputEl, 'keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
       addKeyword();
     }
   });
 
-  categoryInputEl?.addEventListener('change', () => {
+  editor.listen(categoryInputEl, 'change', () => {
     categorySource = 'manual';
   });
-  advancedToggleEl?.addEventListener('click', () => {
+  editor.listen(advancedToggleEl, 'click', () => {
     setAdvancedSettingsExpanded(advancedToggleEl.getAttribute('aria-expanded') !== 'true');
   });
-  feedUrlInputEl?.addEventListener('input', () => {
+  editor.listen(feedUrlInputEl, 'input', () => {
     validateFeedUrl();
     refreshEditSaveState();
   });
 
-  noteToggle?.addEventListener('click', () => {
+  editor.listen(noteToggle, 'click', () => {
     if (!noteRegion) return;
 
     noteRegion.hidden = false;
@@ -4462,12 +4531,12 @@ export function initForm() {
     });
   });
 
-  noteInput?.addEventListener('input', () => {
+  editor.listen(noteInput, 'input', () => {
     updateNoteCloseLabel();
     resizeNote();
   });
 
-  noteClose?.addEventListener('click', () => {
+  editor.listen(noteClose, 'click', () => {
     if (!noteRegion || !noteToggle) return;
 
     if (noteInput?.value) {
@@ -4489,7 +4558,7 @@ export function initForm() {
     }, 200);
   });
 
-  form.addEventListener('submit', async (event) => {
+  editor.listen(form, 'submit', async (event) => {
     event.preventDefault();
     voiceDictation?.stop({ focus: false });
 
@@ -4531,11 +4600,13 @@ export function initForm() {
     try {
       watchPlan = await requestWatchPlan(request);
     } catch {
+      if (!editor.isCurrent()) return;
       // Unmigrated routes remain available; migrated route validators fail closed below.
     } finally {
       planningInProgress = false;
     }
 
+    if (!editor.isCurrent()) return;
     const companyPlan = resolveFrenchCompanyPlan(request, watchPlan);
     const companyPlanRoute = getCompanyPlanRoute(request, companyPlan);
     if (companyPlanRoute === COMPANY_PLAN_ROUTES.REVIEW) {
@@ -4629,7 +4700,9 @@ export function initForm() {
     clarificationInProgress = true;
     setCreationControlsDisabled(true);
     setSubmitLabel('newWatch.clarificationChecking');
+    if (!editor.isCurrent()) return;
     const result = await clarifyWatchRequest(request, { language: getLanguage() });
+    if (!editor.isCurrent()) return;
     if (result.needsClarification) {
       showClarification(originalRequest, result, whyFollowing);
       return;
@@ -4642,7 +4715,7 @@ export function initForm() {
     });
   });
 
-  clarificationActions?.addEventListener('click', async (event) => {
+  editor.listen(clarificationActions, 'click', async (event) => {
     const button = event.target.closest('[data-clarification-action]');
     if (!button || !clarificationActions.contains(button)) return;
     if (creationInProgress) return;
@@ -4713,6 +4786,7 @@ export function initForm() {
             ));
           }
         } catch {
+          if (!editor.isCurrent()) return;
           creationInProgress = false;
           setCreationControlsDisabled(false);
           showClarification(
@@ -4760,17 +4834,17 @@ export function initForm() {
     input?.focus();
   };
 
-  reviewEdit?.addEventListener('click', () => {
+  editor.listen(reviewEdit, 'click', () => {
     if (pendingAnalysis?.inputType === 'company') return restoreCompanyRequestForEditing();
     setReviewEditing(!review?.classList.contains('is-editing'));
   });
 
-  reviewSummary?.addEventListener('input', () => {
+  editor.listen(reviewSummary, 'input', () => {
     validateReviewSummary();
     resizeReviewSummary();
   });
 
-  reviewCreate?.addEventListener('click', async () => {
+  editor.listen(reviewCreate, 'click', async () => {
     if (
       creationInProgress
       || pendingAnalysis?.status !== 'success'
@@ -4827,6 +4901,7 @@ export function initForm() {
           createOptions,
         ));
       } catch (error) {
+        if (!editor.isCurrent()) return;
         if (error?.code === 'ACTIVE_WATCH_EXISTS') {
           showCompanyDuplicate(error.existingWatch);
           return;
@@ -4841,18 +4916,18 @@ export function initForm() {
     }
   });
 
-  reviewCancel?.addEventListener('click', () => {
+  editor.listen(reviewCancel, 'click', () => {
     resetUrlFlow({
       clearInput: pendingAnalysis?.status === 'success',
       trackCancellation: true,
     });
   });
 
-  companyDuplicateCancel?.addEventListener('click', () => {
+  editor.listen(companyDuplicateCancel, 'click', () => {
     editNavigationAllowed = true;
   });
 
-  analysisCancel?.addEventListener('click', () => {
+  editor.listen(analysisCancel, 'click', () => {
     resetUrlFlow({ clearInput: false, trackCancellation: true });
   });
 
@@ -4905,14 +4980,14 @@ export function initForm() {
 
   form.querySelectorAll('.watch-reason__microphone')
     .forEach((microphone) => {
-      microphone.addEventListener('click', () => {
+      editor.listen(microphone, 'click', () => {
         if (!isEditMode) trackProductEvent(PRODUCT_EVENTS.MICROPHONE_CLICKED);
         showVoiceInputTooltip(microphone);
       });
     });
 
   if (!isEditMode) {
-    backEl?.addEventListener('click', () => {
+    editor.listen(backEl, 'click', () => {
       if (hasMeaningfulRequest()) {
         trackProductEventOnce(
           PRODUCT_EVENTS.WATCH_CREATION_CANCELLED,
@@ -4925,7 +5000,7 @@ export function initForm() {
 
   if (isEditMode) {
     if (editingServerCompanyWatch && isModalEditMode) {
-      window.addEventListener(WATCH_STORAGE_CHANGED_EVENT, () => {
+      editor.listen(window, WATCH_STORAGE_CHANGED_EVENT, () => {
         if (!isCompanyWatchServerMode()) {
           editNavigationAllowed = true;
           finishModalTransition('watch-editor-close');
@@ -4933,27 +5008,27 @@ export function initForm() {
       });
     }
 
-    discardDialog?.addEventListener('cancel', () => {
+    editor.listen(discardDialog, 'cancel', () => {
       pendingNavigationUrl = '';
     });
 
-    keepEditingButton?.addEventListener('click', () => {
+    editor.listen(keepEditingButton, 'click', () => {
       pendingNavigationUrl = '';
     });
 
-    discardChangesButton?.addEventListener('click', (event) => {
+    editor.listen(discardChangesButton, 'click', (event) => {
       event.preventDefault();
       discardDialog?.close('discard');
       returnToWatchDetails(pendingNavigationUrl);
     });
 
-    window.addEventListener('beforeunload', (event) => {
+    editor.listen(window, 'beforeunload', (event) => {
       if (editNavigationAllowed || !hasUnsavedEditChanges()) return;
       event.preventDefault();
       event.returnValue = '';
     });
 
-    window.addEventListener('message', (event) => {
+    editor.listen(window, 'message', (event) => {
       if (
         !isModalEditMode
         || event.origin !== window.location.origin
@@ -4967,19 +5042,19 @@ export function initForm() {
       }
     });
 
-    form.addEventListener('input', refreshEditSaveState);
-    form.addEventListener('change', refreshEditSaveState);
-    form.addEventListener('click', () => {
+    editor.listen(form, 'input', refreshEditSaveState);
+    editor.listen(form, 'change', refreshEditSaveState);
+    editor.listen(form, 'click', () => {
       window.requestAnimationFrame(refreshEditSaveState);
     });
 
     if (!isModalEditMode) {
-      backEl?.addEventListener('click', (event) => {
+      editor.listen(backEl, 'click', (event) => {
         event.preventDefault();
         handleEditNavigation(backEl.href);
       });
 
-      document.addEventListener('click', (event) => {
+      editor.listen(document, 'click', (event) => {
         const link = event.target.closest('a[href]');
         if (!link || link === backEl || link.target === '_blank') return;
         event.preventDefault();
@@ -4987,7 +5062,7 @@ export function initForm() {
       });
 
       window.history.pushState({ watchAssistantEditGuard: true }, '', window.location.href);
-      window.addEventListener('popstate', () => {
+      editor.listen(window, 'popstate', () => {
         if (editNavigationAllowed) return;
         window.history.pushState({ watchAssistantEditGuard: true }, '', window.location.href);
         handleEditNavigation(backEl?.href);
@@ -4995,7 +5070,7 @@ export function initForm() {
     }
   }
 
-  document.addEventListener('i18n:languageChanged', () => {
+  editor.listen(document, 'i18n:languageChanged', () => {
     renderVoiceState(Boolean(voiceDictation?.isListening()));
     updateNoteCloseLabel();
     resizeInput({ immediate: true });
@@ -5032,6 +5107,7 @@ export function initForm() {
   resizeInput({ immediate: true });
   resizeNote({ immediate: true });
   document.fonts?.ready.then(() => {
+    if (!editor.isCurrent()) return;
     resizeInput({ immediate: true });
     resizeNote({ immediate: true });
   });
@@ -5095,6 +5171,14 @@ export const initApp = () => {
   });
 
   window.addEventListener(ACCOUNT_STORAGE_CHANGED_EVENT, () => {
+    window.clearTimeout(editSheetCloseTimer);
+    editSheetCloseTimer = null;
+    const editSheet = document.querySelector('#watchEditSheet');
+    document.querySelector('#watchEditFrame')?.removeAttribute('src');
+    if (editSheet?.open) editSheet.close();
+    if (editSheet) delete editSheet.dataset.accountEpoch;
+    document.body.classList.remove('is-watch-edit-open');
+    document.body.style.removeProperty('--watch-edit-background-top');
     homeCreatedWatchId = null;
     homeFirstWatchConfirmation = false;
     const { dialog, shell } = getHomeReportProgressElements();
