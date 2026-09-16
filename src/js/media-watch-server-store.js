@@ -1,3 +1,4 @@
+import { localWatchStorageKey, safeStorage } from './account-storage.js';
 import { addUpdateToWatch } from './watch-updates.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
 import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
@@ -223,7 +224,7 @@ export const configureMediaWatchServerStore = async (auth) => {
     if (next !== identity) { rows = []; emailEnabled = false; identity = next; notify(); }
     // Recover owned local definitions whose pending record was never written; never adopt unowned legacy data.
     try {
-      const local = JSON.parse(localStorage.getItem('watchAssistant.watches') || '[]');
+      const local = JSON.parse(safeStorage.getItem(localWatchStorageKey('watchAssistant.watches')) || '[]');
       for (const watch of local) {
         if (watch.mediaPersistence?.ownerId === next && !read(next, watch.id)) prepareMediaWatch(watch, watch);
       }

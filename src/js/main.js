@@ -14,6 +14,12 @@ initializeLanguage();
 initIntroReplayLink();
 initTopNavigation();
 const authUi = initAuthUi();
+// Drop sensitive DOM before a page can enter the back/forward cache. Restoration
+// must resolve the session again rather than reuse a frozen account snapshot.
+window.addEventListener('pagehide', () => authUi?.auth.suspend());
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) void authUi?.auth.initialize();
+});
 
 const start = async () => {
   if (authUi) {

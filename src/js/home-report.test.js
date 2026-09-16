@@ -1,3 +1,5 @@
+import { configureAccountStorage } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-report-owner' } } }) });
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { selectHomeReport } from './home-report.js';

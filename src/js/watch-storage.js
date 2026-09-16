@@ -1,3 +1,4 @@
+import { localWatchStorageKey, safeStorage } from './account-storage.js';
 import { prepareMediaWatch, queueMediaWatchDeletion, mergeMediaWatches } from './media-watch-server-store.js';
 import { mockWatches } from './data/mock-watches.js';
 import { normalizeWatchCreationDate } from './watch-dates.js';
@@ -70,7 +71,7 @@ const decodeHtmlEntities = (value) => {
 
 const migrateStoredWatchTitles = (watches) => {
   try {
-    if (localStorage.getItem(HTML_ENTITY_MIGRATION_KEY) === HTML_ENTITY_MIGRATION_VERSION) {
+    if (safeStorage.getItem(localWatchStorageKey(HTML_ENTITY_MIGRATION_KEY)) === HTML_ENTITY_MIGRATION_VERSION) {
       return watches;
     }
   } catch {
@@ -88,9 +89,9 @@ const migrateStoredWatchTitles = (watches) => {
 
   try {
     if (changed) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(migratedWatches));
+      safeStorage.setItem(localWatchStorageKey(STORAGE_KEY), JSON.stringify(migratedWatches));
     }
-    localStorage.setItem(HTML_ENTITY_MIGRATION_KEY, HTML_ENTITY_MIGRATION_VERSION);
+    safeStorage.setItem(localWatchStorageKey(HTML_ENTITY_MIGRATION_KEY), HTML_ENTITY_MIGRATION_VERSION);
   } catch {
     // The decoded in-memory data can still be rendered for this session.
   }
@@ -99,7 +100,7 @@ const migrateStoredWatchTitles = (watches) => {
 
 const migrateLegacyReportStatuses = (watches) => {
   try {
-    if (localStorage.getItem(REPORT_STATUS_MIGRATION_KEY) === REPORT_STATUS_MIGRATION_VERSION) {
+    if (safeStorage.getItem(localWatchStorageKey(REPORT_STATUS_MIGRATION_KEY)) === REPORT_STATUS_MIGRATION_VERSION) {
       return watches;
     }
   } catch {
@@ -124,7 +125,7 @@ const migrateLegacyReportStatuses = (watches) => {
 
   try {
     if (changed) saveWatches(migrated);
-    localStorage.setItem(REPORT_STATUS_MIGRATION_KEY, REPORT_STATUS_MIGRATION_VERSION);
+    safeStorage.setItem(localWatchStorageKey(REPORT_STATUS_MIGRATION_KEY), REPORT_STATUS_MIGRATION_VERSION);
   } catch {
     // The idempotent in-memory migration remains safe for this session.
   }
@@ -133,7 +134,7 @@ const migrateLegacyReportStatuses = (watches) => {
 
 const getDeletedWatchIds = () => {
   try {
-    const value = JSON.parse(localStorage.getItem(DELETED_WATCHES_STORAGE_KEY) || '[]');
+    const value = JSON.parse(safeStorage.getItem(localWatchStorageKey(DELETED_WATCHES_STORAGE_KEY)) || '[]');
     return Array.isArray(value) ? value : [];
   } catch {
     return [];
@@ -141,12 +142,12 @@ const getDeletedWatchIds = () => {
 };
 
 const saveDeletedWatchIds = (watchIds) => {
-  localStorage.setItem(DELETED_WATCHES_STORAGE_KEY, JSON.stringify(watchIds));
+  safeStorage.setItem(localWatchStorageKey(DELETED_WATCHES_STORAGE_KEY), JSON.stringify(watchIds));
 };
 
 export function getStoredWatches() {
   try {
-    const json = localStorage.getItem(STORAGE_KEY);
+    const json = safeStorage.getItem(localWatchStorageKey(STORAGE_KEY));
     if (!json) {
       return [];
     }
@@ -167,15 +168,15 @@ export function getStoredWatches() {
 }
 
 function saveWatches(watches) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(watches));
+  safeStorage.setItem(localWatchStorageKey(STORAGE_KEY), JSON.stringify(watches));
 }
 
 export function resetStoredWatches() {
-  localStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem(DELETED_WATCHES_STORAGE_KEY);
-  localStorage.removeItem(DEMO_DATA_VERSION_KEY);
-  localStorage.removeItem(HTML_ENTITY_MIGRATION_KEY);
-  localStorage.removeItem(REPORT_STATUS_MIGRATION_KEY);
+  safeStorage.removeItem(localWatchStorageKey(STORAGE_KEY));
+  safeStorage.removeItem(localWatchStorageKey(DELETED_WATCHES_STORAGE_KEY));
+  safeStorage.removeItem(localWatchStorageKey(DEMO_DATA_VERSION_KEY));
+  safeStorage.removeItem(localWatchStorageKey(HTML_ENTITY_MIGRATION_KEY));
+  safeStorage.removeItem(localWatchStorageKey(REPORT_STATUS_MIGRATION_KEY));
   notifyWatchStorageChanged();
 }
 

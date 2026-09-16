@@ -1,6 +1,7 @@
+import { getAccountOwner } from './account-storage.js';
 import { getWatches, addWatch, resetStoredWatches } from './watch-storage.js';
 import { getCanonicalWatchClassification, getMeaningfulWatchUpdate } from './report-status.js';
-import { resetStoredReports, saveReport } from './report-storage.js';
+import { resetStoredReports, saveReport, REPORT_STORAGE_VERSION } from './report-storage.js';
 
 export const PREVIEW_FIXTURE_PREFIX = 'preview-test-';
 export const PREVIEW_REPORT_ID = 'preview-test-report';
@@ -147,6 +148,7 @@ const createFixtureReport = (watches, now) => {
     resultIds: entry.resultIds,
   }));
   return {
+    version: REPORT_STORAGE_VERSION, ownerId: getAccountOwner(),
     id: PREVIEW_REPORT_ID, startedAt: relativeIso(now, 0.05), completedAt,
     watchIdsConsidered: watches.map(({ id }) => id), watchIdsChecked: watches.map(({ id }) => id),
     watchIdsSkipped: [], attempts, entries,
@@ -164,6 +166,6 @@ export const loadPreviewTestWatches = ({ now = new Date(), reset = false, env = 
   const additions = fixtures.filter(({ id }) => !existingIds.has(id));
   additions.forEach(addWatch);
   const watches = getWatches();
-  saveReport(createFixtureReport(watches, now));
+  if (getAccountOwner()) saveReport(createFixtureReport(watches, now));
   return { available: true, added: additions.length, total: fixtures.length };
 };

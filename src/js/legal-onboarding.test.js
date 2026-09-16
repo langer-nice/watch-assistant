@@ -1,3 +1,5 @@
+import { configureAccountStorage, localWatchStorageKey } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
@@ -148,7 +150,7 @@ test('legal composer decorates the existing input with a localized accessible no
   assert.equal(input.getAttribute('aria-describedby'), 'onboardingRequestNotice');
   assert.equal(document.querySelector('#newWatchForm'), form);
   assert.equal(document.querySelector('#newWatchInput'), input);
-  assert.equal(localStorage.getItem('watchAssistant.watches'), null);
+  assert.equal(localStorage.getItem(localWatchStorageKey('watchAssistant.watches')), null);
   setLanguage('fr');
   assert.equal(document.querySelector('#onboardingRequestNotice').textContent, 'Watch Assistant surveille les informations publiques. Ne saisissez aucune information confidentielle sur vos clients ou vos dossiers.');
   assert.match(document.querySelector('.watch-composer__helper').textContent, /Décrivez/);

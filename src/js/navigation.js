@@ -1,3 +1,4 @@
+import { ACCOUNT_STORAGE_CHANGED_EVENT, getAccountEpoch } from './account-storage.js';
 import { selectHomeReport } from './home-report.js';
 import { getMediaServerWatches } from './media-watch-server-store.js';
 import { renderMediaPersistenceNotice } from './media-watch-persistence-notice.js';
@@ -218,10 +219,23 @@ let homeReportProgressScrollY = 0;
 const FIRST_MONITORING_DELAY = 3200;
 const HOME_REPORT_READY_DURATION_MS = 700;
 const HOME_REPORT_FADE_DURATION_MS = 180;
-const watchCheckController = createWatchCheckController({
-  getWatch: getWatchById,
-  saveWatch: updateWatch,
-});
+let checkControllerEpoch = -1;
+let sessionCheckController;
+const currentCheckController = () => {
+  const epoch = getAccountEpoch();
+  if (epoch !== checkControllerEpoch) {
+    checkControllerEpoch = epoch;
+    sessionCheckController = createWatchCheckController({
+      getWatch: (id) => epoch === getAccountEpoch() ? getWatchById(id) : null,
+      saveWatch: (id, changes) => epoch === getAccountEpoch() ? updateWatch(id, changes) : null,
+    });
+  }
+  return sessionCheckController;
+};
+const watchCheckController = {
+  check: (...args) => currentCheckController().check(...args),
+  isChecking: (...args) => currentCheckController().isChecking(...args),
+};
 
 const dismissDetailConfirmation = (confirmationEl) => {
   window.clearTimeout(detailConfirmationAutoTimer);
@@ -2291,6 +2305,7 @@ const closeHomeReportProgress = async () => {
 };
 
 const runHomeReportGeneration = async () => {
+  const generationEpoch = getAccountEpoch();
   if (isReportGenerationInProgress() || homeReportProgressState === 'loading'
     || homeReportProgressState === 'success' || homeReportProgressState === 'closing') return;
 
@@ -2305,20 +2320,24 @@ const runHomeReportGeneration = async () => {
 
   try {
     await waitForVisiblePaint({ minimumDuration: 0 });
+    if (generationEpoch !== getAccountEpoch()) return;
     await generateReport({
       watches: getUserCreatedWatches(),
       checkController: watchCheckController,
       getWatch: getWatchById,
       saveWatch: updateWatch,
     });
+    if (generationEpoch !== getAccountEpoch()) return;
     renderHomeSummary();
     renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
     setHomeReportProgressState('success');
     await waitForHomeReportProgress(HOME_REPORT_READY_DURATION_MS);
+    if (generationEpoch !== getAccountEpoch()) return;
     await closeHomeReportProgress();
   } catch (error) {
+    if (generationEpoch !== getAccountEpoch()) return;
     console.error('Report generation failed', error);
     renderHomeSummary();
     renderHomeBriefing();
@@ -5069,6 +5088,24 @@ export const initApp = () => {
   });
 
   window.addEventListener(WATCH_STORAGE_CHANGED_EVENT, () => {
+    renderHomeSummary();
+    renderHomeBriefing();
+    renderWatchList();
+    renderWatchDetail();
+  });
+
+  window.addEventListener(ACCOUNT_STORAGE_CHANGED_EVENT, () => {
+    homeCreatedWatchId = null;
+    homeFirstWatchConfirmation = false;
+    const { dialog, shell } = getHomeReportProgressElements();
+    if (dialog?.open) dialog.close();
+    homeReportProgressState = 'closed';
+    document.documentElement.classList.remove('is-home-report-progress-open');
+    document.body.classList.remove('is-home-report-progress-open');
+    document.body.style.removeProperty('--home-report-scroll-offset');
+    shell?.removeAttribute('aria-busy');
+    const confirmationCopy = document.querySelector('#homeConfirmationCopy');
+    if (confirmationCopy) confirmationCopy.textContent = '';
     renderHomeSummary();
     renderHomeBriefing();
     renderWatchList();

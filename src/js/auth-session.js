@@ -22,6 +22,8 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
   };
   const listeners = new Set();
   let subscription = null;
+  let revision = 0;
+  let signingOut = false;
 
   const publish = (nextState) => {
     state = { ...state, ...nextState };
@@ -32,13 +34,24 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
   const initialize = async () => {
     if (!client) return state;
     if (state.error) return publish({ status: 'error', session: null });
+    if (!subscription) {
+      const change = client.auth.onAuthStateChange((_event, session) => {
+        if (signingOut && session) return;
+        revision += 1;
+        publish({ status: session ? 'authenticated' : 'anonymous', session, error: null });
+      });
+      subscription = change.data?.subscription || null;
+    }
+    const initialRevision = revision;
 
     let result;
     try {
       result = await client.auth.getSession();
     } catch (error) {
+      if (revision !== initialRevision) return state;
       return publish({ status: 'error', error: error.message, session: null });
     }
+    if (revision !== initialRevision) return state;
     if (result.error) return publish({ status: 'error', error: result.error.message, session: null });
 
     publish({
@@ -46,10 +59,6 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
       session: result.data.session,
       error: null,
     });
-    const authChange = client.auth.onAuthStateChange((_event, session) => {
-      publish({ status: session ? 'authenticated' : 'anonymous', session, error: null });
-    });
-    subscription = authChange.data?.subscription || null;
     return state;
   };
 
@@ -74,14 +83,17 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
 
   const signOut = async () => {
     if (!client) return publish({ status: 'unavailable' });
-    publish({ status: 'signing-out', error: null });
+    signingOut = true;
+    revision += 1;
+    publish({ status: 'signing-out', session: null, error: null });
     let error;
     try {
       ({ error } = await client.auth.signOut());
     } catch (requestError) {
       error = requestError;
     }
-    if (error) return publish({ status: 'error', error: error.message });
+    signingOut = false;
+    if (error) return publish({ status: 'error', session: null, error: error.message });
     return publish({ status: 'anonymous', session: null, error: null });
   };
 
@@ -89,6 +101,7 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
     destroy: () => subscription?.unsubscribe(),
     getState: () => state,
     initialize,
+    suspend: () => { revision += 1; return publish({ status: 'loading', session: null, error: null }); },
     sendMagicLink,
     signOut,
     subscribe(listener) {

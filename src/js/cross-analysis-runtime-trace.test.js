@@ -1,3 +1,5 @@
+import { configureAccountStorage, localWatchStorageKey } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
 import test from 'node:test';
@@ -191,8 +193,8 @@ test('persisted Story objects and metadata remain reference-independent across W
 test('reload, detail navigation, Edit cancel/save and Check Now preserve Watch identity', async () => {
   const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   const values = new Map([
-    ['watchAssistant.demoDataVersion', 'home-report-v1'],
-    ['watchAssistant.htmlEntityDecodeVersion', '1'],
+    [localWatchStorageKey('watchAssistant.demoDataVersion'), 'home-report-v1'],
+    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion'), '1'],
   ]);
   const storage = {
     getItem: (key) => values.get(key) ?? null,

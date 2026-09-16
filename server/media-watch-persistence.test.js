@@ -1,3 +1,4 @@
+import { configureAccountStorage, localWatchStorageKey } from '../src/js/account-storage.js';
 import { parseHTML } from 'linkedom';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -113,6 +114,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
   const count = async (table) => Number((await db.query(`select count(*) as n from public.${table}`)).rows[0].n);
   let watch;
   try {
+    configureAccountStorage(auth);
     await store.configureMediaWatchServerStore(auth);
     await t.test('real addWatch persists its UUID and bounded definition with no baseline or outbox write', async () => {
       watch = makeWatch();
@@ -143,7 +145,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       await store.configureMediaWatchServerStore(auth); await flush();
       const legacy = makeWatch();
       const stored = watches.getStoredWatches(); stored.push(legacy);
-      localStorage.setItem('watchAssistant.watches', JSON.stringify(stored));
+      localStorage.setItem(localWatchStorageKey('watchAssistant.watches'), JSON.stringify(stored));
       watches.updateWatch(legacy.id, { title: 'Legacy remains local' });
       watches.addWatch({ ...makeWatch(), inputType: 'company' });
       watches.addWatch({ ...makeWatch(), inputType: 'url', isStory: false });
@@ -243,7 +245,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     await t.test('owned browser-only Watch recovers a missing synchronization record without changing its ID', async () => {
       const pending={...makeWatch(),mediaPersistence:{ownerId:USER_A}};
       const current=watches.getStoredWatches(); current.push(pending);
-      localStorage.setItem('watchAssistant.watches',JSON.stringify(current));
+      localStorage.setItem(localWatchStorageKey('watchAssistant.watches'),JSON.stringify(current));
       await store.configureMediaWatchServerStore(auth); await flush();
       assert.equal((await db.query('select id from public.watches where id=$1',[pending.id])).rows.length,1);
       await store.configureMediaWatchServerStore(auth); await flush();
@@ -392,7 +394,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     await t.test('remote-only hydration reports server persistence without adopting legacy data', async () => {
       const current=makeWatch(); watches.addWatch(current); await flush();
       localStorage.removeItem(`watchAssistant.mediaSync.${USER_A}.${current.id}`);
-      localStorage.setItem('watchAssistant.watches',JSON.stringify(watches.getStoredWatches().filter(w=>w.id!==current.id)));
+      localStorage.setItem(localWatchStorageKey('watchAssistant.watches'),JSON.stringify(watches.getStoredWatches().filter(w=>w.id!==current.id)));
       await store.configureMediaWatchServerStore(auth);await flush();
       assert.equal(store.getMediaPersistenceState(watches.getWatchById(current.id)).status,'saved');
       assert.equal(store.getMediaPersistenceState(watches.getWatchById(current.id)).emailEnabled,false);

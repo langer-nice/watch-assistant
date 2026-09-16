@@ -1,11 +1,13 @@
+import { getAccountOwner, getAccountEpoch } from './account-storage.js';
 import {
   classifyReportAttempt,
   getMeaningfulWatchUpdate,
 } from './report-status.js';
-import { getReports, saveReport } from './report-storage.js';
+import { getReports, saveReport, REPORT_STORAGE_VERSION } from './report-storage.js';
 import { MonitoringCheckError, normalizeFeedUrl } from './watch-monitoring.js';
 
 let activeGeneration = null;
+let activeEpoch = null;
 
 const iso = (clock) => clock().toISOString();
 const makeId = () => (globalThis.crypto?.randomUUID?.()
@@ -95,7 +97,7 @@ export const refreshLatestReport = ({ watches, now = () => new Date(), save = sa
   });
 };
 
-export const isReportGenerationInProgress = () => Boolean(activeGeneration);
+export const isReportGenerationInProgress = () => Boolean(activeGeneration && activeEpoch === getAccountEpoch());
 
 export const generateReport = ({
   watches,
@@ -107,7 +109,16 @@ export const generateReport = ({
   clock = () => new Date(),
   idFactory = makeId,
 } = {}) => {
-  if (activeGeneration) return activeGeneration;
+  const ownerId = getAccountOwner();
+  const epoch = getAccountEpoch();
+  if (!ownerId) return Promise.reject(new Error('Authentication is required to generate a report'));
+  if (activeGeneration && activeEpoch === epoch) return activeGeneration;
+  activeEpoch = epoch;
+  const requireCurrentAccount = () => {
+    if (epoch !== getAccountEpoch() || ownerId !== getAccountOwner()) {
+      throw new Error('The report session has changed');
+    }
+  };
   if (!checkController?.check || typeof getWatch !== 'function' || typeof saveWatch !== 'function') {
     return Promise.reject(new TypeError('Report generation requires the shared Watch check service'));
   }
@@ -130,6 +141,7 @@ export const generateReport = ({
     const watchIdsSkipped = [];
 
     for (const originalWatch of eligible) {
+      requireCurrentAccount();
       const attemptStartedAt = iso(clock);
       if (!hasCompatibleSource(originalWatch)) {
         const completedAt = iso(clock);
@@ -152,6 +164,7 @@ export const generateReport = ({
       watchIdsChecked.push(originalWatch.id);
       try {
         const result = await checkController.check(originalWatch.id);
+        requireCurrentAccount();
         const completedAt = iso(clock);
         const resultIds = [...new Set((result.matchedItems || []).map(({ id }) => id).filter(Boolean))];
         const attempt = {
@@ -174,6 +187,7 @@ export const generateReport = ({
         }
         entries.push(snapshotEntry(currentWatch, attempt, completedAt));
       } catch (error) {
+        requireCurrentAccount();
         const completedAt = iso(clock);
         const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
         const attempt = {
@@ -191,8 +205,10 @@ export const generateReport = ({
       }
     }
 
+    requireCurrentAccount();
     return save({
-      version: 1,
+      version: REPORT_STORAGE_VERSION,
+      ownerId,
       id: reportId,
       startedAt,
       completedAt: iso(clock),
@@ -203,7 +219,7 @@ export const generateReport = ({
       entries,
     });
   })().finally(() => {
-    activeGeneration = null;
+    if (activeEpoch === epoch) activeGeneration = null;
   });
 
   return activeGeneration;

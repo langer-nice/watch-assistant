@@ -1,3 +1,5 @@
+import { configureAccountStorage, localWatchStorageKey } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
 import test from 'node:test';
@@ -185,7 +187,7 @@ test('authenticated CEMEX creation never falls back to the removed check-company
       companyName: 'CEMEX GRANULATS',
       category: 'general',
     });
-    assert.equal(storage.getItem('watchAssistant.watches'), null);
+    assert.equal(storage.getItem(localWatchStorageKey('watchAssistant.watches')), null);
     assert.match(window.location.href, /watch-detail\.html\?id=00000000-0000-4000-8000-00000000000c/u);
   } finally {
     console.warn = originalWarn;

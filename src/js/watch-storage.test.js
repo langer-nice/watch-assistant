@@ -1,3 +1,5 @@
+import { configureAccountStorage, localWatchStorageKey } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -13,19 +15,19 @@ const createStorage = (initial = {}) => {
 test('persists a recoverable legacy creation date as createdAt', async () => {
   const originalStorage = globalThis.localStorage;
   const storage = createStorage({
-    'watchAssistant.watches': JSON.stringify([{
+    [localWatchStorageKey('watchAssistant.watches')]: JSON.stringify([{
       id: 'legacy-watch',
       title: 'Legacy Watch',
       createdDate: '2026-07-18T14:10:00+02:00',
     }]),
-    'watchAssistant.htmlEntityDecodeVersion': '1',
+    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion')]: '1',
   });
   globalThis.localStorage = storage;
 
   try {
     const { getStoredWatches } = await import('./watch-storage.js');
     const watches = getStoredWatches();
-    const persisted = JSON.parse(storage.getItem('watchAssistant.watches'));
+    const persisted = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')));
     assert.equal(watches[0].createdAt, '2026-07-18T12:10:00.000Z');
     assert.equal(persisted[0].createdAt, '2026-07-18T12:10:00.000Z');
   } finally {
@@ -38,19 +40,19 @@ test('migrates an existing Watch stored with Unix seconds without recreation', a
   const originalStorage = globalThis.localStorage;
   const expected = '2026-07-31T08:00:00.000Z';
   const storage = createStorage({
-    'watchAssistant.watches': JSON.stringify([{
+    [localWatchStorageKey('watchAssistant.watches')]: JSON.stringify([{
       id: 'seconds-watch',
       title: 'Existing seconds Watch',
       createdAt: Date.parse(expected) / 1_000,
     }]),
-    'watchAssistant.htmlEntityDecodeVersion': '1',
+    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion')]: '1',
   });
   globalThis.localStorage = storage;
 
   try {
     const { getStoredWatches } = await import('./watch-storage.js?seconds-creation-date');
     const watches = getStoredWatches();
-    const persisted = JSON.parse(storage.getItem('watchAssistant.watches'));
+    const persisted = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')));
     assert.equal(watches[0].id, 'seconds-watch');
     assert.equal(watches[0].title, 'Existing seconds Watch');
     assert.equal(watches[0].createdAt, expected);
@@ -64,12 +66,12 @@ test('migrates an existing Watch stored with Unix seconds without recreation', a
 test('preserves an explicit clarity warning flag without adding it to legacy Watches', async () => {
   const originalStorage = globalThis.localStorage;
   const storage = createStorage({
-    'watchAssistant.watches': JSON.stringify([{
+    [localWatchStorageKey('watchAssistant.watches')]: JSON.stringify([{
       id: 'legacy-without-clarity-flag',
       title: 'Existing Watch',
       createdAt: '2026-07-18T12:10:00.000Z',
     }]),
-    'watchAssistant.htmlEntityDecodeVersion': '1',
+    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion')]: '1',
   });
   globalThis.localStorage = storage;
 
@@ -88,7 +90,7 @@ test('preserves an explicit clarity warning flag without adding it to legacy Wat
       createdAsWrittenAfterClarityWarning: true,
     });
 
-    const persisted = JSON.parse(storage.getItem('watchAssistant.watches'));
+    const persisted = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')));
     assert.equal(
       persisted.find((watch) => watch.id === 'warned-watch')
         .createdAsWrittenAfterClarityWarning,
@@ -109,7 +111,7 @@ test('notifies the current page immediately after Watch state changes', async ()
   const originalStorage = globalThis.localStorage;
   const originalWindow = globalThis.window;
   const storage = createStorage({
-    'watchAssistant.htmlEntityDecodeVersion': '1',
+    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion')]: '1',
   });
   const eventTarget = new EventTarget();
   globalThis.localStorage = storage;
@@ -131,11 +133,11 @@ test('notifies the current page immediately after Watch state changes', async ()
 
     assert.equal(changeCount, 2);
     assert.equal(
-      JSON.parse(storage.getItem('watchAssistant.watches'))[0].latestChange,
+      JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')))[0].latestChange,
       'A new update.',
     );
     assert.equal(
-      JSON.parse(storage.getItem('watchAssistant.watches'))[0].currentStatus,
+      JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')))[0].currentStatus,
       'updated',
     );
   } finally {
@@ -149,7 +151,7 @@ test('notifies the current page immediately after Watch state changes', async ()
 test('repeated localStorage reads do not duplicate a legacy migration Update', async () => {
   const originalStorage = globalThis.localStorage;
   const storage = createStorage({
-    'watchAssistant.watches': JSON.stringify([{
+    [localWatchStorageKey('watchAssistant.watches')]: JSON.stringify([{
       id: 'legacy-repeat',
       title: 'Stored Watch',
       latestChange: 'Stored update',
@@ -157,7 +159,7 @@ test('repeated localStorage reads do not duplicate a legacy migration Update', a
       createdAt: '2026-07-26T10:00:00Z',
       status: 'updated',
     }]),
-    'watchAssistant.htmlEntityDecodeVersion': '1',
+    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion')]: '1',
   });
   globalThis.localStorage = storage;
 
@@ -165,7 +167,7 @@ test('repeated localStorage reads do not duplicate a legacy migration Update', a
     const { getStoredWatches } = await import('./watch-storage.js?repeat-update-migration');
     const first = getStoredWatches();
     const second = getStoredWatches();
-    const persisted = JSON.parse(storage.getItem('watchAssistant.watches'));
+    const persisted = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')));
 
     assert.equal(first[0].updates.length, 1);
     assert.deepEqual(second[0].updates, first[0].updates);
@@ -179,7 +181,7 @@ test('repeated localStorage reads do not duplicate a legacy migration Update', a
 test('persists the Watch/Update foundation for a newly created Watch', async () => {
   const originalStorage = globalThis.localStorage;
   const storage = createStorage({
-    'watchAssistant.htmlEntityDecodeVersion': '1',
+    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion')]: '1',
   });
   globalThis.localStorage = storage;
 
@@ -195,7 +197,7 @@ test('persists the Watch/Update foundation for a newly created Watch', async () 
       updates: [],
     });
 
-    const persisted = JSON.parse(storage.getItem('watchAssistant.watches'))[0];
+    const persisted = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')))[0];
     assert.equal(persisted.currentStatus, 'watching');
     assert.equal(persisted.lastChecked, null);
     assert.equal(persisted.lastUpdated, null);
@@ -209,7 +211,7 @@ test('persists the Watch/Update foundation for a newly created Watch', async () 
 test('the storage helper marks one Update read without deleting its Watch or history', async () => {
   const originalStorage = globalThis.localStorage;
   const storage = createStorage({
-    'watchAssistant.watches': JSON.stringify([{
+    [localWatchStorageKey('watchAssistant.watches')]: JSON.stringify([{
       id: 'stored-history',
       title: 'Stored history',
       status: 'updated',
@@ -226,14 +228,14 @@ test('the storage helper marks one Update read without deleting its Watch or his
         },
       ],
     }]),
-    'watchAssistant.htmlEntityDecodeVersion': '1',
+    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion')]: '1',
   });
   globalThis.localStorage = storage;
 
   try {
     const { markUpdateAsRead } = await import('./watch-storage.js?mark-update-read');
     const result = markUpdateAsRead('stored-history', 'read-me');
-    const persisted = JSON.parse(storage.getItem('watchAssistant.watches'));
+    const persisted = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')));
 
     assert.equal(result.updates[0].status, 'read');
     assert.equal(persisted.length, 1);
@@ -249,7 +251,7 @@ test('the storage helper marks one Update read without deleting its Watch or his
 test('batch read state persists while meaningful legacy Updated status is preserved', async () => {
   const originalStorage = globalThis.localStorage;
   const storage = createStorage({
-    'watchAssistant.watches': JSON.stringify([{
+    [localWatchStorageKey('watchAssistant.watches')]: JSON.stringify([{
       id: 'batch-history',
       title: 'Batch history',
       status: 'watching',
@@ -269,7 +271,7 @@ test('batch read state persists while meaningful legacy Updated status is preser
         },
       ],
     }]),
-    'watchAssistant.htmlEntityDecodeVersion': '1',
+    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion')]: '1',
   });
   globalThis.localStorage = storage;
 
