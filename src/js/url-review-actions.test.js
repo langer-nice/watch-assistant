@@ -13,9 +13,9 @@ test('final URL confirmation binds one handler to each stable action across rere
   for (const id of ['urlReviewCreate', 'urlReviewEdit', 'urlReviewCancel']) {
     assert.equal((html.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1);
   }
-  assert.equal((navigation.match(/reviewCreate\?\.addEventListener\('click'/g) || []).length, 1);
-  assert.equal((navigation.match(/reviewEdit\?\.addEventListener\('click'/g) || []).length, 1);
-  assert.equal((navigation.match(/reviewCancel\?\.addEventListener\('click'/g) || []).length, 1);
+  assert.equal((navigation.match(/editor\.listen\(reviewCreate, 'click'/g) || []).length, 1);
+  assert.equal((navigation.match(/editor\.listen\(reviewEdit, 'click'/g) || []).length, 1);
+  assert.equal((navigation.match(/editor\.listen\(reviewCancel, 'click'/g) || []).length, 1);
 
   const showReview = navigation.match(/const showReview = \(analysis\) => \{[\s\S]*?const startUrlAnalysis/)?.[0] || '';
   assert.match(showReview, /pendingAnalysis = analysis/);
@@ -26,7 +26,7 @@ test('final URL confirmation binds one handler to each stable action across rere
 test('Create preflights source support before disabling actions and persists once when supported', async () => {
   const navigation = await read('./navigation.js');
   const createHandler = navigation.match(
-    /reviewCreate\?\.addEventListener\('click',[\s\S]*?reviewCancel\?\.addEventListener/,
+    /editor\.listen\(reviewCreate, 'click',[\s\S]*?editor\.listen\(reviewCancel, /,
   )?.[0] || '';
   const completion = navigation.match(
     /const completeWatchCreation = async \(watch\) => \{[\s\S]*?const finishModalTransition/,
@@ -52,7 +52,7 @@ test('successful review waits for one resolved source and carries it unchanged i
     /const startUrlAnalysis = async[\s\S]*?const resetUrlFlow/,
   )?.[0] || '';
   const createHandler = navigation.match(
-    /reviewCreate\?\.addEventListener\('click',[\s\S]*?reviewCancel\?\.addEventListener/,
+    /editor\.listen\(reviewCreate, 'click',[\s\S]*?editor\.listen\(reviewCancel, /,
   )?.[0] || '';
 
   assert.equal((analysisFlow.match(/resolveUrlMonitoringSource\(/g) || []).length, 1);
@@ -70,10 +70,10 @@ test('successful review waits for one resolved source and carries it unchanged i
 test('Edit preserves review values and Cancel exits through the validated reset flow', async () => {
   const navigation = await read('./navigation.js');
   const editHandler = navigation.match(
-    /reviewEdit\?\.addEventListener\('click',[\s\S]*?reviewSummary\?\.addEventListener/,
+    /editor\.listen\(reviewEdit, 'click',[\s\S]*?editor\.listen\(reviewSummary, /,
   )?.[0] || '';
   const cancelHandler = navigation.match(
-    /reviewCancel\?\.addEventListener\('click',[\s\S]*?analysisCancel\?\.addEventListener/,
+    /editor\.listen\(reviewCancel, 'click',[\s\S]*?editor\.listen\(analysisCancel, /,
   )?.[0] || '';
 
   assert.match(editHandler, /setReviewEditing\(!review\?\.classList\.contains\('is-editing'\)\)/);
@@ -88,7 +88,7 @@ test('Media Story Edit and Save preserve overview, monitoring scope and identifi
     /pendingAnalysis = editingWatch\.inputType === 'url'[\s\S]*?: null;/,
   )?.[0] || '';
   const createHandler = navigation.match(
-    /reviewCreate\?\.addEventListener\('click'[\s\S]*?reviewCancel\?\.addEventListener/,
+    /editor\.listen\(reviewCreate, 'click'[\s\S]*?editor\.listen\(reviewCancel, /,
   )?.[0] || '';
   const updateFlow = navigation.match(
     /const completeWatchUpdate = async[\s\S]*?const getCreateOptions/,

@@ -106,7 +106,7 @@ test('a previously corrupted Company edit recovers only its canonical BODACC sou
 test('navigation keeps the Planner in front of Company edits and updates the existing ID once', async () => {
   const navigation = await read('./navigation.js');
   const submitFlow = navigation.match(
-    /form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/,
+    /editor\.listen\(form, 'submit',[\s\S]*?editor\.listen\(clarificationActions, /,
   )?.[0] || '';
   const updateFlow = navigation.match(
     /const completeWatchUpdate = async \([\s\S]*?const getCreateOptions/,

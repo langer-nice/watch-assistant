@@ -1,3 +1,5 @@
+import { configureAccountStorage, localWatchStorageKey } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
@@ -15,9 +17,9 @@ const NOW = new Date('2026-08-17T12:00:00.000Z');
 
 const createStorage = (watches = []) => {
   const values = new Map([
-    ['watchAssistant.watches', JSON.stringify(watches)],
-    ['watchAssistant.htmlEntityDecodeVersion', '1'],
-    ['watchAssistant.reportStatusMigrationVersion', '2'],
+    [localWatchStorageKey('watchAssistant.watches'), JSON.stringify(watches)],
+    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion'), '1'],
+    [localWatchStorageKey('watchAssistant.reportStatusMigrationVersion'), '2'],
   ]);
   return {
     getItem: (key) => values.get(key) ?? null,

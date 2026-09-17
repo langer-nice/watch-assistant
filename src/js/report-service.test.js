@@ -1,7 +1,9 @@
+import { configureAccountStorage } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-report-owner' } } }) });
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateReport } from './report-service.js';
-import { getReportById, getReports, REPORTS_STORAGE_KEY } from './report-storage.js';
+import { getReportById, getReports, getReportsStorageKey } from './report-storage.js';
 import {
   getCanonicalWatchClassification,
   WATCH_CLASSIFICATIONS,
@@ -224,5 +226,5 @@ test('single-flight generation returns one promise and persists one report', asy
   assert.equal(first, second);
   release();
   await Promise.all([first, second]);
-  assert.equal(JSON.parse(localStorage.getItem(REPORTS_STORAGE_KEY)).length, 1);
+  assert.equal(JSON.parse(localStorage.getItem(getReportsStorageKey())).length, 1);
 });

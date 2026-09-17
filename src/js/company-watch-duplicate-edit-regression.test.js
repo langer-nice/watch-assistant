@@ -16,7 +16,7 @@ test('duplicate Company UX stays in Review with accessible owned-Watch actions',
     read('../locales/fr.json').then(JSON.parse),
   ]);
   const createHandler = navigation.match(
-    /reviewCreate\?\.addEventListener\('click',[\s\S]*?reviewCancel\?\.addEventListener/,
+    /editor\.listen\(reviewCreate, 'click',[\s\S]*?editor\.listen\(reviewCancel, /,
   )?.[0] || '';
   const duplicateFlow = navigation.match(
     /const showCompanyDuplicate =[\s\S]*?const startCompanyReview/,
@@ -46,7 +46,7 @@ test('server Company modal edit hydrates auth without profile UI and closes inst
     read('./navigation.js'),
   ]);
   const initialization = navigation.match(
-    /const formParams =[\s\S]*?form\.voiceDictationCleanup/,
+    /const formParams =[\s\S]*?form\.voiceDictationCleanup =/,
   )?.[0] || '';
   const updateFlow = navigation.match(
     /const completeWatchUpdate = async[\s\S]*?const getCreateOptions/,

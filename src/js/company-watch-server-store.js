@@ -29,6 +29,7 @@ const request = async (path, options = {}, token = getAccessToken()) => {
     error.code = 'AUTH_REQUIRED';
     throw error;
   }
+  const requestGeneration = authGeneration;
   const response = await fetch(path, {
     ...options,
     headers: {
@@ -38,6 +39,11 @@ const request = async (path, options = {}, token = getAccessToken()) => {
     },
   });
   const body = await response.json().catch(() => null);
+  if (requestGeneration !== authGeneration || !getAccessToken()) {
+    const error = new Error('The Watch session has changed.');
+    error.code = 'AUTH_SESSION_CHANGED';
+    throw error;
+  }
   if (!response.ok) {
     const error = new Error(body?.error || 'The Company Watch request failed.');
     error.code = body?.code || 'REQUEST_FAILED';
@@ -87,7 +93,12 @@ export const acceptPersistedServerCompanyWatch = (watch) => (
 );
 
 export const isCompanyWatchServerMode = () => Boolean(getAccessToken());
-export const getServerCompanyWatches = () => [...serverWatches];
+export const getServerCompanyWatches = () => {
+  const state = authStateSource?.getState?.();
+  const currentIdentity = state?.status === 'authenticated'
+    ? state.session?.user?.id || state.session?.access_token : null;
+  return currentIdentity && currentIdentity === authIdentity ? [...serverWatches] : [];
+};
 export const getCompanyWatchServerHydrationError = () => hydrationError;
 
 export const hydrateServerCompanyWatches = async () => {
@@ -171,12 +182,13 @@ export const configureCompanyWatchServerStore = async (auth) => {
       try {
         await hydrateServerCompanyWatches();
       } catch (error) {
+        if (error?.code === 'AUTH_SESSION_CHANGED') return;
         console.warn('[Company Watches] Server hydration failed.', { code: error?.code });
       }
     }
   };
-  await applyState(auth?.getState?.() || { status: 'unavailable' });
   unsubscribeAuth = auth?.subscribe?.((state) => { void applyState(state); }) || null;
+  await applyState(auth?.getState?.() || { status: 'unavailable' });
 };
 
 export const createServerCompanyWatch = async (watch) => {

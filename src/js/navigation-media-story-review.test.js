@@ -1,3 +1,5 @@
+import { configureAccountStorage, localWatchStorageKey } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
 import test from 'node:test';
@@ -461,7 +463,7 @@ test('authoritative Ivan Toney concepts survive Review, creation, persistence an
     assert.doesNotMatch(elements.get('#urlReviewMonitoringScope').textContent, /World Cup|competition/i);
 
     await elements.get('#urlReviewCreate').dispatch('click');
-    const persistedWatches = JSON.parse(storage.getItem('watchAssistant.watches') || '[]');
+    const persistedWatches = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')) || '[]');
     assert.equal(persistedWatches.length, 1);
     const persisted = persistedWatches[0];
     assert.deepEqual(persisted.storyFingerprint, strongConcepts);

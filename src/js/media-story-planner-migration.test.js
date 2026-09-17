@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 test('Planner is the only decision gate for supported Media Story URLs', async () => {
   const navigation = await read('./navigation.js');
   const submitFlow = navigation.match(
-    /form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/,
+    /editor\.listen\(form, 'submit',[\s\S]*?editor\.listen\(clarificationActions, /,
   )?.[0] || '';
   const plannerIndex = submitFlow.indexOf('requestWatchPlan(request)');
   const mediaRouteIndex = submitFlow.indexOf('getMediaStoryPlanRoute(request, watchPlan)');
@@ -32,7 +32,7 @@ test('Planner is the only decision gate for supported Media Story URLs', async (
 test('planned media and legacy generic URL routes call the same existing analysis pipeline', async () => {
   const navigation = await read('./navigation.js');
   const submitFlow = navigation.match(
-    /form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/,
+    /editor\.listen\(form, 'submit',[\s\S]*?editor\.listen\(clarificationActions, /,
   )?.[0] || '';
   const urlFlow = submitFlow.match(
     /const continueExistingUrlWatchFlow = async \(\) => \{[\s\S]*?\n    \};/,
@@ -41,7 +41,7 @@ test('planned media and legacy generic URL routes call the same existing analysi
     /const startUrlAnalysis = async \(request, whyFollowing\) => \{[\s\S]*?const resetUrlFlow/,
   )?.[0] || '';
   const creationFlow = navigation.match(
-    /reviewCreate\?\.addEventListener\('click',[\s\S]*?reviewCancel\?\.addEventListener/,
+    /editor\.listen\(reviewCreate, 'click',[\s\S]*?editor\.listen\(reviewCancel, /,
   )?.[0] || '';
 
   assert.match(urlFlow, /startUrlAnalysis\(request, whyFollowing\)/);

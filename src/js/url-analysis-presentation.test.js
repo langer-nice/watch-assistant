@@ -36,7 +36,7 @@ test('analysis progress uses one localized borderless cancel control at the far 
   assert.match(reviewStyles, /\.url-analysis__cancel:active:not\(:disabled\)/);
   assert.match(reviewStyles, /\.url-analysis__cancel:disabled\s*\{[\s\S]*?opacity:/);
   assert.match(reviewStyles, /\.url-analysis__cancel::before\s*\{[\s\S]*?inset:\s*calc\(var\(--space-xxs\) \* -1\)/);
-  assert.match(navigation, /analysisCancel\?\.addEventListener\('click',[\s\S]*?clearInput: false/);
+  assert.match(navigation, /editor\.listen\(analysisCancel, 'click',[\s\S]*?clearInput: false/);
   assert.doesNotMatch(reviewStyles, /\.url-analysis__processing\s*\{[^}]*min-height:\s*8rem/);
   assert.match(composerStyles, /\.watch-form\.is-analysing \.watch-composer__submit\s*\{[\s\S]*?display:\s*none/);
 });
@@ -45,14 +45,14 @@ test('analysis cancellation preserves the URL and invalidates every late respons
   const navigation = await read('./navigation.js');
   const analysisFlow = navigation.match(/const startUrlAnalysis = async[\s\S]*?const resetUrlFlow/)?.[0] || '';
   const resetFlow = navigation.match(/const resetUrlFlow =[\s\S]*?const updateComposer/)?.[0] || '';
-  const analysisCancel = navigation.match(/analysisCancel\?\.addEventListener\('click',[\s\S]*?\n  \}\);/)?.[0] || '';
-  const inputClear = navigation.match(/watchClear\?\.addEventListener\('click',[\s\S]*?\n  \}\);/)?.[0] || '';
-  const submitHandler = navigation.match(/form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/)?.[0] || '';
+  const analysisCancel = navigation.match(/editor\.listen\(analysisCancel, 'click',[\s\S]*?\n  \}\);/)?.[0] || '';
+  const inputClear = navigation.match(/editor\.listen\(watchClear, 'click',[\s\S]*?\n  \}\);/)?.[0] || '';
+  const submitHandler = navigation.match(/editor\.listen\(form, 'submit',[\s\S]*?editor\.listen\(clarificationActions, /)?.[0] || '';
 
   assert.match(submitHandler, /analysisInProgress[\s\S]*?return/);
   assert.match(analysisFlow, /const requestId = urlAnalysisRequestId \+ 1/);
   assert.equal((analysisFlow.match(/requestId !== urlAnalysisRequestId \|\| controller\.signal\.aborted/g) || []).length, 3);
-  assert.match(analysisFlow, /await resolveUrlMonitoringSource\(analysis,[\s\S]*?if \(requestId !== urlAnalysisRequestId \|\| controller\.signal\.aborted\) return;[\s\S]*?showReview\(resolvedAnalysis\)/);
+  assert.match(analysisFlow, /await resolveUrlMonitoringSource\(analysis,[\s\S]*?if \(!editor\.isCurrent\(\) \|\| requestId !== urlAnalysisRequestId \|\| controller\.signal\.aborted\) return;[\s\S]*?showReview\(resolvedAnalysis\)/);
   assert.match(resetFlow, /urlAnalysisRequestId \+= 1;[\s\S]*?urlAnalysisController\?\.abort\(\)/);
   assert.match(analysisCancel, /resetUrlFlow\(\{ clearInput: false, trackCancellation: true \}\)/);
   assert.match(inputClear, /resetUrlFlow\(\{ clearInput: true \}\)/);
@@ -105,14 +105,14 @@ test('review summary uses the shared bounded resizer without truncating its valu
     read('../scss/components/_url-review.scss'),
   ]);
   const showReview = navigation.match(/const showReview = \(analysis\) => \{[\s\S]*?const startUrlAnalysis/)?.[0] || '';
-  const inputHandler = navigation.match(/reviewSummary\?\.addEventListener\('input',[\s\S]*?\n  \}\);/)?.[0] || '';
+  const inputHandler = navigation.match(/editor\.listen\(reviewSummary, 'input',[\s\S]*?\n  \}\);/)?.[0] || '';
 
   assert.match(navigation, /const resizeReviewSummary = \(options\) => resizeTextarea\([\s\S]*?reviewSummary,[\s\S]*?maxLines: 12/);
   assert.match(navigation, /const borderAdjustment = styles\.boxSizing === 'border-box'[\s\S]*?const requiredHeight = contentHeight \+ borderAdjustment/);
   assert.match(showReview, /reviewSummary\.value = analysis\?\.summary \|\| ''/);
   assert.match(showReview, /setReviewEditing\(failed\)/);
   assert.match(inputHandler, /validateReviewSummary\(\);[\s\S]*?resizeReviewSummary\(\)/);
-  assert.equal((navigation.match(/reviewSummary\?\.addEventListener\('input'/g) || []).length, 1);
+  assert.equal((navigation.match(/editor\.listen\(reviewSummary, 'input'/g) || []).length, 1);
   assert.match(styles, /\.url-review__field textarea\s*\{[\s\S]*?min-height:[\s\S]*?overflow-x:\s*hidden;[\s\S]*?overflow-wrap:\s*anywhere/);
   assert.doesNotMatch(styles, /\.url-review__field textarea\s*\{[^}]*text-overflow:\s*ellipsis/);
 });

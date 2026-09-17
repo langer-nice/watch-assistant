@@ -1,8 +1,10 @@
+import { configureAccountStorage, localWatchStorageKey, getAccountOwner } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createPreviewTestWatches } from './preview-test-watches.js';
 import { refreshLatestReport } from './report-service.js';
-import { normalizeReport, REPORTS_STORAGE_KEY } from './report-storage.js';
+import { normalizeReport, getReportsStorageKey } from './report-storage.js';
 import {
   getCanonicalStatusMap,
   getCanonicalWatchClassification,
@@ -50,6 +52,7 @@ const store = () => {
 };
 
 const seedReport = (watch) => normalizeReport({
+  ownerId: getAccountOwner(), version: 2,
   id: 'current', startedAt: NOW.toISOString(), completedAt: NOW.toISOString(),
   watchIdsConsidered: [watch.id], watchIdsChecked: [watch.id], watchIdsSkipped: [],
   attempts: [{ watchId: watch.id, status: 'succeeded', startedAt: NOW.toISOString(), completedAt: NOW.toISOString(), outcome: 'no-new-items', code: null, resultIds: [] }],
@@ -131,10 +134,10 @@ test('refresh replaces the current report once and removes stale update presenta
     updates: [{ id: 'old', timestamp: '2026-08-18T10:00:00.000Z', sourceTitle: 'Old success', summary: 'Old successful update' }],
     lastCheckAttempt: { status: 'failed', attemptedAt: NOW.toISOString(), code: 'TIMEOUT' },
   };
-  localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify([seedReport(failed)]));
+  localStorage.setItem(getReportsStorageKey(), JSON.stringify([seedReport(failed)]));
   const first = refreshLatestReport({ watches: [failed], now: () => NOW });
   const second = refreshLatestReport({ watches: [failed], now: () => NOW });
-  assert.equal(JSON.parse(localStorage.getItem(REPORTS_STORAGE_KEY)).length, 1);
+  assert.equal(JSON.parse(localStorage.getItem(getReportsStorageKey())).length, 1);
   assert.deepEqual(second, first);
   assert.equal(first.counts.attention, 1);
   assert.equal(first.counts.updated, 0);
@@ -166,10 +169,10 @@ test('every preview fixture has one mutually exclusive status shared by live vie
 test('opening detail acknowledges one latest preview development and refreshes report without losing history', () => {
   const fixtures = createPreviewTestWatches(NOW);
   for (const original of fixtures.filter(({ updates }) => updates?.some(({ status }) => status === 'new'))) {
-    localStorage.removeItem('watchAssistant.watches');
-    localStorage.removeItem(REPORTS_STORAGE_KEY);
+    localStorage.removeItem(localWatchStorageKey('watchAssistant.watches'));
+    localStorage.removeItem(getReportsStorageKey());
     addWatch(original);
-    localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify([seedReport(original)]));
+    localStorage.setItem(getReportsStorageKey(), JSON.stringify([seedReport(original)]));
 
     assert.equal(getCanonicalWatchClassification(getWatchById(original.id), { now: NOW }), 'updated');
     const acknowledged = acknowledgeLatestWatchUpdate(original.id);
@@ -181,7 +184,7 @@ test('opening detail acknowledges one latest preview development and refreshes r
     assert.equal(repeated.updates[0].status, 'read');
     assert.equal(getWatchTimelineEvents(repeated).filter(({ type }) => type === 'update').length, 1);
     assert.equal(report.entries[0].classification, 'watching');
-    assert.equal(JSON.parse(localStorage.getItem(REPORTS_STORAGE_KEY)).length, 1);
+    assert.equal(JSON.parse(localStorage.getItem(getReportsStorageKey())).length, 1);
   }
 });
 

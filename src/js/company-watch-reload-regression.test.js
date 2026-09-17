@@ -1,3 +1,5 @@
+import { configureAccountStorage, localWatchStorageKey } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -61,7 +63,7 @@ test('a stale authenticated load cannot overwrite a newer restored session', asy
     updates: [],
   };
   const storage = createStorage({
-    'watchAssistant.watches': JSON.stringify([
+    [localWatchStorageKey('watchAssistant.watches')]: JSON.stringify([
       localNews, localDuplicate, localOrangeDuplicate, previewCompany,
     ]),
   });

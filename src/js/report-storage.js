@@ -1,5 +1,7 @@
-export const REPORTS_STORAGE_KEY = 'watchAssistant.reports.v1';
-export const REPORT_STORAGE_VERSION = 1;
+import { accountStorageKey, getAccountOwner, isValidOwnerId, safeStorage, disposeLegacyAccountData } from './account-storage.js';
+export const REPORTS_STORAGE_KEY = 'watchAssistant.reports.v2';
+export const getReportsStorageKey = () => accountStorageKey(REPORTS_STORAGE_KEY);
+export const REPORT_STORAGE_VERSION = 2;
 export const REPORTS_CHANGED_EVENT = 'watchassistant:reportschanged';
 
 const isValidDate = (value) => typeof value === 'string' && !Number.isNaN(Date.parse(value));
@@ -55,7 +57,12 @@ const deriveCounts = (attempts, entries) => ({
 });
 
 export const normalizeReport = (report) => {
+  const owner = getAccountOwner();
+  if (!isValidOwnerId(owner) || !isValidOwnerId(report?.ownerId)
+    || report.ownerId !== owner || report.version !== REPORT_STORAGE_VERSION) return null;
   if (!report || typeof report !== 'object' || typeof report.id !== 'string') return null;
+  if (!report.id.trim() || !['attempts', 'entries', 'watchIdsConsidered', 'watchIdsChecked', 'watchIdsSkipped'].every((key) => Array.isArray(report[key]))) return null;
+  if (report.attempts.some((attempt) => !normalizeAttempt(attempt)) || report.entries.some((entry) => !normalizeEntry(entry))) return null;
   if (!isValidDate(report.startedAt) || !isValidDate(report.completedAt)) return null;
   const attempts = (Array.isArray(report.attempts) ? report.attempts : [])
     .map(normalizeAttempt).filter(Boolean);
@@ -66,6 +73,7 @@ export const normalizeReport = (report) => {
   counts.considered = watchIdsConsidered.length;
   return {
     version: REPORT_STORAGE_VERSION,
+    ownerId: owner,
     id: report.id,
     startedAt: report.startedAt,
     completedAt: report.completedAt,
@@ -86,9 +94,9 @@ const notifyReportsChanged = () => {
 
 export const getReports = () => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(REPORTS_STORAGE_KEY) || '[]');
+    const parsed = JSON.parse(safeStorage.getItem(getReportsStorageKey()) || '[]');
     if (!Array.isArray(parsed)) return [];
-    return parsed.map(normalizeReport).filter(Boolean)
+    return parsed.map((report) => normalizeReport(report)).filter(Boolean)
       .sort((first, second) => Date.parse(second.completedAt) - Date.parse(first.completedAt));
   } catch {
     return [];
@@ -103,12 +111,13 @@ export const saveReport = (report) => {
   if (!normalized) throw new TypeError('A complete valid report is required');
   const reports = getReports().filter(({ id }) => id !== normalized.id);
   reports.push(normalized);
-  localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(reports));
+  safeStorage.setItem(getReportsStorageKey(), JSON.stringify(reports));
   notifyReportsChanged();
   return normalized;
 };
 
 export const resetStoredReports = () => {
-  localStorage.removeItem(REPORTS_STORAGE_KEY);
+  safeStorage.removeItem(getReportsStorageKey());
+  disposeLegacyAccountData();
   notifyReportsChanged();
 };

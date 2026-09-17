@@ -18,7 +18,7 @@ const GARIBALDI_SIREN = '849703772';
 test('valid named-company SIRENs enter Company review even without monitoring wording', async () => {
   const navigation = await read('./navigation.js');
   const submitFlow = navigation.match(
-    /form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/,
+    /editor\.listen\(form, 'submit',[\s\S]*?editor\.listen\(clarificationActions, /,
   )?.[0] || '';
   const companyBranch = submitFlow.slice(
     submitFlow.indexOf('let watchPlan = null'),
@@ -88,7 +88,7 @@ test('Company Watch review is localized and identifies the SIREN and official BO
 test('the validated Company route remains before all other routes', async () => {
   const navigation = await read('./navigation.js');
   const submitFlow = navigation.match(
-    /form\.addEventListener\('submit',[\s\S]*?clarificationActions\?\.addEventListener/,
+    /editor\.listen\(form, 'submit',[\s\S]*?editor\.listen\(clarificationActions, /,
   )?.[0] || '';
   const plannerIndex = submitFlow.indexOf('requestWatchPlan(request)');
   const resolutionIndex = submitFlow.indexOf('resolveFrenchCompanyPlan(request, watchPlan)');
@@ -152,7 +152,7 @@ test('Company Watch creation carries the approved shape into the existing transa
     /const completeWatchCreation = async \(watch\) => \{[\s\S]*?const finishModalTransition/,
   )?.[0] || '';
   const createHandler = navigation.match(
-    /reviewCreate\?\.addEventListener\('click',[\s\S]*?reviewCancel\?\.addEventListener/,
+    /editor\.listen\(reviewCreate, 'click',[\s\S]*?editor\.listen\(reviewCancel, /,
   )?.[0] || '';
 
   assert.match(derivation, /inputType: isCompanyRequest \? 'company'/);
@@ -220,10 +220,10 @@ test('Review, Home, All Watches and Watch Detail use the shared Company title he
 test('Company review Edit preserves the request and Cancel creates nothing', async () => {
   const navigation = await read('./navigation.js');
   const editFlow = navigation.match(
-    /const restoreCompanyRequestForEditing[\s\S]*?reviewSummary\?\.addEventListener/,
+    /const restoreCompanyRequestForEditing[\s\S]*?editor\.listen\(reviewSummary, /,
   )?.[0] || '';
   const cancelFlow = navigation.match(
-    /reviewCancel\?\.addEventListener\('click',[\s\S]*?analysisCancel\?\.addEventListener/,
+    /editor\.listen\(reviewCancel, 'click',[\s\S]*?editor\.listen\(analysisCancel, /,
   )?.[0] || '';
 
   assert.match(editFlow, /resetUrlFlow\(\{ clearInput: false \}\)/);

@@ -1,3 +1,5 @@
+import { configureAccountStorage, localWatchStorageKey } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -35,17 +37,17 @@ test('report-status migration v2 repairs v1 demotion and remains idempotent', as
     latestChange: 'Watch created', updates: [], createdAt: '2026-08-04T00:00:00Z',
   };
   globalThis.localStorage = createStorage({
-    'watchAssistant.watches': JSON.stringify([
+    [localWatchStorageKey('watchAssistant.watches')]: JSON.stringify([
       { ...stale, status: 'watching', currentStatus: 'watching' },
       genuine, placeholder, storedDemoResidue,
     ]),
-    'watchAssistant.htmlEntityDecodeVersion': '1',
-    'watchAssistant.reportStatusMigrationVersion': '1',
+    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion')]: '1',
+    [localWatchStorageKey('watchAssistant.reportStatusMigrationVersion')]: '1',
   });
   try {
     const storage = await import('./watch-storage.js?report-status-migration');
     const first = storage.getWatches();
-    const persistedAfterFirst = localStorage.getItem('watchAssistant.watches');
+    const persistedAfterFirst = localStorage.getItem(localWatchStorageKey('watchAssistant.watches'));
     const second = storage.getWatches();
     assert.equal(first.length, 3);
     assert.equal(first[0].id, stale.id);
@@ -57,8 +59,8 @@ test('report-status migration v2 repairs v1 demotion and remains idempotent', as
     assert.equal(first[2].status, 'watching');
     assert.equal(first[2].latestChange, 'Watch created');
     assert.deepEqual(second, first);
-    assert.equal(localStorage.getItem('watchAssistant.watches'), persistedAfterFirst);
-    assert.equal(localStorage.getItem('watchAssistant.reportStatusMigrationVersion'), '2');
+    assert.equal(localStorage.getItem(localWatchStorageKey('watchAssistant.watches')), persistedAfterFirst);
+    assert.equal(localStorage.getItem(localWatchStorageKey('watchAssistant.reportStatusMigrationVersion')), '2');
     assert.equal(storage.getDemoWatches().length > 0, true);
     assert.equal(storage.getWatches().some(({ id }) => id.startsWith('watch-00')), false);
   } finally {

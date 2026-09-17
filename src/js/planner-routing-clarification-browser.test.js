@@ -1,3 +1,5 @@
+import { configureAccountStorage, localWatchStorageKey } from './account-storage.js';
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
 import test from 'node:test';
@@ -251,7 +253,7 @@ test('Create as written surfaces source failure, preserves input, and resets for
     assert.deepEqual(elements.get('#clarificationActions').children.map((button) => button.textContent), [
       'Edit my request',
     ]);
-    assert.equal(storage.getItem('watchAssistant.watches'), null);
+    assert.equal(storage.getItem(localWatchStorageKey('watchAssistant.watches')), null);
     assert.equal(calls.filter(({ path }) => path === '/api/check-watch').length, 0);
 
     const edit = elements.get('#clarificationActions').children[0];
@@ -332,7 +334,7 @@ for (const fixture of [
       assert.match(elements.get('#watchKeywordChips').innerHTML, /Elon Musk/u);
       assert.match(elements.get('#watchKeywordChips').innerHTML, /Tesla/u);
 
-      const watches = JSON.parse(storage.getItem('watchAssistant.watches') || '[]');
+      const watches = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')) || '[]');
       assert.equal(watches.length, 1);
       assert.equal(watches[0].request, fixture.request);
       assert.equal(watches[0].title, fixture.title);
@@ -391,7 +393,7 @@ for (const request of [
         '/api/plan-watch?scope=migrated_routes',
         '/api/request-clarification',
       ]);
-      assert.equal(storage.getItem('watchAssistant.watches'), null);
+      assert.equal(storage.getItem(localWatchStorageKey('watchAssistant.watches')), null);
     });
   });
 }
@@ -428,7 +430,7 @@ test('legal first Watch uses shared planning, clarification, source validation a
       '/api/monitoring-source', '/api/check-watch',
     ]);
     assert.equal(JSON.parse(calls[0].options.body).request, request);
-    const watches = JSON.parse(storage.getItem('watchAssistant.watches'));
+    const watches = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')));
     assert.equal(watches.length, 1);
     assert.equal(watches[0].request, request);
     assert.equal(watches[0].updates.length, 0);

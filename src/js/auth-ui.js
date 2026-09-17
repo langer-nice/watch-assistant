@@ -1,3 +1,4 @@
+import { configureAccountStorage } from './account-storage.js';
 import { t } from './i18n.js';
 import { createSupabaseBrowserClient } from './supabase-client.js';
 import { createAuthSession } from './auth-session.js';
@@ -59,6 +60,7 @@ export const initAuthUi = ({ env = import.meta.env, client: injectedClient } = {
     ? { client: injectedClient }
     : createSupabaseBrowserClient({ env });
   const auth = createAuthSession({ client, location: window.location });
+  configureAccountStorage(auth);
   if (root) {
     root.dataset.authInitialized = 'true';
 
