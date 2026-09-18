@@ -5,6 +5,7 @@ import test from 'node:test';
 import { readFile, readdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
+import { testResources } from './test-support/fixture-resources.js';
 import { createMediaWatchMiddleware } from './media-watch-api.js';
 import { runMediaMonitoring } from './media-monitoring-cron.js';
 import { sendWithResend } from './company-watch-email.js';
@@ -29,7 +30,9 @@ const storage = () => {
 };
 
 test('authenticated browser persistence → PostgreSQL RLS → scheduled media pipeline', async (t) => {
+  const resources = testResources(t);
   const db = new PGlite();
+  resources.defer(() => db.close());
   await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
     create schema auth; create table auth.users(id uuid primary key,email text);
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
@@ -80,6 +83,11 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     },
   });
   const originals = { localStorage: globalThis.localStorage, fetch: globalThis.fetch, window: globalThis.window };
+  resources.defer(() => {
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) delete globalThis[key]; else globalThis[key] = value;
+    }
+  });
   globalThis.localStorage = storage();
   globalThis.window = new EventTarget();
   let state = { status: 'authenticated', session: { access_token: USER_A, user: { id: USER_A } } };
@@ -109,6 +117,12 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     return { ok: status < 400, status, json: async () => body };
   };
   const store = await import('../src/js/media-watch-server-store.js');
+  resources.defer(async () => {
+    holdGet = null; holdPost = null;
+    switchUser(null);
+    try { await store.configureMediaWatchServerStore(null); }
+    finally { configureAccountStorage(null); }
+  });
   const watches = await import('../src/js/watch-storage.js');
   const flush = async () => { await new Promise((resolve) => setTimeout(resolve, 0)); await store.synchronizeMediaWatches(); await new Promise((resolve) => setTimeout(resolve, 0)); await store.synchronizeMediaWatches(); };
   const count = async (table) => Number((await db.query(`select count(*) as n from public.${table}`)).rows[0].n);
@@ -196,8 +210,9 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       await assert.rejects(scoped('authenticated', USER_A, "update public.watches set watch_definition='{}'::jsonb where id=$1", [watch.id]));
       await assert.rejects(scoped('authenticated', USER_A, 'update public.watches set monitoring_source=null where id=$1', [watch.id]));
     });
-    await t.test('stale hydration after sign-out/user switch cannot expose or transfer A data', async () => {
+    await t.test('stale hydration after sign-out/user switch cannot expose or transfer A data', async (t) => {
       let release; let entered;
+      t.after(() => release?.());
       const ready = new Promise((resolve) => { entered = resolve; });
       holdGet = () => new Promise((resolve) => { release = resolve; entered(); });
       const old = store.synchronizeMediaWatches(); await ready;
@@ -207,8 +222,9 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       switchUser(null); await flush(); assert.equal(watches.getWatchById(watch.id), null);
       switchUser(USER_A); await flush(); assert.ok(watches.getWatchById(watch.id));
     });
-    await t.test('an edit during an outstanding write survives and advances only its confirmed predecessor', async () => {
+    await t.test('an edit during an outstanding write survives and advances only its confirmed predecessor', async (t) => {
       let release; let entered; const ready = new Promise((resolve) => { entered = resolve; });
+      t.after(() => release?.());
       holdPost = () => new Promise((resolve) => { release = resolve; entered(); });
       watches.updateWatch(watch.id, { title: 'First edit' }); await ready;
       watches.updateWatch(watch.id, { title: 'Newer edit' }); release(); await flush();
@@ -259,25 +275,28 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.equal(Number(row.media_revision),1);
       await flush(); assert.equal(Number((await db.query('select media_revision from public.watches where id=$1',[pending.id])).rows[0].media_revision),1);
     });
-    await t.test('deletion queued during creation commits after its predecessor and remains deleted on reload', async () => {
+    await t.test('deletion queued during creation commits after its predecessor and remains deleted on reload', async (t) => {
       let release; let entered; const ready=new Promise(resolve=>{entered=resolve;});
+      t.after(() => release?.());
       holdPost=()=>new Promise(resolve=>{release=resolve;entered();});
       const pending=makeWatch(); watches.addWatch(pending); await ready;
       watches.deleteWatch(pending.id); release(); await flush();
       assert.ok((await db.query('select deleted_at from public.watches where id=$1',[pending.id])).rows[0].deleted_at);
       await store.configureMediaWatchServerStore(auth); await flush(); assert.equal(watches.getWatchById(pending.id),null);
     });
-    await t.test('a lost acknowledgement can advance only the mutation that a queued edit actually follows', async () => {
+    await t.test('a lost acknowledgement can advance only the mutation that a queued edit actually follows', async (t) => {
       let release; let entered; const ready=new Promise(resolve=>{entered=resolve;});
+      t.after(() => release?.());
       holdPost=()=>new Promise(resolve=>{release=()=>{resolve();};entered();}).then(()=>{throw new Error('lost ancestor response');});
       const pending=makeWatch(); watches.addWatch(pending); await ready;
       watches.updateWatch(pending.id,{title:'Edit after lost acknowledgement'}); release(); await flush();
       const row=(await db.query('select title,media_revision from public.watches where id=$1',[pending.id])).rows[0];
       assert.equal(row.title,'Edit after lost acknowledgement');assert.equal(Number(row.media_revision),2);
     });
-    await t.test('an unrelated concurrent journal is not silently rebased by a stale successful response', async () => {
+    await t.test('an unrelated concurrent journal is not silently rebased by a stale successful response', async (t) => {
       const pending=makeWatch(); watches.addWatch(pending); await flush();
       let release; let entered; const ready=new Promise(resolve=>{entered=resolve;});
+      t.after(() => release?.());
       holdPost=()=>new Promise(resolve=>{release=resolve;entered();});
       watches.updateWatch(pending.id,{title:'Confirmed remote edit'}); await ready;
       const key=`watchAssistant.mediaSync.${USER_A}.${pending.id}`;
@@ -451,8 +470,6 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       await assert.rejects(sendWithResend({}), { code: 'TEST_EMAIL_TRANSPORT_DISABLED' });
     });
   } finally {
-    await flush(); switchUser(null);
-    for (const [key,value] of Object.entries(originals)) { if (value === undefined) delete globalThis[key]; else globalThis[key]=value; }
-    await db.close();
+    await resources.dispose();
   }
 });
