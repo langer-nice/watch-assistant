@@ -51,7 +51,7 @@ test('preserves raw BODACC summary text and escapes it in HTML', () => {
 test('configuration is fail-closed when disabled, incomplete, or on Preview', () => {
   const complete = {
     WATCH_EMAIL_NOTIFICATIONS_ENABLED: 'true', RESEND_API_KEY: 're_placeholder',
-    WATCH_EMAIL_FROM: 'Watch Assistant <watch@example.test>',
+    WATCH_EMAIL_FROM: 'Watch Assistant <watch@davidlangdesign.com>',
     WATCH_APP_BASE_URL: 'https://watch.example',
   };
   assert.equal(getCompanyWatchEmailConfig({ ...complete, WATCH_EMAIL_NOTIFICATIONS_ENABLED: 'false' }), null);
@@ -62,7 +62,7 @@ test('configuration is fail-closed when disabled, incomplete, or on Preview', ()
   assert.equal(getCompanyWatchEmailConfig({ ...complete, VERCEL_ENV: 'development' }), null);
   assert.equal(getCompanyWatchEmailConfig({ ...complete, VERCEL_ENV: 'production', NODE_ENV: 'test' }), null);
   assert.deepEqual(getCompanyWatchEmailConfig({ ...complete, VERCEL_ENV: 'production' }), {
-    apiKey: 're_placeholder', from: 'Watch Assistant <watch@example.test>',
+    apiKey: 're_placeholder', from: 'Watch Assistant <watch@davidlangdesign.com>',
     baseUrl: 'https://watch.example/',
   });
 });
@@ -73,7 +73,7 @@ test('Resend request includes text, HTML, and a deterministic idempotency key', 
     watchId: 'watch-1', userId: 'user-1', sourceEventId: 'event-1',
   });
   const result = await sendWithResend({
-    apiKey: 're_not_real', from: 'Watch <watch@example.test>', to: 'owner@example.test',
+    apiKey: 're_not_real', from: 'Watch <watch@davidlangdesign.com>', to: 'owner@example.test',
     subject: 'Subject', html: '<p>HTML</p>', text: 'Text', idempotencyKey: key,
   }, { fetchImpl: async (url, options) => {
     requests.push({ url, options });
@@ -84,7 +84,7 @@ test('Resend request includes text, HTML, and a deterministic idempotency key', 
   assert.equal(requests[0].url, 'https://api.resend.com/emails');
   assert.equal(requests[0].options.headers['Idempotency-Key'], key);
   assert.deepEqual(JSON.parse(requests[0].options.body), {
-    from: 'Watch <watch@example.test>', to: ['owner@example.test'],
+    from: 'Watch <watch@davidlangdesign.com>', to: ['owner@example.test'],
     subject: 'Subject', html: '<p>HTML</p>', text: 'Text',
   });
   assert.equal(key, createNotificationIdempotencyKey({
@@ -94,7 +94,7 @@ test('Resend request includes text, HTML, and a deterministic idempotency key', 
 
 test('an indeterminate provider transport failure is normalized without response detail', async () => {
   await assert.rejects(sendWithResend({
-    apiKey: 're_not_real', from: 'Watch <watch@example.test>', to: 'owner@example.test',
+    apiKey: 're_not_real', from: 'Watch <watch@davidlangdesign.com>', to: 'owner@example.test',
     subject: 'Subject', html: '<p>HTML</p>', text: 'Text', idempotencyKey: 'stable-key',
   }, { fetchImpl: async () => { throw new Error('socket token=secret'); } }), (error) => {
     assert.equal(error.code, 'EMAIL_DELIVERY_OUTCOME_UNKNOWN');

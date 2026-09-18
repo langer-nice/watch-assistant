@@ -161,7 +161,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     });
     const service = client('service_role', null);
     let feedTick = 0;
-    const run = (items, overrides = {}) => runMediaMonitoring({ client: service, env: { MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED: 'true', VERCEL_ENV: 'production', RESEND_API_KEY: 'fake', WATCH_EMAIL_FROM: 'x@example.test', WATCH_APP_BASE_URL: 'https://watch.example' },
+    const run = (items, overrides = {}) => runMediaMonitoring({ client: service, env: { MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED: 'true', VERCEL_ENV: 'production', RESEND_API_KEY: 'fake', WATCH_EMAIL_FROM: 'x@davidlangdesign.com', WATCH_APP_BASE_URL: 'https://watch.example' },
       fetchFeed: async () => ({ checkedAt: new Date(Date.UTC(2026,8,13,0,0,feedTick++)).toISOString(), source: { title: 'News', url: watch.monitoringSource.url }, items }),
       notificationProcessor: async () => ({ status: 'disabled' }), ...overrides });
     await t.test('actual cron query finds browser-persisted row; first check only baselines; next article enqueues once', async () => {
@@ -386,7 +386,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
         auth:{admin:{getUserById:async id=>({data:{user:{id,email:'verified@example.test',email_confirmed_at:'2026-01-01'}},error:null})}}};
       let sends=0;
       const result=await processMediaWatchEmailNotifications({client:deliver,
-        env:{MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED:'true',VERCEL_ENV:'production',RESEND_API_KEY:'fake',WATCH_EMAIL_FROM:'x@example.test',WATCH_APP_BASE_URL:'https://watch.example'},
+        env:{MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED:'true',VERCEL_ENV:'production',RESEND_API_KEY:'fake',WATCH_EMAIL_FROM:'x@davidlangdesign.com',WATCH_APP_BASE_URL:'https://watch.example'},
         sender:async input=>{sends++;assert.equal(input.to,'verified@example.test');assert.match(input.text,/recovery-b/);return{id:'mock-provider'};}});
       assert.equal(result.sentCount,1);assert.equal(sends,1);
       assert.equal((await db.query('select status from public.media_watch_notifications where id=$1',[jobs[1].id])).rows[0].status,'sent');
@@ -401,7 +401,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     });
     await t.test('saved notice reflects the server email gate without exposing configuration',async()=>{
       const current=makeWatch();watches.addWatch(current);await flush();
-      Object.assign(apiEnv,{MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED:'true',VERCEL_ENV:'production',RESEND_API_KEY:'fake',WATCH_EMAIL_FROM:'x@example.test',WATCH_APP_BASE_URL:'https://watch.example'});
+      Object.assign(apiEnv,{MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED:'true',VERCEL_ENV:'production',RESEND_API_KEY:'fake',WATCH_EMAIL_FROM:'x@davidlangdesign.com',WATCH_APP_BASE_URL:'https://watch.example'});
       const originalDocument=globalThis.document;
       try{
         await flush();assert.equal(store.getMediaPersistenceState(watches.getWatchById(current.id)).emailEnabled,true);

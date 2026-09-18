@@ -1,3 +1,4 @@
+import { safeEmailCode, definiteProviderFailure, emailFailureCounts, countEmailFailure, unavailableEmailResult } from './watch-email-config.js';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -9,10 +10,6 @@ import {
 
 const MAX_NOTIFICATIONS_PER_RUN = 25;
 const NOTIFICATION_CONCURRENCY = 3;
-
-const safeCode = (error) => typeof error?.code === 'string'
-  ? error.code.replace(/[^A-Z0-9_-]/giu, '').slice(0, 100) || 'EMAIL_DELIVERY_FAILED'
-  : 'EMAIL_DELIVERY_FAILED';
 
 const loadPendingNotifications = async (client) => {
   const { data, error } = await client.from('company_watch_notifications')
@@ -64,11 +61,12 @@ const loadRecipient = async (client, userId) => {
 };
 
 const recordFailure = async (client, notificationId, claimToken, error) => {
-  await client.rpc('fail_company_watch_email_notification', {
+  const { data, error: persistenceError } = await client.rpc('fail_company_watch_email_notification', {
     p_notification_id: notificationId,
     p_claim_token: claimToken,
-    p_error_code: safeCode(error),
+    p_error_code: safeEmailCode(error),
   });
+  if (persistenceError || data !== true) throw new Error('Failure persistence failed.');
 };
 
 const mapBounded = async (entries, concurrency, worker) => {
@@ -85,19 +83,21 @@ export const processCompanyWatchEmailNotifications = async ({
   createClaimToken = randomUUID,
 } = {}) => {
   const config = getCompanyWatchEmailConfig(env);
-  if (!config) return { status: 'disabled', pendingCount: 0, sentCount: 0, failedCount: 0 };
+  if (!config) return unavailableEmailResult(env, 'WATCH_EMAIL_NOTIFICATIONS_ENABLED');
+  const counts = emailFailureCounts();
 
   const pending = await loadPendingNotifications(client);
   let sentCount = 0; let failedCount = 0; let skippedCount = 0;
   await mapBounded(pending, NOTIFICATION_CONCURRENCY, async ({ id }) => {
     const claimToken = createClaimToken();
-    let notification;
+    let notification; let boundaryAttempted = false; let accepted = false;
     try {
       notification = await claimNotification(client, id, claimToken);
       if (!notification) {
         skippedCount += 1;
         return;
       }
+      counts.claimedCount += 1;
       const recipient = await loadRecipient(client, notification.user_id);
       const content = renderCompanyWatchEmail({
         locale: recipient.locale,
@@ -106,6 +106,7 @@ export const processCompanyWatchEmailNotifications = async ({
         event: notification.event,
         baseUrl: config.baseUrl,
       });
+      boundaryAttempted = true;
       await beginSubmission(client, id, claimToken);
       const delivered = await sender({
         ...config,
@@ -117,6 +118,7 @@ export const processCompanyWatchEmailNotifications = async ({
           sourceEventId: notification.source_event_id,
         }),
       });
+      accepted = true; counts.submittedCount += 1;
       const { data: markedSent, error: sentError } = await client.rpc(
         'complete_company_watch_email_notification',
         {
@@ -131,13 +133,17 @@ export const processCompanyWatchEmailNotifications = async ({
       sentCount += 1;
     } catch (error) {
       failedCount += 1;
+      const code = boundaryAttempted && (accepted || !definiteProviderFailure(error.code))
+        ? 'EMAIL_DELIVERY_OUTCOME_UNKNOWN' : safeEmailCode(error);
+      countEmailFailure(counts, code);
       if (notification) {
-        try { await recordFailure(client, id, claimToken, error); } catch { /* Preserve other recipients. */ }
+        try { await recordFailure(client, id, claimToken, { code }); } catch { counts.persistenceFailureCount += 1; }
       }
     }
   });
   return {
     status: failedCount ? 'partial-success' : 'success',
+    ...counts,
     pendingCount: pending.length,
     sentCount,
     failedCount,

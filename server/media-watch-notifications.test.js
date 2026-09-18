@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'; import test from 'node:test'; import { processMediaWatchEmailNotifications } from './media-watch-notifications.js';
-const env={MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED:'true',VERCEL_ENV:'production',RESEND_API_KEY:'placeholder',WATCH_EMAIL_FROM:'Watch <watch@example.test>',WATCH_APP_BASE_URL:'https://watch.example'};
+const env={MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED:'true',VERCEL_ENV:'production',RESEND_API_KEY:'placeholder',WATCH_EMAIL_FROM:'Watch <watch@davidlangdesign.com>',WATCH_APP_BASE_URL:'https://watch.example'};
 const row=(id)=>({id,watch_id:`watch-${id}`,user_id:`user-${id}`,source_article_id:`article-${id}`,watch_title:'Elon Musk',article:{title:`Article ${id}`,url:`https://news.example/${id}`,source:'News'}});
-const store=(entries,{unverified=[]}={})=>{const rows=new Map(entries.map(x=>[x.id,{...x,status:'pending'}]));const calls={sent:[],failed:[]};return {calls,from(){const b={select(){return b},eq(){return b},or(){return b},order(){return b},range(){return Promise.resolve({data:[...rows.values()].filter(x=>x.status==='pending').map(({id})=>({id})),error:null})}};return b},auth:{admin:{getUserById:async(id)=>({data:{user:unverified.includes(id)?{email:null}:{email:`${id}@example.test`,email_confirmed_at:'now'}},error:null})}},rpc:async(name,p)=>{const x=rows.get(p.p_notification_id);if(name==='get_media_watch_notification_locale')return {data:'en',error:null};if(name==='claim_media_watch_email_notification'){if(x.status!=='pending'||x.claim_token)return {data:null,error:null};x.claim_token=p.p_claim_token;return {data:x,error:null}}if(name==='begin_media_watch_email_submission'){x.started=true;return {data:true,error:null}}if(name==='complete_media_watch_email_notification'){x.status='sent';calls.sent.push(x.id);return {data:true,error:null}}if(name==='fail_media_watch_email_notification'){x.status='failed';calls.failed.push([x.id,p.p_error_code]);return {data:true,error:null}}return {data:null,error:null}}};};
+const store=(entries,{unverified=[]}={})=>{const rows=new Map(entries.map(x=>[x.id,{...x,status:'pending'}]));const calls={sent:[],failed:[]};return {calls,from(){const b={select(){return b},eq(){return b},or(){return b},order(){return b},range(start,end){return Promise.resolve({data:[...rows.values()].filter(x=>x.status==='pending').slice(start,end+1).map(({id})=>({id})),error:null})}};return b},auth:{admin:{getUserById:async(id)=>({data:{user:unverified.includes(id)?{email:null}:{email:`${id}@example.test`,email_confirmed_at:'now'}},error:null})}},rpc:async(name,p)=>{const x=rows.get(p.p_notification_id);if(name==='get_media_watch_notification_locale')return {data:'en',error:null};if(name==='claim_media_watch_email_notification'){if(x.status!=='pending'||x.claim_token)return {data:null,error:null};x.claim_token=p.p_claim_token;return {data:x,error:null}}if(name==='begin_media_watch_email_submission'){x.started=true;return {data:true,error:null}}if(name==='complete_media_watch_email_notification'){x.status='sent';calls.sent.push(x.id);return {data:true,error:null}}if(name==='fail_media_watch_email_notification'){x.status='failed';calls.failed.push([x.id,p.p_error_code]);return {data:true,error:null}}return {data:null,error:null}}};};
 test('overlapping processors claim each media article once',async()=>{const c=store([row('one')]);let sends=0;const sender=async()=>{sends++;await new Promise(r=>setTimeout(r,5));return{id:'provider'}};await Promise.all([processMediaWatchEmailNotifications({client:c,env,sender,createClaimToken:()=>`a-${Math.random()}`}),processMediaWatchEmailNotifications({client:c,env,sender,createClaimToken:()=>`b-${Math.random()}`})]);assert.equal(sends,1);assert.deepEqual(c.calls.sent,['one']);});
 test('unverified recipient and provider failure are isolated from a successful article',async()=>{const c=store([row('bad-recipient'),row('bad-provider'),row('good')],{unverified:['user-bad-recipient']});const out=await processMediaWatchEmailNotifications({client:c,env,sender:async({html})=>{if(html.includes('bad-provider'))throw Object.assign(new Error('private'),{code:'EMAIL_PROVIDER_ERROR'});return{id:'provider'}}});assert.equal(out.sentCount,1);assert.equal(out.failedCount,2);assert.deepEqual(c.calls.failed.map(x=>x[1]).sort(),['EMAIL_PROVIDER_ERROR','RECIPIENT_UNVERIFIED']);});
 test('disabled media delivery never reads the outbox or calls a sender',async()=>{let touched=false;const out=await processMediaWatchEmailNotifications({client:{from(){touched=true}},env:{...env,MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED:'false'},sender:async()=>{touched=true}});assert.equal(out.status,'disabled');assert.equal(touched,false);});
@@ -16,4 +16,30 @@ test('a hung provider is bounded and never automatically retried',async()=>{
  const c=store([row('timeout')]);let sends=0;const start=Date.now();
  await processMediaWatchEmailNotifications({client:c,env,deadline:Date.now()+30,sender:async()=>{sends++;return new Promise(()=>{})}});
  assert.ok(Date.now()-start<1000);assert.equal(sends,1);
+});
+
+for (const from of [undefined, '', 'invalid', 'watch@example.test', 'x\nBcc:secret']) {
+  test(`invalid media config blocks claims: ${JSON.stringify(from)}`, async () => {
+    const result = await processMediaWatchEmailNotifications({ client: {}, env: { ...env, WATCH_EMAIL_FROM: from },
+      sender: async () => assert.fail('unexpected provider call') });
+    assert.equal(result.status, 'configuration-failed'); assert.equal(result.claimedCount, 0);
+  });
+}
+for (const code of ['EMAIL_PROVIDER_REJECTED_422', 'EMAIL_PROVIDER_RETRYABLE', 'EMAIL_DELIVERY_OUTCOME_UNKNOWN']) {
+  test(`media persists ${code} without automatic replay`, async () => {
+    const c = store([row('one')]); let sends = 0;
+    const run = () => processMediaWatchEmailNotifications({ client: c, env,
+      sender: async () => { sends++; throw Object.assign(new Error('secret'), { code }); } });
+    const result = await run(); await run(); assert.equal(sends, 1);
+    assert.equal(c.calls.failed[0][1], code);
+    assert.equal(result.retryableFailureCount, code === 'EMAIL_PROVIDER_RETRYABLE' ? 1 : 0);
+  });
+}
+test('media normalizes legacy sender and preserves per-run delivery limit', async () => {
+  const c = store(Array.from({ length: 30 }, (_, i) => row(String(i)))); const sent = [];
+  const run = () => processMediaWatchEmailNotifications({ client: c, env: { ...env, WATCH_EMAIL_FROM: '<watch@davidlangdesign.com>' },
+    sender: async message => { assert.equal(message.from, 'Watch Assistant <watch@davidlangdesign.com>');
+      sent.push(message.idempotencyKey); return { id: 'accepted' }; } });
+  assert.equal((await run()).sentCount, 25); assert.equal((await run()).sentCount, 5);
+  assert.equal((await run()).sentCount, 0); assert.equal(new Set(sent).size, 30);
 });
