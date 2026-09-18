@@ -43,3 +43,18 @@ test('media normalizes legacy sender and preserves per-run delivery limit', asyn
   assert.equal((await run()).sentCount, 25); assert.equal((await run()).sentCount, 5);
   assert.equal((await run()).sentCount, 0); assert.equal(new Set(sent).size, 30);
 });
+
+test('Unicode media configuration performs no database work and remains recoverable', async () => {
+  const c = store([row('one')]); let sends = 0;
+  const untouchedClient = new Proxy(c, { get() { assert.fail('invalid config must not access outbox or recipient'); } });
+  for (const from of ['teſt@davidlangdesign.com', 'test@davidlangdeſign.com']) {
+    const result = await processMediaWatchEmailNotifications({ client: untouchedClient,
+      env: { ...env, WATCH_EMAIL_FROM: from }, sender: async () => { sends++; } });
+    assert.equal(result.status, 'configuration-failed'); assert.equal(result.sentCount, 0);
+    assert.equal(result.claimedCount, 0); assert.doesNotMatch(JSON.stringify(result), /@/);
+  }
+  assert.equal(sends, 0); assert.deepEqual(c.calls, { sent: [], failed: [] });
+  const result = await processMediaWatchEmailNotifications({ client: c, env,
+    sender: async () => { sends++; return { id: 'accepted' }; } });
+  assert.equal(result.sentCount, 1); assert.equal(sends, 1);
+});

@@ -1,12 +1,16 @@
 // Shared, deliberately conservative sender grammar. Do not repair arbitrary input.
 export const normalizeWatchEmailSender = (value) => {
   if (typeof value !== 'string' || /[\x00-\x1f\x7f]/u.test(value)) return null;
-  const raw = value.trim();
+  const raw = value.replace(/^ +| +$/gu, '');
   const match = /^(?:([A-Za-z0-9][A-Za-z0-9 .'-]{0,99}) )?<([^<>\s]+)>$/u.exec(raw);
   const address = match ? match[2] : raw;
-  if (address.length > 254 || !/^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@davidlangdesign\.com$/iu.test(address)
-    || address.split('@')[0].length > 64) return null;
-  const [local] = address.split('@');
+  // Reject Unicode before syntax checks or case conversion; never fold lookalikes.
+  if (/[^\x00-\x7f]/u.test(address) || address.length > 254) return null;
+  const parts = /^([A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*)@([A-Za-z0-9.-]+)$/u.exec(address);
+  if (!parts || parts[1].length > 64) return null;
+  const [, local, domain] = parts;
+  // Both parts are ASCII now, so lowercasing cannot perform Unicode case folding.
+  if (domain.toLowerCase() !== 'davidlangdesign.com') return null;
   return `${match?.[1] || 'Watch Assistant'} <${local}@davidlangdesign.com>`;
 };
 

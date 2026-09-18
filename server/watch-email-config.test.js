@@ -48,3 +48,53 @@ test('malformed success response is an unknown outcome', async () => {
     ok: true, json: async () => ({ id: '' }),
   }) }), { code: 'EMAIL_DELIVERY_OUTCOME_UNKNOWN' });
 });
+
+const unicodeAddresses = [
+  'teſt@davidlangdesign.com', 'test@davidlangdeſign.com',
+  'teıt@davidlangdesign.com', 'test@davıdlangdesign.com',
+  'K@davidlangdesign.com', 'test@davidlangdesiKn.com',
+  'tеst@davidlangdesign.com', 'test@dаvidlangdesign.com', // Cyrillic e/a
+  'tεst@davidlangdesign.com', 'test@davidlangdεsign.com', // Greek epsilon
+  'te\u00a0st@davidlangdesign.com', 'test@davidlang\u00a0design.com',
+  'te\u200bst@davidlangdesign.com', 'test@davidlang\u200bdesign.com',
+  'test\u00a0@davidlangdesign.com', 'test@\u200bdavidlangdesign.com',
+  '\u00a0test@davidlangdesign.com', 'test@davidlangdesign.com\u00a0',
+  '\ufefftest@davidlangdesign.com', 'test＠davidlangdesign.com',
+];
+for (const [index, invalidAddress] of unicodeAddresses.entries()) {
+  test(`Unicode address case ${index + 1} is rejected in every supported structure`, async () => {
+    for (const raw of [invalidAddress, `<${invalidAddress}>`, `Watch Assistant <${invalidAddress}>`]) {
+      assert.equal(normalizeWatchEmailSender(raw), null);
+      const env = { WATCH_EMAIL_NOTIFICATIONS_ENABLED: 'true', MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED: 'true',
+        VERCEL_ENV: 'production', RESEND_API_KEY: 'fake', WATCH_EMAIL_FROM: raw, WATCH_APP_BASE_URL: 'https://watch.example' };
+      assert.equal(getCompanyWatchEmailConfig(env), null);
+      assert.equal(getMediaWatchEmailConfig(env), null);
+      await assert.rejects(sendWithResend({ apiKey: 'fake', from: raw }, {
+        fetchImpl: async () => assert.fail('Unicode must never reach Resend'),
+      }), error => {
+        assert.equal(error.code, 'EMAIL_CONFIGURATION_INVALID');
+        assert.doesNotMatch(error.message, /@|fake/); return true;
+      });
+    }
+  });
+}
+for (const [raw, expected] of [
+  ['Test@DAVIDLANGDESIGN.COM', 'Watch Assistant <Test@davidlangdesign.com>'],
+  ['<Test@DavidLangDesign.com>', 'Watch Assistant <Test@davidlangdesign.com>'],
+  ['Watch Assistant <Test@DAVIDLANGDESIGN.COM>', 'Watch Assistant <Test@davidlangdesign.com>'],
+  ['Product Alerts <Test@DAVIDLANGDESIGN.COM>', 'Product Alerts <Test@davidlangdesign.com>'],
+  ['  test@davidlangdesign.com  ', 'Watch Assistant <test@davidlangdesign.com>'],
+]) {
+  test(`ASCII sender behavior preserved: ${raw}`, () => {
+    assert.equal(normalizeWatchEmailSender(raw), expected);
+  });
+}
+test('strict structure still rejects multiple separators, comments, empty local parts and malformed brackets', () => {
+  for (const raw of ['test@@davidlangdesign.com', '@davidlangdesign.com',
+    '(comment) test@davidlangdesign.com', 'test@davidlangdesign.com (comment)',
+    '<test@davidlangdesign.com', 'test@davidlangdesign.com>',
+    'Watch Assistant <test@davidlangdesign.com> trailing',
+    'Watch\rBcc: hidden <test@davidlangdesign.com>']) {
+    assert.equal(normalizeWatchEmailSender(raw), null);
+  }
+});

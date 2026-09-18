@@ -215,3 +215,20 @@ test('company acceptance followed by persistence failure is quarantined as unkno
   assert.equal(result.submittedCount, 1); assert.equal(result.sentCount, 0); assert.equal(result.unknownOutcomeCount, 1);
   assert.equal(store.rows.get('one').last_error_code, 'EMAIL_DELIVERY_OUTCOME_UNKNOWN');
 });
+
+test('Unicode company configuration leaves pending work untouched and recoverable', async () => {
+  const store = createClient([notification('one')]); let sends = 0;
+  const before = structuredClone([...store.rows.values()]);
+  for (const from of ['teſt@davidlangdesign.com', 'test@davidlangdeſign.com']) {
+    const result = await processCompanyWatchEmailNotifications({ client: store.client,
+      env: { ...enabledEnv, WATCH_EMAIL_FROM: from }, sender: async () => { sends++; } });
+    assert.equal(result.status, 'configuration-failed'); assert.equal(result.sentCount, 0);
+    assert.equal(result.claimedCount, 0); assert.doesNotMatch(JSON.stringify(result), /@/);
+  }
+  assert.deepEqual([...store.rows.values()], before);
+  assert.equal(store.calls.claims.length, 0); assert.equal(store.calls.completions.length, 0);
+  assert.equal(sends, 0);
+  const result = await processCompanyWatchEmailNotifications({ client: store.client, env: enabledEnv,
+    sender: async () => { sends++; return { id: 'accepted' }; } });
+  assert.equal(result.sentCount, 1); assert.equal(sends, 1);
+});
