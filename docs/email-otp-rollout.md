@@ -44,6 +44,11 @@ check. No production settings were changed.
   Verify the provider setting before enabling OTP. Supabase remains authoritative;
   the UI does not bypass server limits. A visible countdown covers resends and
   changed-email retries, duplicate clicks are ignored, and nothing resends automatically.
+  An explicit rejected send clears the local cooldown (including GoTrue's SMTP
+  delivery error surfaced by supabase-js as HTTP 500). Rate limits, transport
+  failures and ambiguous server/gateway failures retain it because acceptance may
+  be uncertain. Releasing the local timer never retries automatically or bypasses
+  Supabase's own rate limits.
 - Supabase may report incorrect, expired and consumed codes with the same
   `otp_expired` response. That response uses honest combined recovery copy; distinct
   codes receive specific localized text. Raw provider errors are not rendered.
@@ -143,6 +148,30 @@ The browser suite blocks external network requests and writes screenshots only t
 - Check Legal Professionals guidance, all four public onboarding flows and Dashboard.
 - Perform a manual screen-reader pass; automated DOM/keyboard checks are not a
   screen-reader or physical mail-app test.
+
+## Staging SMTP incident (2026-09-18)
+
+The first manual staging OTP request failed at 13:09:59 UTC. Staging Auth logs
+recorded `POST /otp`, HTTP 500, `unexpected_failure`, and the upstream response
+`535 "Authentication credentials invalid"`. This is an SMTP authentication
+rejection, before email acceptance; it is not evidence of a template or delivery
+failure after acceptance. Resend showed no activity for the dedicated staging
+key and no accepted email corresponding to the request. Its dashboard does not
+expose SMTP server logs.
+
+The configured host and port were `smtp.resend.com:465` (implicit TLS). The
+dedicated key had Sending access restricted to the verified sender domain.
+The persisted password cannot be viewed, so the exact incorrect credential was
+not established. The operator must re-enter the staging-only SMTP username
+`resend` and the complete dedicated API key, and verify the staging sender.
+Do not replace or reuse the Production key. No additional email may be sent
+without renewed operator approval.
+
+The local cooldown regression is covered using the installed SDK's actual
+`AuthRetryableFetchError` for SMTP rejection, alongside explicit 4xx rejection,
+429, transport errors, and ambiguous 500/504 responses. Validation: 971 tests
+passed, including 50 focused OTP/auth-gate tests; production build, changed-file
+syntax checks and whitespace checks passed. Delivery remains unverified.
 
 ## Correction validation results
 

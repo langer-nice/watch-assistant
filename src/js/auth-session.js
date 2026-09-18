@@ -12,6 +12,17 @@ const getCallbackError = (location) => {
   return query.get('error_description') || hash.get('error_description') || query.get('error') || hash.get('error') || null;
 };
 
+// A failed connection or gateway timeout can hide an accepted email. Only clear
+// the local cooldown for an explicit rejection, never for rate limiting.
+const emailSendWasRejected = (error) => {
+  if (error.status === 429 || /rate_limit/.test(error.code || '')) return false;
+  if (error.status >= 400 && error.status < 500 && error.status !== 408) return true;
+  // supabase-js wraps GoTrue's SMTP failures as AuthRetryableFetchError (500),
+  // preserving the message but discarding its unexpected_failure code.
+  return error.status === 500
+    && /^Error sending (confirmation|magic link|otp) email$/i.test(error.message || '');
+};
+
 export const getMagicLinkRedirectUrl = (location = window.location, returnTo, language) => {
   const url = new URL('index.html', location.href);
   url.search = '';
@@ -99,6 +110,7 @@ export const createAuthSession = ({ client, location = window.location, mode = '
       error = requestError;
     }
     sending = false;
+    if (mode === 'otp' && error && emailSendWasRejected(error)) retryAt = 0;
     if (revision !== requestRevision) return state;
     if (error) return publish({ status: 'error', error: error.message, session: null });
     return publish({ status: mode === 'otp' ? 'code-sent' : 'link-sent', submittedEmail, error: null, session: null });

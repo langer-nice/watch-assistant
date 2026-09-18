@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAuthSession } from './auth-session.js';
+import { AuthRetryableFetchError } from '@supabase/supabase-js';
 const location = new URL('https://example.test/new-watch.html');
 const session = { user:{id:'synthetic-a',email:'a@example.test'},access_token:'synthetic-session' };
 const setup = (options = {}) => {
@@ -57,6 +58,43 @@ test('simultaneous send and verify requests are deduplicated',async()=>{
   let verified;client.auth.verifyOtp=()=>new Promise(resolve=>{calls.push('verify');verified=resolve;});
   const verifying=auth.verifyCode('246810');await auth.verifyCode('246810');assert.equal(calls.length,2);
   verified({data:{session}});await verifying;assert.equal(auth.getState().status,'authenticated');
+});
+
+test('SMTP rejection releases cooldown without showing a code field or retrying automatically', async () => {
+  const { auth, client, calls } = setup();
+  await auth.initialize();
+  client.auth.signInWithOtp = async () => {
+    calls.push('send');
+    return { error: new AuthRetryableFetchError('Error sending confirmation email', 500) };
+  };
+  await auth.sendMagicLink('a@example.test');
+  assert.equal(auth.getState().status, 'error');
+  assert.equal(auth.getState().session, null);
+  assert.equal(auth.cooldownRemaining(), 0);
+  assert.equal(calls.length, 1);
+  client.auth.signInWithOtp = async () => { calls.push('send'); return { error: null }; };
+  await auth.sendMagicLink('a@example.test');
+  assert.equal(calls.length, 2);
+  assert.equal(auth.getState().status, 'code-sent');
+  assert.equal(auth.cooldownRemaining(), 60);
+});
+
+test('explicit request rejection releases cooldown, but rate limits and uncertain delivery do not', async () => {
+  for (const [error, remaining] of [
+    [{ status: 422, code: 'email_address_invalid', message: 'Invalid email' }, 0],
+    [{ status: 429, code: 'over_email_send_rate_limit', message: 'Too many requests' }, 60],
+    [new AuthRetryableFetchError('Failed to fetch', 0), 60],
+    [new AuthRetryableFetchError('HTTP 504', 504), 60],
+    [new AuthRetryableFetchError('Internal server error', 500), 60],
+  ]) {
+    const { auth, client, calls } = setup();
+    await auth.initialize();
+    client.auth.signInWithOtp = async () => { calls.push('send'); return { error }; };
+    await auth.sendMagicLink('a@example.test');
+    assert.equal(auth.cooldownRemaining(), remaining);
+    assert.equal(auth.getState().status, 'error');
+    assert.equal(calls.length, 1);
+  }
 });
 
 test('cancelled verification and account switching cannot authorize draft transfer',async()=>{
