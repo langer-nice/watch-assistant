@@ -1,3 +1,4 @@
+import { safeAuthReturn } from './auth-return.js';
 const hasAuthCallback = (location) => {
   const query = new URLSearchParams(location?.search || '');
   const hash = new URLSearchParams((location?.hash || '').replace(/^#/, ''));
@@ -7,12 +8,17 @@ const hasAuthCallback = (location) => {
 const getCallbackError = (location) => {
   const query = new URLSearchParams(location?.search || '');
   const hash = new URLSearchParams((location?.hash || '').replace(/^#/, ''));
-  return query.get('error_description') || hash.get('error_description') || null;
+  return query.get('error_description') || hash.get('error_description') || query.get('error') || hash.get('error') || null;
 };
 
-export const getMagicLinkRedirectUrl = (location = window.location) => (
-  new URL('index.html', location.href).href.split(/[?#]/)[0]
-);
+export const getMagicLinkRedirectUrl = (location = window.location, returnTo, language) => {
+  const url = new URL('index.html', location.href);
+  url.search = '';
+  url.hash = '';
+  if (safeAuthReturn(returnTo)) url.searchParams.set('returnTo', returnTo);
+  if (['en', 'fr'].includes(language)) url.searchParams.set('lang', language);
+  return url.href;
+};
 
 export const createAuthSession = ({ client, location = window.location } = {}) => {
   let state = {
@@ -24,6 +30,7 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
   let subscription = null;
   let revision = 0;
   let signingOut = false;
+  let sending = false;
 
   const publish = (nextState) => {
     state = { ...state, ...nextState };
@@ -62,23 +69,29 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
     return state;
   };
 
-  const sendMagicLink = async (email) => {
+  const sendMagicLink = async (email, { returnTo, language } = {}) => {
+    if (sending || state.status === 'authenticated' || signingOut) return state;
     if (!client) return publish({ status: 'unavailable' });
+    sending = true;
+    const requestRevision = ++revision;
+    const submittedEmail = email.trim();
     publish({ status: 'sending', error: null });
     let error;
     try {
       ({ error } = await client.auth.signInWithOtp({
-        email: email.trim(),
+        email: submittedEmail,
         options: {
-          emailRedirectTo: getMagicLinkRedirectUrl(location),
+          emailRedirectTo: getMagicLinkRedirectUrl(location, returnTo, language),
           shouldCreateUser: true,
         },
       }));
     } catch (requestError) {
       error = requestError;
     }
+    sending = false;
+    if (revision !== requestRevision) return state;
     if (error) return publish({ status: 'error', error: error.message, session: null });
-    return publish({ status: 'link-sent', error: null, session: null });
+    return publish({ status: 'link-sent', submittedEmail, error: null, session: null });
   };
 
   const signOut = async () => {
@@ -103,6 +116,10 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
     initialize,
     suspend: () => { revision += 1; return publish({ status: 'loading', session: null, error: null }); },
     sendMagicLink,
+    resetEmail() {
+      if (state.status !== 'link-sent') return state;
+      return publish({ status: 'anonymous', submittedEmail: '', error: null, session: null });
+    },
     signOut,
     subscribe(listener) {
       listeners.add(listener);

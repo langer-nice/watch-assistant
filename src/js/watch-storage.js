@@ -1,4 +1,4 @@
-import { localWatchStorageKey, safeStorage } from './account-storage.js';
+import { localWatchStorageKey, getAccountOwner, safeStorage } from './account-storage.js';
 import { prepareMediaWatch, queueMediaWatchDeletion, mergeMediaWatches } from './media-watch-server-store.js';
 import { mockWatches } from './data/mock-watches.js';
 import { normalizeWatchCreationDate } from './watch-dates.js';
@@ -219,6 +219,7 @@ export function hydrateWatchStorage() {
 }
 
 export function addWatch(watch) {
+  if (!getAccountOwner()) return null;
   const stored = getStoredWatches();
   const previous = stored.find((item) => item.id === watch.id);
   const normalizedWatch = prepareMediaWatch(migrateWatchModel(watch).watch, previous);

@@ -10,6 +10,7 @@ const session = () => {
 const listeners = new Set();
 const emit = (event) => listeners.forEach((fn) => fn(event, session()));
 window.syntheticAuth = {
+  emailCalls: [],
   signIn(account) { localStorage.setItem(key, account); emit('SIGNED_IN'); },
   signOut() { return client.auth.signOut(); },
   refresh() { emit('TOKEN_REFRESHED'); },
@@ -32,6 +33,10 @@ const client = { auth: {
   },
   onAuthStateChange(fn) { listeners.add(fn); return { data: { subscription: { unsubscribe: () => listeners.delete(fn) } } }; },
   async signOut() { localStorage.removeItem(key); emit('SIGNED_OUT'); return { error: null }; },
-  async signInWithOtp() { throw new Error('Email is disabled in the synthetic preview.'); },
+  async signInWithOtp(payload) {
+    window.syntheticAuth.emailCalls.push(payload);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    return { error: null }; // Simulated delivery only; no network or real email.
+  },
 } };
 export const createSupabaseBrowserClient = () => ({ client });

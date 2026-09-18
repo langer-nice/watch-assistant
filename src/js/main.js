@@ -1,6 +1,6 @@
 import { configureMediaWatchServerStore } from './media-watch-server-store.js';
 import { initApp } from './navigation.js';
-import { initializeLanguage } from './i18n.js';
+import { initializeLanguage, setLanguage } from './i18n.js';
 import { initTopNavigation } from './top-navigation.js';
 import { initIntroReplayLink } from './intro-flow.js';
 import { initializeAnalytics } from './analytics.js';
@@ -11,6 +11,8 @@ import { configureOnboardingRequest } from './onboarding-presentation.js';
 initializeAnalytics();
 configureOnboardingRequest();
 initializeLanguage();
+const callbackLanguage = new URLSearchParams(window.location.search).get('lang');
+if (['en', 'fr'].includes(callbackLanguage)) setLanguage(callbackLanguage);
 initIntroReplayLink();
 initTopNavigation();
 const authUi = initAuthUi();
@@ -27,7 +29,9 @@ const start = async () => {
     await configureCompanyWatchServerStore(authUi.auth);
     await configureMediaWatchServerStore(authUi.auth);
   }
+  if (authUi && !authUi.canEnterEditor()) return;
   initApp();
+  authUi?.revealEditor();
 };
 
 void start();

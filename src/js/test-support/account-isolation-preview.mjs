@@ -3,7 +3,7 @@
 import { createServer } from 'vite';
 const server = await createServer({
   configFile: false,
-  server: { host: '127.0.0.1', port: 4178, strictPort: true },
+  server: { host: '127.0.0.1', port: Number(process.env.SYNTHETIC_PORT || 4178), strictPort: true },
   plugins: [{
     name: 'synthetic-account-isolation',
     enforce: 'pre',
@@ -27,4 +27,4 @@ const server = await createServer({
   }],
 });
 await server.listen();
-console.log('Synthetic preview ready at http://127.0.0.1:4178/index.html');
+console.log(`Synthetic preview ready at http://127.0.0.1:${server.config.server.port}/index.html`);

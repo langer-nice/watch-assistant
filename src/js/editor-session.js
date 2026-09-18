@@ -1,4 +1,4 @@
-import { ACCOUNT_STORAGE_CHANGED_EVENT, getAccountEpoch, isAccountStorageResolved } from './account-storage.js';
+import { ACCOUNT_STORAGE_CHANGED_EVENT, getAccountEpoch, getAccountOwner, isAccountStorageResolved } from './account-storage.js';
 
 // A form's DOM, callbacks and pending work belong to exactly one auth epoch.
 // Clearing precedes navigation: sign-out may still be waiting for Supabase, and
@@ -9,7 +9,7 @@ export const createEditorSession = ({ form, onInvalidate }) => {
   let active = true;
   let navigating = false;
   const removers = [];
-  const isCurrent = () => active && epoch === getAccountEpoch() && isAccountStorageResolved();
+  const isCurrent = () => active && epoch === getAccountEpoch() && Boolean(getAccountOwner());
   const invalidate = () => {
     if (!active) return;
     active = false;

@@ -38,7 +38,8 @@ const getNavigationConfig = (env) => {
   if (params.get('presentation') === 'modal') return null;
 
   if (document.querySelector('.page--home')) {
-    if (!isPreviewTestLoaderAvailable(env) && !hasCompletedOnboarding()) return null;
+    if (!isPreviewTestLoaderAvailable(env) && !hasCompletedOnboarding()
+      && !params.has('returnTo') && !params.has('code') && !params.has('error') && !window.location.hash) return null;
     return {
       pattern: 'none',
       activeSection: 'home',
@@ -158,7 +159,7 @@ export const initTopNavigation = ({ env = import.meta.env } = {}) => {
           aria-haspopup="dialog"
           aria-expanded="false"
           data-i18n-aria-label="topNavigation.openProfile"
-        >${profileIcon}</button>
+        >${profileIcon}<span data-auth-label data-i18n="auth.signIn"></span></button>
         <div
           class="top-navigation__popover top-navigation__profile-menu"
           id="topNavigationProfileMenu"
