@@ -305,3 +305,8 @@
   display: grid;
   gap: 1rem;
 }
+
+.auth-gate[hidden], [data-guest-editor][hidden] { display: none !important; }
+.auth-menu__form input[name='code'] { letter-spacing: 0.25em; font-size: 1.25rem; }
+.auth-menu__text-button:disabled { opacity: 0.6; cursor: default; }
+[data-guest-editor] .assistant-input { min-height: 8rem; }

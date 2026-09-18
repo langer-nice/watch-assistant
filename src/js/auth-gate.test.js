@@ -9,9 +9,11 @@ import { saveReport, getReports } from './report-storage.js';
 import { safeAuthReturn, getCallbackReturn, getCreationReturn } from './auth-return.js';
 import { createAuthSession, getMagicLinkRedirectUrl } from './auth-session.js';
 register('./test-support/json-module-loader.js', import.meta.url);
-const { initAuthUi, renderAuthState, authErrorKey } = await import('./auth-ui.js');
+const { initAuthUi, renderAuthState, authErrorKey, getAuthMode } = await import('./auth-ui.js');
 const { setLanguage } = await import('./i18n.js');
 let originals;
+let interfaces = [];
+const startUi = options => { const ui = initAuthUi(options); interfaces.push(ui); return ui; };
 const storage = () => {
   const values = new Map();
   return { values, getItem:k=>values.get(k) ?? null, setItem:(k,v)=>values.set(k,String(v)), removeItem:k=>values.delete(k) };
@@ -43,7 +45,7 @@ const setup = async (path = 'new-watch.html') => {
   window.HTMLFormElement.prototype.reportValidity = () => true;
   const redirects = [];
   const url = new URL(`https://example.test/${path}`);
-  window.location = { href:url.href, search:url.search, hash:url.hash, replace:value=>redirects.push(value) };
+  window.location = { href:url.href, pathname:url.pathname, search:url.search, hash:url.hash, reload:()=>redirects.push('reload'), replace:value=>redirects.push(value) };
   const accountMenu = document.createElement('div');
   accountMenu.innerHTML = '<button data-profile-trigger><span data-auth-label></span></button><div data-auth-root></div>';
   document.body.prepend(accountMenu);
@@ -55,6 +57,7 @@ test.beforeEach(() => {
   globalThis.localStorage=storage(); globalThis.sessionStorage=storage();
 });
 test.afterEach(() => {
+  interfaces.forEach(ui=>ui.destroy()); interfaces=[];
   configureAccountStorage(null);
   for(const [key,descriptor] of Object.entries(originals)) {
     if(descriptor) Object.defineProperty(globalThis,key,descriptor); else delete globalThis[key];
@@ -62,25 +65,33 @@ test.afterEach(() => {
 });
 
 for (const route of ['new-watch.html','new-watch.html?onboarding=first-watch','new-watch.html?edit=private-id','new-watch.html?edit=private-id&presentation=modal']) {
-  test(`gate fails closed before and after session resolution: ${route}`, async () => {
+  test(`only an in-memory new request is available before authentication: ${route}`, async () => {
     const {document,redirects}=await setup(route);
-    const mock=client(); const ui=initAuthUi({client:mock});
+    const mock=client(); const ui=startUi({client:mock});
     const content=document.querySelector('[data-editor-content]');
     assert.equal(content.hidden,true); assert.equal(content.hasAttribute('inert'),true);
     ui.revealEditor(); assert.equal(content.hidden,true);
-    assert.ok(document.querySelector('[data-auth-gate]'));
     mock.resolve(); await ui.ready;
     assert.equal(ui.canEnterEditor(),false);
-    assert.equal(content.children.length,0);
     assert.equal(document.querySelector('[data-auth-label]').textContent,'Sign in');
-    assert.ok(document.querySelector('[data-auth-continue]'));
-    mock.emit({user:{id:'synthetic-a'}});
-    assert.equal(redirects.at(-1),route.includes('onboarding') ? 'new-watch.html?onboarding=first-watch' : 'new-watch.html');
+    const input=document.querySelector('#guestWatchInput');
+    if(route.includes('edit=')) { assert.equal(input,null); assert.equal(document.querySelector('[data-auth-gate]').hidden,false); }
+    else {
+      assert.ok(input);assert.equal(document.querySelector('[data-auth-gate]').hidden,true);
+      input.value='PRIVATE GUEST REQUEST';
+      document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      assert.equal(input.value,'PRIVATE GUEST REQUEST');assert.equal(document.querySelector('[data-auth-gate]').hidden,false);
+      document.querySelector('[data-auth-back]').click();
+      assert.equal(input.value,'PRIVATE GUEST REQUEST');assert.equal(document.querySelector('[data-auth-gate]').hidden,true);
+      mock.emit({user:{id:'synthetic-a'}});
+      assert.equal(input.value,'','an unrelated sign-in must never adopt guest text');
+      assert.equal(redirects.at(-1),'reload');
+    }
   });
 }
 
 test('resolved account enters directly; callback returns only to the allowlisted creation flow', async () => {
-  const {document}=await setup(); const mock=client(); const ui=initAuthUi({client:mock});
+  const {document}=await setup(); const mock=client(); const ui=startUi({client:mock});
   mock.resolve({user:{id:'synthetic-a'}}); await ui.ready;
   assert.equal(ui.canEnterEditor(),true); ui.revealEditor();
   assert.equal(document.querySelector('[data-editor-content]').hidden,false);
@@ -129,8 +140,9 @@ test('pending OTP suppresses duplicates and stale responses cannot replace a sig
 for(const lang of ['en','fr']) {
   test(`${lang} confirmation escapes email, provides secondary recovery, focuses a cleared field and survives translation`, async () => {
     const {document}=await setup(); setLanguage(lang,{persist:false});
-    const mock=client();const ui=initAuthUi({client:mock});mock.resolve();await ui.ready;ui.canEnterEditor();
-    document.querySelector('[data-auth-continue]').click();
+    const mock=client();const ui=startUi({client:mock});mock.resolve();await ui.ready;ui.canEnterEditor();
+    document.querySelector('#guestWatchInput').value='Synthetic Watch request';
+    document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
     assert.equal(document.focusedElement.id,'gateEmail');
     const email='<img src=x onerror=alert(1)>@example.test';
     await ui.auth.sendMagicLink(email);
@@ -162,7 +174,7 @@ for (const returnTo of ['new-watch.html?onboarding=first-watch', '//evil.test', 
   test(`callback navigation validates the destination before entering the app: ${returnTo}`, async () => {
     const {document,redirects}=await setup(`index.html?returnTo=${encodeURIComponent(returnTo)}`);
     document.querySelector('[data-editor-content]').remove();
-    const mock=client(); const ui=initAuthUi({client:mock});
+    const mock=client(); const ui=startUi({client:mock});
     mock.resolve({user:{id:'synthetic-a'}}); await ui.ready;
     assert.deepEqual(redirects,returnTo.startsWith('new-watch') ? [returnTo] : []);
     assert.equal(ui.canEnterEditor(),!returnTo.startsWith('new-watch'));
@@ -172,7 +184,7 @@ for (const returnTo of ['new-watch.html?onboarding=first-watch', '//evil.test', 
 test('a modal route without profile UI still creates the shared gate and resolves authentication', async () => {
   const {document}=await setup('new-watch.html?edit=synthetic-watch&presentation=modal');
   document.querySelector('[data-auth-root]').remove();
-  const mock=client(); const ui=initAuthUi({client:mock}); mock.resolve(); await ui.ready;
+  const mock=client(); const ui=startUi({client:mock}); mock.resolve(); await ui.ready;
   assert.equal(ui.canEnterEditor(),false);
   assert.ok(document.querySelector('[data-auth-gate]'));
 });
@@ -184,5 +196,110 @@ for (const flow of ['1', '2', '3', '4']) {
     assert.equal(getCreationReturn(location), expected);
     assert.equal(getCallbackReturn(new URL(getMagicLinkRedirectUrl(location, expected))), expected);
     assert.equal(safeAuthReturn(`${expected}&request=PRIVATE`), null);
+  });
+}
+
+test('same-page OTP resumes the exact guest request once, only after resolved verification', async () => {
+  const {document}=await setup(); const mock=client(); const resumed=[];
+  mock.auth.verifyOtp=async({email,token,type})=>{
+    assert.equal(type,'email');assert.equal(token,'246810');
+    const session={user:{id:'synthetic-a',email},access_token:'synthetic-token'};
+    mock.emit(session);return {data:{session}};
+  };
+  const ui=startUi({client:mock,env:{VITE_AUTH_MODE:'otp'},onResume:(...args)=>resumed.push(args)});
+  mock.resolve();await ui.ready;ui.canEnterEditor();
+  const input=document.querySelector('#guestWatchInput'); input.value='  DISTINCTIVE PRIVATE REQUEST\n  second line  ';
+  document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  assert.equal(resumed.length,0);
+  await ui.auth.sendMagicLink('a@example.test');
+  const form=document.querySelector('[data-auth-gate] [data-auth-code-form]');form.reportValidity=()=>true;
+  form.querySelector('[name="code"]').value=' 246810 ';
+  form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.deepEqual(resumed,[['  DISTINCTIVE PRIVATE REQUEST\n  second line  ','synthetic-a']]);
+  assert.equal(input.value,'');assert.equal(document.querySelector('#guestWatchInput'),null);
+  assert.equal(form.querySelector('[name="code"]').value,'');
+});
+
+test('guest URL paste does not call analysis or persist, and history manipulation invalidates it', async()=>{
+  const {document,redirects}=await setup();const mock=client();const ui=startUi({client:mock});mock.resolve();await ui.ready;ui.canEnterEditor();
+  const input=document.querySelector('#guestWatchInput');const before=[...localStorage.values];
+  input.value='https://example.test/private-request';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('paste',{bubbles:true}));
+  assert.deepEqual([...localStorage.values],before);assert.equal(sessionStorage.values.size,0);
+  window.location.search='?edit=private-a';
+  document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  assert.equal(input.value,'');assert.equal(document.querySelector('[data-editor-content]').hidden,true);
+  assert.equal(redirects.length,0);
+});
+
+test('pagehide scrubs guest input and prevents detached submission',async()=>{
+  const {document}=await setup();const mock=client();const ui=startUi({client:mock});mock.resolve();await ui.ready;ui.canEnterEditor();
+  const input=document.querySelector('#guestWatchInput');input.value='PRIVATE';const form=document.querySelector('[data-guest-form]');
+  window.dispatchEvent(new Event('pagehide'));assert.equal(input.value,'');
+  form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  assert.equal(document.querySelector('[data-auth-gate]').hidden,true);
+});
+
+test('duplicate UI verification submissions cannot cancel the original authorized resume', async()=>{
+  const {document}=await setup();const mock=client();let finish;let calls=0;const resumed=[];
+  mock.auth.verifyOtp=()=>{calls++;return new Promise(resolve=>{finish=resolve;});};
+  const ui=startUi({client:mock,env:{VITE_AUTH_MODE:'otp'},onResume:(...args)=>resumed.push(args)});
+  mock.resolve();await ui.ready;ui.canEnterEditor();
+  document.querySelector('#guestWatchInput').value='PRIVATE';
+  document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  await ui.auth.sendMagicLink('a@example.test');
+  const submit=()=>{
+    const form=document.querySelector('[data-auth-gate] [data-auth-code-form]');form.reportValidity=()=>true;
+    form.querySelector('[name="code"]').value='246810';form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  };
+  submit();submit();assert.equal(calls,1);
+  finish({data:{session:{user:{id:'synthetic-a',email:'a@example.test'},access_token:'synthetic-session'}}});
+  await new Promise(resolve=>setTimeout(resolve,0));assert.deepEqual(resumed,[['PRIVATE','synthetic-a']]);
+});
+
+test('returning to the guest request during verification invalidates the old creation action', async()=>{
+  const {document}=await setup();const mock=client();let finish;const resumed=[];
+  mock.auth.verifyOtp=()=>new Promise(resolve=>{finish=resolve;});
+  const ui=startUi({client:mock,env:{VITE_AUTH_MODE:'otp'},onResume:(...args)=>resumed.push(args)});
+  mock.resolve();await ui.ready;ui.canEnterEditor();
+  const input=document.querySelector('#guestWatchInput');input.value='PRIVATE CANCELLED REQUEST';
+  document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  await ui.auth.sendMagicLink('a@example.test');
+  const form=document.querySelector('[data-auth-gate] [data-auth-code-form]');form.reportValidity=()=>true;
+  form.querySelector('[name="code"]').value='246810';form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  document.querySelector('[data-auth-back]').click();
+  assert.equal(input.value,'PRIVATE CANCELLED REQUEST');
+  mock.auth.getSession=async()=>({data:{session:null}});
+  finish({data:{session:{user:{id:'synthetic-a',email:'a@example.test'},access_token:'synthetic-session'}}});
+  await new Promise(resolve=>setTimeout(resolve,0));assert.deepEqual(resumed,[]);
+});
+
+
+test('rollout configuration defaults safely to Magic Link and opts in only to exact otp',()=>{
+  for(const env of [undefined,{}, {VITE_AUTH_MODE:'magic-link'}, {VITE_AUTH_MODE:'unknown'}, {VITE_AUTH_MODE:'OTP'}]) assert.equal(getAuthMode(env),'magic-link');
+  assert.equal(getAuthMode({VITE_AUTH_MODE:'otp'}),'otp');
+});
+
+test('late initial-session events and token refresh do not reload an already authenticated page',async()=>{
+  const {document,redirects}=await setup('watches.html');document.querySelector('[data-editor-content]').remove();
+  const mock=client();const ui=startUi({client:mock});const session={user:{id:'synthetic-a',email:'a@example.test'},access_token:'synthetic-session'};
+  mock.resolve(session);await ui.ready;mock.emit(session);mock.emit(session);
+  assert.deepEqual(redirects,[]);
+});
+
+for (const email of ['a@example.test', 'b@example.test']) {
+  test(`staged Magic Link resumes only the explicitly requested identity: ${email}`, async () => {
+    const { document, redirects } = await setup();
+    const mock = client();
+    const resumed = [];
+    const ui = startUi({ client: mock, onResume: (...args) => resumed.push(args) });
+    mock.resolve(); await ui.ready; ui.canEnterEditor();
+    document.querySelector('#guestWatchInput').value = 'EXACT LEGACY REQUEST';
+    document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await ui.auth.sendMagicLink('a@example.test');
+    mock.emit({ user: { id: 'synthetic-owner', email }, access_token: 'synthetic-session' });
+    await Promise.resolve();
+    assert.deepEqual(resumed, email === 'a@example.test' ? [['EXACT LEGACY REQUEST', 'synthetic-owner']] : []);
+    assert.deepEqual(redirects, email === 'a@example.test' ? [] : ['reload']);
   });
 }

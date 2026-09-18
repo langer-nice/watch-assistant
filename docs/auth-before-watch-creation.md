@@ -1,5 +1,10 @@
 # Authentication before Watch creation
 
+> Historical first iteration at `f4404572efc5ca6c301395bd03885c3539dfe74e`.
+> The current progressive guest-drafting/OTP correction, rollout and validation are
+> documented in [email-otp-rollout.md](email-otp-rollout.md). The earlier gate timing
+> and test counts below describe that previous commit.
+
 ## Scope and audit
 
 Starting master: `fd9298f62216e0dea9e8fd41bf64bb14281cfb30` (fetched September 18, 2026).

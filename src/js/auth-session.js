@@ -1,3 +1,4 @@
+import { isValidOwnerId } from './account-storage.js';
 import { safeAuthReturn } from './auth-return.js';
 const hasAuthCallback = (location) => {
   const query = new URLSearchParams(location?.search || '');
@@ -20,7 +21,7 @@ export const getMagicLinkRedirectUrl = (location = window.location, returnTo, la
   return url.href;
 };
 
-export const createAuthSession = ({ client, location = window.location } = {}) => {
+export const createAuthSession = ({ client, location = window.location, mode = 'magic-link', resendSeconds = 60, now = Date.now } = {}) => {
   let state = {
     status: client ? (hasAuthCallback(location) ? 'confirming' : 'loading') : 'unavailable',
     session: null,
@@ -31,6 +32,10 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
   let revision = 0;
   let signingOut = false;
   let sending = false;
+  let verification = null;
+  let retryAt = 0;
+  const cooldownMs = Math.max(60, Number(resendSeconds) || 60) * 1000;
+  const sameEmail = (a, b) => Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
 
   const publish = (nextState) => {
     state = { ...state, ...nextState };
@@ -44,8 +49,11 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
     if (!subscription) {
       const change = client.auth.onAuthStateChange((_event, session) => {
         if (signingOut && session) return;
+        // The SDK publishes SIGNED_IN before verifyOtp resolves. Only that matching
+        // verification may authorize draft transfer; other auth events invalidate it.
+        if (verification && _event === 'SIGNED_IN' && sameEmail(session?.user?.email, verification.email)) return;
         revision += 1;
-        publish({ status: session ? 'authenticated' : 'anonymous', session, error: null });
+        publish({ status: session ? 'authenticated' : 'anonymous', session, error: null, verifiedRequest: null, authEvent: _event });
       });
       subscription = change.data?.subscription || null;
     }
@@ -70,18 +78,20 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
   };
 
   const sendMagicLink = async (email, { returnTo, language } = {}) => {
-    if (sending || state.status === 'authenticated' || signingOut) return state;
+    if (sending || verification || state.status === 'authenticated' || signingOut) return state;
+    if (mode === 'otp' && now() < retryAt) return state;
     if (!client) return publish({ status: 'unavailable' });
     sending = true;
     const requestRevision = ++revision;
     const submittedEmail = email.trim();
+    if (mode === 'otp') retryAt = now() + cooldownMs;
     publish({ status: 'sending', error: null });
     let error;
     try {
       ({ error } = await client.auth.signInWithOtp({
         email: submittedEmail,
         options: {
-          emailRedirectTo: getMagicLinkRedirectUrl(location, returnTo, language),
+          ...(mode === 'otp' ? {} : { emailRedirectTo: getMagicLinkRedirectUrl(location, returnTo, language) }),
           shouldCreateUser: true,
         },
       }));
@@ -91,7 +101,45 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
     sending = false;
     if (revision !== requestRevision) return state;
     if (error) return publish({ status: 'error', error: error.message, session: null });
-    return publish({ status: 'link-sent', submittedEmail, error: null, session: null });
+    return publish({ status: mode === 'otp' ? 'code-sent' : 'link-sent', submittedEmail, error: null, session: null });
+  };
+
+  const verifyCode = async (value) => {
+    if (mode !== 'otp' || verification || state.status !== 'code-sent') return state;
+    const token = String(value).trim();
+    if (!/^[0-9]{6}$/.test(token)) return publish({ error: 'malformed_code' });
+    const attempt = { revision: ++revision, email: state.submittedEmail };
+    verification = attempt;
+    publish({ status: 'verifying', error: null });
+    let result;
+    try {
+      result = await client.auth.verifyOtp({ email: attempt.email, token, type: 'email' });
+    } catch {
+      result = { error: { code: 'network_failure' } };
+    }
+    verification = null;
+    if (attempt.revision !== revision) {
+      // A cancelled verification can still establish an SDK session. Remove only
+      // that late session, never an independently established newer account.
+      if (result.data?.session) {
+        const current = await client.auth.getSession().catch(() => ({ data: {} }));
+        if (current.data?.session?.access_token === result.data.session.access_token) {
+          await client.auth.signOut({ scope: 'local' }).catch(() => {});
+        }
+      }
+      return state;
+    }
+    if (result.error) return publish({ status: 'code-sent', error: result.error.code || result.error.message || 'invalid_code' });
+    const session = result.data?.session;
+    if (!isValidOwnerId(session?.user?.id) || !session.access_token || !sameEmail(session.user.email, attempt.email)) {
+      return publish({ status: 'error', session: null, error: 'unresolved_auth' });
+    }
+    return publish({ status: 'authenticated', session, error: null, verifiedRequest: attempt.revision });
+  };
+
+  const cancelChallenge = () => {
+    revision += 1;
+    return publish({ status: 'anonymous', session: null, error: null, submittedEmail: '', verifiedRequest: null });
   };
 
   const signOut = async () => {
@@ -115,9 +163,10 @@ export const createAuthSession = ({ client, location = window.location } = {}) =
     getState: () => state,
     initialize,
     suspend: () => { revision += 1; return publish({ status: 'loading', session: null, error: null }); },
-    sendMagicLink,
+    sendMagicLink, verifyCode, cancelChallenge, mode,
+    cooldownRemaining: () => Math.max(0, Math.ceil((retryAt - now()) / 1000)),
     resetEmail() {
-      if (state.status !== 'link-sent') return state;
+      if (!['link-sent', 'code-sent'].includes(state.status)) return state;
       return publish({ status: 'anonymous', submittedEmail: '', error: null, session: null });
     },
     signOut,

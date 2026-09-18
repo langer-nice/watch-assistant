@@ -3,6 +3,7 @@
 import { createServer } from 'vite';
 const server = await createServer({
   configFile: false,
+  define: { 'import.meta.env.VITE_AUTH_MODE': JSON.stringify(process.env.SYNTHETIC_AUTH_MODE || 'otp') },
   server: { host: '127.0.0.1', port: Number(process.env.SYNTHETIC_PORT || 4178), strictPort: true },
   plugins: [{
     name: 'synthetic-account-isolation',
