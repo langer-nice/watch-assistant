@@ -1,3 +1,4 @@
+import { getWatchEmailConfig } from './watch-email-config.js';
 import { createHash } from 'node:crypto';
 import { sendWithResend } from './company-watch-email.js';
 
@@ -5,14 +6,7 @@ const cleanText = (value, limit) => (typeof value === 'string' ? value.replace(/
 const escapeHtml = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 const validHttpsUrl = (value) => { try { const url = new URL(String(value || '').trim()); return url.protocol === 'https:' && !url.username && !url.password ? url : null; } catch { return null; } };
 
-export const getMediaWatchEmailConfig = (env = process.env) => {
-  if (env?.MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED !== 'true' || env?.VERCEL_ENV !== 'production' || env?.NODE_ENV === 'test') return null;
-  const apiKey = cleanText(env?.RESEND_API_KEY, 500); const rawFrom = String(env?.WATCH_EMAIL_FROM || '');
-  const from = /[\r\n]/u.test(rawFrom) ? '' : cleanText(rawFrom, 320); const baseUrl = validHttpsUrl(env?.WATCH_APP_BASE_URL);
-  if (!apiKey || !from || !baseUrl) return null;
-  baseUrl.pathname = baseUrl.pathname.replace(/\/$/u, ''); baseUrl.search = ''; baseUrl.hash = '';
-  return { apiKey, from, baseUrl: baseUrl.href };
-};
+export const getMediaWatchEmailConfig = (env = process.env) => getWatchEmailConfig(env, 'MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED');
 
 export const createMediaNotificationIdempotencyKey = ({ watchId, userId, sourceArticleId }) => `watch-media-${createHash('sha256').update(`${watchId}\0${userId}\0${sourceArticleId}`).digest('hex')}`;
 const messages = {

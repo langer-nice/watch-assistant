@@ -5,7 +5,7 @@ import { processCompanyWatchEmailNotifications } from './company-watch-notificat
 
 const enabledEnv = {
   WATCH_EMAIL_NOTIFICATIONS_ENABLED: 'true', RESEND_API_KEY: 're_placeholder',
-  WATCH_EMAIL_FROM: 'Watch Assistant <watch@example.test>',
+  WATCH_EMAIL_FROM: 'Watch Assistant <watch@davidlangdesign.com>',
   WATCH_APP_BASE_URL: 'https://watch.example', VERCEL_ENV: 'production',
 };
 
@@ -177,4 +177,58 @@ test('disabled or incomplete configuration performs no outbox read or send', asy
   });
   assert.equal(disabled.status, 'disabled'); assert.equal(preview.status, 'disabled');
   assert.equal(touched, false);
+});
+
+for (const from of [undefined, '', 'invalid', 'watch@example.test', 'x\nBcc:secret']) {
+  test(`invalid config leaves company outbox untouched: ${JSON.stringify(from)}`, async () => {
+    const result = await processCompanyWatchEmailNotifications({ client: {}, env: { ...enabledEnv, WATCH_EMAIL_FROM: from },
+      sender: async () => assert.fail('unexpected provider call') });
+    assert.equal(result.status, 'configuration-failed'); assert.equal(result.claimedCount, 0);
+    assert.equal(result.errorCode, 'EMAIL_CONFIGURATION_INVALID');
+  });
+}
+for (const code of ['EMAIL_PROVIDER_REJECTED_422', 'EMAIL_PROVIDER_RETRYABLE', 'EMAIL_DELIVERY_OUTCOME_UNKNOWN']) {
+  test(`company persists ${code} without automatic replay`, async () => {
+    const store = createClient([notification('one')]); let sends = 0;
+    const run = () => processCompanyWatchEmailNotifications({ client: store.client, env: enabledEnv,
+      sender: async () => { sends++; throw Object.assign(new Error('secret'), { code }); } });
+    const result = await run(); await run();
+    assert.equal(sends, 1); assert.equal(store.rows.get('one').last_error_code, code);
+    assert.equal(result.claimedCount, 1); assert.equal(result.submittedCount, 0);
+    assert.equal(result.retryableFailureCount, code === 'EMAIL_PROVIDER_RETRYABLE' ? 1 : 0);
+  });
+}
+test('company normalizes legacy sender, enforces limit and never repeats successes', async () => {
+  const store = createClient(Array.from({ length: 30 }, (_, i) => notification(String(i)))); const sent = [];
+  const run = () => processCompanyWatchEmailNotifications({ client: store.client,
+    env: { ...enabledEnv, WATCH_EMAIL_FROM: '<watch@davidlangdesign.com>' },
+    sender: async message => { assert.equal(message.from, 'Watch Assistant <watch@davidlangdesign.com>');
+      sent.push(message.idempotencyKey); return { id: 'accepted' }; } });
+  assert.equal((await run()).sentCount, 25); assert.equal((await run()).sentCount, 5);
+  assert.equal((await run()).sentCount, 0); assert.equal(new Set(sent).size, 30);
+});
+test('company acceptance followed by persistence failure is quarantined as unknown', async () => {
+  const store = createClient([notification('one')]); const rpc = store.client.rpc;
+  store.client.rpc = (name, params) => name === 'complete_company_watch_email_notification'
+    ? { error: {} } : rpc(name, params);
+  const result = await processCompanyWatchEmailNotifications({ client: store.client, env: enabledEnv, sender: async () => ({ id: 'accepted' }) });
+  assert.equal(result.submittedCount, 1); assert.equal(result.sentCount, 0); assert.equal(result.unknownOutcomeCount, 1);
+  assert.equal(store.rows.get('one').last_error_code, 'EMAIL_DELIVERY_OUTCOME_UNKNOWN');
+});
+
+test('Unicode company configuration leaves pending work untouched and recoverable', async () => {
+  const store = createClient([notification('one')]); let sends = 0;
+  const before = structuredClone([...store.rows.values()]);
+  for (const from of ['teſt@davidlangdesign.com', 'test@davidlangdeſign.com']) {
+    const result = await processCompanyWatchEmailNotifications({ client: store.client,
+      env: { ...enabledEnv, WATCH_EMAIL_FROM: from }, sender: async () => { sends++; } });
+    assert.equal(result.status, 'configuration-failed'); assert.equal(result.sentCount, 0);
+    assert.equal(result.claimedCount, 0); assert.doesNotMatch(JSON.stringify(result), /@/);
+  }
+  assert.deepEqual([...store.rows.values()], before);
+  assert.equal(store.calls.claims.length, 0); assert.equal(store.calls.completions.length, 0);
+  assert.equal(sends, 0);
+  const result = await processCompanyWatchEmailNotifications({ client: store.client, env: enabledEnv,
+    sender: async () => { sends++; return { id: 'accepted' }; } });
+  assert.equal(result.sentCount, 1); assert.equal(sends, 1);
 });

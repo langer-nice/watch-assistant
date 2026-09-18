@@ -1,3 +1,4 @@
+import { getWatchEmailConfig, normalizeWatchEmailSender } from './watch-email-config.js';
 import { createHash } from 'node:crypto';
 
 const EVENT_LABELS = {
@@ -79,31 +80,7 @@ const formatDate = (value, locale) => {
   }).format(date);
 };
 
-const validateBaseUrl = (value) => {
-  try {
-    const url = new URL(String(value || '').trim());
-    if (url.protocol !== 'https:' || url.username || url.password) return null;
-    url.pathname = url.pathname.replace(/\/$/u, '');
-    url.search = '';
-    url.hash = '';
-    return url;
-  } catch {
-    return null;
-  }
-};
-
-export const getCompanyWatchEmailConfig = (env = process.env) => {
-  if (env?.WATCH_EMAIL_NOTIFICATIONS_ENABLED !== 'true') return null;
-  if (env?.NODE_ENV === 'test') return null;
-  if (env?.VERCEL_ENV !== 'production') return null;
-  const apiKey = String(env?.RESEND_API_KEY || '').trim();
-  const rawFrom = String(env?.WATCH_EMAIL_FROM || '');
-  if (/[\r\n]/u.test(rawFrom)) return null;
-  const from = cleanText(rawFrom, 320);
-  const baseUrl = validateBaseUrl(env?.WATCH_APP_BASE_URL);
-  if (!apiKey || !from || !baseUrl) return null;
-  return { apiKey, from, baseUrl: baseUrl.href };
-};
+export const getCompanyWatchEmailConfig = (env = process.env) => getWatchEmailConfig(env, 'WATCH_EMAIL_NOTIFICATIONS_ENABLED');
 
 export const createNotificationIdempotencyKey = ({ watchId, userId, sourceEventId }) => (
   `watch-bodacc-${createHash('sha256')
@@ -152,10 +129,14 @@ export const sendWithResend = async ({ apiKey, from, to, subject, html, text, id
   if (process.env.NODE_ENV === 'test' && fetchImpl === globalThis.fetch) {
     throw Object.assign(new Error('Real email transport is disabled in tests.'), { code: 'TEST_EMAIL_TRANSPORT_DISABLED' });
   }
+  from = normalizeWatchEmailSender(from);
+  if (!from || typeof apiKey !== 'string' || !apiKey.trim() || /\s/u.test(apiKey)) {
+    throw Object.assign(new Error('Email configuration is invalid.'), { code: 'EMAIL_CONFIGURATION_INVALID' });
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   timeout.unref?.();
-  let response;
+  let response; let body;
   try {
     response = await fetchImpl('https://api.resend.com/emails', {
       method: 'POST',
@@ -167,6 +148,7 @@ export const sendWithResend = async ({ apiKey, from, to, subject, html, text, id
       body: JSON.stringify({ from, to: [to], subject, html, text }),
       signal: controller.signal,
     });
+    body = await response.json().catch(() => null);
   } catch {
     const error = new Error('Transactional email provider outcome is unknown.');
     error.code = 'EMAIL_DELIVERY_OUTCOME_UNKNOWN';
@@ -174,10 +156,13 @@ export const sendWithResend = async ({ apiKey, from, to, subject, html, text, id
   } finally {
     clearTimeout(timeout);
   }
-  const body = await response.json().catch(() => null);
-  if (!response.ok || typeof body?.id !== 'string') {
+  if (!response.ok || (typeof body?.id !== 'string' || !body.id.trim())) {
     const error = new Error('Transactional email provider rejected the request.');
-    error.code = response.status === 429 ? 'EMAIL_RATE_LIMITED' : 'EMAIL_PROVIDER_ERROR';
+    error.code = response.ok ? 'EMAIL_DELIVERY_OUTCOME_UNKNOWN'
+      : response.status === 422 ? 'EMAIL_PROVIDER_REJECTED_422'
+        : response.status === 429 ? 'EMAIL_RATE_LIMITED'
+          : response.status >= 500 || response.status === 408 ? 'EMAIL_PROVIDER_RETRYABLE'
+            : 'EMAIL_PROVIDER_REJECTED';
     throw error;
   }
   return { id: body.id.slice(0, 200) };

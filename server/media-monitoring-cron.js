@@ -2,7 +2,7 @@ import { withinMediaDeadline } from './media-deadline.js';
 import { mediaArticleIdentityKeys } from './media-article-identity.js';
 import { fetchAndNormalizeFeed } from './check-watch-api.js';
 import { applyFeedCheckResult, normalizeFeedUrl, matchFeedItemToWatch } from '../src/js/watch-monitoring.js';
-import { getMediaWatchEmailConfig } from './media-watch-email.js';
+import { emailNotificationsEnabled } from './watch-email-config.js';
 import { processMediaWatchEmailNotifications } from './media-watch-notifications.js';
 
 const PAGE_SIZE = 50; const CONCURRENCY = 3;
@@ -27,7 +27,7 @@ export const runMediaMonitoring = async ({ client, env = process.env, fetchFeed 
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50 || !Number.isInteger(concurrency) || concurrency < 1 || concurrency > 3) throw new Error('Invalid media batch configuration.');
   const deadline = Date.now() + Math.max(1, Math.min(maxRunMs, 45000));
   const rows = await load(client, pageSize, deadline); let changedCount = 0; let unchangedCount = 0; let failedCount = 0; let skippedCount = 0;
-  const maintenance = await withinMediaDeadline(() => client.rpc('maintain_media_watch_notifications', { p_enabled: Boolean(getMediaWatchEmailConfig(env)) }), deadline);
+  const maintenance = await withinMediaDeadline(() => client.rpc('maintain_media_watch_notifications', { p_enabled: emailNotificationsEnabled(env, 'MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED') }), deadline);
   if (maintenance.error) throw Object.assign(new Error('Media notification maintenance failed.'), { code: 'DATABASE_ERROR' });
   await bounded(rows, concurrency, async (row) => { try {
     if (Date.now() >= deadline) { skippedCount += 1; return; }
@@ -36,7 +36,7 @@ export const runMediaMonitoring = async ({ client, env = process.env, fetchFeed 
     result.changes.monitoringSnapshot.items = result.changes.monitoringSnapshot.items.map(item => ({ ...item, identityKeys: mediaArticleIdentityKeys(item) }));
     result.matchedItems = prior ? result.changes.monitoringSnapshot.items.filter(item => matchFeedItemToWatch(item, asWatch(row)).matched) : [];
     result.outcome = !prior ? 'baseline' : result.matchedItems.length ? 'matching-items' : 'no-new-items';
-    const { data, error } = await withinMediaDeadline(() => client.rpc('complete_scheduled_media_watch_check', { p_watch_id: row.id, p_expected_revision: row.media_revision, p_checked_at: result.changes.monitoringSnapshot.checkedAt, p_source_title: result.changes.monitoringSnapshot.source?.title, p_source_url: result.changes.monitoringSnapshot.source?.url, p_item_ids: result.changes.monitoringSnapshot.itemIds, p_items: result.changes.monitoringSnapshot.items, p_expected_checked_at: prior?.checked_at || null, p_expected_items: prior?.items || null, p_outcome: result.outcome, p_notification_items: result.matchedItems, p_enqueue_notifications: Boolean(getMediaWatchEmailConfig(env)) }), deadline);
+    const { data, error } = await withinMediaDeadline(() => client.rpc('complete_scheduled_media_watch_check', { p_watch_id: row.id, p_expected_revision: row.media_revision, p_checked_at: result.changes.monitoringSnapshot.checkedAt, p_source_title: result.changes.monitoringSnapshot.source?.title, p_source_url: result.changes.monitoringSnapshot.source?.url, p_item_ids: result.changes.monitoringSnapshot.itemIds, p_items: result.changes.monitoringSnapshot.items, p_expected_checked_at: prior?.checked_at || null, p_expected_items: prior?.items || null, p_outcome: result.outcome, p_notification_items: result.matchedItems, p_enqueue_notifications: emailNotificationsEnabled(env, 'MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED') }), deadline);
     if (error) throw Object.assign(new Error('Media persistence failed.'), { code: 'DATABASE_ERROR' });
     if (data === 'changed') changedCount += 1; else if (data === 'skipped') skippedCount += 1; else unchangedCount += 1;
   } catch { failedCount += 1;
