@@ -18,8 +18,7 @@ export const getAccountEpoch = () => epoch;
 export const isAccountStorageResolved = () => scope !== null;
 export const accountStorageKey = (base, owner = ownerId) => isValidOwnerId(owner)
   ? `${base}.account.${encodeURIComponent(owner)}` : null;
-export const localWatchStorageKey = (base) => scope === 'guest'
-  ? `${base}.guest.v2` : accountStorageKey(`${base}.v2`);
+export const localWatchStorageKey = (base) => accountStorageKey(`${base}.v2`);
 
 export const safeStorage = {
   getItem(key) { try { return key ? localStorage.getItem(key) : null; } catch { return null; } },

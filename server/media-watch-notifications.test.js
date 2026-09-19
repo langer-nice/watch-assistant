@@ -12,11 +12,57 @@ test('accepted provider submission followed by database failure is terminal and 
  assert.equal(sends,1);assert.equal(c.calls.failed[0][1],'EMAIL_DELIVERY_OUTCOME_UNKNOWN');
  await processMediaWatchEmailNotifications({client:c,env,sender:async()=>{sends++;return{id:'duplicate'}}});assert.equal(sends,1);
 });
-test('a hung provider is bounded and never automatically retried',async()=>{
- const c=store([row('timeout')]);let sends=0;const start=Date.now();
- await processMediaWatchEmailNotifications({client:c,env,deadline:Date.now()+30,sender:async()=>{sends++;return new Promise(()=>{})}});
- assert.ok(Date.now()-start<1000);assert.equal(sends,1);
-});
+for (const preparationMs of [0, 29]) {
+  test(`a hung provider is bounded without replay after ${preparationMs}ms preparation`, async (t) => {
+    // Only simulated time consumes the budget; host scheduling cannot expire it
+    // before the test has observed the intended provider boundary.
+    t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+    const c = store([row('timeout')]);
+    const recipientEntered = Promise.withResolvers();
+    const releaseRecipient = Promise.withResolvers();
+    const providerEntered = Promise.withResolvers();
+    const releaseProvider = Promise.withResolvers();
+    const getUser = c.auth.admin.getUserById;
+    c.auth.admin.getUserById = async (...args) => {
+      recipientEntered.resolve();
+      await releaseRecipient.promise;
+      return getUser(...args);
+    };
+    let sends = 0;
+    const sender = () => { sends += 1; providerEntered.resolve(); return releaseProvider.promise; };
+    const start = Date.now();
+    const run = processMediaWatchEmailNotifications({ client: c, env, deadline: start + 30, sender });
+    const reached = signal => Promise.race([
+      signal.promise,
+      run.then(() => assert.fail('processor completed before the expected boundary')),
+    ]);
+    try {
+      await reached(recipientEntered);
+      assert.equal(sends, 0);
+      t.mock.timers.tick(preparationMs);
+      assert.equal(sends, 0, 'preparation is explicitly held before the provider');
+      releaseRecipient.resolve();
+      await reached(providerEntered);
+      assert.equal(sends, 1);
+      t.mock.timers.tick(30 - preparationMs);
+      const result = await run;
+      assert.equal(Date.now() - start, 30);
+      assert.equal(result.claimedCount, 1);
+      assert.equal(result.failedCount, 1);
+      assert.equal(result.sentCount, 0);
+      assert.equal(result.persistenceFailureCount, 1, 'expired budget also prevents recording the uncertain outcome');
+      assert.deepEqual(c.calls.sent, []);
+      const next = await processMediaWatchEmailNotifications({ client: c, env, deadline: Date.now() + 30, sender });
+      assert.equal(next.skippedCount, 1, 'the retained claim prevents replay after an uncertain submission');
+      assert.equal(sends, 1, 'a later processor must not submit the same article again');
+    } finally {
+      // Settle deferred work even if an assertion fails, before restoring mocks.
+      releaseRecipient.resolve();
+      releaseProvider.resolve({ id: 'late-provider-result' });
+      try { await run; } finally { c.auth.admin.getUserById = getUser; t.mock.timers.reset(); }
+    }
+  });
+}
 
 for (const from of [undefined, '', 'invalid', 'watch@example.test', 'x\nBcc:secret']) {
   test(`invalid media config blocks claims: ${JSON.stringify(from)}`, async () => {

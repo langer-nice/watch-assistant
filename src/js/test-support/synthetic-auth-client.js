@@ -4,12 +4,13 @@ const key = 'synthetic-preview-account';
 const session = () => {
   const account = localStorage.getItem(key);
   return ['A', 'B'].includes(account)
-    ? { user: { id: `synthetic-user-${account.toLowerCase()}` }, access_token: 'synthetic-no-network-token' }
+    ? { user: { id: `synthetic-user-${account.toLowerCase()}`, email: `${account.toLowerCase()}@example.test` }, access_token: 'synthetic-no-network-token' }
     : null;
 };
 const listeners = new Set();
 const emit = (event) => listeners.forEach((fn) => fn(event, session()));
 window.syntheticAuth = {
+  emailCalls: [],
   signIn(account) { localStorage.setItem(key, account); emit('SIGNED_IN'); },
   signOut() { return client.auth.signOut(); },
   refresh() { emit('TOKEN_REFRESHED'); },
@@ -32,6 +33,17 @@ const client = { auth: {
   },
   onAuthStateChange(fn) { listeners.add(fn); return { data: { subscription: { unsubscribe: () => listeners.delete(fn) } } }; },
   async signOut() { localStorage.removeItem(key); emit('SIGNED_OUT'); return { error: null }; },
-  async signInWithOtp() { throw new Error('Email is disabled in the synthetic preview.'); },
+  async verifyOtp({ email, token, type }) {
+    await new Promise(resolve => setTimeout(resolve, window.syntheticAuth.verifyDelay || 50));
+    if (type !== 'email' || token !== '246810') return { data: {}, error: { code: 'invalid_code' } };
+    if (email !== 'a@example.test') return { data: {}, error: { code: 'invalid_code' } };
+    window.syntheticAuth.signIn('A');
+    return { data: { session: session() }, error: null };
+  },
+  async signInWithOtp(payload) {
+    window.syntheticAuth.emailCalls.push(payload);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    return { error: null }; // Simulated delivery only; no network or real email.
+  },
 } };
 export const createSupabaseBrowserClient = () => ({ client });

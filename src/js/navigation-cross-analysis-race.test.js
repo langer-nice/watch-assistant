@@ -1,5 +1,5 @@
 import { configureAccountStorage } from './account-storage.js';
-configureAccountStorage({ getState: () => ({ status: 'anonymous', session: null }) });
+configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
 import test from 'node:test';
