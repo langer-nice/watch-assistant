@@ -303,3 +303,32 @@ for (const email of ['a@example.test', 'b@example.test']) {
     assert.deepEqual(redirects, email === 'a@example.test' ? [] : ['reload']);
   });
 }
+
+for (const status of ['anonymous', 'authenticated']) {
+  test(`headless auth UI preserves the complete startup contract for ${status}`, async () => {
+    const { document } = await setup('index.html');
+    document.querySelector('[data-auth-root]').parentElement.remove();
+    document.querySelector('[data-editor-content]').remove();
+    const mock = client(); const ui = startUi({ client: mock });
+    mock.resolve(status === 'authenticated' ? { user: { id: 'synthetic-a' } } : null);
+    await ui.ready;
+    assert.equal(typeof ui.revealEditor, 'function');
+    assert.equal(ui.canEnterEditor(), true);
+    ui.revealEditor();
+    assert.equal(document.querySelector('[data-auth-gate]'), null);
+  });
+}
+
+test('the shared reveal contract requires editor authorization and the current account', async () => {
+  const { document } = await setup();
+  const mock = client(); const ui = startUi({ client: mock });
+  const content = document.querySelector('[data-editor-content]');
+  ui.revealEditor(); assert.equal(content.hidden, true);
+  mock.resolve({ user: { id: 'synthetic-a' } }); await ui.ready;
+  ui.revealEditor(); assert.equal(content.hidden, true, 'identity alone must not bypass editor initialization');
+  assert.equal(ui.canEnterEditor(), true);
+  ui.revealEditor(); assert.equal(content.hidden, false); assert.equal(content.hasAttribute('inert'), false);
+  content.hidden = true; content.setAttribute('inert', '');
+  ui.auth.suspend(); ui.revealEditor();
+  assert.equal(content.hidden, true, 'unresolved identity during startup remains closed');
+});

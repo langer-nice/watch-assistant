@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { register } from 'node:module';
 import test from 'node:test';
+import { parseHTML } from 'linkedom';
+import { configureAccountStorage } from './account-storage.js';
 
 register('./test-support/json-module-loader.js', import.meta.url);
 
@@ -72,13 +74,11 @@ test('server Company modal edit hydrates auth without profile UI and closes inst
 });
 
 test('headless modal authentication initializes a real session without an auth root', async () => {
-  const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
-  globalThis.window = { location: new URL('https://preview.example/new-watch.html?presentation=modal') };
-  globalThis.document = {
-    querySelector: () => null,
-    addEventListener() {},
-  };
+  const originals = Object.fromEntries(['window', 'document', 'Event', 'CustomEvent'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  const { document, window } = parseHTML('<html><body></body></html>');
+  window.location = new URL('https://preview.example/new-watch.html?presentation=modal');
+  Object.assign(globalThis, { window, document, Event: window.Event, CustomEvent: window.CustomEvent });
+  let context;
   const session = { access_token: 'header.payload.signature', user: { id: 'user-a' } };
   const client = {
     auth: {
@@ -89,13 +89,20 @@ test('headless modal authentication initializes a real session without an auth r
 
   try {
     const { initAuthUi } = await import(`./auth-ui.js?headless-modal=${Date.now()}`);
-    const context = initAuthUi({ client });
+    context = initAuthUi({ client });
     assert.ok(context);
     await context.ready;
     assert.equal(context.auth.getState().status, 'authenticated');
     assert.equal(context.auth.getState().session, session);
+    assert.equal(typeof context.revealEditor, 'function');
+    context.revealEditor();
+    assert.equal(document.querySelector('[data-auth-gate]'), null);
   } finally {
-    globalThis.window = originalWindow;
-    globalThis.document = originalDocument;
+    context?.destroy();
+    configureAccountStorage(null);
+    for (const [key, descriptor] of Object.entries(originals)) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+    }
   }
 });

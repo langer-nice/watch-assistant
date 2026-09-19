@@ -99,10 +99,8 @@ export const initAuthUi = ({ env = import.meta.env, client: injectedClient, onRe
   const auth = createAuthSession({ client, location: window.location, mode: getAuthMode(env), resendSeconds: env?.VITE_AUTH_OTP_RESEND_SECONDS });
   configureAccountStorage(auth);
   const content = document.querySelector('[data-editor-content]');
-  // Embedded Company editors hydrate identity without mounting authentication UI.
-  if (!root && !content) {
-    return { auth, client, ready: auth.initialize(), canEnterEditor: () => true, destroy: () => auth.destroy() };
-  }
+  // Every page uses the same startup interface, even without an auth menu or
+  // editor. The shared revealEditor guard decides whether there is work to reveal.
   const editRoute = new URLSearchParams(window.location.search).has('edit');
   const returnTo = content ? getCreationReturn(window.location) : getCallbackReturn(window.location);
   let guest = null;
