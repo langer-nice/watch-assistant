@@ -41,10 +41,10 @@ try {
     assert.deepEqual(errors, [], 'fresh Home redirect must not reject startup');
     await page.locator(`[data-flow-language="${lang}"]`).click();
     for (const index of [0, 1]) {
-      const next = page.locator(`[data-flow-3-screen="${index}"] [data-flow-3-next]`);
+      const next = page.locator(`[data-flow-3-screen="${index}"] [data-flow-3-next]:not([hidden]).is-visible`);
       await next.waitFor({ state: 'visible' }); await next.click();
     }
-    const create = page.locator('[data-onboarding-first-watch]');
+    const create = page.locator('[data-onboarding-first-watch]:not([hidden]).is-visible');
     await create.waitFor({ state: 'visible' }); await create.click();
     const input = page.locator('#guestWatchInput'); await input.waitFor({ state: 'visible' });
     assert.equal(await page.locator('[data-auth-gate]').isVisible(), false);
