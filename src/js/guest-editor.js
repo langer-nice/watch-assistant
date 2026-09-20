@@ -1,4 +1,4 @@
-import { applyExampleToEditor } from './example-gallery.js';
+import { applyExampleToEditor } from './example-watches.js';
 import { t, translatePage } from './i18n.js';
 
 // Deliberately does not import navigation, analysis, storage, voice or Watch models.

@@ -1,4 +1,4 @@
-import { applyExampleToEditor } from './example-gallery.js';
+import { applyExampleToEditor } from './example-watches.js';
 import { getAccountEpoch, getAccountOwner } from './account-storage.js';
 import { configureMediaWatchServerStore } from './media-watch-server-store.js';
 import { initApp } from './navigation.js';

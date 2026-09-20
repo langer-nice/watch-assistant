@@ -688,11 +688,7 @@
     "testWatchesReset": "Stockage réinitialisé et {count} Watches de test chargées."
   },
   "examples": {
-    "heading": "Besoin d’inspiration ?",
-    "intro": "Choisissez un exemple, puis adaptez-le à ce que vous souhaitez surveiller.",
     "badge": "EXEMPLE",
-    "use": "Utiliser cet exemple",
-    "more": "Voir plus d’exemples",
     "instruction": "Personnalisez les éléments entre crochets avant de créer votre Watch.",
     "soon": "BIENTÔT DISPONIBLE",
     "cancel": "Annuler",
@@ -733,6 +729,12 @@
         "title": "Valeur du Bitcoin",
         "request": "Prévenez-moi lorsque le Bitcoin atteint [montant] €."
       }
-    }
+    },
+    "heading": "Exemples de Watches",
+    "intro": "Découvrez ces exemples. Ils ne surveillent rien et ne font pas partie de vos Watches.",
+    "create": "Créer une Watch à partir de cet exemple",
+    "requestLabel": "Demande",
+    "back": "Toutes les Watches",
+    "unavailable": "Cet exemple n’est pas disponible."
   }
 }

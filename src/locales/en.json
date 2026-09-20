@@ -688,11 +688,7 @@
     "testWatchesReset": "Storage reset and {count} test Watches loaded."
   },
   "examples": {
-    "heading": "Need inspiration?",
-    "intro": "Choose an example, then adapt it to what you want to monitor.",
     "badge": "EXAMPLE",
-    "use": "Use this example",
-    "more": "See more examples",
     "instruction": "Customize the items in brackets before creating your Watch.",
     "soon": "COMING SOON",
     "cancel": "Cancel",
@@ -733,6 +729,12 @@
         "title": "Bitcoin value",
         "request": "Notify me when Bitcoin reaches [amount] €."
       }
-    }
+    },
+    "heading": "Example Watches",
+    "intro": "Explore these examples. They do not monitor anything and are not part of your Watches.",
+    "create": "Create a Watch from this example",
+    "requestLabel": "Request",
+    "back": "All Watches",
+    "unavailable": "This example is not available."
   }
 }

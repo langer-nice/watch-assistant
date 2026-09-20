@@ -1,4 +1,5 @@
-import { renderExampleGallery } from './example-gallery.js';
+import { renderExampleWatches, renderExampleDetail } from './example-watches.js';
+import { renderSummaryCard } from './watch-summary-card.js';
 import { createEditorSession } from './editor-session.js';
 import { ACCOUNT_STORAGE_CHANGED_EVENT, getAccountEpoch } from './account-storage.js';
 import { selectHomeReport } from './home-report.js';
@@ -1041,30 +1042,16 @@ const renderSummaryWatchCard = ({
   const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
   const categoryModifier = watch.category || 'general';
   const statusPresentation = getSummaryCardStatus(status);
-  const link = renderWatchCardLink({
-    watchId: watch.id,
-    className: 'briefing-item__link',
-    revealLatestUpdate,
-    content: `
-      <div class="briefing-item__header">
-        <div class="briefing-item__metadata">
-          <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
-          ${hasMeaningfulText(timestamp)
-    ? `<span class="briefing-item__time">${escapeHtml(timestamp)}</span>`
-    : ''}
-        </div>
-        ${statusPresentation ? `
-          <div class="briefing-item__statuses">
-            <span class="status-label status-label--${statusPresentation.modifier}">${escapeHtml(statusPresentation.label)}</span>
-          </div>
-        ` : ''}
-      </div>
-      <h2>${escapeHtml(title)}</h2>
-      ${hasMeaningfulText(supportingText) ? `<p>${escapeHtml(supportingText)}</p>` : ''}
-    `,
+  return renderSummaryCard({
+    title, category, categoryModifier, statusPresentation, supportingText, timestamp,
+    articleId, dataAttribute,
+    renderLink: (content) => renderWatchCardLink({
+      watchId: watch.id,
+      className: 'briefing-item__link',
+      revealLatestUpdate,
+      content,
+    }),
   });
-  if (!link) return '';
-  return `<article class="briefing-item"${articleId ? ` id="${escapeHtml(articleId)}"` : ''}${dataAttribute}>${link}</article>`;
 };
 
 const renderHomeWatchCards = (watches, statusById) => {
@@ -1147,10 +1134,11 @@ const renderWatchList = () => {
   }
 
   const watches = getWatches();
+  renderExampleWatches();
 
   if (watches.length === 0) {
     if (sortRow) sortRow.hidden = true;
-    list.innerHTML = `<p>${escapeHtml(t('watches.empty'))}</p>`;
+    list.replaceChildren();
     return;
   }
 
@@ -1274,6 +1262,7 @@ const renderWatchList = () => {
 };
 
 const renderWatchDetail = () => {
+  if (renderExampleDetail()) return;
   const titleEl = document.querySelector('#watchTitle');
   if (!titleEl) {
     return;
@@ -2406,7 +2395,6 @@ const renderHomeSummary = () => {
   const homeReport = getHomeReport();
   const hasLocalUserCreatedWatches = getUserCreatedWatches().length > 0;
   const hasUserCreatedWatches = hasLocalUserCreatedWatches || getServerCompanyWatches().length > 0;
-  renderExampleGallery({ hasWatches: hasUserCreatedWatches });
   const hasReport = Boolean(homeReport.report);
   const hasHomeItems = homeReport.watches.length > 0;
   const hasQuietItems = homeReport.quietWatches.length > 0;
