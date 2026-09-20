@@ -686,5 +686,53 @@
     "testWatchesAlreadyLoaded": "Les Watches de test sont déjà chargées ; aucun doublon n’a été ajouté.",
     "resetTestWatchesConfirm": "Réinitialiser toutes les Watches et tous les rapports, puis charger les Watches de test ? Cette action est irréversible.",
     "testWatchesReset": "Stockage réinitialisé et {count} Watches de test chargées."
+  },
+  "examples": {
+    "heading": "Besoin d’inspiration ?",
+    "intro": "Choisissez un exemple, puis adaptez-le à ce que vous souhaitez surveiller.",
+    "badge": "EXEMPLE",
+    "use": "Utiliser cet exemple",
+    "more": "Voir plus d’exemples",
+    "instruction": "Personnalisez les éléments entre crochets avant de créer votre Watch.",
+    "soon": "BIENTÔT DISPONIBLE",
+    "cancel": "Annuler",
+    "items": {
+      "news": {
+        "title": "Suivre un sujet d’actualité",
+        "request": "Prévenez-moi lorsqu’il y a une nouvelle information concernant [un sujet d’actualité que je suis]."
+      },
+      "company": {
+        "title": "Annonce importante d’une entreprise",
+        "request": "Prévenez-moi lorsque [une entreprise] annonce un nouveau produit, un partenariat ou une acquisition."
+      },
+      "regulation": {
+        "title": "Nouvelle réglementation",
+        "request": "Prévenez-moi lorsqu’une nouvelle réglementation concerne [mon activité ou un sujet qui m’intéresse] en France."
+      },
+      "concert": {
+        "title": "Concert ou tournée",
+        "request": "Prévenez-moi lorsque [mon artiste ou groupe préféré] annonce une tournée ou un concert en France."
+      },
+      "competitor": {
+        "title": "Actualité d’un concurrent",
+        "request": "Prévenez-moi lorsque [un concurrent] publie un communiqué ou fait une annonce importante."
+      },
+      "court": {
+        "title": "Nouvelle décision de justice",
+        "request": "Prévenez-moi lorsqu’une nouvelle décision de justice concerne [un sujet ou mon secteur professionnel]."
+      },
+      "flights": {
+        "title": "Vols pour Noël",
+        "request": "Prévenez-moi lorsque easyJet ouvre les réservations pour des vols directs entre Nice et Manchester pour Noël 2026."
+      },
+      "price": {
+        "title": "Baisse du prix d’un produit",
+        "request": "Prévenez-moi lorsque le prix de [ce produit] passe sous [montant] € sur [site marchand]."
+      },
+      "bitcoin": {
+        "title": "Valeur du Bitcoin",
+        "request": "Prévenez-moi lorsque le Bitcoin atteint [montant] €."
+      }
+    }
   }
 }

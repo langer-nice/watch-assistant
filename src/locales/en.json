@@ -686,5 +686,53 @@
     "testWatchesAlreadyLoaded": "Test Watches are already loaded; no duplicates were added.",
     "resetTestWatchesConfirm": "Reset all Watches and reports, then load the test Watches? This cannot be undone.",
     "testWatchesReset": "Storage reset and {count} test Watches loaded."
+  },
+  "examples": {
+    "heading": "Need inspiration?",
+    "intro": "Choose an example, then adapt it to what you want to monitor.",
+    "badge": "EXAMPLE",
+    "use": "Use this example",
+    "more": "See more examples",
+    "instruction": "Customize the items in brackets before creating your Watch.",
+    "soon": "COMING SOON",
+    "cancel": "Cancel",
+    "items": {
+      "news": {
+        "title": "Follow a news topic",
+        "request": "Notify me when there is new information about [a news topic I’m following]."
+      },
+      "company": {
+        "title": "Important company announcement",
+        "request": "Notify me when [a company] announces a new product, partnership, or acquisition."
+      },
+      "regulation": {
+        "title": "New regulation",
+        "request": "Notify me when a new regulation in France affects [my work or a topic I care about]."
+      },
+      "concert": {
+        "title": "Concert or tour",
+        "request": "Notify me when [my favourite artist or band] announces a tour or concert in France."
+      },
+      "competitor": {
+        "title": "Competitor news",
+        "request": "Notify me when [a competitor] publishes a press release or makes an important announcement."
+      },
+      "court": {
+        "title": "New court decision",
+        "request": "Notify me when a new court decision concerns [a topic or my industry]."
+      },
+      "flights": {
+        "title": "Flights for Christmas",
+        "request": "Notify me when easyJet opens bookings for direct flights between Nice and Manchester for Christmas 2026."
+      },
+      "price": {
+        "title": "Product price drop",
+        "request": "Notify me when the price of [this product] drops below [amount] € on [retailer]."
+      },
+      "bitcoin": {
+        "title": "Bitcoin value",
+        "request": "Notify me when Bitcoin reaches [amount] €."
+      }
+    }
   }
 }

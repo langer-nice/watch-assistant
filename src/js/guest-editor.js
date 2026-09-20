@@ -1,9 +1,9 @@
+import { applyExampleToEditor } from './example-gallery.js';
 import { t, translatePage } from './i18n.js';
 
 // Deliberately does not import navigation, analysis, storage, voice or Watch models.
 // Only this page's textarea owns the draft. It is never restored or persisted.
 export const createGuestEditor = ({ content, onSubmit, onInvalidate }) => {
-  const route = window.location.pathname + window.location.search;
   const root = document.createElement('section');
   root.dataset.guestEditor = '';
   root.innerHTML = `
@@ -26,6 +26,8 @@ export const createGuestEditor = ({ content, onSubmit, onInvalidate }) => {
   }
   content.after(root);
   translatePage(root);
+  applyExampleToEditor(input);
+  const route = window.location.pathname + window.location.search;
   let active = true;
   const isCurrent = () => active && route === window.location.pathname + window.location.search
     && !new URLSearchParams(window.location.search).has('edit');

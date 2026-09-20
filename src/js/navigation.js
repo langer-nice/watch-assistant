@@ -1,3 +1,4 @@
+import { renderExampleGallery } from './example-gallery.js';
 import { createEditorSession } from './editor-session.js';
 import { ACCOUNT_STORAGE_CHANGED_EVENT, getAccountEpoch } from './account-storage.js';
 import { selectHomeReport } from './home-report.js';
@@ -2405,6 +2406,7 @@ const renderHomeSummary = () => {
   const homeReport = getHomeReport();
   const hasLocalUserCreatedWatches = getUserCreatedWatches().length > 0;
   const hasUserCreatedWatches = hasLocalUserCreatedWatches || getServerCompanyWatches().length > 0;
+  renderExampleGallery({ hasWatches: hasUserCreatedWatches });
   const hasReport = Boolean(homeReport.report);
   const hasHomeItems = homeReport.watches.length > 0;
   const hasQuietItems = homeReport.quietWatches.length > 0;
