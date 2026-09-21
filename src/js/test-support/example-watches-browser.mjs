@@ -25,6 +25,8 @@ try {
       return route.continue();
     });
     const page = await context.newPage(); page.setDefaultTimeout(15000);
+    // Home counts new Watches for 24 hours; keep this fixture inside that window.
+    await page.clock.setFixedTime(new Date('2026-09-20T09:00:00Z'));
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
     await page.goto(origin + '/watches.html');
