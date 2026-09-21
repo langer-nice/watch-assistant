@@ -56,6 +56,11 @@ try {
     assert.ok(geometry.gaps.every(gap => gap >= 7 && gap <= 9), JSON.stringify(geometry));
     assert.equal(geometry.lines, 1); assert.ok(geometry.fits);
     await page.screenshot({ path: `/tmp/otp-before-${lang}-${width}.png` });
+    assert.equal(await code.getAttribute('maxlength'), '6');
+    await code.pressSequentially('1234567');
+    assert.equal(await code.inputValue(), '123456');
+    await code.evaluate(el => { const data = new DataTransfer(); data.setData('text', ' 246810 '); el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })); });
+    assert.equal(await code.inputValue(), '246810');
     await code.fill('123');
     await page.clock.fastForward(59000);
     assert.equal(await page.locator('[data-auth-resend]').count(), 0);

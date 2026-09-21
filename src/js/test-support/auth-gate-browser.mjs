@@ -79,7 +79,7 @@ try {
     assert.equal(await retry.evaluate(el=>getComputedStyle(el).outlineStyle),'solid');
     await page.screenshot({path:`/tmp/watch-otp-${lang}-${viewport.width}.png`});
     // Paste-equivalent fill preserves surrounding whitespace; internal repairs are forbidden.
-    await page.locator('#gateEmailCode').fill(' 246810 ');await page.locator('#gateEmailCode').press('Enter');
+    await page.locator('#gateEmailCode').evaluate(el => { const data = new DataTransfer(); data.setData('text', ' 246810 '); el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })); });await page.locator('#gateEmailCode').press('Enter');
     await page.locator('#urlReviewCreate').waitFor({state:'visible'});
     assert.ok(page.url().includes('/new-watch.html'),'verification stays on the current application page');
     assert.equal(await page.evaluate(()=>window.__resumedRequest),request);

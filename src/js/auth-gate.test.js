@@ -346,6 +346,7 @@ for (const lang of ['fr', 'en']) {
       assert.equal(root.querySelector('input').getAttribute('placeholder'), lang === 'fr' ? 'Code à six chiffres' : 'Six-digit code');
       assert.equal(root.querySelector('input').getAttribute('autocomplete'), 'one-time-code');
       assert.equal(root.querySelector('input').getAttribute('inputmode'), 'numeric');
+      assert.equal(root.querySelector('input').getAttribute('maxlength'), '6');
       assert.doesNotMatch(root.textContent, /Saisissez le code|Enter your code|Vérifier et me connecter|Verify and sign in/);
       assert.equal(root.querySelector('.auth-menu__email').textContent, lang === 'fr' ? 'Code envoyé à a@example.test.' : 'Code sent to a@example.test.');
       assert.equal(root.querySelector('[data-auth-retry]').textContent, lang === 'fr' ? 'Utiliser une autre adresse' : 'Use another email');
@@ -393,4 +394,24 @@ test('resend appears without replacing the code field or focus, and vanishes aft
     assert.equal(document.querySelector('[data-auth-resend]'), null);
     assert.equal(ui.auth.cooldownRemaining(), 60);
   } finally { Date.now = originalNow; window.setInterval = originalInterval; }
+});
+
+
+test('OTP paste keeps six digits, trims surrounding spaces and rejects longer codes', async () => {
+  const { document } = await setup('watches.html');
+  const mock = client();
+  const ui = startUi({ client: mock, env: { VITE_AUTH_MODE: 'otp' } });
+  mock.resolve(); await ui.ready;
+  await ui.auth.sendMagicLink('a@example.test');
+  const input = document.querySelector('#authEmailCode');
+  const paste = text => {
+    const event = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', { value: { getData: () => text } });
+    input.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+  assert.equal(paste(' 246810 '), true);
+  assert.equal(input.value, '246810');
+  assert.equal(paste('1234567'), true);
+  assert.equal(input.value, '246810');
 });

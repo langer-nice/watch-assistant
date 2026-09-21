@@ -42,7 +42,7 @@ export const renderAuthState = (root, state, { mode = 'magic-link', creation = f
       <p class="auth-menu__email" ${root.hasAttribute('data-auth-gate-root') ? 'id="authGateTitle"' : ''}>${escapeHtml(t('auth.codeSent', { email: state.submittedEmail }))}</p>
       <form class="auth-menu__form" data-auth-code-form>
         <label class="visually-hidden" for="${id}Code">${t('auth.codeLabel')}</label>
-        <input id="${id}Code" name="code" placeholder="${t('auth.codePlaceholder')}" type="text" inputmode="numeric" autocomplete="one-time-code"
+        <input id="${id}Code" name="code" placeholder="${t('auth.codePlaceholder')}" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code"
           aria-describedby="${id}Error" aria-invalid="${Boolean(state.error)}" required ${busy ? 'disabled' : ''}>
         <button class="auth-menu__button" type="submit" ${busy ? 'disabled' : ''}>${t(busy ? 'auth.verifying' : 'auth.verifySignIn')}</button>
       </form>
@@ -208,6 +208,18 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
   if (root) root.dataset.authInitialized = 'true';
   auth.subscribe(render);
   const focusEmail = (inPanel) => (inPanel ? panel : root)?.querySelector('[name="email"]')?.focus();
+  document.addEventListener('paste', event => {
+    const input = event.target.closest('[data-auth-code-form] input[name="code"]');
+    if (!input || !event.clipboardData) return;
+    const code = event.clipboardData.getData('text').trim();
+    // Preserve surrounding-space paste support without truncating an invalid
+    // longer code into a different, potentially valid six-digit code.
+    if (code.length > 6) { event.preventDefault(); return; }
+    if (!/^[0-9]{6}$/.test(code)) return;
+    event.preventDefault();
+    input.value = code;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   document.addEventListener('submit', async event => {
     const form = event.target.closest('[data-auth-form], [data-auth-code-form]');
     if (!form) return;
