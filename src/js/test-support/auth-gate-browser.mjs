@@ -112,7 +112,7 @@ try {
     await page.goto(`${origin}/watches.html`);await page.locator('[data-profile-trigger]').click();
     await page.locator('#authEmail').fill('a@example.test');await page.locator('#authEmail').press('Enter');
     await page.locator('#authEmailCode').waitFor({state:'visible'});
-    assert.ok((await page.locator('[data-profile-menu]').innerText()).includes(lang==='fr'?'Vérifier et me connecter':'Verify and sign in'));
+    assert.ok((await page.locator('[data-profile-menu]').innerText()).includes(lang==='fr'?'Me connecter':'Sign in'));
     await page.locator('[data-profile-menu] [data-auth-retry]').click();
     assert.equal(await page.locator('#authEmail').inputValue(),'');
     assert.equal(await page.locator('#authEmail').evaluate(el=>el===document.activeElement),true);

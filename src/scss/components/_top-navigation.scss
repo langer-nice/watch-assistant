@@ -316,11 +316,11 @@
   display: grid;
   gap: var(--space-xs);
 
-  .auth-menu__title {
-    margin: 0;
+  input[name='code']::placeholder {
+    letter-spacing: normal;
     font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    line-height: inherit;
+    font-weight: normal;
+    color: var(--color-text-muted);
   }
 
   .auth-menu__form { gap: var(--space-xs); }

@@ -35,16 +35,25 @@ try {
     const label = lang === 'fr' ? 'Utiliser une autre adresse' : 'Use another email';
     assert.equal(await page.locator('[data-auth-retry]').innerText(), label);
     const geometry = await menu.evaluate(el => {
-      const title = el.querySelector('h2'), text = el.querySelector('.auth-menu__email');
+      const text = el.querySelector('.auth-menu__email');
       const label = el.querySelector('label'), input = el.querySelector('input');
       const submit = el.querySelector('[type=submit]'), retry = el.querySelector('[data-auth-retry]');
       const rect = n => n.getBoundingClientRect();
       const range = document.createRange(); range.selectNodeContents(retry);
-      return { gaps: [[title,text],[text,label],[label,input],[input,submit],[submit,retry]].map(([a,b])=>rect(b).top-rect(a).bottom),
+      return { gaps: [[text,input],[input,submit],[submit,retry]].map(([a,b])=>rect(b).top-rect(a).bottom),
         lines: range.getClientRects().length, fits: rect(el).left >= 0 && rect(el).right <= innerWidth,
-        font: getComputedStyle(title).fontSize };
+        topGap: rect(text).top - rect(el).top,
+        hiddenLabel: getComputedStyle(label).position === 'absolute' && rect(label).height === 1,
+        placeholderWeight: getComputedStyle(input, '::placeholder').fontWeight };
     });
-    assert.ok(geometry.gaps.every(gap => gap >= 7), JSON.stringify(geometry));
+    assert.equal(await menu.locator('h1, h2').count(), 0);
+    assert.equal(await page.getByRole('textbox', { name: lang === 'fr' ? 'Code de connexion à six chiffres' : 'Six-digit sign-in code', exact: true }).count(), 1);
+    assert.equal(await code.getAttribute('placeholder'), lang === 'fr' ? 'Code à six chiffres' : 'Six-digit code');
+    assert.equal(await menu.locator('[type=submit]').innerText(), lang === 'fr' ? 'Me connecter' : 'Sign in');
+    assert.ok(geometry.hiddenLabel);
+    assert.ok(geometry.topGap <= 18);
+    assert.equal(geometry.placeholderWeight, '400');
+    assert.ok(geometry.gaps.every(gap => gap >= 7 && gap <= 9), JSON.stringify(geometry));
     assert.equal(geometry.lines, 1); assert.ok(geometry.fits);
     await page.screenshot({ path: `/tmp/otp-before-${lang}-${width}.png` });
     await code.fill('123');

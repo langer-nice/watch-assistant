@@ -38,13 +38,11 @@ export const renderAuthState = (root, state, { mode = 'magic-link', creation = f
 
   if (['code-sent', 'verifying'].includes(state.status)) {
     const busy = state.status === 'verifying';
-    const heading = root.hasAttribute('data-auth-gate-root') ? 'h1' : 'h2';
     root.innerHTML = `
-      <${heading} class="auth-menu__title" ${heading === 'h1' ? 'id="authGateTitle"' : ''} tabindex="-1">${t('auth.enterCode')}</${heading}>
-      <p class="auth-menu__email">${escapeHtml(t('auth.codeSent', { email: state.submittedEmail }))}</p>
+      <p class="auth-menu__email" ${root.hasAttribute('data-auth-gate-root') ? 'id="authGateTitle"' : ''}>${escapeHtml(t('auth.codeSent', { email: state.submittedEmail }))}</p>
       <form class="auth-menu__form" data-auth-code-form>
-        <label for="${id}Code">${t('auth.codeLabel')}</label>
-        <input id="${id}Code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code"
+        <label class="visually-hidden" for="${id}Code">${t('auth.codeLabel')}</label>
+        <input id="${id}Code" name="code" placeholder="${t('auth.codePlaceholder')}" type="text" inputmode="numeric" autocomplete="one-time-code"
           aria-describedby="${id}Error" aria-invalid="${Boolean(state.error)}" required ${busy ? 'disabled' : ''}>
         <button class="auth-menu__button" type="submit" ${busy ? 'disabled' : ''}>${t(busy ? 'auth.verifying' : 'auth.verifySignIn')}</button>
       </form>

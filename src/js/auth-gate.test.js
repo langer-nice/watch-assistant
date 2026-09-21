@@ -341,11 +341,16 @@ for (const lang of ['fr', 'en']) {
     const state = { status: 'code-sent', submittedEmail: 'a@example.test' };
     for (const cooldown of [60, 1, 0]) {
       renderAuthState(root, state, { mode: 'otp', cooldown });
-      assert.equal(root.querySelector('h2').textContent, lang === 'fr' ? 'Saisissez le code' : 'Enter your code');
+      assert.equal(root.querySelector('h1, h2'), null);
+      assert.equal(root.querySelector('label').className, 'visually-hidden');
+      assert.equal(root.querySelector('input').getAttribute('placeholder'), lang === 'fr' ? 'Code à six chiffres' : 'Six-digit code');
+      assert.equal(root.querySelector('input').getAttribute('autocomplete'), 'one-time-code');
+      assert.equal(root.querySelector('input').getAttribute('inputmode'), 'numeric');
+      assert.doesNotMatch(root.textContent, /Saisissez le code|Enter your code|Vérifier et me connecter|Verify and sign in/);
       assert.equal(root.querySelector('.auth-menu__email').textContent, lang === 'fr' ? 'Code envoyé à a@example.test.' : 'Code sent to a@example.test.');
       assert.equal(root.querySelector('[data-auth-retry]').textContent, lang === 'fr' ? 'Utiliser une autre adresse' : 'Use another email');
       assert.equal(root.querySelector('label').textContent, lang === 'fr' ? 'Code de connexion à six chiffres' : 'Six-digit sign-in code');
-      assert.equal(root.querySelector('[type="submit"]').textContent, lang === 'fr' ? 'Vérifier et me connecter' : 'Verify and sign in');
+      assert.equal(root.querySelector('[type="submit"]').textContent, lang === 'fr' ? 'Me connecter' : 'Sign in');
       assert.equal(root.querySelector('[data-auth-cooldown]'), null);
       assert.equal(root.querySelector('[role="timer"]'), null);
       assert.equal(root.querySelector('label').htmlFor || root.querySelector('label').getAttribute('for'), root.querySelector('input').id);
