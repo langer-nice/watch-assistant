@@ -25,6 +25,7 @@ export const authErrorKey = (error = '') => {
 };
 
 export const renderAuthState = (root, state, { mode = 'magic-link', creation = false, cooldown = 0 } = {}) => {
+  root.classList.toggle('auth-menu--otp', ['code-sent', 'verifying'].includes(state.status));
   const id = root.hasAttribute('data-auth-gate-root') ? 'gateEmail' : 'authEmail';
   if (state.status === 'authenticated') {
     root.innerHTML = `
@@ -39,18 +40,19 @@ export const renderAuthState = (root, state, { mode = 'magic-link', creation = f
     const busy = state.status === 'verifying';
     const heading = root.hasAttribute('data-auth-gate-root') ? 'h1' : 'h2';
     root.innerHTML = `
-      <${heading} ${heading === 'h1' ? 'id="authGateTitle"' : ''} tabindex="-1">${t('auth.enterCode')}</${heading}>
+      <${heading} class="auth-menu__title" ${heading === 'h1' ? 'id="authGateTitle"' : ''} tabindex="-1">${t('auth.enterCode')}</${heading}>
       <p class="auth-menu__email">${escapeHtml(t('auth.codeSent', { email: state.submittedEmail }))}</p>
       <form class="auth-menu__form" data-auth-code-form>
         <label for="${id}Code">${t('auth.codeLabel')}</label>
         <input id="${id}Code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code"
-          aria-describedby="${id}Error ${id}Cooldown" aria-invalid="${Boolean(state.error)}" required ${busy ? 'disabled' : ''}>
-        <button class="auth-menu__button" type="submit" ${busy ? 'disabled' : ''}>${t(busy ? 'auth.verifying' : creation ? 'auth.verifyCreate' : 'auth.verifySignIn')}</button>
+          aria-describedby="${id}Error" aria-invalid="${Boolean(state.error)}" required ${busy ? 'disabled' : ''}>
+        <button class="auth-menu__button" type="submit" ${busy ? 'disabled' : ''}>${t(busy ? 'auth.verifying' : 'auth.verifySignIn')}</button>
       </form>
-      <p id="${id}Error" role="${state.error ? 'alert' : 'status'}">${state.error ? t(authErrorKey(state.error).replace('expiredLink', 'expiredCode').replace('invalidLink', 'incorrectCode')) : ''}</p>
-      <button class="auth-menu__text-button" type="button" data-auth-retry ${busy ? 'disabled' : ''}>${t('auth.useAnotherEmail')}</button>
-      <p id="${id}Cooldown" data-auth-cooldown role="timer" aria-live="off">${t('auth.cooldown', { seconds: cooldown })}</p>
-      <button class="auth-menu__text-button" type="button" data-auth-resend ${busy || cooldown > 0 ? 'disabled' : ''}>${t('auth.resendCode')}</button>`;
+      <p id="${id}Error" class="auth-menu__error" role="${state.error ? 'alert' : 'status'}" ${state.error ? '' : 'hidden'}>${state.error ? t(authErrorKey(state.error).replace('expiredLink', 'expiredCode').replace('invalidLink', 'incorrectCode')) : ''}</p>
+      <button class="auth-menu__text-button" type="button" data-auth-retry ${busy ? 'disabled' : ''}>${t('auth.otpUseAnotherEmail')}</button>
+      <div data-auth-resend-region aria-live="polite" aria-relevant="additions">
+        ${!busy && cooldown === 0 ? `<button class="auth-menu__text-button" type="button" data-auth-resend>${t('auth.resendCode')}</button>` : ''}
+      </div>`;
     return;
   }
 
@@ -84,7 +86,6 @@ export const renderAuthState = (root, state, { mode = 'magic-link', creation = f
       <label for="${id}">${t('auth.emailLabel')}</label>
       <input id="${id}" name="email" type="email" autocomplete="email" required placeholder="${t('auth.emailPlaceholder')}">
       <button class="auth-menu__button" type="submit">${t(mode === 'otp' ? 'auth.sendCode' : 'auth.sendMagicLink')}</button>
-      ${mode === 'otp' ? `<p id="${id}Cooldown" data-auth-cooldown role="timer" aria-live="off"></p>` : ''}
     </form>
     ${state.status === 'error' ? `<p class="auth-menu__error" role="alert">${t(authErrorKey(state.error || ''))}</p>` : ''}
   `;
@@ -140,7 +141,13 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
   };
   const tick = () => {
     const seconds = auth.cooldownRemaining();
-    document.querySelectorAll('[data-auth-cooldown]').forEach(el => { el.textContent = t(seconds ? 'auth.cooldown' : 'auth.canResend', { seconds }); });
+    const available = seconds === 0 && auth.getState().status === 'code-sent';
+    document.querySelectorAll('[data-auth-resend-region]').forEach(region => {
+      if (!available) region.replaceChildren();
+      else if (!region.querySelector('[data-auth-resend]')) {
+        region.innerHTML = `<button class="auth-menu__text-button" type="button" data-auth-resend>${t('auth.resendCode')}</button>`;
+      }
+    });
     document.querySelectorAll('[data-auth-resend], [data-auth-form] button[type="submit"]').forEach(el => {
       el.disabled = auth.mode === 'otp' && (seconds > 0 || ['sending', 'verifying'].includes(auth.getState().status));
     });

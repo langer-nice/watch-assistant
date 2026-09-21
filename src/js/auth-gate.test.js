@@ -332,3 +332,60 @@ test('the shared reveal contract requires editor authorization and the current a
   ui.auth.suspend(); ui.revealEditor();
   assert.equal(content.hidden, true, 'unresolved identity during startup remains closed');
 });
+
+for (const lang of ['fr', 'en']) {
+  test(`compact OTP copy and absent cooldown actions: ${lang}`, async () => {
+    const { document } = await setup('watches.html');
+    setLanguage(lang, { persist: false });
+    const root = document.querySelector('[data-auth-root]');
+    const state = { status: 'code-sent', submittedEmail: 'a@example.test' };
+    for (const cooldown of [60, 1, 0]) {
+      renderAuthState(root, state, { mode: 'otp', cooldown });
+      assert.equal(root.querySelector('h2').textContent, lang === 'fr' ? 'Saisissez le code' : 'Enter your code');
+      assert.equal(root.querySelector('.auth-menu__email').textContent, lang === 'fr' ? 'Code envoyé à a@example.test.' : 'Code sent to a@example.test.');
+      assert.equal(root.querySelector('[data-auth-retry]').textContent, lang === 'fr' ? 'Utiliser une autre adresse' : 'Use another email');
+      assert.equal(root.querySelector('label').textContent, lang === 'fr' ? 'Code de connexion à six chiffres' : 'Six-digit sign-in code');
+      assert.equal(root.querySelector('[type="submit"]').textContent, lang === 'fr' ? 'Vérifier et me connecter' : 'Verify and sign in');
+      assert.equal(root.querySelector('[data-auth-cooldown]'), null);
+      assert.equal(root.querySelector('[role="timer"]'), null);
+      assert.equal(root.querySelector('label').htmlFor || root.querySelector('label').getAttribute('for'), root.querySelector('input').id);
+      assert.ok(root.querySelector('#authEmailError').hidden);
+      const region = root.querySelector('[data-auth-resend-region]');
+      assert.equal(region.getAttribute('aria-live'), 'polite');
+      assert.equal(region.children.length, cooldown ? 0 : 1);
+      if (!cooldown) assert.equal(region.textContent.trim(), lang === 'fr' ? 'Renvoyer le code' : 'Resend code');
+    }
+  });
+}
+
+test('resend appears without replacing the code field or focus, and vanishes after one request', async () => {
+  const { document } = await setup('watches.html');
+  const originalNow = Date.now;
+  const originalInterval = window.setInterval;
+  let time = 1000, tick, sends = 0;
+  Date.now = () => time;
+  window.setInterval = fn => { tick = fn; return 0; };
+  try {
+    const mock = client();
+    mock.auth.signInWithOtp = async () => { sends++; return { error: null }; };
+    const ui = startUi({ client: mock, env: { VITE_AUTH_MODE: 'otp' } });
+    mock.resolve(); await ui.ready;
+    await ui.auth.sendMagicLink('a@example.test');
+    const field = document.querySelector('#authEmailCode');
+    field.value = '123'; field.focus();
+    time += 59000; tick();
+    assert.equal(document.querySelector('[data-auth-resend]'), null);
+    time += 1000; tick();
+    assert.equal(document.querySelector('#authEmailCode'), field);
+    assert.equal(document.focusedElement, field);
+    assert.equal(field.value, '123');
+    assert.equal(sends, 1);
+    const resend = document.querySelector('[data-auth-resend]');
+    assert.ok(resend); assert.equal(resend.disabled, false);
+    resend.click(); resend.click();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(sends, 2);
+    assert.equal(document.querySelector('[data-auth-resend]'), null);
+    assert.equal(ui.auth.cooldownRemaining(), 60);
+  } finally { Date.now = originalNow; window.setInterval = originalInterval; }
+});

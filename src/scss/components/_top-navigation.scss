@@ -124,7 +124,7 @@
 }
 
 .top-navigation__profile-menu {
-  width: min(19rem, calc(100vw - 2rem));
+  width: min(19rem, calc(100vw - 2 * var(--app-content-padding-inline) - var(--space-md)));
   padding: var(--space-md);
 }
 
@@ -310,3 +310,22 @@
 .auth-menu__form input[name='code'] { letter-spacing: 0.25em; font-size: 1.25rem; }
 .auth-menu__text-button:disabled { opacity: 0.6; cursor: default; }
 [data-guest-editor] .assistant-input { min-height: 8rem; }
+
+// OTP uses the existing menu dimensions and controls, with explicit vertical rhythm.
+.auth-menu--otp {
+  display: grid;
+  gap: var(--space-xs);
+
+  .auth-menu__title {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    line-height: inherit;
+  }
+
+  .auth-menu__form { gap: var(--space-xs); }
+  .auth-menu__button { margin-top: 0; }
+  .auth-menu__text-button { justify-self: start; white-space: nowrap; }
+  [data-auth-resend-region] { display: contents; }
+  [hidden] { display: none; }
+}
