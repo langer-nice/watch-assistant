@@ -14,7 +14,6 @@ import {
   getWatchById,
   markUpdateAsRead,
   markUpdatesAsRead,
-  resetStoredWatches,
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
 import {
@@ -175,7 +174,6 @@ import {
 } from './watch-updates.js';
 import {
   isPreviewTestLoaderAvailable,
-  loadPreviewTestWatches,
 } from './preview-test-watches.js';
 import { getWatchJourneyEvents } from './watch-timeline.js';
 import {
@@ -2167,53 +2165,6 @@ function scheduleFirstMonitoringPass(watch, preparingEl) {
     }, 240);
   }, remaining);
 }
-
-const renderDevTools = ({ env = import.meta.env } = {}) => {
-  if (!isPreviewTestLoaderAvailable(env)) {
-    return;
-  }
-
-  if (env.DEV) {
-    window.watchAssistantResetDemo = () => {
-      resetStoredWatches();
-      localStorage.removeItem(ONBOARDING_COMPLETED_STORAGE_KEY);
-      sessionStorage.clear();
-      window.location.reload();
-    };
-    console.info('Dev: reset demo data with window.watchAssistantResetDemo()');
-  }
-
-  const shell = document.querySelector('.app-shell');
-  if (!shell || shell.querySelector('.dev-reset-control')) {
-    return;
-  }
-
-  const control = document.createElement('div');
-  control.className = 'dev-reset-control';
-  control.innerHTML = `
-    <p class="dev-reset-control__label text-muted">${t('dev.previewTools')}</p>
-    <div class="dev-reset-control__actions">
-      <button type="button" class="button button--secondary" data-load-preview-watches>${t('dev.loadTestWatches')}</button>
-      <button type="button" class="button button--secondary" data-reset-preview-watches>${t('dev.resetTestWatches')}</button>
-    </div>
-    <p class="text-muted" data-preview-watches-feedback>${t('dev.previewOnly')}</p>
-  `;
-
-  const feedback = control.querySelector('[data-preview-watches-feedback]');
-  control.querySelector('[data-load-preview-watches]')?.addEventListener('click', () => {
-    const result = loadPreviewTestWatches();
-    feedback.textContent = result.added
-      ? t('dev.testWatchesLoaded', { count: result.added })
-      : t('dev.testWatchesAlreadyLoaded');
-  });
-  control.querySelector('[data-reset-preview-watches]')?.addEventListener('click', () => {
-    if (!window.confirm(t('dev.resetTestWatchesConfirm'))) return;
-    const result = loadPreviewTestWatches({ reset: true });
-    feedback.textContent = t('dev.testWatchesReset', { count: result.added });
-  });
-
-  shell.append(control);
-};
 
 const waitForHomeReportProgress = (duration) => new Promise((resolve) => {
   window.setTimeout(resolve, duration);
@@ -5144,7 +5095,6 @@ export const initApp = () => {
   renderWatchList();
   renderWatchDetail();
   initForm();
-  renderDevTools();
 
   window.addEventListener('storage', () => {
     renderHomeSummary();

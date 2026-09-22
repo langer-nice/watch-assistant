@@ -1,50 +1,10 @@
-import { configureAccountStorage, localWatchStorageKey } from './account-storage.js';
-configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-local-owner' } } }) });
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import {
-  createPreviewTestWatches,
-  isPreviewTestLoaderAvailable,
-  loadPreviewTestWatches,
-  PREVIEW_FIXTURE_PREFIX,
-} from './preview-test-watches.js';
-import { getWatches } from './watch-storage.js';
-import { getLatestReport } from './report-storage.js';
-import { getCanonicalWatchClassification } from './report-status.js';
+import * as fixtures from './preview-test-watches.js';
+const { createPreviewTestWatches, isPreviewTestLoaderAvailable, PREVIEW_FIXTURE_PREFIX } = fixtures;
 
-const NOW = new Date('2026-08-17T12:00:00.000Z');
-
-const createStorage = (watches = []) => {
-  const values = new Map([
-    [localWatchStorageKey('watchAssistant.watches'), JSON.stringify(watches)],
-    [localWatchStorageKey('watchAssistant.htmlEntityDecodeVersion'), '1'],
-    [localWatchStorageKey('watchAssistant.reportStatusMigrationVersion'), '2'],
-  ]);
-  return {
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, String(value)),
-    removeItem: (key) => values.delete(key),
-    clear: () => values.clear(),
-  };
-};
-
-const withStorage = (watches, callback) => {
-  const originalStorage = globalThis.localStorage;
-  const originalWindow = globalThis.window;
-  globalThis.localStorage = createStorage(watches);
-  globalThis.window = new EventTarget();
-  try {
-    return callback();
-  } finally {
-    if (originalStorage === undefined) delete globalThis.localStorage;
-    else globalThis.localStorage = originalStorage;
-    if (originalWindow === undefined) delete globalThis.window;
-    else globalThis.window = originalWindow;
-  }
-};
-
-test('loader is available locally and in Vercel previews, but not in production', () => {
+test('shared environment predicate preserves onboarding behavior', () => {
   assert.equal(isPreviewTestLoaderAvailable({ DEV: true, VITE_VERCEL_ENV: '' }), true);
   assert.equal(isPreviewTestLoaderAvailable({ DEV: false, VITE_VERCEL_ENV: 'preview' }), true);
   assert.equal(isPreviewTestLoaderAvailable({ DEV: false, VITE_VERCEL_ENV: 'production' }), false);
@@ -75,63 +35,31 @@ test('production preserves onboarding routing and never renders the Test Data co
   assert.match(navigation, /return getReplayIntroFlow\(\)/);
 });
 
-test('rerenders cannot append a duplicate Test Data control', async () => {
-  const navigation = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
-  const duplicateGuard = navigation.indexOf("shell.querySelector('.dev-reset-control')");
-  const controlCreation = navigation.indexOf("document.createElement('div')", duplicateGuard);
 
-  assert.ok(duplicateGuard >= 0);
-  assert.ok(controlCreation > duplicateGuard);
-  assert.match(navigation, /control\.className = 'dev-reset-control'/);
-});
-
-test('initial and repeated loads create exactly one copy of every fixture', () => withStorage([], () => {
-  const expected = createPreviewTestWatches(NOW);
-  const first = loadPreviewTestWatches({ now: NOW, env: { DEV: true } });
-  const second = loadPreviewTestWatches({ now: NOW, env: { DEV: true } });
-  const fixtures = getWatches().filter(({ id }) => id.startsWith(PREVIEW_FIXTURE_PREFIX));
-
-  assert.equal(first.added, expected.length);
-  assert.equal(second.added, 0);
-  assert.equal(fixtures.length, expected.length);
-  assert.equal(new Set(fixtures.map(({ id }) => id)).size, expected.length);
-}));
-
-test('normal load preserves existing Watches and same-ID records', () => {
-  const fixtureId = `${PREVIEW_FIXTURE_PREFIX}updated`;
-  const existing = [
-    { id: 'personal-watch', title: 'My personal Watch', createdAt: '2026-01-01T00:00:00.000Z' },
-    { id: fixtureId, title: 'Existing collision', createdAt: '2026-01-02T00:00:00.000Z' },
-  ];
-  withStorage(existing, () => {
-    loadPreviewTestWatches({ now: NOW, env: { DEV: true } });
-    assert.equal(getWatches().find(({ id }) => id === 'personal-watch').title, 'My personal Watch');
-    assert.equal(getWatches().find(({ id }) => id === fixtureId).title, 'Existing collision');
+for (const env of ['local', 'preview', 'production']) {
+  test(`no public test data renderer or action remains in ${env}`, async () => {
+    const source = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /renderDevTools|loadPreviewTestWatches|watchAssistantResetDemo|data-load-preview-watches|data-reset-preview-watches|dev-reset-control/);
+    assert.equal(fixtures.loadPreviewTestWatches, undefined);
   });
+}
+
+test('exclusive test-control styles and translations are removed', async () => {
+  const styles = await readFile(new URL('../scss/base/_global.scss', import.meta.url), 'utf8');
+  assert.doesNotMatch(styles, /dev-reset-control/);
+  for (const lang of ['en', 'fr']) {
+    const translations = JSON.parse(await readFile(new URL(`../locales/${lang}.json`, import.meta.url)));
+    assert.equal(translations.dev, undefined);
+  }
 });
 
-test('explicit reset replaces existing data and creates a canonical consistent report', () => {
-  withStorage([{ id: 'personal-watch', title: 'Personal', createdAt: '2026-01-01T00:00:00.000Z' }], () => {
-    const result = loadPreviewTestWatches({ now: NOW, reset: true, env: { DEV: true } });
-    const watches = getWatches();
-    const report = getLatestReport();
-
-    assert.equal(result.added, createPreviewTestWatches(NOW).length);
-    assert.equal(watches.some(({ id }) => id === 'personal-watch'), false);
-    assert.equal(report.entries.length, watches.length);
-    for (const watch of watches) {
-      const entry = report.entries.find(({ watchId }) => watch.id === watchId);
-      assert.equal(entry.classification, getCanonicalWatchClassification(watch, { now: NOW }));
-    }
-    assert.equal(report.counts.attention, 1);
-    assert.equal(report.counts.updated, 2);
-    assert.equal(report.counts.watching, 3);
-    assert.equal(report.counts.new, 0);
-  });
+test('fixtures remain available directly to test harnesses as independent in-memory data', () => {
+  const now = new Date('2026-08-17T12:00:00Z');
+  const first = createPreviewTestWatches(now), second = createPreviewTestWatches(now);
+  assert.equal(first.length, 6);
+  assert.deepEqual(first, second);
+  assert.equal(new Set(first.map(w => w.id)).size, first.length);
+  assert.ok(first.every(w => w.id.startsWith(PREVIEW_FIXTURE_PREFIX)));
+  first[0].title = 'Harness mutation';
+  assert.notEqual(first[0].title, second[0].title);
 });
-
-test('production calls cannot load or overwrite any Watch', () => withStorage([], () => {
-  const result = loadPreviewTestWatches({ now: NOW, reset: true, env: { DEV: false, VITE_VERCEL_ENV: 'production' } });
-  assert.deepEqual(result, { available: false, added: 0, total: 0 });
-  assert.deepEqual(getWatches(), []);
-}));
