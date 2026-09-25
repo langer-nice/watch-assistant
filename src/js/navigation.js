@@ -1,3 +1,5 @@
+import { renderExampleWatches, renderExampleDetail } from './example-watches.js';
+import { renderSummaryCard } from './watch-summary-card.js';
 import { createEditorSession } from './editor-session.js';
 import { ACCOUNT_STORAGE_CHANGED_EVENT, getAccountEpoch } from './account-storage.js';
 import { selectHomeReport } from './home-report.js';
@@ -12,7 +14,6 @@ import {
   getWatchById,
   markUpdateAsRead,
   markUpdatesAsRead,
-  resetStoredWatches,
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
 import {
@@ -173,7 +174,6 @@ import {
 } from './watch-updates.js';
 import {
   isPreviewTestLoaderAvailable,
-  loadPreviewTestWatches,
 } from './preview-test-watches.js';
 import { getWatchJourneyEvents } from './watch-timeline.js';
 import {
@@ -1040,30 +1040,16 @@ const renderSummaryWatchCard = ({
   const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
   const categoryModifier = watch.category || 'general';
   const statusPresentation = getSummaryCardStatus(status);
-  const link = renderWatchCardLink({
-    watchId: watch.id,
-    className: 'briefing-item__link',
-    revealLatestUpdate,
-    content: `
-      <div class="briefing-item__header">
-        <div class="briefing-item__metadata">
-          <span class="category-label category-label--${escapeHtml(categoryModifier)}">${escapeHtml(category)}</span>
-          ${hasMeaningfulText(timestamp)
-    ? `<span class="briefing-item__time">${escapeHtml(timestamp)}</span>`
-    : ''}
-        </div>
-        ${statusPresentation ? `
-          <div class="briefing-item__statuses">
-            <span class="status-label status-label--${statusPresentation.modifier}">${escapeHtml(statusPresentation.label)}</span>
-          </div>
-        ` : ''}
-      </div>
-      <h2>${escapeHtml(title)}</h2>
-      ${hasMeaningfulText(supportingText) ? `<p>${escapeHtml(supportingText)}</p>` : ''}
-    `,
+  return renderSummaryCard({
+    title, category, categoryModifier, statusPresentation, supportingText, timestamp,
+    articleId, dataAttribute,
+    renderLink: (content) => renderWatchCardLink({
+      watchId: watch.id,
+      className: 'briefing-item__link',
+      revealLatestUpdate,
+      content,
+    }),
   });
-  if (!link) return '';
-  return `<article class="briefing-item"${articleId ? ` id="${escapeHtml(articleId)}"` : ''}${dataAttribute}>${link}</article>`;
 };
 
 const renderHomeWatchCards = (watches, statusById) => {
@@ -1146,10 +1132,11 @@ const renderWatchList = () => {
   }
 
   const watches = getWatches();
+  renderExampleWatches();
 
   if (watches.length === 0) {
     if (sortRow) sortRow.hidden = true;
-    list.innerHTML = `<p>${escapeHtml(t('watches.empty'))}</p>`;
+    list.replaceChildren();
     return;
   }
 
@@ -1273,6 +1260,7 @@ const renderWatchList = () => {
 };
 
 const renderWatchDetail = () => {
+  if (renderExampleDetail()) return;
   const titleEl = document.querySelector('#watchTitle');
   if (!titleEl) {
     return;
@@ -2177,53 +2165,6 @@ function scheduleFirstMonitoringPass(watch, preparingEl) {
     }, 240);
   }, remaining);
 }
-
-const renderDevTools = ({ env = import.meta.env } = {}) => {
-  if (!isPreviewTestLoaderAvailable(env)) {
-    return;
-  }
-
-  if (env.DEV) {
-    window.watchAssistantResetDemo = () => {
-      resetStoredWatches();
-      localStorage.removeItem(ONBOARDING_COMPLETED_STORAGE_KEY);
-      sessionStorage.clear();
-      window.location.reload();
-    };
-    console.info('Dev: reset demo data with window.watchAssistantResetDemo()');
-  }
-
-  const shell = document.querySelector('.app-shell');
-  if (!shell || shell.querySelector('.dev-reset-control')) {
-    return;
-  }
-
-  const control = document.createElement('div');
-  control.className = 'dev-reset-control';
-  control.innerHTML = `
-    <p class="dev-reset-control__label text-muted">${t('dev.previewTools')}</p>
-    <div class="dev-reset-control__actions">
-      <button type="button" class="button button--secondary" data-load-preview-watches>${t('dev.loadTestWatches')}</button>
-      <button type="button" class="button button--secondary" data-reset-preview-watches>${t('dev.resetTestWatches')}</button>
-    </div>
-    <p class="text-muted" data-preview-watches-feedback>${t('dev.previewOnly')}</p>
-  `;
-
-  const feedback = control.querySelector('[data-preview-watches-feedback]');
-  control.querySelector('[data-load-preview-watches]')?.addEventListener('click', () => {
-    const result = loadPreviewTestWatches();
-    feedback.textContent = result.added
-      ? t('dev.testWatchesLoaded', { count: result.added })
-      : t('dev.testWatchesAlreadyLoaded');
-  });
-  control.querySelector('[data-reset-preview-watches]')?.addEventListener('click', () => {
-    if (!window.confirm(t('dev.resetTestWatchesConfirm'))) return;
-    const result = loadPreviewTestWatches({ reset: true });
-    feedback.textContent = t('dev.testWatchesReset', { count: result.added });
-  });
-
-  shell.append(control);
-};
 
 const waitForHomeReportProgress = (duration) => new Promise((resolve) => {
   window.setTimeout(resolve, duration);
@@ -5154,7 +5095,6 @@ export const initApp = () => {
   renderWatchList();
   renderWatchDetail();
   initForm();
-  renderDevTools();
 
   window.addEventListener('storage', () => {
     renderHomeSummary();

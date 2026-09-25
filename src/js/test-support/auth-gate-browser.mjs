@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const origin=process.env.SYNTHETIC_ORIGIN || 'http://127.0.0.1:4178';
 assert.match(origin,/^http:\/\/127\.0\.0\.1:\d+$/);
-const browser=await chromium.launch({headless:true});
+const browser=await chromium.launch({headless:true, executablePath:process.env.BROWSER_EXECUTABLE});
 const errors=[];
 const waitGuest=page=>page.locator('#guestWatchInput').waitFor({state:'visible'});
 const enterPanel=async page=>{await page.locator('[data-guest-form] button').click();await page.locator('#gateEmail').waitFor({state:'visible'});};
@@ -58,8 +58,8 @@ try {
     assert.equal(await page.locator('#gateEmailCode').getAttribute('inputmode'),'numeric');
     assert.equal(await page.locator('#gateEmailCode').getAttribute('autocomplete'),'one-time-code');
     assert.ok((await page.locator('[data-auth-gate]').innerText()).includes('a@example.test'));
-    assert.equal(await page.locator('[data-auth-gate] [data-auth-resend]').isDisabled(),true);
-    assert.ok((await page.locator('[data-auth-gate] [data-auth-cooldown]').innerText()).match(/\d+/));
+    assert.equal(await page.locator('[data-auth-gate] [data-auth-resend]').count(),0);
+    assert.equal(await page.locator('[data-auth-cooldown]').count(),0);
     assert.equal(await page.evaluate(()=>syntheticAuth.emailCalls.length),1);
     assert.equal(requests.length,0,'email challenge cannot start Watch APIs');
     assert.equal(posts,0);
@@ -79,7 +79,7 @@ try {
     assert.equal(await retry.evaluate(el=>getComputedStyle(el).outlineStyle),'solid');
     await page.screenshot({path:`/tmp/watch-otp-${lang}-${viewport.width}.png`});
     // Paste-equivalent fill preserves surrounding whitespace; internal repairs are forbidden.
-    await page.locator('#gateEmailCode').fill(' 246810 ');await page.locator('#gateEmailCode').press('Enter');
+    await page.locator('#gateEmailCode').evaluate(el => { const data = new DataTransfer(); data.setData('text', ' 246810 '); el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })); });await page.locator('#gateEmailCode').press('Enter');
     await page.locator('#urlReviewCreate').waitFor({state:'visible'});
     assert.ok(page.url().includes('/new-watch.html'),'verification stays on the current application page');
     assert.equal(await page.evaluate(()=>window.__resumedRequest),request);
@@ -112,7 +112,7 @@ try {
     await page.goto(`${origin}/watches.html`);await page.locator('[data-profile-trigger]').click();
     await page.locator('#authEmail').fill('a@example.test');await page.locator('#authEmail').press('Enter');
     await page.locator('#authEmailCode').waitFor({state:'visible'});
-    assert.ok((await page.locator('[data-profile-menu]').innerText()).includes(lang==='fr'?'Vérifier et me connecter':'Verify and sign in'));
+    assert.ok((await page.locator('[data-profile-menu]').innerText()).includes(lang==='fr'?'Me connecter':'Sign in'));
     await page.locator('[data-profile-menu] [data-auth-retry]').click();
     assert.equal(await page.locator('#authEmail').inputValue(),'');
     assert.equal(await page.locator('#authEmail').evaluate(el=>el===document.activeElement),true);

@@ -1,3 +1,4 @@
+import { applyExampleToEditor } from './example-watches.js';
 import { getAccountEpoch, getAccountOwner } from './account-storage.js';
 import { configureMediaWatchServerStore } from './media-watch-server-store.js';
 import { initApp } from './navigation.js';
@@ -45,8 +46,11 @@ const start = async () => {
   if (authUi && !authUi.canEnterEditor()) return;
   if (appStarted) return;
   appStarted = true;
+  const exampleInput = document.querySelector('#newWatchInput');
+  const exampleApplied = applyExampleToEditor(exampleInput);
   initApp();
   authUi?.revealEditor();
+  if (exampleApplied) exampleInput.focus({ preventScroll: true });
 };
 
 void start();

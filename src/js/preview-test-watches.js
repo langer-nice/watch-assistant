@@ -1,10 +1,4 @@
-import { getAccountOwner } from './account-storage.js';
-import { getWatches, addWatch, resetStoredWatches } from './watch-storage.js';
-import { getCanonicalWatchClassification, getMeaningfulWatchUpdate } from './report-status.js';
-import { resetStoredReports, saveReport, REPORT_STORAGE_VERSION } from './report-storage.js';
-
 export const PREVIEW_FIXTURE_PREFIX = 'preview-test-';
-export const PREVIEW_REPORT_ID = 'preview-test-report';
 
 export const isPreviewTestLoaderAvailable = (env = import.meta.env) => (
   env?.DEV === true || env?.VITE_VERCEL_ENV === 'preview'
@@ -122,50 +116,4 @@ export const createPreviewTestWatches = (now = new Date()) => {
       currentSituation: 'No new BODACC event has been published since the baseline check.', updates: [],
     },
   ];
-};
-
-const createFixtureReport = (watches, now) => {
-  const completedAt = now.toISOString();
-  const entries = watches.map((watch) => {
-    const meaningful = getMeaningfulWatchUpdate(watch);
-    const failed = watch.lastCheckAttempt?.status === 'failed';
-    return {
-      watchId: watch.id,
-      classification: getCanonicalWatchClassification(watch, { now }),
-      title: watch.title || watch.request || '', category: watch.category || 'general',
-      updateTitle: meaningful?.headline || '', summary: meaningful?.summary || '',
-      checkedAt: watch.lastCheckAttempt?.attemptedAt || watch.lastChecked || completedAt,
-      attemptStatus: failed ? 'failed' : 'succeeded',
-      outcome: failed ? 'failed' : watch.lastCheckAttempt?.outcome || 'no-new-items',
-      failureCode: failed ? watch.lastCheckAttempt.code : null,
-      resultIds: meaningful?.update?.id ? [meaningful.update.id] : [],
-    };
-  });
-  const attempts = entries.map((entry) => ({
-    watchId: entry.watchId, status: entry.attemptStatus,
-    startedAt: entry.checkedAt, completedAt: entry.checkedAt,
-    outcome: entry.outcome, code: entry.failureCode, baselineCheckedAt: null,
-    resultIds: entry.resultIds,
-  }));
-  return {
-    version: REPORT_STORAGE_VERSION, ownerId: getAccountOwner(),
-    id: PREVIEW_REPORT_ID, startedAt: relativeIso(now, 0.05), completedAt,
-    watchIdsConsidered: watches.map(({ id }) => id), watchIdsChecked: watches.map(({ id }) => id),
-    watchIdsSkipped: [], attempts, entries,
-  };
-};
-
-export const loadPreviewTestWatches = ({ now = new Date(), reset = false, env = import.meta.env } = {}) => {
-  if (!isPreviewTestLoaderAvailable(env)) return { available: false, added: 0, total: 0 };
-  if (reset) {
-    resetStoredWatches();
-    resetStoredReports();
-  }
-  const existingIds = new Set(getWatches().map(({ id }) => id));
-  const fixtures = createPreviewTestWatches(now);
-  const additions = fixtures.filter(({ id }) => !existingIds.has(id));
-  additions.forEach(addWatch);
-  const watches = getWatches();
-  if (getAccountOwner()) saveReport(createFixtureReport(watches, now));
-  return { available: true, added: additions.length, total: fixtures.length };
 };

@@ -121,16 +121,18 @@ test('All Watches Sort by stays a compact native row with a subtle separator at 
 });
 
 test('compact Home cards retain content, navigation, separators, and responsive overflow rules', async () => {
-  const [navigation, styles] = await Promise.all([
+  const [navigation, styles, summaryTemplate] = await Promise.all([
     readFile(new URL('./navigation.js', import.meta.url), 'utf8'),
     readFile(new URL('../scss/components/_briefing-item.scss', import.meta.url), 'utf8'),
+    readFile(new URL('./watch-summary-card.js', import.meta.url), 'utf8'),
   ]);
   const sharedRenderer = navigation.match(/const renderSummaryWatchCard =[\s\S]*?const renderHomeWatchCards =/)?.[0] || '';
   const renderer = navigation.match(/const renderHomeWatchCards =[\s\S]*?const renderHomeBriefing =/)?.[0] || '';
 
   assert.match(sharedRenderer, /renderWatchCardLink\(\{[\s\S]*?watchId: watch\.id/);
-  assert.match(sharedRenderer, /briefing-item__header[\s\S]*?briefing-item__metadata[\s\S]*?category-label[\s\S]*?briefing-item__time[\s\S]*?briefing-item__statuses[\s\S]*?status-label[\s\S]*?<h2>[\s\S]*?supportingText/);
-  assert.equal((sharedRenderer.match(/briefing-item__time/g) || []).length, 1);
+  assert.match(sharedRenderer, /return renderSummaryCard\(/);
+  assert.match(summaryTemplate, /briefing-item__header[\s\S]*?briefing-item__metadata[\s\S]*?category-label[\s\S]*?briefing-item__time[\s\S]*?briefing-item__statuses[\s\S]*?status-label[\s\S]*?<h2>[\s\S]*?supportingText/);
+  assert.equal((summaryTemplate.match(/briefing-item__time/g) || []).length, 1);
   assert.match(renderer, /renderSummaryWatchCard\([\s\S]*?data-home-watch-status/);
   assert.match(styles, /\.briefing-item \+ \.briefing-item\s*\{[\s\S]*?border-top:\s*1px solid var\(--color-divider\)/);
   assert.match(styles, /grid-template-columns:\s*minmax\(0, 1fr\) auto/);

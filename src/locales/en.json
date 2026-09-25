@@ -657,10 +657,10 @@
     "activateExplanation": "Sign in to keep this Watch and receive new alerts by email.",
     "sendCode": "Send my code",
     "backToWatch": "Return to my Watch",
-    "enterCode": "Enter the code",
-    "codeSent": "We sent a sign-in code to {email}.",
+    "codeSent": "Code sent to {email}.",
     "verifyCreate": "Verify and create my Watch",
-    "verifySignIn": "Verify and sign in",
+    "verifySignIn": "Sign in",
+    "codePlaceholder": "Six-digit code",
     "codeLabel": "Six-digit sign-in code",
     "verifying": "Verifying your code…",
     "malformedCode": "Enter exactly six digits. You can paste the code, with spaces only before or after it.",
@@ -669,22 +669,59 @@
     "usedCode": "That code has already been used. Please request another code when available.",
     "networkError": "We couldn’t connect. Check your connection and try again.",
     "unresolved": "We couldn’t confirm your account. Please sign in again.",
-    "cooldown": "You can request another code in {seconds} seconds.",
-    "canResend": "You can now request another code.",
-    "resendCode": "Send another code",
+    "otpUseAnotherEmail": "Use another email",
+    "resendCode": "Resend code",
     "verified": "You’re signed in.",
     "sendingCode": "Sending your sign-in code…"
   },
-  "dev": {
-    "reset": "Reset demo data",
-    "only": "Development only",
-    "previewTools": "Preview test data",
-    "loadTestWatches": "Load test Watches",
-    "resetTestWatches": "Reset and reload test Watches",
-    "previewOnly": "Available only in local development and Vercel previews.",
-    "testWatchesLoaded": "{count} test Watches loaded.",
-    "testWatchesAlreadyLoaded": "Test Watches are already loaded; no duplicates were added.",
-    "resetTestWatchesConfirm": "Reset all Watches and reports, then load the test Watches? This cannot be undone.",
-    "testWatchesReset": "Storage reset and {count} test Watches loaded."
+  "examples": {
+    "badge": "EXAMPLE",
+    "instruction": "Customize the items in brackets before creating your Watch.",
+    "soon": "COMING SOON",
+    "cancel": "Cancel",
+    "items": {
+      "news": {
+        "title": "Follow a news topic",
+        "request": "Notify me when there is new information about [a news topic I’m following]."
+      },
+      "company": {
+        "title": "Important company announcement",
+        "request": "Notify me when [a company] announces a new product, partnership, or acquisition."
+      },
+      "regulation": {
+        "title": "New regulation",
+        "request": "Notify me when a new regulation in France affects [my work or a topic I care about]."
+      },
+      "concert": {
+        "title": "Concert or tour",
+        "request": "Notify me when [my favourite artist or band] announces a tour or concert in France."
+      },
+      "competitor": {
+        "title": "Competitor news",
+        "request": "Notify me when [a competitor] publishes a press release or makes an important announcement."
+      },
+      "court": {
+        "title": "New court decision",
+        "request": "Notify me when a new court decision concerns [a topic or my industry]."
+      },
+      "flights": {
+        "title": "Flights for Christmas",
+        "request": "Notify me when easyJet opens bookings for direct flights between Nice and Manchester for Christmas 2026."
+      },
+      "price": {
+        "title": "Product price drop",
+        "request": "Notify me when the price of [this product] drops below [amount] € on [retailer]."
+      },
+      "bitcoin": {
+        "title": "Bitcoin value",
+        "request": "Notify me when Bitcoin reaches [amount] €."
+      }
+    },
+    "heading": "Example Watches",
+    "intro": "Explore these examples. They do not monitor anything and are not part of your Watches.",
+    "create": "Create a Watch from this example",
+    "requestLabel": "Request",
+    "back": "All Watches",
+    "unavailable": "This example is not available."
   }
 }
