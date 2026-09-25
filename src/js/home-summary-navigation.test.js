@@ -60,7 +60,7 @@ test('Home exposes accessible status navigation and keeps its fixed dashboard pr
   assert.match(html, /<button[^>]+data-home-status-target="attention"/);
   assert.match(html, /<button[^>]+data-home-status-target="updated"/);
   assert.match(html, /<button[^>]+data-home-status-target="new"/);
-  assert.match(navigation, /trigger\.disabled = count === 0/);
+  assert.match(navigation, /trigger\.disabled = uncertain \|\| count === 0/);
   assert.match(navigation, /\['new', newlyCreatedWatches\.length, newLabel\]/);
   assert.match(navigation, /navigateToHomeWatchStatus\(document, trigger\.dataset\.homeStatusTarget\)/);
   assert.match(navigation, /list\.innerHTML = renderHomeWatchCards\(watches, statusById\)/);
@@ -99,7 +99,7 @@ test('Home summary exposes an exact conditional New count', async () => {
   const french = JSON.parse(fr);
 
   assert.match(html, /id="homeNewSummary" hidden[\s\S]*?<button[^>]+data-home-status-target="new"[\s\S]*?id="homeNewCount"[\s\S]*?id="homeNewLabel"/);
-  assert.match(navigation, /newSummary\.hidden = newlyCreatedWatches\.length === 0/);
+  assert.match(navigation, /newSummary\.hidden = uncertain \|\| newlyCreatedWatches\.length === 0/);
   assert.match(navigation, /newCount\.textContent = String\(newlyCreatedWatches\.length\)/);
   assert.match(navigation, /pluralKey\('home\.newLabel', newlyCreatedWatches\.length\)/);
   assert.match(navigation, /getHomeStatusTargetId\(homeStatus\)/);

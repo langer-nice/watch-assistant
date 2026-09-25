@@ -233,7 +233,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     await t.test('overlapping stale writers cannot overwrite a newer server definition', async () => {
       const last = rpcCalls.findLast((call) => call.name === 'persist_media_watch').params;
       const result = await client('authenticated',USER_A).rpc('persist_media_watch', { ...last, p_title:'stale',p_mutation:randomUUID() });
-      assert.equal(result.error?.code, '40001');
+      assert.equal(result.error?.code, 'PT409');
       assert.equal((await db.query('select title from public.watches where id=$1',[watch.id])).rows[0].title,'Newer edit');
     });
     await t.test('delete writes an owner tombstone, suppresses cron and cannot be resurrected by a create retry', async () => {
@@ -242,7 +242,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.equal(watches.getWatchById(watch.id),null);
       assert.ok((await db.query('select deleted_at from public.watches where id=$1',[watch.id])).rows[0].deleted_at);
       assert.equal((await run([])).totalEligibleWatches,0);
-      assert.equal((await client('authenticated', USER_A).rpc('persist_media_watch',original)).error?.code,'40001');
+      assert.equal((await client('authenticated', USER_A).rpc('persist_media_watch',original)).error?.code,'PT409');
     });
     await t.test('missing schema/API preserves newly owned local Watches until retry', async () => {
       offline=true; const pending=makeWatch(); watches.addWatch(pending); await flush();
@@ -313,11 +313,11 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.equal((await send({...job,revision:-1})).status,400);
       assert.equal((await send({...job,unexpected:'x'.repeat(13000)})).status,400);
     });
-    await t.test('unsupported edits pause server monitoring while retaining the new browser-only definition', async () => {
+    await t.test('unsupported edits retain server monitoring and the new browser-only definition', async () => {
       const changed=makeWatch(); watches.addWatch(changed); await flush();
       watches.updateWatch(changed.id,{request:'Check the weather tomorrow',category:'travel'}); await flush();
       const row=(await db.query('select monitoring_state from public.watches where id=$1',[changed.id])).rows[0];
-      assert.equal(row.monitoring_state,'paused');
+      assert.equal(row.monitoring_state,'monitoring');
       assert.equal(watches.getWatchById(changed.id).request,'Check the weather tomorrow');
       assert.equal(watches.getWatchById(changed.id).category,'travel');
       watches.updateWatch(changed.id,{request:'Tell me when SpaceX is mentioned in the media.'}); await flush();

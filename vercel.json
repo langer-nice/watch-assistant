@@ -10,10 +10,5 @@
       "path": "/api/cron/company-monitoring",
       "schedule": "0 6 * * *"
     }
-  ],
-  "git": {
-    "deploymentEnabled": {
-      "codex/watch-resilience-incident-20260925": false
-    }
-  }
+  ]
 }
