@@ -137,3 +137,48 @@ test('FR/EN notices expose status, keyboard buttons and confirmed empty',async t
     assert.equal(notice.querySelector('button').textContent,lang==='fr'?'Réessayer':'Try again');
   }
 });
+
+test('Retry Sync reports failure and success in FR/EN and coalesces double activation', async t => {
+  const originals = { fetch:globalThis.fetch, localStorage:globalThis.localStorage, window:globalThis.window, document:globalThis.document };
+  globalThis.localStorage = storage(); globalThis.window = new EventTarget();
+  globalThis.document = parseHTML('<html><body><h1 id="title">Fixture</h1></body></html>').document;
+  t.after(() => { for(const [key,value] of Object.entries(originals)) { if(value===undefined)delete globalThis[key];else globalThis[key]=value; } });
+  const ms = await import('./media-watch-server-store.js');
+  const {renderMediaPersistenceNotice} = await import('./media-watch-persistence-notice.js');
+  const auth = {getState:()=>({status:'authenticated',session:{user:{id:'notice-owner'},access_token:'synthetic'}}),subscribe:()=>()=>{}};
+  let failing=false, hold=false, release, posts=0;
+  globalThis.fetch = async (_path, options={}) => {
+    if(options.method==='POST') {
+      posts++;
+      if(hold)await new Promise(resolve=>{release=resolve;});
+      if(failing)return Response.json({code:'DATABASE_ERROR'},{status:503});
+      return Response.json({watch:{media_revision:2}});
+    }
+    return Response.json({watches:[media()]});
+  };
+  await ms.configureMediaWatchServerStore(auth);
+  t.after(()=>ms.configureMediaWatchServerStore(null));
+  const watch=ms.getMediaServerWatches()[0];
+  for(const language of ['fr','en']) {
+    failing=true;
+    ms.prepareMediaWatch({...watch,title:`Edit ${language}`},watch);
+    await tick(); await tick();
+    renderMediaPersistenceNotice(watch,document.getElementById('title'),language);
+    const notice=document.getElementById('watchMediaPersistenceNotice');
+    const button=notice.querySelector('button');
+    const before=posts; hold=true;
+    const attempt=button.onclick(); const duplicate=button.onclick();
+    await tick();
+    assert.equal(posts,before+1);
+    assert.equal(button.disabled,true);
+    assert.equal(notice.getAttribute('aria-busy'),'true');
+    hold=false;release();await Promise.all([attempt,duplicate]);
+    assert.match(notice.textContent,language==='fr'?/synchronisation a échoué/:/Sync failed/);
+    assert.equal(ms.getMediaPersistenceState(watch).status,'pending');
+    assert.equal(button.disabled,false);
+    failing=false;await button.onclick();
+    assert.equal(ms.getMediaPersistenceState(watch).status,'saved');
+    assert.match(notice.textContent,language==='fr'?/est synchronisée/:/is synced/);
+    assert.equal(notice.querySelector('button'),null);
+  }
+});

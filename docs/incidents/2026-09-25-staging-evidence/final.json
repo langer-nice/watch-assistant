@@ -1,0 +1,10 @@
+{
+  "observed_at": "2026-09-25T15:17:59.184644Z",
+  "function_md5": "c9dfbd9127b543e5bd33ce2764eacc1a",
+  "watches_md5": "2d39d6458e072c68edf032f32241d92b",
+  "watches": 1,
+  "migration_count": 1,
+  "blocked_or_aborted": 0,
+  "active_media_rpc": 0,
+  "sessions_terminated": []
+}

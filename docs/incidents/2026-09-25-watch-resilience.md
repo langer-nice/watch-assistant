@@ -1,5 +1,7 @@
 # Incident Watches — 25 septembre 2026
 
+> Mise à jour : PT409 a ensuite été appliqué uniquement au staging sous autorisation distincte. Voir [la validation staging](2026-09-25-staging-validation.md). Le texte ci-dessous conserve le constat de la première intervention.
+
 ## Périmètre et état de livraison
 
 Base exacte : `eddf0b3b068ba9056095facb887745fe36764c91` (master). Branche : `codex/watch-resilience-incident-20260925`. Production auditée : `dpl_Gtn5m8ZhCbMYuFoNpubV5s6xkgHq`, READY, même SHA. Aucun merge, déploiement Production, migration appliquée, modification de ligne, changement de statut, OTP, envoi d’e-mail, exécution de cron, redémarrage ou replay d’outbox pendant cette intervention. Les manipulations de Watches utilisées pour les tests sont exclusivement synthétiques, en mémoire ou dans PGlite.

@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/api/company-watches",
+    "status": 401,
+    "code": "AUTH_REQUIRED",
+    "duration_ms": 1088
+  },
+  {
+    "path": "/api/media-watches",
+    "status": 401,
+    "code": "AUTH_REQUIRED",
+    "duration_ms": 693
+  }
+]
