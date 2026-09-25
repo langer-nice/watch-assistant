@@ -4,11 +4,39 @@
 
 At starting master `85b2e2d83492553902802bfbebc7563f16a666ee`, both email config readers accepted any nonempty, single-line `WATCH_EMAIL_FROM`. They passed the legacy `<address>` value unchanged to Resend, consistent with the supplied production HTTP 422 evidence. No production environment or outbox was read during this correction.
 
-Company and media now share one config reader and sender parser, including a transport-level guard. Bare `notifications@davidlangdesign.com` and the exact legacy `<notifications@davidlangdesign.com>` become `Watch Assistant <notifications@davidlangdesign.com>`. A valid existing display name is preserved. The grammar deliberately accepts ordinary ASCII mailboxes and simple unquoted names, not the full RFC mailbox grammar. Missing values, control characters (including CR/LF), arbitrary malformed input, multiple mailboxes, and domains other than the confirmed verified `davidlangdesign.com` fail closed. Domain verification itself remains a Resend responsibility. Changing the allowed domain requires a reviewed code change.
+Company and media now share one config reader and sender parser, including a transport-level guard. Bare `notifications@davidlangdesign.com` and the exact legacy `<notifications@davidlangdesign.com>` become `Watch Assistant <notifications@davidlangdesign.com>`. A valid existing display name is preserved. The grammar deliberately accepts ordinary ASCII mailboxes and simple unquoted names, not the full RFC mailbox grammar. Missing values, control characters (including CR/LF), arbitrary malformed input, multiple mailboxes, and domains outside the exact central allowlist fail closed. Domain verification itself remains a Resend responsibility. Changing the allowed domains requires a reviewed code change.
 
 Required server variables remain `RESEND_API_KEY`, `WATCH_EMAIL_FROM`, `WATCH_APP_BASE_URL` (HTTPS), plus the independent `WATCH_EMAIL_NOTIFICATIONS_ENABLED` / `MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED` flags. Only literal `true` in production outside tests enables delivery. Preview and test gates are unchanged. No additional variable is required.
 
 Invalid enabled configuration returns `configuration-failed` / `EMAIL_CONFIGURATION_INVALID` before outbox reads, claims or provider calls. Existing pending rows remain pending. Media enqueue/maintenance uses the enablement flag independently of config validity so configuration errors do not erase eligible work or mislabel it `EMAIL_DISABLED`. Baseline suppression, manual-check behavior, identity filtering and disabled-mode behavior are unchanged.
+
+## Sender domain policy (permanent correction)
+
+`server/watch-email-config.js` separates three responsibilities:
+
+1. `parseAsciiEmailAddress` validates an addr-spec independently of authorization. It rejects non-printable/non-ASCII characters before case conversion, requires exactly one `@`, validates a nonempty dot-atom local-part (maximum 64 characters), and validates DNS labels (1–63 ASCII characters, no leading/trailing hyphen, empty label or trailing dot). The address limit is 254 characters. It returns `{ localPart, domain }` or `null`; local-part case is preserved and only ASCII domain case is canonicalized to lowercase.
+2. The immutable `WATCH_EMAIL_ALLOWED_DOMAINS` list authorizes exactly `davidlangdesign.com` and `watch.davidlangdesign.com`. Syntax validity alone grants no authorization; other subdomains and suffix lookalikes remain rejected.
+3. `normalizeWatchEmailSender` accepts the existing bare, angle-bracket and simple ASCII display-name forms. It preserves the validated local-part and domain, retaining a valid display name or the established `Watch Assistant` default. Formatting is deterministic and idempotent; it never substitutes the root domain. Outer ASCII spaces remain supported, but controls, Unicode and whitespace inside the addr-spec are rejected.
+
+Both config readers and the Resend transport guard already call this shared module. No consumer, dependency, flag, UI or deployment configuration change is necessary.
+
+The September 25 read-only diagnosis found that Production's configured sender uses the Resend-verified `watch.davidlangdesign.com`, while the previous validator only authorized/reconstructed the root domain. The rejection reproduced on both pre-PR-26 master `3a203af324f5ab0e8edfd3b570c292704cc57b7b` and merge `d489ad5dd42f7e2a7d6ca0c2e7113ee5748c71f7`. No full sender address or credential is recorded here.
+
+## Outbox audit and release boundaries
+
+The diagnosis counted 185 historical media rows in `failed`, zero media rows in `pending`, and an empty company outbox. These are observations at diagnosis time, not a guarantee against subsequent independent application activity.
+
+Both processors select only `pending`; company also filters `channel=email`, and media restricts claim eligibility. SQL claim/submission/completion functions require `pending`. Media maintenance only terminalizes pending rows; it cannot change a failed row to pending. Even a provider error classified as retryable is terminal in the current outbox and requires separate operator review. This correction changes none of those paths, migrations, claim timeouts, idempotency keys or retry rules.
+
+Permanent regressions cover both processors with 185 synthetic failed rows plus pending/sent rows: only the new pending row is selected and sent to an injected fake provider, repeated processing does not resend it, and every historical field remains unchanged. A PostgreSQL/PGlite regression also verifies 185 synthetic failed rows against the real migrations, enabled/disabled maintenance, SQL claims and the media processor. No production records are copied or touched.
+
+After a future authorized production deployment, new eligible company events or new matching media articles may enqueue and send during the ordinary scheduled check. An already existing pending backlog, if created in the meantime, may also send (25 per processor per run). Baseline suppression, seen-article/event identities, Watch pause/deletion and verified-recipient requirements still apply. The 185 failed rows do not become eligible and are not requeued.
+
+Staging validation: first ensure the exact branch's Preview resolves exclusively to staging, with no production Supabase fallback, before publication. Do not change Vercel variables or deploy under this correction's authorization. Run the mocked transport and in-memory PostgreSQL tests with the verified subdomain. Any later browser inspection must use staging and prevent writes; do not request OTP, synchronize pending browser jobs, invoke cron or send email. Preview delivery must remain disabled regardless of flags.
+
+Production release is a separate decision requiring explicit user authorization: review the exact commit, tests and outbox audit; verify current nonsecret environment metadata and sender policy; merge/deploy only the approved commit. Reconcile the then-current pending backlog before deployment, because the ordinary scheduled run could send it. This PR does not authorize real-email testing or historical recovery.
+
+Rollback target: `dpl_6kcLnLwUgtCumjzRq9anrzDQGs3C` (commit `d489ad5dd42f7e2a7d6ca0c2e7113ee5748c71f7`). A separately authorized rollback would restore that deployment/alias without resetting outbox rows, snapshots or variables. It restores the known notification blockage; already accepted emails cannot be recalled, and any running invocation must be considered when assessing rollback completion.
 
 ## Outcomes and observability
 
