@@ -1,17 +1,39 @@
-// Shared, deliberately conservative sender grammar. Do not repair arbitrary input.
+// Exact authorization policy, shared by config readers and the transport guard.
+// No wildcard or implicit subdomain authorization. Changes require code review.
+export const WATCH_EMAIL_ALLOWED_DOMAINS = Object.freeze([
+  'davidlangdesign.com',
+  'watch.davidlangdesign.com',
+]);
+
+const isValidLocalPart = (localPart) => localPart.length <= 64
+  && /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/u.test(localPart);
+
+const isValidDomain = (domain) => domain.length <= 253
+  && domain.split('.').every((label) => label.length <= 63
+    && /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/u.test(label));
+
+/** Parse an ASCII addr-spec, without display name or surrounding whitespace.
+ * Returns null on invalid syntax; otherwise preserves local-part case and
+ * canonicalizes only ASCII domain case. Syntax does not grant authorization.
+ */
+export const parseAsciiEmailAddress = (address) => {
+  if (typeof address !== 'string' || address.length > 254 || /[^\x21-\x7e]/u.test(address)) return null;
+  const parts = address.split('@');
+  if (parts.length !== 2) return null;
+  const [localPart, domain] = parts;
+  if (!isValidLocalPart(localPart) || !isValidDomain(domain)) return null;
+  return { localPart, domain: domain.toLowerCase() };
+};
+
+// Deliberately conservative mailbox grammar: bare, <address>, or Name <address>.
+// Preserve a valid display name, or use the established default; never repair input.
 export const normalizeWatchEmailSender = (value) => {
   if (typeof value !== 'string' || /[\x00-\x1f\x7f]/u.test(value)) return null;
   const raw = value.replace(/^ +| +$/gu, '');
   const match = /^(?:([A-Za-z0-9][A-Za-z0-9 .'-]{0,99}) )?<([^<>\s]+)>$/u.exec(raw);
-  const address = match ? match[2] : raw;
-  // Reject Unicode before syntax checks or case conversion; never fold lookalikes.
-  if (/[^\x00-\x7f]/u.test(address) || address.length > 254) return null;
-  const parts = /^([A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*)@([A-Za-z0-9.-]+)$/u.exec(address);
-  if (!parts || parts[1].length > 64) return null;
-  const [, local, domain] = parts;
-  // Both parts are ASCII now, so lowercasing cannot perform Unicode case folding.
-  if (domain.toLowerCase() !== 'davidlangdesign.com') return null;
-  return `${match?.[1] || 'Watch Assistant'} <${local}@davidlangdesign.com>`;
+  const address = parseAsciiEmailAddress(match ? match[2] : raw);
+  if (!address || !WATCH_EMAIL_ALLOWED_DOMAINS.includes(address.domain)) return null;
+  return `${match?.[1] || 'Watch Assistant'} <${address.localPart}@${address.domain}>`;
 };
 
 export const emailNotificationsEnabled = (env, flag) => env?.[flag] === 'true'

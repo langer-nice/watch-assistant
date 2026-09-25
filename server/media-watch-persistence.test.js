@@ -445,6 +445,36 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       await service.rpc('maintain_media_watch_notifications',{p_enabled:true});
       assert.equal((await db.query("select count(*)::int as n from public.media_watch_notifications where watch_id=$1 and status='pending'",[current.id])).rows[0].n,0);
     });
+    await t.test('185 historical failed media rows survive maintenance, claims and restored sender configuration unchanged', async () => {
+      const current = makeWatch(); watches.addWatch(current); await flush();
+      // Synthetic PostgreSQL fixtures only. No production connection exists in this harness.
+      await db.query(`insert into public.media_watch_notifications
+        (watch_id,user_id,source_article_id,watch_title,article,status,attempt_count,last_error_code)
+        select $1,$2,'historical-' || n,'Synthetic historical Watch',
+          '{"title":"Historical article","url":"https://news.example/historical"}'::jsonb,
+          'failed',1,'EMAIL_PROVIDER_ERROR' from generate_series(1,185) n`, [current.id, USER_A]);
+      const historical = async () => (await db.query(
+        'select * from public.media_watch_notifications where watch_id=$1 order by id', [current.id])).rows;
+      const before = await historical(); assert.equal(before.length, 185);
+      for (const enabled of [true, false, true]) {
+        assert.equal((await service.rpc('maintain_media_watch_notifications', { p_enabled: enabled })).error, null);
+      }
+      const claims = await scoped('service_role', null, `select
+        public.claim_media_watch_email_notification(id,gen_random_uuid()) as claimed
+        from public.media_watch_notifications where watch_id=$1`, [current.id]);
+      assert.equal(claims.rows.length, 185);
+      assert.ok(claims.rows.every(row => row.claimed === null));
+      const { processMediaWatchEmailNotifications } = await import('./media-watch-notifications.js');
+      const result = await processMediaWatchEmailNotifications({
+        client: { ...service, from: table => service.from(table).eq('watch_id', current.id) },
+        env: { MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED: 'true', VERCEL_ENV: 'production',
+          RESEND_API_KEY: 'fake', WATCH_EMAIL_FROM: 'watch@watch.davidlangdesign.com',
+          WATCH_APP_BASE_URL: 'https://watch.example' },
+        sender: async () => assert.fail('historical failures must never reach the sender'),
+      });
+      assert.equal(result.pendingCount, 0); assert.equal(result.sentCount, 0);
+      assert.deepEqual(await historical(), before);
+    });
     await t.test('failed outbox constraints roll back Watch, snapshot and identity ledger together',async()=>{
       const current=makeWatch();watches.addWatch(current);await flush();await run([]);
       const before=(await db.query('select * from public.media_watch_snapshots where watch_id=$1',[current.id])).rows[0];
