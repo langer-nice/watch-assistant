@@ -4,7 +4,9 @@ import { mediaWatchDefinition } from '../src/js/media-watch-definition.js';
 
 export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabaseRequest, ...options } = {}) => async (request, response, next) => {
   if (new URL(request.url || '/', 'http://localhost').pathname !== '/api/media-watches') return next?.();
+  const startedAt = Date.now();
   const send = (status, body) => {
+    console.info('[Media Watches]', { method: request.method, statusCode: status, durationMs: Date.now() - startedAt, code: body.code || 'OK' });
     response.statusCode = status;
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Content-Type', 'application/json');
@@ -18,7 +20,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
         const { data, error } = await client.from('watches')
           .select('id,title,watch_definition,monitoring_source,monitoring_state,current_status,created_at,deleted_at,media_revision,media_mutation_id,last_checked_at,media_last_change_detected_at,last_change_item_id,last_change_title,last_change_url,last_change_summary,last_change_published_at')
           .eq('user_id', user.id).eq('type', 'media_news').order('id').range(start, start + 99);
-        if (error) throw new Error('DATABASE_ERROR');
+        if (error) throw Object.assign(new Error('DATABASE_ERROR'), { code: 'DATABASE_ERROR', databaseCode: error.code });
         watches.push(...data);
         if (data.length < 100) break;
       }
@@ -53,11 +55,12 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
       p_revision: raw.revision, p_mutation: raw.mutation, p_deleted: raw.deleted,
     });
     if (error) {
-      if (error.code === '40001') return send(409, { code: 'MEDIA_CONFLICT' });
-      throw new Error('DATABASE_ERROR');
+      if (['PT409', '40001'].includes(error.code)) return send(409, { code: 'MEDIA_CONFLICT' });
+      throw Object.assign(new Error('DATABASE_ERROR'), { code: 'DATABASE_ERROR', databaseCode: error.code });
     }
     return send(200, { watch: data });
   } catch (error) {
+    console.warn('[Media Watches] Request failed.', { code: error.code || 'PERSISTENCE_UNAVAILABLE', databaseCode: /^[A-Z0-9]{5,12}$/.test(error.databaseCode || '') ? error.databaseCode : undefined, durationMs: Date.now() - startedAt });
     if (error instanceof SyntaxError) return send(400, { code: 'INVALID_BODY' });
     return send(error.statusCode || 503, { code: error.code || 'PERSISTENCE_UNAVAILABLE', error: 'Media Watch persistence is unavailable.' });
   }

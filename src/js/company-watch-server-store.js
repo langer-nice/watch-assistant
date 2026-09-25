@@ -1,3 +1,4 @@
+import { createWatchRequestGate, readWatchCache, writeWatchCache, watchRequest } from './watch-server-resilience.js';
 import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
 import { SUPPORTED_WATCH_CATEGORIES } from './watch-category.js';
 
@@ -5,6 +6,9 @@ let accessToken = null;
 let authStateSource = null;
 let serverWatches = [];
 let hydrated = false;
+let loading = false;
+let confirmed = false;
+const gate = createWatchRequestGate('company');
 let hydrationError = null;
 let authGeneration = 0;
 let latestHydrationRequest = 0;
@@ -30,7 +34,7 @@ const request = async (path, options = {}, token = getAccessToken()) => {
     throw error;
   }
   const requestGeneration = authGeneration;
-  const response = await fetch(path, {
+  const response = await watchRequest(path, {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -67,6 +71,7 @@ const request = async (path, options = {}, token = getAccessToken()) => {
 const replaceWatch = (watch) => {
   serverWatches = [...serverWatches.filter(({ id }) => id !== watch.id), watch]
     .sort((first, second) => Date.parse(first.createdAt) - Date.parse(second.createdAt));
+  writeWatchCache('company', authStateSource?.getState?.()?.session?.user?.id, serverWatches);
   notify();
   return watch;
 };
@@ -75,6 +80,7 @@ const normalizePersistedWatch = (watch) => {
   if (
     !watch
     || typeof watch.id !== 'string'
+    || typeof watch.title !== 'string' || !watch.title.trim()
     || watch.inputType !== 'company'
     || !SUPPORTED_WATCH_CATEGORIES.includes(watch.category)
   ) {
@@ -101,45 +107,47 @@ export const getServerCompanyWatches = () => {
 };
 export const getCompanyWatchServerHydrationError = () => hydrationError;
 
-export const hydrateServerCompanyWatches = async () => {
+export const getCompanyWatchLoadState = () => ({
+  status: !authIdentity ? 'idle' : loading ? 'loading' : hydrationError ? (hydrated ? 'stale' : 'unavailable') : confirmed ? 'ready' : hydrated ? 'stale' : 'loading',
+  hasSnapshot: hydrated, error: hydrationError,
+});
+
+export const hydrateServerCompanyWatches = (options = {}) => {
   const token = getAccessToken();
-  if (!token) {
-    serverWatches = [];
-    hydrated = false;
-    hydrationError = null;
-    notify();
-    return [];
-  }
+  if (!token) return Promise.resolve([]);
   const generation = authGeneration;
-  const hydrationRequest = ++latestHydrationRequest;
-  try {
-    const body = await request('/api/company-watches', {}, token);
-    if (
-      generation !== authGeneration
-      || hydrationRequest !== latestHydrationRequest
-      || token !== getAccessToken()
-    ) return getServerCompanyWatches();
-    if (!Array.isArray(body?.watches)) {
-      const error = new Error('The Company Watch list response is invalid.');
-      error.code = 'INVALID_PERSISTED_WATCHES';
-      throw error;
-    }
-    serverWatches = body.watches.map(normalizePersistedWatch);
-    hydrated = true;
-    hydrationError = null;
+  const user = authStateSource?.getState?.()?.session?.user?.id;
+  const fresh = () => generation === authGeneration && token === getAccessToken();
+  const restore = () => {
+    if (!fresh()) return getServerCompanyWatches();
+    const cache = readWatchCache('company', user, normalizePersistedWatch);
+    if (cache) { serverWatches = cache.rows; hydrated = true; }
+    if (!confirmed) hydrationError = Object.assign(new Error('Waiting before retry.'), { code: 'BACKOFF' });
     notify();
-  } catch (error) {
-    if (
-      generation === authGeneration
-      && hydrationRequest === latestHydrationRequest
-      && token === getAccessToken()
-    ) {
-      hydrationError = error;
-      notify();
+    return getServerCompanyWatches();
+  };
+  return gate(user || 'session', async () => {
+    const hydrationRequest = ++latestHydrationRequest;
+    loading = true;
+    notify();
+    try {
+      const body = await request('/api/company-watches', {}, token);
+      if (!fresh() || hydrationRequest !== latestHydrationRequest) return getServerCompanyWatches();
+      if (!Array.isArray(body?.watches)) throw Object.assign(new Error('Invalid Watch list.'), { code: 'INVALID_PERSISTED_WATCHES' });
+      const next = body.watches.map(normalizePersistedWatch);
+      serverWatches = next;
+      hydrated = true;
+      confirmed = true;
+      hydrationError = null;
+      writeWatchCache('company', user, next);
+      return getServerCompanyWatches();
+    } catch (error) {
+      if (fresh()) hydrationError = error;
+      throw error;
+    } finally {
+      if (fresh()) { loading = false; notify(); }
     }
-    throw error;
-  }
-  return getServerCompanyWatches();
+  }, { ...options, scope: generation, onSkipped: restore });
 };
 
 export const configureCompanyWatchServerStore = async (auth) => {
@@ -163,24 +171,30 @@ export const configureCompanyWatchServerStore = async (auth) => {
       latestHydrationRequest += 1;
       serverWatches = [];
       hydrated = false;
+      confirmed = false;
+      loading = false;
       hydrationError = null;
       notify();
       return;
     }
 
+    if (tokenChanged && !identityChanged) authGeneration += 1;
     accessToken = nextAccessToken;
     authIdentity = nextIdentity;
     if (identityChanged) {
       authGeneration += 1;
       latestHydrationRequest += 1;
-      serverWatches = [];
-      hydrated = false;
+      const cache = readWatchCache('company', state.session?.user?.id, normalizePersistedWatch);
+      serverWatches = cache?.rows || [];
+      hydrated = Boolean(cache);
+      confirmed = false;
+      loading = false;
       hydrationError = null;
       notify();
     }
     if (identityChanged || tokenChanged || !hydrated) {
       try {
-        await hydrateServerCompanyWatches();
+        await hydrateServerCompanyWatches({ automatic: !(tokenChanged && !identityChanged) });
       } catch (error) {
         if (error?.code === 'AUTH_SESSION_CHANGED') return;
         console.warn('[Company Watches] Server hydration failed.', { code: error?.code });
@@ -224,6 +238,7 @@ export const updateServerCompanyWatch = async (id, changes) => {
 export const deleteServerCompanyWatch = async (id) => {
   await request(`/api/company-watch?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
   serverWatches = serverWatches.filter((watch) => watch.id !== id);
+  writeWatchCache('company', authStateSource?.getState?.()?.session?.user?.id, serverWatches);
   notify();
 };
 
@@ -244,3 +259,9 @@ export const checkServerCompanyWatch = async (id) => {
     throw error;
   }
 };
+
+if (typeof window !== 'undefined') {
+  for (const event of ['focus', 'online']) window.addEventListener(event, () => {
+    void hydrateServerCompanyWatches({ automatic: true }).catch(() => {});
+  });
+}

@@ -1,3 +1,4 @@
+import { createWatchRequestGate, readWatchCache, writeWatchCache, watchRequest } from './watch-server-resilience.js';
 import { localWatchStorageKey, safeStorage } from './account-storage.js';
 import { addUpdateToWatch } from './watch-updates.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
@@ -12,7 +13,25 @@ let identity = null;
 let rows = [];
 let emailEnabled = false;
 let running = null;
-let rerun = false;
+let loadError = null;
+let syncError = null;
+let loaded = false;
+let confirmed = false;
+let loading = false;
+const gate = createWatchRequestGate('media');
+const validateRow = (row) => {
+  if (!row || typeof row.id !== 'string' || typeof row.title !== 'string' || !row.watch_definition || !row.monitoring_source?.url || !['monitoring', 'paused'].includes(row.monitoring_state)) {
+    throw Object.assign(new Error('Invalid media Watch list.'), { code: 'INVALID_PERSISTED_WATCHES' });
+  }
+  mediaWatchDefinition({ ...row.watch_definition, id: row.id, title: row.title,
+    isStory: row.watch_definition.inputType === 'url', monitoringSource: row.monitoring_source,
+    status: row.monitoring_state === 'paused' ? 'paused' : 'watching' });
+  return row;
+};
+export const getMediaWatchLoadState = () => ({
+  status: !owner() ? 'idle' : loading ? 'loading' : loadError ? (loaded ? 'stale' : 'unavailable') : confirmed ? 'ready' : loaded ? 'stale' : 'loading',
+  hasSnapshot: loaded, error: loadError, syncing: Boolean(running), syncError,
+});
 const session = () => {
   const state = authSource?.getState?.();
   return state?.status === 'authenticated' ? state.session : null;
@@ -25,12 +44,12 @@ const read = (user, id) => {
 };
 const write = (user, id, value) => localStorage.setItem(key(user, id), JSON.stringify(value));
 const request = async (token, options = {}) => {
-  const response = await fetch('/api/media-watches', {
-    ...options, signal: AbortSignal.timeout(8000),
+  const response = await watchRequest('/api/media-watches', {
+    ...options,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
   });
   const body = await response.json();
-  if (!response.ok) throw Object.assign(new Error(body.error || 'Media persistence unavailable.'), { code: body.code });
+  if (!response.ok) throw Object.assign(new Error(body.error || 'Media persistence unavailable.'), { code: body.code, statusCode: response.status });
   return body;
 };
 
@@ -44,6 +63,10 @@ export const prepareMediaWatch = (watch, previous) => {
   try {
     const definition = mediaWatchDefinition(owned);
     const existing = read(user, watch.id);
+    const confirmedRow = rows.find(row => row.id === watch.id);
+    if (previous && previous.status === watch.status && confirmedRow && !existing?.pending) {
+      definition.monitoring_state = confirmedRow.monitoring_state;
+    }
     if (existing?.deleted) return owned;
     if (JSON.stringify(existing?.definition) !== JSON.stringify(definition)) {
       const remote = rows.find((row) => row.id === watch.id);
@@ -51,25 +74,17 @@ export const prepareMediaWatch = (watch, previous) => {
         definition, revision: existing?.revision ?? Number(remote?.media_revision ?? 0),
         mutation: crypto.randomUUID(), baseMutation: existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: false,
       });
+      queueMicrotask(() => { void synchronizeMediaWatches(); });
     }
-    queueMicrotask(() => { void synchronizeMediaWatches(); });
   } catch {
-    // An unsupported edit stays local and suspends its last valid server definition.
+    // Validation is not a monitoring decision. Retain the edit without sending a pause.
     const existing = read(user, watch.id);
-    const remote = rows.find((row) => row.id === watch.id);
-    if (!existing?.deleted && !existing?.localOnly && (existing || remote)) {
-      try {
-        const definition = existing?.definition || {
-          id: remote.id, title: remote.title, watch_definition: remote.watch_definition,
-          monitoring_source: remote.monitoring_source,
-        };
-        write(user, watch.id, { definition: { ...definition, monitoring_state: 'paused' },
-          revision: existing?.revision ?? Number(remote.media_revision), mutation: crypto.randomUUID(),
-          baseMutation: existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: false, localOnly: true });
-        queueMicrotask(() => { void synchronizeMediaWatches(); });
-      } catch { /* Preserve local data if browser storage is unavailable. */ }
+    if (!existing?.deleted) {
+      try { write(user, watch.id, { ...existing, localOnly: true, validationError: true }); }
+      catch { /* The local Watch remains the source of the unsynced edit. */ }
     }
   }
+
   return owned;
 };
 
@@ -107,7 +122,7 @@ export const mergeMediaWatches = (local) => {
   for (const row of (user && user === identity ? rows : [])) {
     const saved = read(user, row.id);
     if (saved?.deleted || row.deleted_at) { merged.delete(row.id); continue; }
-    if (saved?.pending || saved?.localOnly) continue;
+    if ((saved?.pending || saved?.localOnly) && merged.has(row.id)) continue;
     const remote = getMediaServerWatches().find((watch) => watch.id === row.id);
     // Never replace a local Watch with uncertain ownership.
     if (!merged.has(row.id) || merged.get(row.id).mediaPersistence?.ownerId === user) {
@@ -130,6 +145,7 @@ export const getMediaPersistenceState = (watch) => {
   if (!user || watch.mediaPersistence?.ownerId !== user) return { status: 'local-only' };
   const job = read(user, watch.id);
   const remote = rows.find((row) => row.id === watch.id);
+  if (job?.localOnly) return { status: 'local-only' };
   if (job?.conflict) return { status: 'conflict', remoteTitle: remote?.title || '', remoteRequest: remote?.watch_definition?.request || '', revision: Number(remote?.media_revision) };
   if (job?.pending) return { status: 'pending' };
   if (job?.localOnly || (!job && !remote)) return { status: 'local-only' };
@@ -144,84 +160,113 @@ export const keepLocalMediaChanges = async (id, reviewedRevision) => {
     || Number(remote?.media_revision) !== reviewedRevision) return;
   write(user, id, { ...job, revision: reviewedRevision, mutation: crypto.randomUUID(), conflict: false, pending: true });
   notify();
-  await synchronizeMediaWatches();
+  return synchronizeMediaWatches();
 };
 
-export const synchronizeMediaWatches = async () => {
-  if (running) { rerun = true; return running; }
+export const synchronizeMediaWatches = async ({ automatic = false, readOnly = false } = {}) => {
   const active = session();
-  if (!active?.access_token || !active.user?.id) return;
+  if (!active?.access_token || !active.user?.id) return { ok: false, code: 'AUTH_REQUIRED' };
   const user = active.user.id;
   const token = active.access_token;
   const epoch = generation;
   const fresh = () => epoch === generation && token === session()?.access_token && user === owner();
-  running = (async () => {
-    try {
-      const jobs = Object.keys(localStorage).filter((name) => name.startsWith(`${PREFIX}${user}.`));
-      for (const name of jobs) {
-        if (!fresh()) return;
-        const job = JSON.parse(localStorage.getItem(name) || 'null');
-        if (!job?.pending || job.conflict) continue;
+  try {
+    return await gate(user, async () => {
+      const attempt = {};
+      running = attempt;
+      loading = true;
+      syncError = null;
+      notify();
+      let failure = null;
+      try {
+        const jobs = readOnly ? [] : Object.keys(localStorage).filter((name) => name.startsWith(`${PREFIX}${user}.`));
+        for (const name of jobs) {
+          if (!fresh()) return { ok: false, code: 'AUTH_SESSION_CHANGED' };
+          const job = JSON.parse(localStorage.getItem(name) || 'null');
+          // Old automatic pause jobs were marked localOnly. Quarantine them; never replay.
+          if (!job?.pending || job.conflict || job.localOnly) continue;
+          try {
+            const { watch } = await request(token, { method: 'POST', body: JSON.stringify(job) });
+            if (!watch || !Number.isSafeInteger(Number(watch.media_revision))) throw Object.assign(new Error('Invalid sync response.'), { code: 'INVALID_PERSISTED_WATCH' });
+            if (!fresh()) return { ok: false, code: 'AUTH_SESSION_CHANGED' };
+            const current = read(user, job.definition.id);
+            if (current?.mutation === job.mutation) {
+              write(user, job.definition.id, { ...current, revision: Number(watch.media_revision), pending: false });
+            } else if (current && current.revision === job.revision && current.baseMutation === job.mutation) {
+              write(user, job.definition.id, { ...current, revision: Number(watch.media_revision), baseMutation: null });
+            }
+          } catch (error) {
+            if (!fresh()) return { ok: false, code: 'AUTH_SESSION_CHANGED' };
+            const current = read(user, job.definition.id);
+            if (error.code === 'MEDIA_CONFLICT' && current?.mutation === job.mutation) {
+              write(user, job.definition.id, { ...current, conflict: true });
+            }
+            failure = error;
+            break; // One failed write ends this attempt, never a retry storm.
+          }
+        }
+        const readId = ++latestRead;
         try {
-          const { watch } = await request(token, { method: 'POST', body: JSON.stringify(job) });
-          if (!fresh()) return;
-          const current = read(user, job.definition.id);
-          if (current?.mutation === job.mutation) {
-            write(user, job.definition.id, { ...current, revision: watch.media_revision, pending: false });
-          } else if (current && current.revision === job.revision && current.baseMutation === job.mutation) {
-            // Only a confirmed predecessor can advance an edit/deletion queued during this request.
-            write(user, job.definition.id, { ...current, revision: watch.media_revision, baseMutation: null });
-            rerun = true;
+          const body = await request(token);
+          if (!Array.isArray(body?.watches)) throw Object.assign(new Error('Invalid media Watch list.'), { code: 'INVALID_PERSISTED_WATCHES' });
+          const next = body.watches.map(validateRow);
+          if (fresh() && readId === latestRead) {
+            rows = next;
+            loaded = true;
+            confirmed = true;
+            loadError = null;
+            emailEnabled = body.emailEnabled === true;
+            writeWatchCache('media', user, rows);
+            for (const row of rows) {
+              const current = read(user, row.id);
+              if (current?.pending && current.baseMutation && current.baseMutation === row.media_mutation_id) {
+                write(user, row.id, { ...current, revision: Number(row.media_revision), baseMutation: null, conflict: false });
+              }
+            }
           }
         } catch (error) {
-          if (!fresh()) return;
-          const current = read(user, job.definition.id);
-          if (error.code === 'MEDIA_CONFLICT' && current?.mutation === job.mutation) {
-            write(user, job.definition.id, { ...current, conflict: true });
-          }
+          if (fresh()) loadError = error;
+          failure ||= error;
         }
+        if (failure) throw failure;
+        return { ok: true };
+      } finally {
+        if (running === attempt) running = null;
+        if (fresh()) { loading = false; syncError = failure; notify(); }
       }
-      const readId = ++latestRead;
-      const body = await request(token);
-      if (fresh() && readId === latestRead) {
-        rows = body.watches;
-        emailEnabled = body.emailEnabled === true;
-        for (const row of rows) {
-          const current = read(user, row.id);
-          if (current?.pending && current.baseMutation && current.baseMutation === row.media_mutation_id) {
-            write(user, row.id, { ...current, revision: Number(row.media_revision), baseMutation: null, conflict: false });
-            rerun = true;
-            continue;
-          }
-          // An explicit deletion can retry against a newer definition without overwriting it.
-          if (current?.deleted && current.conflict) {
-            write(user, row.id, { ...current, revision: Number(row.media_revision),
-              mutation: crypto.randomUUID(), conflict: false, pending: !row.deleted_at });
-            if (!row.deleted_at) rerun = true;
-          }
-        }
+    }, { automatic, scope: epoch, onSkipped: () => {
+      if (fresh()) {
+        const cached = readWatchCache('media', user, validateRow);
+        if (cached) { rows = cached.rows; loaded = true; }
+        if (!confirmed) loadError = Object.assign(new Error('Waiting before retry.'), { code: 'BACKOFF' });
         notify();
       }
-    } catch {
-      // Keep both local data and the durable pending operation for a later online/session retry.
-    }
-  })();
-  try { await running; } finally {
-    running = null;
-    if (rerun) { rerun = false; void synchronizeMediaWatches(); }
+      return { ok: false, code: 'BACKOFF' };
+    } });
+  } catch (error) {
+    return { ok: false, code: error.code || 'SYNC_FAILED' };
   }
 };
 
 export const configureMediaWatchServerStore = async (auth) => {
   unsubscribe?.();
   authSource = auth;
+  let lastToken;
   const apply = () => {
     const state = auth?.getState?.();
     if (['loading', 'confirming'].includes(state?.status)) return;
     const next = owner();
+    const token = session()?.access_token;
+    if (next === identity && token === lastToken) return;
+    lastToken = token;
     generation += 1;
     latestRead += 1;
-    if (next !== identity) { rows = []; emailEnabled = false; identity = next; notify(); }
+    if (next !== identity) {
+      const cached = readWatchCache('media', next, validateRow);
+      rows = cached?.rows || []; loaded = Boolean(cached); confirmed = false;
+      loadError = null; syncError = null; loading = false;
+      emailEnabled = false; identity = next; notify();
+    }
     // Recover owned local definitions whose pending record was never written; never adopt unowned legacy data.
     try {
       const local = JSON.parse(safeStorage.getItem(localWatchStorageKey('watchAssistant.watches')) || '[]');
@@ -229,16 +274,16 @@ export const configureMediaWatchServerStore = async (auth) => {
         if (watch.mediaPersistence?.ownerId === next && !read(next, watch.id)) prepareMediaWatch(watch, watch);
       }
     } catch { /* unavailable storage leaves the browser copy intact */ }
-    void synchronizeMediaWatches();
+    void synchronizeMediaWatches({ automatic: true });
   };
   unsubscribe = auth?.subscribe?.(apply);
   apply();
-  await synchronizeMediaWatches();
+  await synchronizeMediaWatches({ automatic: true });
 };
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => { void synchronizeMediaWatches(); });
-  window.addEventListener('focus', () => { void synchronizeMediaWatches(); });
+  window.addEventListener('online', () => { void synchronizeMediaWatches({ automatic: true }); });
+  window.addEventListener('focus', () => { void synchronizeMediaWatches({ automatic: true }); });
   window.addEventListener('storage', (event) => {
-    if (event.key?.startsWith(PREFIX)) { notify(); void synchronizeMediaWatches(); }
+    if (event.key?.startsWith(PREFIX)) { notify(); void synchronizeMediaWatches({ automatic: true }); }
   });
 }
