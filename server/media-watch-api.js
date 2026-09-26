@@ -53,7 +53,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
       p_revision: raw.revision, p_mutation: raw.mutation, p_deleted: raw.deleted,
     });
     if (error) {
-      if (error.code === '40001') return send(409, { code: 'MEDIA_CONFLICT' });
+      if (['PT409', '40001'].includes(error.code)) return send(409, { code: 'MEDIA_CONFLICT' });
       throw new Error('DATABASE_ERROR');
     }
     return send(200, { watch: data });
