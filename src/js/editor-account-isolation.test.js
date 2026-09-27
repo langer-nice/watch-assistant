@@ -181,6 +181,8 @@ test('delayed server hydration from A cannot populate B, and returning A can reo
   let resolveHydration;
   globalThis.fetch = () => new Promise(resolve => { resolveHydration = resolve; });
   const delayed = hydrateServerCompanyWatches().catch(error => error.code);
+  await Promise.resolve();
+  await Promise.resolve();
   globalThis.fetch = async () => Response.json({ watches: [] });
   auth.emit('authenticated', 'synthetic-user-b');
   assertCleared();

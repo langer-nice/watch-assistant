@@ -20,8 +20,7 @@ initTopNavigation();
 let appStarted = false;
 const authUi = initAuthUi({ onResume: async (request, owner) => {
   const epoch = getAccountEpoch();
-  await configureCompanyWatchServerStore(authUi.auth);
-  await configureMediaWatchServerStore(authUi.auth);
+  await Promise.all([configureCompanyWatchServerStore(authUi.auth), configureMediaWatchServerStore(authUi.auth)]);
   if (appStarted || owner !== getAccountOwner() || epoch !== getAccountEpoch()) return;
   if (!authUi.canEnterEditor()) return;
   document.querySelector('#newWatchInput').value = request;
@@ -40,8 +39,9 @@ window.addEventListener('pageshow', (event) => {
 const start = async () => {
   if (authUi) {
     await authUi.ready;
-    await configureCompanyWatchServerStore(authUi.auth);
-    await configureMediaWatchServerStore(authUi.auth);
+    const stores = Promise.all([configureCompanyWatchServerStore(authUi.auth), configureMediaWatchServerStore(authUi.auth)]);
+    // Editing needs the target Watch; list pages render immediately with a load state.
+    if (document.querySelector('#newWatchForm')) await stores;
   }
   if (authUi && !authUi.canEnterEditor()) return;
   if (appStarted) return;

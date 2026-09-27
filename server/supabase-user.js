@@ -36,16 +36,22 @@ export const authenticateSupabaseRequest = async (request, {
 } = {}) => {
   const token = getBearerToken(request);
   const { url, anonKey } = getServerConfig(env);
+  const signal = AbortSignal.timeout(6000);
+  const boundedFetch = (url, options = {}) => fetch(url, { ...options, signal });
   const authClient = createClientImpl(url, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
+    global: { fetch: boundedFetch },
   });
   const { data, error } = await authClient.auth.getUser(token);
+  if (signal.aborted || error?.status >= 500 || error?.name === 'AuthRetryableFetchError') {
+    throw new SupabaseAuthError('AUTH_UNAVAILABLE', 503, 'Session verification is temporarily unavailable.');
+  }
   if (error || !data?.user?.id) {
     throw new SupabaseAuthError('INVALID_SESSION', 401, 'The session is invalid or expired.');
   }
   const client = createClientImpl(url, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: { fetch: boundedFetch, headers: { Authorization: `Bearer ${token}` } },
   });
   return { client, user: data.user, token };
 };

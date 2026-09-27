@@ -5,6 +5,15 @@ import { authenticateSupabaseRequest } from './supabase-user.js';
 
 const request = (authorization) => ({ headers: authorization ? { authorization } : {} });
 
+test('temporary Auth failures remain retryable and do not invalidate the session', async () => {
+  for (const error of [{ status: 503 }, { name: 'AuthRetryableFetchError' }]) {
+    await assert.rejects(authenticateSupabaseRequest(request('Bearer valid.jwt.token'), {
+      env: { SUPABASE_URL: 'https://pilot.supabase.co', SUPABASE_ANON_KEY: 'public-key' },
+      createClientImpl: () => ({ auth: { getUser: async () => ({ data: null, error }) } }),
+    }), ({ code, statusCode }) => code === 'AUTH_UNAVAILABLE' && statusCode === 503);
+  }
+});
+
 test('server authentication rejects missing and malformed Bearer tokens', async () => {
   await assert.rejects(
     authenticateSupabaseRequest(request(), {

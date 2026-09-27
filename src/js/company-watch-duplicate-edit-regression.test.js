@@ -56,7 +56,7 @@ test('server Company modal edit hydrates auth without profile UI and closes inst
 
   assert.match(authUi, /const ready = auth\.initialize\(\)/);
   assert.doesNotMatch(authUi, /if \(!root\) return null/);
-  assert.match(main, /await authUi\.ready;[\s\S]*?await configureCompanyWatchServerStore/);
+  assert.match(main, /await authUi\.ready;[\s\S]*?const stores = Promise\.all\(\[configureCompanyWatchServerStore/);
   assert.match(initialization, /getWatchById\(editWatchId\)/);
   assert.match(initialization, /isRequestedModalEditMode[\s\S]*?watch-editor-close/);
   assert.doesNotMatch(

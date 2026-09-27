@@ -134,6 +134,7 @@ const throwDatabaseError = (error) => {
       'ACTIVE_WATCH_EXISTS', 409, 'An active Company Watch already exists for this SIREN.',
     );
   }
+  console.warn('[Company Watches] Database request failed.', { code: /^[A-Z0-9]{5,12}$/.test(error?.code || '') ? error.code : 'UNKNOWN' });
   throw new CompanyWatchRepositoryError('DATABASE_ERROR', 500, 'The Company Watch could not be saved.');
 };
 

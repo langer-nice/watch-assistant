@@ -1,0 +1,42 @@
+[
+  {
+    "table": "company_watch_notifications",
+    "rls": true,
+    "force": false
+  },
+  {
+    "table": "company_watch_snapshot_history",
+    "rls": true,
+    "force": false
+  },
+  {
+    "table": "company_watch_snapshots",
+    "rls": true,
+    "force": false
+  },
+  {
+    "table": "media_watch_notifications",
+    "rls": true,
+    "force": false
+  },
+  {
+    "table": "media_watch_seen_articles",
+    "rls": true,
+    "force": false
+  },
+  {
+    "table": "media_watch_snapshots",
+    "rls": true,
+    "force": false
+  },
+  {
+    "table": "profiles",
+    "rls": true,
+    "force": false
+  },
+  {
+    "table": "watches",
+    "rls": true,
+    "force": false
+  }
+]

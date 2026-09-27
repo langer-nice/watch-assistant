@@ -1,3 +1,4 @@
+import { getWatchListAvailability, renderWatchLoadNotice } from './watch-load-notice.js';
 import { renderExampleWatches, renderExampleDetail } from './example-watches.js';
 import { renderSummaryCard } from './watch-summary-card.js';
 import { createEditorSession } from './editor-session.js';
@@ -1124,6 +1125,7 @@ const initHomeWatchControls = () => {
 };
 
 const renderWatchList = () => {
+  renderWatchLoadNotice(getLanguage(), getWatches().length);
   const list = document.querySelector('#watchList');
   const sortControl = document.querySelector('#allWatchesSort');
   const sortRow = document.querySelector('#allWatchesSortRow');
@@ -1407,7 +1409,8 @@ const renderWatchDetail = () => {
   };
 
   if (!watch) {
-    titleEl.textContent = t('detail.notFoundTitle');
+    const uncertain = getWatchListAvailability().uncertain;
+    titleEl.textContent = uncertain ? t('detail.title') : t('detail.notFoundTitle');
     if (categoryEl) {
       categoryEl.hidden = true;
     }
@@ -1419,7 +1422,7 @@ const renderWatchDetail = () => {
     }
     if (notFoundEl) {
       notFoundEl.textContent = t('detail.notFoundCopy');
-      notFoundEl.hidden = false;
+      notFoundEl.hidden = uncertain;
     }
     hideDetailContent();
     return;
@@ -2344,23 +2347,25 @@ const renderHomeSummary = () => {
   }
 
   const homeReport = getHomeReport();
+  const availability = getWatchListAvailability();
+  const uncertain = availability.uncertain;
   const hasLocalUserCreatedWatches = getUserCreatedWatches().length > 0;
   const hasUserCreatedWatches = hasLocalUserCreatedWatches || getServerCompanyWatches().length > 0;
   const hasReport = Boolean(homeReport.report);
   const hasHomeItems = homeReport.watches.length > 0;
   const hasQuietItems = homeReport.quietWatches.length > 0;
-  if (briefingReport) briefingReport.hidden = !hasUserCreatedWatches && !hasReport;
+  if (briefingReport) briefingReport.hidden = !hasUserCreatedWatches && !hasReport && !uncertain;
   if (briefingFeed) briefingFeed.hidden = !hasHomeItems && !hasQuietItems;
-  if (emptyState) emptyState.hidden = hasUserCreatedWatches || hasReport;
+  if (emptyState) emptyState.hidden = uncertain || hasUserCreatedWatches || hasReport;
   if (caughtUpState) {
-    caughtUpState.hidden = !hasReport || hasHomeItems || hasQuietItems;
+    caughtUpState.hidden = uncertain || !hasReport || hasHomeItems || hasQuietItems;
   }
   if (allQuiet) allQuiet.hidden = !hasQuietItems;
 
   if (generateReportButton) {
     const generating = isReportGenerationInProgress();
     const generateLabel = t(generating ? 'home.generatingReport' : 'home.generateReport');
-    generateReportButton.disabled = generating || !hasLocalUserCreatedWatches;
+    generateReportButton.disabled = uncertain || generating || !hasLocalUserCreatedWatches;
     generateReportButton.setAttribute('aria-label', generateLabel);
     generateReportButton.setAttribute('title', generateLabel);
     generateReportButton.toggleAttribute('aria-busy', generating);
@@ -2412,28 +2417,30 @@ const renderHomeSummary = () => {
     greeting.textContent = t(greetingKey);
   }
   if (checkedSummary) {
+    checkedSummary.hidden = uncertain;
     checkedSummary.textContent = t(pluralKey('home.checkedAway', totalChecked), {
       count: totalChecked,
     });
   }
   if (attentionCount) {
-    attentionCount.textContent = String(attentionWatches.length);
+    attentionCount.textContent = uncertain ? '—' : String(attentionWatches.length);
   }
   if (attentionLabel) {
     attentionLabel.textContent = t(pluralKey('home.attentionLabel', attentionWatches.length));
   }
   if (updatedCount) {
-    updatedCount.textContent = String(updatedWatches.length);
+    updatedCount.textContent = uncertain ? '—' : String(updatedWatches.length);
   }
   if (updatedLabel) {
     updatedLabel.textContent = t(pluralKey('home.updatedLabel', updatedWatches.length));
   }
-  if (newSummary) newSummary.hidden = newlyCreatedWatches.length === 0;
+  if (newSummary) newSummary.hidden = uncertain || newlyCreatedWatches.length === 0;
   if (newCount) newCount.textContent = String(newlyCreatedWatches.length);
   if (newLabel) {
     newLabel.textContent = t(pluralKey('home.newLabel', newlyCreatedWatches.length));
   }
   if (everythingChecked) {
+    everythingChecked.hidden = uncertain;
     everythingChecked.textContent = t(pluralKey('home.everythingChecked', quietWatches.length), {
       count: quietWatches.length,
     });
@@ -2445,8 +2452,8 @@ const renderHomeSummary = () => {
   ].forEach(([status, count, labelElement]) => {
     const trigger = document.querySelector(`[data-home-status-target="${status}"]`);
     if (!trigger) return;
-    trigger.disabled = count === 0;
-    trigger.setAttribute('aria-label', t('home.statusNavigationLabel', {
+    trigger.disabled = uncertain || count === 0;
+    trigger.setAttribute('aria-label', uncertain ? (labelElement?.textContent || '') : t('home.statusNavigationLabel', {
       count,
       status: labelElement?.textContent || '',
     }));

@@ -1,0 +1,313 @@
+{
+  "function": {
+    "acl": [
+      "postgres=X/postgres",
+      "authenticated=X/postgres"
+    ],
+    "md5": "187ff83ffcbed58e401355dafe1f1486",
+    "owner": "postgres",
+    "signature": "persist_media_watch(uuid,text,jsonb,jsonb,text,bigint,uuid,boolean)",
+    "definition": "CREATE OR REPLACE FUNCTION public.persist_media_watch(p_id uuid, p_title text, p_source jsonb, p_definition jsonb, p_state text, p_revision bigint, p_mutation uuid, p_deleted boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare target public.watches%rowtype;\nbegin\n if auth.uid() is null or p_mutation is null or p_revision is null or p_revision < 0 or p_deleted is null\n   or p_state is null or p_state not in ('monitoring','paused')\n   or not public.valid_media_definition(p_source,p_definition) then\n  raise exception 'Invalid media persistence request' using errcode='22023';\n end if;\n -- No upsert: a retry must never replace a newer definition or resurrect a tombstone.\n if p_revision = 0 then\n  insert into public.watches(id,user_id,type,title,monitoring_source,watch_definition,monitoring_state,current_status,media_revision,media_mutation_id,deleted_at)\n   values(p_id,auth.uid(),'media_news',p_title,p_source,p_definition,p_state,\n     case when p_state='paused' then 'paused' else 'watching' end,1,p_mutation,\n     case when p_deleted then now() else null end)\n   on conflict(id) do nothing;\n end if;\n select * into target from public.watches where id=p_id and user_id=auth.uid() and type='media_news' for update;\n if target.id is null then raise exception 'Media conflict' using errcode='40001'; end if;\n if target.media_mutation_id = p_mutation then return to_jsonb(target); end if;\n if target.media_revision <> p_revision or target.deleted_at is not null then\n  raise exception 'Media conflict' using errcode='40001';\n end if;\n update public.watches set title=p_title,monitoring_source=p_source,watch_definition=p_definition,\n   monitoring_state=p_state,current_status=case when p_state='paused' then 'paused' else 'watching' end,\n   media_mutation_id=p_mutation,deleted_at=case when p_deleted then now() else null end\n  where id=p_id and user_id=auth.uid() and type='media_news' returning * into target;\n return to_jsonb(target);\nend $function$\n"
+  },
+  "migrations": [
+    {
+      "name": "supabase_foundations",
+      "row_md5": "5985ec85855a6a1a6057eb2cb19f7e6c",
+      "version": "20260820120000"
+    },
+    {
+      "name": "company_watch_persistence",
+      "row_md5": "b766686fe92616eb19ad23ede5f1f441",
+      "version": "20260821120000"
+    },
+    {
+      "name": "company_watch_category",
+      "row_md5": "b4341d62fb96a7caed37866a2c17386e",
+      "version": "20260830120000"
+    },
+    {
+      "name": "automatic_company_monitoring",
+      "row_md5": "cd476fce74daa63aca24784f3cd60560",
+      "version": "20260902120000"
+    },
+    {
+      "name": "company_monitoring_service_role_read_grants",
+      "row_md5": "e289e4fa67577cc6f0e20dec3bd79dbb",
+      "version": "20260903120000"
+    },
+    {
+      "name": "company_watch_email_notifications",
+      "row_md5": "2dd8200ea5ef04a6dc246acbf7ac3245",
+      "version": "20260911120000"
+    },
+    {
+      "name": "media_watch_email_notifications",
+      "row_md5": "bdbc45709741444682b4f88b13a7232f",
+      "version": "20260913120000"
+    }
+  ],
+  "policies": [
+    {
+      "cmd": "SELECT",
+      "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "company_watch_snapshot_history",
+      "permissive": "PERMISSIVE",
+      "policyname": "company_watch_snapshot_history_select_own",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "company_watch_snapshots",
+      "permissive": "PERMISSIVE",
+      "policyname": "company_watch_snapshots_delete_own",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "company_watch_snapshots",
+      "permissive": "PERMISSIVE",
+      "policyname": "company_watch_snapshots_insert_own",
+      "schemaname": "public",
+      "with_check": "((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1\n   FROM watches\n  WHERE ((watches.id = company_watch_snapshots.watch_id) AND (watches.user_id = ( SELECT auth.uid() AS uid))))))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "company_watch_snapshots",
+      "permissive": "PERMISSIVE",
+      "policyname": "company_watch_snapshots_select_own",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "company_watch_snapshots",
+      "permissive": "PERMISSIVE",
+      "policyname": "company_watch_snapshots_update_own",
+      "schemaname": "public",
+      "with_check": "((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1\n   FROM watches\n  WHERE ((watches.id = company_watch_snapshots.watch_id) AND (watches.user_id = ( SELECT auth.uid() AS uid))))))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "media_watch_snapshots",
+      "permissive": "PERMISSIVE",
+      "policyname": "media_watch_snapshots_select_own",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(id = ( SELECT auth.uid() AS uid))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "profiles",
+      "permissive": "PERMISSIVE",
+      "policyname": "profiles_delete_own",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "profiles",
+      "permissive": "PERMISSIVE",
+      "policyname": "profiles_insert_own",
+      "schemaname": "public",
+      "with_check": "(id = ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(id = ( SELECT auth.uid() AS uid))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "profiles",
+      "permissive": "PERMISSIVE",
+      "policyname": "profiles_select_own",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(id = ( SELECT auth.uid() AS uid))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "profiles",
+      "permissive": "PERMISSIVE",
+      "policyname": "profiles_update_own",
+      "schemaname": "public",
+      "with_check": "(id = ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "watches",
+      "permissive": "PERMISSIVE",
+      "policyname": "watches_delete_own",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "watches",
+      "permissive": "PERMISSIVE",
+      "policyname": "watches_insert_own",
+      "schemaname": "public",
+      "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "watches",
+      "permissive": "PERMISSIVE",
+      "policyname": "watches_select_own",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "watches",
+      "permissive": "PERMISSIVE",
+      "policyname": "watches_update_own",
+      "schemaname": "public",
+      "with_check": "(user_id = ( SELECT auth.uid() AS uid))"
+    }
+  ],
+  "watches": {
+    "count": 1,
+    "states": [
+      {
+        "id": "8e01b729-3e64-4c4f-b074-6a98ad2802e2",
+        "type": "media_news",
+        "state": "monitoring",
+        "status": "watching",
+        "deleted": false,
+        "revision": 3
+      }
+    ],
+    "rows_md5": "2d39d6458e072c68edf032f32241d92b"
+  },
+  "sessions": [
+    {
+      "pid": 5223,
+      "user": "postgres",
+      "state": "idle",
+      "wait_type": "Extension",
+      "query_kind": "",
+      "wait_event": "Extension",
+      "application": "pg_net 0.20.4",
+      "backend_start": "2026-09-18T07:01:06.350083+00:00",
+      "blocking_pids": [],
+      "query_seconds": null,
+      "transaction_seconds": null
+    },
+    {
+      "pid": 5224,
+      "user": "supabase_admin",
+      "state": null,
+      "wait_type": "Extension",
+      "query_kind": "",
+      "wait_event": "Extension",
+      "application": "pg_cron scheduler",
+      "backend_start": "2026-09-18T07:01:06.350263+00:00",
+      "blocking_pids": [],
+      "query_seconds": null,
+      "transaction_seconds": null
+    },
+    {
+      "pid": 5289,
+      "user": "authenticator",
+      "state": "idle",
+      "wait_type": "Client",
+      "query_kind": "LISTEN",
+      "wait_event": "ClientRead",
+      "application": "PostgREST 14.5",
+      "backend_start": "2026-09-18T07:01:08.671207+00:00",
+      "blocking_pids": [],
+      "query_seconds": 633583.682733,
+      "transaction_seconds": null
+    },
+    {
+      "pid": 6206,
+      "user": "supabase_admin",
+      "state": "idle",
+      "wait_type": "Client",
+      "query_kind": "SELECT",
+      "wait_event": "ClientRead",
+      "application": "postgres_exporter",
+      "backend_start": "2026-09-18T07:01:43.327208+00:00",
+      "blocking_pids": [],
+      "query_seconds": 9.109097,
+      "transaction_seconds": null
+    },
+    {
+      "pid": 82682,
+      "user": "supabase_admin",
+      "state": "idle",
+      "wait_type": "Client",
+      "query_kind": "show",
+      "wait_event": "ClientRead",
+      "application": "",
+      "backend_start": "2026-09-19T01:11:02.003537+00:00",
+      "blocking_pids": [],
+      "query_seconds": 44400.37474,
+      "transaction_seconds": null
+    },
+    {
+      "pid": 741594,
+      "user": "pgbouncer",
+      "state": "idle",
+      "wait_type": "Client",
+      "query_kind": ";",
+      "wait_event": "ClientRead",
+      "application": "",
+      "backend_start": "2026-09-25T14:43:22.152075+00:00",
+      "blocking_pids": [],
+      "query_seconds": 0.458498,
+      "transaction_seconds": null
+    }
+  ]
+}

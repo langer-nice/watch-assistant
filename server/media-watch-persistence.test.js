@@ -142,18 +142,19 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.equal(await count('media_watch_snapshots'), 0); assert.equal(await count('media_watch_notifications'), 0);
       assert.equal(watches.getStoredWatches()[0].id, watch.id);
     });
-    await t.test('Home uses the actual API-hydrated media creation timestamp after a completed report', async () => {
+    await t.test('Home retains its completed report results after API hydration and reload', async () => {
       const {selectHomeReport}=await import('../src/js/home-report.js');
       const row=(await db.query('select created_at from public.watches where id=$1',[watch.id])).rows[0];
       const now=new Date(new Date(row.created_at).getTime()+3*60*1000);
       const hydrated=watches.getWatchById(watch.id);
       assert.equal(new Date(hydrated.createdAt).getTime(),new Date(row.created_at).getTime());
-      const report={entries:[{watchId:watch.id,title:watch.title,category:'news',classification:'watching'}],counts:{completed:1}};
+      const report={entries:[{watchId:watch.id,title:watch.title,category:'news',classification:'watching'}],attempts:[{watchId:watch.id,status:'succeeded'}],counts:{completed:1}};
       const result=selectHomeReport({report,watches:watches.getWatches(),serverWatches:store.getMediaServerWatches(),now});
-      assert.deepEqual(result.newlyCreatedWatches.map(w=>w.id),[watch.id]);
+      assert.deepEqual(result.newlyCreatedWatches,[]);
+      assert.deepEqual(result.quietWatches.map(w=>w.id),[watch.id]);
       assert.equal(result.totalChecked,1);
       await store.configureMediaWatchServerStore(auth);await flush();
-      assert.equal(selectHomeReport({report,watches:watches.getWatches(),serverWatches:store.getMediaServerWatches(),now}).newlyCreatedWatches.length,1);
+      assert.deepEqual(selectHomeReport({report,watches:watches.getWatches(),serverWatches:store.getMediaServerWatches(),now}),result);
     });
     await t.test('reload and repeated sync are idempotent; ownership-free legacy and other types stay local', async () => {
       await store.configureMediaWatchServerStore(auth); await flush();
@@ -233,7 +234,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     await t.test('overlapping stale writers cannot overwrite a newer server definition', async () => {
       const last = rpcCalls.findLast((call) => call.name === 'persist_media_watch').params;
       const result = await client('authenticated',USER_A).rpc('persist_media_watch', { ...last, p_title:'stale',p_mutation:randomUUID() });
-      assert.equal(result.error?.code, '40001');
+      assert.equal(result.error?.code, 'PT409');
       assert.equal((await db.query('select title from public.watches where id=$1',[watch.id])).rows[0].title,'Newer edit');
     });
     await t.test('delete writes an owner tombstone, suppresses cron and cannot be resurrected by a create retry', async () => {
@@ -242,7 +243,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.equal(watches.getWatchById(watch.id),null);
       assert.ok((await db.query('select deleted_at from public.watches where id=$1',[watch.id])).rows[0].deleted_at);
       assert.equal((await run([])).totalEligibleWatches,0);
-      assert.equal((await client('authenticated', USER_A).rpc('persist_media_watch',original)).error?.code,'40001');
+      assert.equal((await client('authenticated', USER_A).rpc('persist_media_watch',original)).error?.code,'PT409');
     });
     await t.test('missing schema/API preserves newly owned local Watches until retry', async () => {
       offline=true; const pending=makeWatch(); watches.addWatch(pending); await flush();
@@ -313,11 +314,11 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.equal((await send({...job,revision:-1})).status,400);
       assert.equal((await send({...job,unexpected:'x'.repeat(13000)})).status,400);
     });
-    await t.test('unsupported edits pause server monitoring while retaining the new browser-only definition', async () => {
+    await t.test('unsupported edits retain server monitoring and the new browser-only definition', async () => {
       const changed=makeWatch(); watches.addWatch(changed); await flush();
       watches.updateWatch(changed.id,{request:'Check the weather tomorrow',category:'travel'}); await flush();
       const row=(await db.query('select monitoring_state from public.watches where id=$1',[changed.id])).rows[0];
-      assert.equal(row.monitoring_state,'paused');
+      assert.equal(row.monitoring_state,'monitoring');
       assert.equal(watches.getWatchById(changed.id).request,'Check the weather tomorrow');
       assert.equal(watches.getWatchById(changed.id).category,'travel');
       watches.updateWatch(changed.id,{request:'Tell me when SpaceX is mentioned in the media.'}); await flush();
