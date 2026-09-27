@@ -1133,9 +1133,7 @@ body.is-watch-edit-open {
 // into the neighbouring grid track beside that message.
 .detail-header > #watchMediaPersistenceNotice { grid-column: 1 / -1; min-width: 0; }
 .detail-header__metadata > #watchCanonicalStatus {
-  flex: 0 1 auto;
-  margin: 0;
-  width: fit-content;
-  max-width: 100%;
-  overflow-wrap: anywhere;
+  flex: 0 0 auto;
+  margin: 0 0 0 auto;
+  align-self: center;
 }
