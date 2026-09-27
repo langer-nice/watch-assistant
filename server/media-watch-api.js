@@ -62,6 +62,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
   } catch (error) {
     console.warn('[Media Watches] Request failed.', { code: error.code || 'PERSISTENCE_UNAVAILABLE', databaseCode: /^[A-Z0-9]{5,12}$/.test(error.databaseCode || '') ? error.databaseCode : undefined, durationMs: Date.now() - startedAt });
     if (error instanceof SyntaxError) return send(400, { code: 'INVALID_BODY' });
-    return send(error.statusCode || 503, { code: error.code || 'PERSISTENCE_UNAVAILABLE', error: 'Media Watch persistence is unavailable.' });
+    const publicCode = error.code === 'DATABASE_ERROR' ? 'PERSISTENCE_UNAVAILABLE' : error.code || 'PERSISTENCE_UNAVAILABLE';
+    return send(error.statusCode || 503, { code: publicCode, error: 'Media Watch persistence is unavailable.' });
   }
 };
