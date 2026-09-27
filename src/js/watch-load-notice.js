@@ -20,7 +20,8 @@ export const getWatchListAvailability = () => {
   return {
     active: states.length > 0,
     uncertain: states.some(s => s.status !== 'ready'),
-    loading: states.some(s => s.status === 'loading'),
+    loading: states.some(s => s.status === 'loading' || s.refreshing),
+    waiting: states.some(s => s.waiting),
     failed: states.some(s => s.error),
     cached: states.some(s => s.hasSnapshot),
   };
@@ -63,13 +64,13 @@ export const renderWatchLoadNotice = (language, count) => {
     if (navigation) navigation.insertAdjacentElement('afterend', notice);
     else root.prepend(notice);
   }
-  notice.hidden = !state.active || (!state.uncertain && count > 0);
+  notice.hidden = !state.active || (!state.failed && (state.waiting || (state.cached && state.loading))) || (!state.uncertain && count > 0);
   notice.setAttribute('aria-busy', String(state.loading));
   notice.querySelector('p').textContent = state.uncertain
     ? [state.failed ? copy.unavailable : state.loading ? copy.loading : '', state.cached ? copy.stale : ''].filter(Boolean).join(' ')
     : copy.empty;
   const retry = notice.querySelector('button');
   retry.textContent = copy.retry;
-  retry.hidden = !state.uncertain || (!state.failed && state.loading);
+  retry.hidden = !state.failed;
   retry.disabled = retrying || state.loading;
 };

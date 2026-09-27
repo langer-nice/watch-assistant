@@ -7,7 +7,7 @@ let authStateSource = null;
 let serverWatches = [];
 let hydrated = false;
 let loading = false;
-let confirmed = false;
+let waiting = false;
 const gate = createWatchRequestGate('company');
 let hydrationError = null;
 let authGeneration = 0;
@@ -108,8 +108,8 @@ export const getServerCompanyWatches = () => {
 export const getCompanyWatchServerHydrationError = () => hydrationError;
 
 export const getCompanyWatchLoadState = () => ({
-  status: !authIdentity ? 'idle' : loading ? 'loading' : hydrationError ? (hydrated ? 'stale' : 'unavailable') : confirmed ? 'ready' : hydrated ? 'stale' : 'loading',
-  hasSnapshot: hydrated, error: hydrationError,
+  status: !authIdentity ? 'idle' : hydrationError ? (hydrated ? 'stale' : 'unavailable') : hydrated ? 'ready' : 'loading',
+  hasSnapshot: hydrated, error: hydrationError, waiting, refreshing: loading,
 });
 
 export const hydrateServerCompanyWatches = (options = {}) => {
@@ -122,12 +122,13 @@ export const hydrateServerCompanyWatches = (options = {}) => {
     if (!fresh()) return getServerCompanyWatches();
     const cache = readWatchCache('company', user, normalizePersistedWatch);
     if (cache) { serverWatches = cache.rows; hydrated = true; }
-    if (!confirmed) hydrationError = Object.assign(new Error('Waiting before retry.'), { code: 'BACKOFF' });
+    waiting = true;
     notify();
     return getServerCompanyWatches();
   };
   return gate(user || 'session', async () => {
     const hydrationRequest = ++latestHydrationRequest;
+    waiting = false;
     loading = true;
     notify();
     try {
@@ -137,7 +138,7 @@ export const hydrateServerCompanyWatches = (options = {}) => {
       const next = body.watches.map(normalizePersistedWatch);
       serverWatches = next;
       hydrated = true;
-      confirmed = true;
+      waiting = false;
       hydrationError = null;
       writeWatchCache('company', user, next);
       return getServerCompanyWatches();
@@ -147,7 +148,7 @@ export const hydrateServerCompanyWatches = (options = {}) => {
     } finally {
       if (fresh()) { loading = false; notify(); }
     }
-  }, { ...options, scope: generation, onSkipped: restore });
+  }, { ...options, scope: generation, onSkipped: restore, deferRead: options.automatic === true, isCurrent: fresh });
 };
 
 export const configureCompanyWatchServerStore = async (auth) => {
@@ -163,6 +164,7 @@ export const configureCompanyWatchServerStore = async (auth) => {
       : null;
     const identityChanged = nextIdentity !== authIdentity;
     const tokenChanged = nextAccessToken !== accessToken;
+    if (identityChanged || tokenChanged) gate.cancelDeferred();
 
     if (!nextAccessToken) {
       accessToken = null;
@@ -171,7 +173,7 @@ export const configureCompanyWatchServerStore = async (auth) => {
       latestHydrationRequest += 1;
       serverWatches = [];
       hydrated = false;
-      confirmed = false;
+      waiting = false;
       loading = false;
       hydrationError = null;
       notify();
@@ -187,7 +189,7 @@ export const configureCompanyWatchServerStore = async (auth) => {
       const cache = readWatchCache('company', state.session?.user?.id, normalizePersistedWatch);
       serverWatches = cache?.rows || [];
       hydrated = Boolean(cache);
-      confirmed = false;
+      waiting = false;
       loading = false;
       hydrationError = null;
       notify();

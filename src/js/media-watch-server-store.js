@@ -16,7 +16,7 @@ let running = null;
 let loadError = null;
 let syncError = null;
 let loaded = false;
-let confirmed = false;
+let waiting = false;
 let loading = false;
 const gate = createWatchRequestGate('media');
 const validateRow = (row) => {
@@ -29,8 +29,8 @@ const validateRow = (row) => {
   return row;
 };
 export const getMediaWatchLoadState = () => ({
-  status: !owner() ? 'idle' : loading ? 'loading' : loadError ? (loaded ? 'stale' : 'unavailable') : confirmed ? 'ready' : loaded ? 'stale' : 'loading',
-  hasSnapshot: loaded, error: loadError, syncing: Boolean(running), syncError,
+  status: !owner() ? 'idle' : loadError ? (loaded ? 'stale' : 'unavailable') : loaded ? 'ready' : 'loading',
+  hasSnapshot: loaded, error: loadError, waiting, refreshing: loading, syncing: Boolean(running), syncError,
 });
 const session = () => {
   const state = authSource?.getState?.();
@@ -171,15 +171,16 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
   const epoch = generation;
   const fresh = () => epoch === generation && token === session()?.access_token && user === owner();
   try {
-    return await gate(user, async () => {
+    return await gate(user, async ({ deferredRead }) => {
       const attempt = {};
       running = attempt;
+      waiting = false;
       loading = true;
       syncError = null;
       notify();
       let failure = null;
       try {
-        const jobs = readOnly ? [] : Object.keys(localStorage).filter((name) => name.startsWith(`${PREFIX}${user}.`));
+        const jobs = readOnly || deferredRead ? [] : Object.keys(localStorage).filter((name) => name.startsWith(`${PREFIX}${user}.`));
         for (const name of jobs) {
           if (!fresh()) return { ok: false, code: 'AUTH_SESSION_CHANGED' };
           const job = JSON.parse(localStorage.getItem(name) || 'null');
@@ -213,7 +214,7 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
           if (fresh() && readId === latestRead) {
             rows = next;
             loaded = true;
-            confirmed = true;
+            waiting = false;
             loadError = null;
             emailEnabled = body.emailEnabled === true;
             writeWatchCache('media', user, rows);
@@ -234,11 +235,11 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
         if (running === attempt) running = null;
         if (fresh()) { loading = false; syncError = failure; notify(); }
       }
-    }, { automatic, scope: epoch, onSkipped: () => {
+    }, { automatic, scope: epoch, deferRead: automatic, isCurrent: fresh, onSkipped: () => {
       if (fresh()) {
         const cached = readWatchCache('media', user, validateRow);
         if (cached) { rows = cached.rows; loaded = true; }
-        if (!confirmed) loadError = Object.assign(new Error('Waiting before retry.'), { code: 'BACKOFF' });
+        waiting = true;
         notify();
       }
       return { ok: false, code: 'BACKOFF' };
@@ -258,12 +259,13 @@ export const configureMediaWatchServerStore = async (auth) => {
     const next = owner();
     const token = session()?.access_token;
     if (next === identity && token === lastToken) return;
+    gate.cancelDeferred();
     lastToken = token;
     generation += 1;
     latestRead += 1;
     if (next !== identity) {
       const cached = readWatchCache('media', next, validateRow);
-      rows = cached?.rows || []; loaded = Boolean(cached); confirmed = false;
+      rows = cached?.rows || []; loaded = Boolean(cached); waiting = false;
       loadError = null; syncError = null; loading = false;
       emailEnabled = false; identity = next; notify();
     }
