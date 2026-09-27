@@ -1,112 +1,110 @@
-import { configureAccountStorage } from './account-storage.js';
-configureAccountStorage({ getState: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-report-owner' } } }) });
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { configureAccountStorage } from './account-storage.js';
 import { selectHomeReport } from './home-report.js';
 import { generateReport } from './report-service.js';
-import { normalizeReport } from './report-storage.js';
-import { getCanonicalWatchClassification } from './report-status.js';
-import { mapCompanyWatchRow } from '../../server/company-watch-repository.js';
+import { normalizeReport, saveReport, getLatestReport } from './report-storage.js';
 
-const now = new Date('2026-09-14T12:08:00+02:00');
-const createdAt = '2026-09-14T10:05:00Z';
-const media = { id: 'media', title: 'Bitcoin media mentions', inputType: 'text', category: 'news',
-  status: 'watching', createdAt, mediaPersistence: { ownerId: 'owner' },
-  monitoringSource: { type: 'feed', url: 'https://news.example/rss' },
-  lastCheckAttempt: { status: 'succeeded', outcome: 'baseline' }, updates: [] };
-const reportFor = (watches, classification = 'watching') => ({
-  completedAt: now.toISOString(), counts: { completed: watches.length },
-  entries: watches.map(watch => ({ watchId: watch.id, title: watch.title, category: watch.category, classification })),
+const owner = 'synthetic-report-owner';
+const account = id => configureAccountStorage({ getState: () => ({status:'authenticated', session:{user:{id}}}) });
+account(owner);
+const startedAt='2026-09-27T08:00:00.000Z';
+const completedAt='2026-09-27T08:01:00.000Z';
+const bitcoin={id:'bitcoin',title:'Bitcoin',status:'watching',createdAt:'2026-09-22T13:48:58Z',lastChecked:completedAt,lastCheckAttempt:{status:'succeeded',outcome:'no-new-items'},updates:[]};
+const reportFor = specs => normalizeReport({version:2,ownerId:owner,id:'fixture-report',startedAt,completedAt,
+  watchIdsConsidered:specs.map(s=>s.id),watchIdsChecked:specs.filter(s=>s.status!=='skipped').map(s=>s.id),watchIdsSkipped:specs.filter(s=>s.status==='skipped').map(s=>s.id),
+  attempts:specs.map(s=>({watchId:s.id,status:s.status||'succeeded',startedAt,completedAt,outcome:s.classification==='updated'?'matched':'no-new-items',resultIds:s.classification==='updated'?['result-1']:[]})),
+  entries:specs.map(s=>({watchId:s.id,title:s.id,category:'news',classification:s.classification||'watching',attemptStatus:s.status||'succeeded',checkedAt:completedAt})),
+});
+const counts = result => [result.totalChecked,result.quietWatches.length];
+
+test('no Watches and no checks produces zero in both report measures',()=>{
+  assert.deepEqual(counts(selectHomeReport()),[0,0]);assert.deepEqual(counts(selectHomeReport({report:reportFor([])})),[0,0]);
 });
 
-test('Home shows a checked synced media Watch from an existing quiet report during its first 24 hours', () => {
-  const report = reportFor([media]);
-  const selection = selectHomeReport({ report, watches: [media], serverWatches: [media], now });
-  assert.deepEqual(selection.newlyCreatedWatches.map(w => w.id), ['media']);
-  assert.equal(selection.totalChecked, 1);
-  assert.equal(selection.quietWatches.length, 0);
-  assert.equal(report.entries[0].classification, 'watching', 'historical report is not mutated');
-});
-
-test('Home uses the persisted Company creation timestamp after a successful check', () => {
-  const company = mapCompanyWatchRow({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', type: 'company_bodacc',
-    title: 'Fixture Company', siren: '123456789', created_at: createdAt, monitoring_state: 'monitoring',
-    current_status: 'watching', last_checked_at: now.toISOString(), company_watch_snapshots: [] });
-  assert.equal(company.createdAt, createdAt);
-  const result = selectHomeReport({ report: reportFor([company]), serverWatches: [company], now });
-  assert.deepEqual(result.newlyCreatedWatches.map(w => w.id), [company.id]);
-});
-
-test('Home expires cached New entries at 24 elapsed hours, regardless of report refresh time', () => {
-  const watches = [
-    { ...media, id: 'inside', createdAt: '2026-09-13T10:08:00.001Z' },
-    { ...media, id: 'boundary', createdAt: '2026-09-13T10:08:00Z' },
-    { ...media, id: 'outside', createdAt: '2026-09-13T10:07:59.999Z' },
-  ];
-  const report = reportFor(watches, 'new');
-  const result = selectHomeReport({ report, serverWatches: watches, now });
-  assert.deepEqual(result.newlyCreatedWatches.map(w => w.id), ['inside']);
-  assert.deepEqual(result.quietWatches.map(w => w.id), ['boundary', 'outside']);
-  const later = selectHomeReport({ report, serverWatches: watches, now: new Date(now.getTime() + 1) });
-  assert.equal(later.newlyCreatedWatches.length, 0);
-  assert.equal(later.totalChecked, 3);
-});
-
-test('server creation wins over a stale browser date and offset timestamps compare as instants', () => {
-  for (const serverDate of [createdAt, '2026-09-14T12:05:00+02:00', '2026-09-14T03:05:00-07:00']) {
-    const result = selectHomeReport({ report: reportFor([media]), watches: [{ ...media, createdAt: '2020-01-01T00:00:00Z' }],
-      serverWatches: [{ ...media, createdAt: serverDate }], now });
-    assert.equal(result.newlyCreatedWatches.length, 1);
-    assert.equal(result.newlyCreatedWatches[0].createdAt, serverDate);
-  }
-  const oldServer = { ...media, createdAt: '2026-09-12T10:05:00Z' };
-  assert.equal(selectHomeReport({ report: reportFor([media]), watches: [media], serverWatches: [oldServer], now }).newlyCreatedWatches.length, 0);
-});
-
-test('Home includes server media Watches created after the report or without a local report, once per UUID', () => {
-  for (const report of [null, reportFor([])]) {
-    const result = selectHomeReport({ report, watches: [media], serverWatches: [media, { ...media }], now });
-    assert.deepEqual(result.newlyCreatedWatches.map(w => w.id), ['media']);
-    assert.equal(result.totalChecked, 0);
+test('Bitcoin live check without a saved report must not invent a completed report check',()=>{
+  for(const report of [null,reportFor([])]){
+    const result=selectHomeReport({report,serverWatches:[bitcoin],watches:[bitcoin]});
+    assert.deepEqual(counts(result),[0,0]);assert.deepEqual(result.watches,[]);
   }
 });
 
-test('refresh after creation keeps report counts and the Watching lifecycle while Home retains New visibility', async () => {
-  let watch = { ...media, lastCheckAttempt: null };
-  const report = await generateReport({ watches: [watch], getWatch: () => watch,
-    saveWatch: (_, changes) => (watch = { ...watch, ...changes }),
-    checkController: { check: async () => { watch = { ...media }; return { outcome: 'baseline', matchedItems: [], watch }; } },
-    clock: () => now, loadReports: () => [], save: normalizeReport, idFactory: () => 'home-refresh' });
-  assert.equal(report.counts.completed, 1);
-  assert.equal(report.entries[0].classification, 'watching');
-  assert.equal(report.counts.watching, 1);
-  const reloaded = normalizeReport(JSON.parse(JSON.stringify(report)));
-  assert.equal(selectHomeReport({ report: reloaded, serverWatches: [watch], now }).newlyCreatedWatches.length, 1);
+test('one Bitcoin check included in the report without change yields one above and one below',()=>{
+  const report=reportFor([{id:'bitcoin'}]);const result=selectHomeReport({report,serverWatches:[bitcoin]});
+  assert.deepEqual(counts(result),[1,1]);assert.equal(result.quietWatches[0].id,'bitcoin');assert.deepEqual(result.watches,[]);
 });
 
-test('attention and updates retain priority; local-only Watches still enter Home through reports', () => {
-  const watches = [{ ...media, id: 'attention' }, { ...media, id: 'updated' }, { ...media, id: 'local', mediaPersistence: undefined }];
-  const report = reportFor(watches);
-  report.entries[0].classification = 'attention'; report.entries[1].classification = 'updated';
-  const result = selectHomeReport({ report, watches, now });
-  assert.deepEqual(result.attentionWatches.map(w => w.id), ['attention']);
-  assert.deepEqual(result.updatedWatches.map(w => w.id), ['updated']);
-  assert.deepEqual(result.newlyCreatedWatches.map(w => w.id), ['local']);
-  assert.equal(selectHomeReport({ watches, now }).watches.length, 0);
-  assert.equal(getCanonicalWatchClassification({ ...media, lastCheckAttempt: { status: 'failed' } }, { now }), 'attention');
+test('one check with a change is completed but not in Everything else',()=>{
+  const result=selectHomeReport({report:reportFor([{id:'bitcoin',classification:'updated'}])});
+  assert.deepEqual(counts(result),[1,0]);assert.equal(result.updatedWatches.length,1);
 });
 
-test('invalid, missing, future and completed Watch creation cannot create a New card', () => {
-  const watches = [null, 'invalid', '2026-09-14T10:09:00Z'].map((createdAt, i) => ({ ...media, id: String(i), createdAt }));
-  watches.push({ ...media, id: 'completed', status: 'completed' });
-  const result = selectHomeReport({ report: reportFor(watches, 'new'), serverWatches: watches, now });
-  assert.equal(result.newlyCreatedWatches.length, 0);
+test('mixed results count completed attempts; only successful quiet results enter Everything else',()=>{
+  const report=reportFor([{id:'quiet'},{id:'updated',classification:'updated'},{id:'failed',status:'failed',classification:'attention'},{id:'paused',status:'skipped'},{id:'missing-source',status:'skipped',classification:'attention'}]);
+  const result=selectHomeReport({report});assert.deepEqual(counts(result),[3,1]);
+  assert.equal(result.attentionWatches.length,2);assert.equal(result.updatedWatches.length,1);
+  assert.equal(report.counts.succeeded,2);assert.equal(report.counts.failed,1);assert.equal(report.counts.skipped,2);
 });
 
+test('a failed or skipped check cannot be counted as a quiet success even with a stale Watching entry',()=>{
+  const result=selectHomeReport({report:reportFor([{id:'failed',status:'failed'},{id:'paused',status:'skipped'}])});
+  assert.deepEqual(counts(result),[1,0]);
+});
 
-test('older report entries without a current Watch do not crash Home or invent a creation date', () => {
-  const result = selectHomeReport({ report: reportFor([media], 'new'), now });
-  assert.equal(result.newlyCreatedWatches.length, 0);
-  assert.equal(result.quietWatches.length, 1);
-  assert.equal(result.totalChecked, 1);
+test('pause or deletion after the report preserves its historical results; unrelated live Watches never enter it',()=>{
+  const report=reportFor([{id:'bitcoin'}]);
+  for(const serverWatches of [[],[{...bitcoin,status:'paused'}],[{...bitcoin,deleted_at:completedAt}],[{id:'other',status:'watching'}]]){
+    assert.deepEqual(counts(selectHomeReport({report,serverWatches})),[1,1]);
+  }
+});
+
+test('cache, revalidation, and navigation inside the 15-second gate use the same detached snapshot',()=>{
+  const report=reportFor([{id:'bitcoin'}]);const before=selectHomeReport({report,serverWatches:[bitcoin]});
+  const cached=JSON.parse(JSON.stringify(report));
+  for(const seconds of [0,1,14,15,16]){
+    const result=selectHomeReport({report:cached,serverWatches:[{...bitcoin,status:'updated'},{id:'extra',status:'watching'}],now:new Date(Date.parse(completedAt)+seconds*1000)});
+    assert.deepEqual(result,before);
+  }
+  report.attempts.length=0;report.entries[0].classification='updated';
+  assert.deepEqual(counts(before),[1,1]);assert.equal(before.report.entries[0].classification,'watching');
+});
+
+test('report membership and classifications do not drift across midnight, DST, 24 hours or timezone offsets',()=>{
+  const report=reportFor([{id:'bitcoin'},{id:'new',classification:'new'}]);const original=structuredClone(report);
+  for(const now of ['2026-09-27T23:59:59+02:00','2026-09-28T00:00:00+02:00','2026-10-25T02:30:00+02:00','2026-10-25T02:30:00+01:00','2026-09-27T08:01:00Z','2026-09-27T10:01:00+02:00']){
+    const selected=selectHomeReport({report,now:new Date(now),serverWatches:[{...bitcoin,lastChecked:'2026-10-25T10:00:00Z'}]});
+    assert.deepEqual(counts(selected),[2,1]);assert.equal(selected.newlyCreatedWatches.length,1);assert.deepEqual(selected.report,original);
+  }
+});
+
+test('report storage remains isolated across accounts and rejects a foreign cached report',t=>{
+  const previous=globalThis.localStorage;const values=new Map();globalThis.localStorage={getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)};
+  t.after(()=>{globalThis.localStorage=previous;account(owner);});account(owner);saveReport(reportFor([{id:'bitcoin'}]));
+  assert.deepEqual(counts(selectHomeReport({report:getLatestReport()})),[1,1]);
+  account('another-owner');assert.equal(getLatestReport(),null);assert.deepEqual(counts(selectHomeReport({report:getLatestReport(),serverWatches:[bitcoin]})),[0,0]);
+  account(owner);assert.deepEqual(counts(selectHomeReport({report:getLatestReport()})),[1,1]);
+});
+
+test('generation persists the completed quiet result and selection does not reclassify it as a new live Watch',async()=>{
+  let watch={...bitcoin,inputType:'text',monitoringSource:{type:'feed',url:'https://fixture.example/rss'},createdAt:startedAt};
+  const report=await generateReport({watches:[watch],getWatch:()=>watch,saveWatch:(_,patch)=>(watch={...watch,...patch}),checkController:{check:async()=>({outcome:'no-new-items',matchedItems:[],watch})},clock:()=>new Date(completedAt),loadReports:()=>[],save:normalizeReport,idFactory:()=> 'fixture-generated'});
+  assert.deepEqual(counts(selectHomeReport({report:normalizeReport(JSON.parse(JSON.stringify(report))),serverWatches:[watch]})),[1,1]);
+});
+
+test('FR/EN singular/plural use the same report totals and quiet subset; renderer hides an empty quiet section',async()=>{
+  for(const language of ['fr','en']){
+    const labels=JSON.parse(await readFile(new URL(`../locales/${language}.json`,import.meta.url),'utf8')).home;
+    for(const count of [0,1,2]){
+      const r=selectHomeReport({report:reportFor(Array.from({length:count},(_,i)=>({id:String(i)})))});
+      assert.equal(r.totalChecked,r.quietWatches.length);
+      for(const key of ['checkedAway','everythingChecked']){
+        const text=labels[key][count===1?'one':'other'].replace('{count}',String(count));assert.ok(text.includes(String(count)));
+      }
+    }
+  }
+  const source=await readFile(new URL('./navigation.js',import.meta.url),'utf8');
+  assert.match(source,/if \(allQuiet\) allQuiet.hidden = !hasQuietItems/);
+  assert.match(source,/pluralKey\('home.checkedAway', totalChecked\)/);
+  assert.match(source,/pluralKey\('home.everythingChecked', quietWatches.length\)/);
 });
