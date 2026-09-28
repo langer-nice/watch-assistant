@@ -9,6 +9,7 @@ const cases = [
   ['Watch for media mentions of David Lang Design Monaco', 'David Lang Design Monaco', 'en'],
   ['Monitor news mentions of Acme Corporation French Riviera', 'Acme Corporation French Riviera', 'en'],
   ['Dis-moi quand Elon Musk est mentionné dans les médias.', 'Elon Musk', 'fr'],
+  ['Dis-moi quand Ed Sheeran est mentionné dans le média.', 'Ed Sheeran', 'fr'],
   ['Dis-moi quand Bernard Arnault apparaît dans les médias.', 'Bernard Arnault', 'fr'],
   ['Préviens-moi quand LVMH est mentionné dans la presse.', 'LVMH', 'fr'],
   ["Informe-moi si OpenAI apparaît dans l'actualité.", 'OpenAI', 'fr'],
