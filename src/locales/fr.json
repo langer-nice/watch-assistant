@@ -97,7 +97,11 @@
     "emptyAction": "Créer ma première Watch",
     "viewWatch": "Voir la Watch →",
     "dismiss": "Fermer",
-    "briefLabel": "Brief de l’après-midi",
+    "briefLabels": {
+      "morning": "Brief du matin",
+      "afternoon": "Brief de l’après-midi",
+      "evening": "Brief du soir"
+    },
     "updatedAt": "Mis à jour",
     "briefingTimeUnavailable": "Heure indisponible",
     "generateReport": "Générer le rapport",
