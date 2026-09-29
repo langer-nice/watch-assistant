@@ -1,5 +1,5 @@
 import { createWatchRequestGate, readWatchCache, writeWatchCache, watchRequest } from './watch-server-resilience.js';
-import { localWatchStorageKey, safeStorage } from './account-storage.js';
+import { getAccountOwner, localWatchStorageKey, safeStorage } from './account-storage.js';
 import { addUpdateToWatch } from './watch-updates.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
 import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
@@ -53,12 +53,26 @@ const request = async (token, options = {}) => {
   return body;
 };
 
+// An older browser-only Watch may be claimed only by an explicit action in its
+// current account, after a successful server list and local definition check.
+export const canClaimLocalMediaWatch = (watch) => {
+  const user = owner();
+  if (!user || user !== getAccountOwner() || user !== identity || !loaded || loadError
+    || !watch || watch.mediaPersistence?.ownerId || !isMediaWatch(watch)
+    || rows.some((row) => row.id === watch.id) || read(user, watch.id)) return false;
+  try { mediaWatchDefinition(watch); return true; }
+  catch { return false; }
+};
+
 // Called before local creation/update is committed. Never adopt an existing unowned Watch.
-export const prepareMediaWatch = (watch, previous) => {
+export const prepareMediaWatch = (watch, previous, { claimExistingLocal = false } = {}) => {
   if (!isMediaWatch(watch) && !previous?.mediaPersistence?.ownerId) return watch;
   const user = owner();
   const ownership = previous?.mediaPersistence?.ownerId || watch.mediaPersistence?.ownerId;
-  if (!user || (previous && ownership !== user) || (ownership && ownership !== user)) return watch;
+  const explicitClaim = claimExistingLocal && previous?.id === watch.id
+    && !ownership && canClaimLocalMediaWatch(watch);
+  if (!user || (previous && ownership !== user && !explicitClaim)
+    || (ownership && ownership !== user)) return watch;
   const owned = { ...watch, mediaPersistence: { ownerId: user } };
   try {
     const definition = mediaWatchDefinition(owned);
@@ -142,7 +156,9 @@ export const mergeMediaWatches = (local) => {
 export const getMediaPersistenceState = (watch) => {
   if (!isMediaWatch(watch) && !watch?.mediaPersistence?.ownerId) return null;
   const user = owner();
-  if (!user || watch.mediaPersistence?.ownerId !== user) return { status: 'local-only' };
+  if (!user || watch.mediaPersistence?.ownerId !== user) {
+    return { status: 'local-only', canClaim: canClaimLocalMediaWatch(watch) };
+  }
   const job = read(user, watch.id);
   const remote = rows.find((row) => row.id === watch.id);
   if (job?.localOnly) return { status: 'local-only' };
