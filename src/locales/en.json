@@ -526,6 +526,7 @@
   },
   "watchData": {
     "created": "Watch created",
+    "genericMonitoringScope": "This Watch will follow relevant future reporting, including major developments and significant follow-up reporting.",
     "monitoringSummaries": {
       "release": "Watching for an official release announcement.",
       "price": "Watching for a price change that matches your target.",
