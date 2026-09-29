@@ -4,6 +4,7 @@ import { createSupabaseBrowserClient } from './supabase-client.js';
 import { createAuthSession } from './auth-session.js';
 import { createGuestEditor } from './guest-editor.js';
 import { getCallbackReturn, getCreationReturn } from './auth-return.js';
+import { getProfileFirstName } from './profile-greeting.js';
 
 const escapeHtml = (value = '') => String(value)
   .replaceAll('&', '&amp;')
@@ -28,9 +29,17 @@ export const renderAuthState = (root, state, { mode = 'magic-link', creation = f
   root.classList.toggle('auth-menu--otp', ['code-sent', 'verifying'].includes(state.status));
   const id = root.hasAttribute('data-auth-gate-root') ? 'gateEmail' : 'authEmail';
   if (state.status === 'authenticated') {
+    const profileForm = root.hasAttribute('data-auth-gate-root') ? '' : `
+      <form class="auth-menu__form auth-menu__profile-form" data-auth-profile-form>
+        <label for="authProfileFirstName">${t('auth.firstNameLabel')}</label>
+        <input id="authProfileFirstName" name="firstName" type="text" autocomplete="given-name" maxlength="80" value="${escapeHtml(getProfileFirstName(state) || '')}" required>
+        <button class="auth-menu__button" type="submit">${t('auth.saveFirstName')}</button>
+        <p class="auth-menu__error" data-auth-profile-error role="alert" hidden></p>
+      </form>`;
     root.innerHTML = `
       ${state.verifiedRequest ? `<p role="status">${t('auth.verified')}</p>` : ''}
       <p class="auth-menu__email">${escapeHtml(state.session?.user?.email || t('auth.signedIn'))}</p>
+      ${profileForm}
       <button class="auth-menu__button" type="button" data-auth-sign-out>${t('auth.signOut')}</button>
     `;
     return;
@@ -221,6 +230,32 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
   document.addEventListener('submit', async event => {
+    const profileForm = event.target.closest('[data-auth-profile-form]');
+    if (profileForm) {
+      event.preventDefault();
+      if (!profileForm.reportValidity()) return;
+      const name = profileForm.querySelector('[name="firstName"]').value.trim();
+      const owner = getAccountOwner();
+      if (!owner || !name || !client?.auth?.updateUser) return;
+      const button = profileForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        const { error } = await client.auth.updateUser({ data: { first_name: name } });
+        if (error) throw error;
+        if (owner === getAccountOwner() && getProfileFirstName(auth.getState()) !== name) {
+          await auth.initialize();
+        }
+      } catch {
+        if (owner === getAccountOwner() && profileForm.isConnected) {
+          const error = profileForm.querySelector('[data-auth-profile-error]');
+          error.textContent = t('auth.profileSaveError');
+          error.hidden = false;
+        }
+      } finally {
+        if (profileForm.isConnected) button.disabled = false;
+      }
+      return;
+    }
     const form = event.target.closest('[data-auth-form], [data-auth-code-form]');
     if (!form) return;
     event.preventDefault();
