@@ -113,7 +113,7 @@
     "reportClose": "Fermer",
     "viewIntroduction": "Voir l'introduction",
     "today": "Aujourd’hui",
-    "watchesChecked": "Watches vérifiées",
+    "watchesChecked": "Vérifications terminées",
     "greetings": {
       "morning": "Bonjour.",
       "afternoon": "Bon après-midi.",
@@ -125,8 +125,8 @@
       "evening": "Bonsoir {name}."
     },
     "checkedAway": {
-      "one": "{count} vérification de Watch terminée dans ce rapport.",
-      "other": "{count} vérifications de Watches terminées dans ce rapport."
+      "one": "{count} vérification terminée dans ce rapport.",
+      "other": "{count} vérifications terminées dans ce rapport."
     },
     "attentionLabel": {
       "one": "demande votre attention",
@@ -450,7 +450,7 @@
     "seeBriefing": "Voir le briefing du jour",
     "briefingLabel": "Briefing du jour",
     "briefingTitle": "Seulement ce qui compte aujourd’hui",
-    "checked": "Watches vérifiées",
+    "checked": "Vérifications effectuées",
     "needsAttention": "nécessite votre attention",
     "updated": "actualisées",
     "unchanged": "sans changement",
@@ -526,6 +526,7 @@
   },
   "watchData": {
     "created": "Watch créée",
+    "genericMonitoringScope": "Cette Watch suivra les prochaines informations pertinentes, notamment les développements majeurs et les informations de suivi importantes.",
     "monitoringSummaries": {
       "release": "Surveillance d’une annonce officielle de sortie.",
       "price": "Surveillance d’un changement de prix correspondant à votre objectif.",

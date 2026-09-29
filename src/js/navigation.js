@@ -456,6 +456,14 @@ const localizeField = (watch, field) => {
     return t(key);
   }
 
+  // Older text Watches stored this generated scope in English even when the UI is French.
+  if (field === 'monitoringSummary' && [
+    'This Watch will follow relevant future reporting, including major developments and significant follow-up reporting.',
+    'Cette Watch suivra les prochaines informations pertinentes, notamment les développements majeurs et les informations de suivi importantes.',
+  ].includes(watch[field])) {
+    return t('watchData.genericMonitoringScope');
+  }
+
   // Keep watches created before i18n was introduced compatible with the new UI.
   if (field === 'latestUpdate' && watch[field] === 'Watch created') {
     return t('watchData.created');
@@ -791,6 +799,7 @@ const isScopeGroundedInProfile = (scope, storyProfile) => {
 };
 
 const getAnalysisMonitoringScope = (urlAnalysis, storyProfile) => {
+  if (!urlAnalysis) return '';
   const suppliedScope = urlAnalysis?.monitoringScope || '';
   if (!storyProfile || isScopeGroundedInProfile(suppliedScope, storyProfile)) {
     return suppliedScope;
