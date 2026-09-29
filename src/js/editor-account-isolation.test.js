@@ -15,7 +15,7 @@ const WATCH = { id: 'synthetic-editor', title: PRIVATE, request: PRIVATE, whyFol
 const storage = () => { const data = new Map(); return { getItem: k => data.get(k) ?? null,
   setItem: (k,v) => data.set(k,String(v)), removeItem: k => data.delete(k) }; };
 let originals, auth, document, window, redirects, requests;
-const render = async (query = '?edit=synthetic-editor') => {
+const render = async (query = '?edit=synthetic-editor', beforeInit = () => {}) => {
   ({ document, window } = parseHTML(await readFile(new URL('../../new-watch.html', import.meta.url), 'utf8')));
   globalThis.window = window; globalThis.document = document;
   globalThis.Event = window.Event; globalThis.CustomEvent = window.CustomEvent;
@@ -37,6 +37,7 @@ const render = async (query = '?edit=synthetic-editor') => {
   }
   // Match native select.value, which is getter-only in Linkedom.
   Object.defineProperty(document.querySelector('#watchCategoryInput'), 'value', { configurable:true,writable:true,value:'general' });
+  beforeInit(window);
   initForm();
   return form;
 };
@@ -142,6 +143,16 @@ test('pagehide scrubs a frozen editor and persisted pageshow requires a blank re
   await render();
   assert.equal(document.querySelector('#newWatchInput')?.value || '', '');
   assert.deepEqual(getStoredWatches(), []);
+});
+
+test('leaving the editor for Home or All Watches is not overridden by auth suspension', async () => {
+  // main.js registers its pagehide listener before the editor session exists.
+  // A native navigation fires pagehide after the destination link was followed.
+  const form = await render('', win => win.addEventListener('pagehide', () => auth.emit('loading')));
+  form.watchRequest.value = PRIVATE;
+  window.dispatchEvent(new Event('pagehide'));
+  assertCleared();
+  assert.deepEqual(redirects, [], 'the chosen destination must not be replaced by new-watch.html');
 });
 
 test('new-Watch drafts and validation/derived DOM are removed on authentication loss', async () => {
