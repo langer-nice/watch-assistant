@@ -45,9 +45,16 @@ export const createEditorSession = ({ form, onInvalidate }) => {
     restart();
   };
   window.addEventListener(ACCOUNT_STORAGE_CHANGED_EVENT, accountChanged);
-  window.addEventListener('pagehide', invalidate);
+  // Run before the app's pagehide auth suspension. That suspension publishes a
+  // loading state, which otherwise looks like an account switch and redirects
+  // back to the editor while a Home or All Watches link is being followed.
+  window.addEventListener('pagehide', () => {
+    navigating = true;
+    invalidate();
+  }, { capture: true });
   window.addEventListener('pageshow', event => {
     if (!event.persisted) return;
+    navigating = false;
     invalidate();
     restart();
   });
