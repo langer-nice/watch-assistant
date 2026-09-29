@@ -1,5 +1,5 @@
 import { localWatchStorageKey, getAccountOwner, safeStorage } from './account-storage.js';
-import { prepareMediaWatch, queueMediaWatchDeletion, mergeMediaWatches } from './media-watch-server-store.js';
+import { canClaimLocalMediaWatch, prepareMediaWatch, queueMediaWatchDeletion, mergeMediaWatches } from './media-watch-server-store.js';
 import { mockWatches } from './data/mock-watches.js';
 import { normalizeWatchCreationDate } from './watch-dates.js';
 import { migrateWatchModel } from './watch-model.js';
@@ -232,6 +232,18 @@ export function addWatch(watch) {
   saveWatches(stored);
   saveDeletedWatchIds(getDeletedWatchIds().filter((id) => id !== normalizedWatch.id));
   notifyWatchStorageChanged();
+}
+
+export function claimLocalMediaWatch(id) {
+  const stored = getStoredWatches();
+  const index = stored.findIndex((watch) => watch.id === id);
+  if (index < 0 || !canClaimLocalMediaWatch(stored[index])) return null;
+  const claimed = prepareMediaWatch(stored[index], stored[index], { claimExistingLocal: true });
+  if (claimed.mediaPersistence?.ownerId !== getAccountOwner()) return null;
+  stored[index] = claimed;
+  saveWatches(stored);
+  notifyWatchStorageChanged();
+  return claimed;
 }
 
 export function updateWatch(id, changes) {
