@@ -1,5 +1,7 @@
 import { ACCOUNT_STORAGE_CHANGED_EVENT, getAccountEpoch, getAccountOwner, isAccountStorageResolved } from './account-storage.js';
 
+export const EDITOR_PAGE_LEAVING_EVENT = 'watchassistant:editorpageleaving';
+
 // A form's DOM, callbacks and pending work belong to exactly one auth epoch.
 // Clearing precedes navigation: sign-out may still be waiting for Supabase, and
 // pagehide must remove sensitive fields before the browser freezes a document.
@@ -10,7 +12,7 @@ export const createEditorSession = ({ form, onInvalidate }) => {
   let navigating = false;
   const removers = [];
   const isCurrent = () => active && epoch === getAccountEpoch() && Boolean(getAccountOwner());
-  const invalidate = () => {
+  const invalidate = ({ scrubUrl = true } = {}) => {
     if (!active) return;
     active = false;
     removers.splice(0).forEach(remove => remove());
@@ -32,7 +34,7 @@ export const createEditorSession = ({ form, onInvalidate }) => {
       node.replaceChildren();
     }
     page.replaceChildren();
-    window.history.replaceState(null, '', 'new-watch.html');
+    if (scrubUrl) window.history.replaceState(null, '', 'new-watch.html');
   };
   const restart = () => {
     if (navigating || !isAccountStorageResolved()) return;
@@ -48,14 +50,19 @@ export const createEditorSession = ({ form, onInvalidate }) => {
   // Run before the app's pagehide auth suspension. That suspension publishes a
   // loading state, which otherwise looks like an account switch and redirects
   // back to the editor while a Home or All Watches link is being followed.
-  window.addEventListener('pagehide', () => {
+  const leavePage = () => {
     navigating = true;
-    invalidate();
-  }, { capture: true });
+    // Rewriting history while a link is navigating can replace its destination.
+    // Only account changes and restored pages need to scrub the editor URL.
+    invalidate({ scrubUrl: false });
+  };
+  window.addEventListener(EDITOR_PAGE_LEAVING_EVENT, leavePage);
+  window.addEventListener('pagehide', leavePage, { capture: true });
   window.addEventListener('pageshow', event => {
     if (!event.persisted) return;
     navigating = false;
     invalidate();
+    window.history.replaceState(null, '', 'new-watch.html');
     restart();
   });
   const session = {

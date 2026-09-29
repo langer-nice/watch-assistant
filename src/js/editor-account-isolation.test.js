@@ -6,6 +6,7 @@ import { parseHTML } from 'linkedom';
 import { configureAccountStorage } from './account-storage.js';
 import { configureCompanyWatchServerStore, hydrateServerCompanyWatches } from './company-watch-server-store.js';
 import { addWatch, getWatchById, getStoredWatches } from './watch-storage.js';
+import { EDITOR_PAGE_LEAVING_EVENT } from './editor-session.js';
 register('./test-support/json-module-loader.js', import.meta.url);
 const { initForm } = await import('./navigation.js');
 const PRIVATE = 'PRIVATE REQUEST FOR SYNTHETIC USER A';
@@ -14,7 +15,7 @@ const WATCH = { id: 'synthetic-editor', title: PRIVATE, request: PRIVATE, whyFol
   inputType: 'text', category: 'general', status: 'watching', createdAt: '2026-09-16T08:00:00Z', updates: [] };
 const storage = () => { const data = new Map(); return { getItem: k => data.get(k) ?? null,
   setItem: (k,v) => data.set(k,String(v)), removeItem: k => data.delete(k) }; };
-let originals, auth, document, window, redirects, requests;
+let originals, auth, document, window, redirects, requests, historyReplacements;
 const render = async (query = '?edit=synthetic-editor', beforeInit = () => {}) => {
   ({ document, window } = parseHTML(await readFile(new URL('../../new-watch.html', import.meta.url), 'utf8')));
   globalThis.window = window; globalThis.document = document;
@@ -24,7 +25,7 @@ const render = async (query = '?edit=synthetic-editor', beforeInit = () => {}) =
   window.location = { get href() { return url.href; }, get search() { return url.search; },
     get pathname() { return url.pathname; }, get origin() { return url.origin; },
     set href(value) { redirects.push(value); }, replace(value) { redirects.push(value); } };
-  window.history = { state: null, replaceState(_state,_title,value) { url = new URL(value,url); }, pushState() {} };
+  window.history = { state: null, replaceState(_state,_title,value) { historyReplacements.push(value); url = new URL(value,url); }, pushState() {} };
   window.requestAnimationFrame = fn => { fn(); return 1; }; window.cancelAnimationFrame = () => {};
   window.matchMedia = () => ({ matches: true }); window.scrollTo = () => {};
   window.getComputedStyle = () => ({ lineHeight:'20px',fontSize:'16px',paddingTop:'0',paddingBottom:'0',borderTopWidth:'0',borderBottomWidth:'0', minHeight:'48px',maxHeight:'240px',boxSizing:'border-box' });
@@ -45,7 +46,7 @@ test.beforeEach(() => {
   originals = Object.fromEntries(['window','document','Event','CustomEvent','HTMLElement','localStorage','sessionStorage','navigator','fetch'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));
   globalThis.localStorage = storage(); globalThis.sessionStorage = storage();
   Object.defineProperty(globalThis,'navigator',{configurable:true,value:{language:'en'}});
-  requests = []; redirects = [];
+  requests = []; redirects = []; historyReplacements = [];
   globalThis.fetch = async (...args) => { requests.push(args); return Response.json({}); };
   let state; const listeners = new Set();
   auth = { getState:()=>state, subscribe(fn) {listeners.add(fn);return ()=>listeners.delete(fn);},
@@ -59,11 +60,11 @@ test.afterEach(async () => {
   }
   configureAccountStorage(null);
 });
-const assertCleared = () => {
+const assertCleared = ({ url = true } = {}) => {
   assert.equal(document.body.textContent.includes(PRIVATE),false);
   assert.equal(document.body.textContent.includes(NOTE),false);
   assert.equal([...document.querySelectorAll('input,textarea')].some(e=>e.value.includes('SYNTHETIC USER A')),false);
-  assert.equal(window.location.search.includes('edit='),false);
+  if (url) assert.equal(window.location.search.includes('edit='),false);
 };
 
 test('sign-out immediately clears the saved request, private note, derived editor and edit URL', async () => {
@@ -132,7 +133,8 @@ test('a delayed A planner response cannot save or repopulate the editor after B 
 test('pagehide scrubs a frozen editor and persisted pageshow requires a blank restart', async () => {
   await render();
   window.dispatchEvent(new Event('pagehide'));
-  assertCleared();
+  assertCleared({ url: false });
+  assert.equal(historyReplacements.includes('new-watch.html'), false);
   auth.emit('authenticated', 'synthetic-user-b');
   const restored = new Event('pageshow');
   Object.defineProperty(restored, 'persisted', { value: true });
@@ -148,11 +150,15 @@ test('pagehide scrubs a frozen editor and persisted pageshow requires a blank re
 test('leaving the editor for Home or All Watches is not overridden by auth suspension', async () => {
   // main.js registers its pagehide listener before the editor session exists.
   // A native navigation fires pagehide after the destination link was followed.
-  const form = await render('', win => win.addEventListener('pagehide', () => auth.emit('loading')));
+  const form = await render('', win => win.addEventListener('pagehide', () => {
+    win.dispatchEvent(new Event(EDITOR_PAGE_LEAVING_EVENT));
+    auth.emit('loading');
+  }));
   form.watchRequest.value = PRIVATE;
   window.dispatchEvent(new Event('pagehide'));
   assertCleared();
   assert.deepEqual(redirects, [], 'the chosen destination must not be replaced by new-watch.html');
+  assert.deepEqual(historyReplacements, [], 'pagehide must not rewrite the clicked destination');
 });
 
 test('new-Watch drafts and validation/derived DOM are removed on authentication loss', async () => {

@@ -9,6 +9,7 @@ import { initializeAnalytics } from './analytics.js';
 import { initAuthUi } from './auth-ui.js';
 import { configureCompanyWatchServerStore } from './company-watch-server-store.js';
 import { configureOnboardingRequest } from './onboarding-presentation.js';
+import { EDITOR_PAGE_LEAVING_EVENT } from './editor-session.js';
 
 initializeAnalytics();
 configureOnboardingRequest();
@@ -31,7 +32,11 @@ const authUi = initAuthUi({ onResume: async (request, owner) => {
 } });
 // Drop sensitive DOM before a page can enter the back/forward cache. Restoration
 // must resolve the session again rather than reuse a frozen account snapshot.
-window.addEventListener('pagehide', () => authUi?.auth.suspend());
+window.addEventListener('pagehide', () => {
+  // Scrub the outgoing editor before suspension changes the account epoch.
+  window.dispatchEvent(new Event(EDITOR_PAGE_LEAVING_EVENT));
+  authUi?.auth.suspend();
+});
 window.addEventListener('pageshow', (event) => {
   if (event.persisted) void authUi?.auth.initialize();
 });
