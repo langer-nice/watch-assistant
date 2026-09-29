@@ -33,7 +33,6 @@ const isExplicitTopicUpdateRequest = (request) => {
     && !/^(?:something|anything|quelque chose|n'importe quoi)\b/iu.test(subject));
 };
 
-
 const getClarificationMessage = (request, language = 'en') => {
   const term = normalize(request).replace(/[.!?]+$/, '');
   const unidentifiedTerm = /^\p{L}[\p{L}\p{N}'’-]*$/u.test(term)
