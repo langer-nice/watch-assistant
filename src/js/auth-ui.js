@@ -160,6 +160,8 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
     });
   };
   const render = (state) => {
+    const mobileAction = document.querySelector('.mobile-new-watch-action');
+    if (mobileAction) mobileAction.hidden = state.status !== 'authenticated';
     const nextOwner = getAccountOwner();
     const accountChanged = Boolean(nextOwner && nextOwner !== observedOwner);
     observedOwner = nextOwner;

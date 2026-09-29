@@ -182,6 +182,7 @@ export const initTopNavigation = ({ env = import.meta.env } = {}) => {
     const shell = page.closest('.app-shell');
     const mobileAction = document.createElement('div');
     mobileAction.className = 'mobile-new-watch-action';
+    mobileAction.hidden = true;
     mobileAction.innerHTML = `
       <a class="mobile-new-watch-action__button" href="new-watch.html">
         <span aria-hidden="true">+</span>
