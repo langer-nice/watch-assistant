@@ -182,6 +182,27 @@ export const createAuthSession = ({ client, location = window.location, mode = '
       return publish({ status: 'anonymous', submittedEmail: '', error: null, session: null });
     },
     signOut,
+    refreshSession: async () => {
+      if (!client || state.status !== 'authenticated' || signingOut) return false;
+      const previous = state.session;
+      const currentRevision = revision;
+      try {
+        const { data, error } = await client.auth.refreshSession();
+        const refreshed = data?.session;
+        if (error || !refreshed?.access_token || refreshed.access_token === previous?.access_token
+          || refreshed.user?.id !== previous?.user?.id || signingOut) return false;
+        // Supabase normally publishes TOKEN_REFRESHED. Support clients that
+        // return the session before publishing that event, without replacing a
+        // newer account or a sign-out.
+        if (revision === currentRevision && state.session?.access_token === previous.access_token) {
+          revision += 1;
+          publish({ status: 'authenticated', session: refreshed, error: null, authEvent: 'TOKEN_REFRESHED' });
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    },
     subscribe(listener) {
       listeners.add(listener);
       listener(state);

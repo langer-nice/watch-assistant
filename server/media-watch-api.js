@@ -62,6 +62,12 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
   } catch (error) {
     console.warn('[Media Watches] Request failed.', { code: error.code || 'PERSISTENCE_UNAVAILABLE', databaseCode: /^[A-Z0-9]{5,12}$/.test(error.databaseCode || '') ? error.databaseCode : undefined, durationMs: Date.now() - startedAt });
     if (error instanceof SyntaxError) return send(400, { code: 'INVALID_BODY' });
+    // Auth can verify a token just as PostgREST starts rejecting its claims.
+    // Tell the browser to refresh its session instead of treating this as a
+    // database outage and leaving a stale-data warning on Home.
+    if (error.code === 'DATABASE_ERROR' && error.databaseCode === 'PGRST303') {
+      return send(401, { code: 'AUTH_REFRESH_REQUIRED', error: 'The Watch session needs refreshing.' });
+    }
     const publicCode = error.code === 'DATABASE_ERROR' ? 'PERSISTENCE_UNAVAILABLE' : error.code || 'PERSISTENCE_UNAVAILABLE';
     return send(error.statusCode || 503, { code: publicCode, error: 'Media Watch persistence is unavailable.' });
   }

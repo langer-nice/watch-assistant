@@ -63,6 +63,13 @@ for (const code of ['PGRST003', '42501', 'XX000', undefined]) {
   });
 }
 
+test('invalid JWT claims ask the browser for a session refresh', async () => {
+  assert.deepEqual(await persist({ data: null, error: { code: 'PGRST303' } }), {
+    status: 401,
+    body: { code: 'AUTH_REFRESH_REQUIRED', error: 'The Watch session needs refreshing.' },
+  });
+});
+
 test('network rejection is not disguised as a conflict', async () => {
   assert.equal((await persist(new Error('fixture network failure'))).status, 503);
 });
