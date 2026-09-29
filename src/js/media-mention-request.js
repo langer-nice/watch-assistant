@@ -37,16 +37,16 @@ const PATTERNS = [
   },
   {
     language: 'fr',
-    pattern: /^(?:s['’]il\s+te\s+pla[îi]t\s+)?(?:dis|pr[ée]viens|informe|avertis)-moi\s+(?:quand|lorsque|si)\s+(.+?)\s+(?:est\s+mentionn[ée]e?|appara[îi]t)\s+dans\s+(?:les\s+m[ée]dias|la\s+presse|l['’]actualit[ée])$/iu,
+    pattern: /^(?:s['’]il\s+te\s+pla[îi]t\s+)?(?:dis|pr[ée]viens|informe|avertis)-moi\s+(?:quand|lorsque|si)\s+(.+?)\s+(?:est\s+mentionn[ée]e?|appara[îi]t)\s+dans\s+(?:les\s+m[ée]dias|le\s+m[ée]dia|la\s+presse|l['’]actualit[ée])$/iu,
   },
   {
     language: 'fr',
     coordinated: true,
-    pattern: /^(?:s['’]il\s+te\s+pla[îi]t\s+)?(?:dis|pr[ée]viens|informe|avertis)-moi\s+(?:quand|lorsque|si)\s+(.+?)\s+(?:sont\s+mentionn(?:[ée]s?|[ée]es)|apparaissent)\s+dans\s+(?:les\s+m[ée]dias|la\s+presse|l['’]actualit[ée])$/iu,
+    pattern: /^(?:s['’]il\s+te\s+pla[îi]t\s+)?(?:dis|pr[ée]viens|informe|avertis)-moi\s+(?:quand|lorsque|si)\s+(.+?)\s+(?:sont\s+mentionn(?:[ée]s?|[ée]es)|apparaissent)\s+dans\s+(?:les\s+m[ée]dias|le\s+m[ée]dia|la\s+presse|l['’]actualit[ée])$/iu,
   },
   {
     language: 'fr',
-    pattern: /^(?:s['’]il\s+te\s+pla[îi]t\s+)?surveille\s+(?:les\s+)?mentions?\s+(?:de|d['’])\s*(.+?)\s+dans\s+(?:les\s+m[ée]dias|la\s+presse|l['’]actualit[ée])$/iu,
+    pattern: /^(?:s['’]il\s+te\s+pla[îi]t\s+)?surveille\s+(?:les\s+)?mentions?\s+(?:de|d['’])\s*(.+?)\s+dans\s+(?:les\s+m[ée]dias|le\s+m[ée]dia|la\s+presse|l['’]actualit[ée])$/iu,
   },
 ];
 
