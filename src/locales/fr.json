@@ -115,9 +115,14 @@
     "today": "Aujourd’hui",
     "watchesChecked": "Watches vérifiées",
     "greetings": {
-      "morning": "Bonjour David.",
-      "afternoon": "Bon après-midi, David.",
-      "evening": "Bonsoir David."
+      "morning": "Bonjour.",
+      "afternoon": "Bon après-midi.",
+      "evening": "Bonsoir."
+    },
+    "namedGreetings": {
+      "morning": "Bonjour {name}.",
+      "afternoon": "Bon après-midi, {name}.",
+      "evening": "Bonsoir {name}."
     },
     "checkedAway": {
       "one": "{count} vérification de Watch terminée dans ce rapport.",
