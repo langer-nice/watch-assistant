@@ -2333,6 +2333,7 @@ const renderHomeSummary = () => {
   const allQuiet = document.querySelector('#homeAllQuiet');
   const everythingChecked = document.querySelector('#homeEverythingChecked');
   const briefingDate = document.querySelector('#homeBriefingDate');
+  const briefLabel = document.querySelector('#homeBriefLabel');
   const greeting = document.querySelector('#homeSummaryLabel');
   const checkedSummary = document.querySelector('#homeCheckedSummary');
   const attentionCount = document.querySelector('#homeAttentionCount');
@@ -2411,12 +2412,15 @@ const renderHomeSummary = () => {
   } = homeReport;
   const pluralKey = (key, count) => `${key}.${count === 1 ? 'one' : 'other'}`;
   const currentHour = new Date().getHours();
-  const greetingKey = currentHour < 12
-    ? 'home.greetings.morning'
-    : currentHour < 18 ? 'home.greetings.afternoon' : 'home.greetings.evening';
+  const daypart = currentHour < 12 ? 'morning' : currentHour < 18 ? 'afternoon' : 'evening';
+
+  if (briefLabel) {
+    briefLabel.dataset.i18n = `home.briefLabels.${daypart}`;
+    briefLabel.textContent = t(briefLabel.dataset.i18n);
+  }
 
   if (greeting) {
-    greeting.textContent = t(greetingKey);
+    greeting.textContent = t(`home.greetings.${daypart}`);
   }
   if (checkedSummary) {
     checkedSummary.hidden = uncertain;
@@ -5158,5 +5162,9 @@ export const initApp = () => {
     renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) renderHomeSummary();
   });
 };
