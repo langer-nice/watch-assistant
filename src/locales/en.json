@@ -97,7 +97,11 @@
     "emptyAction": "Create my first Watch",
     "viewWatch": "View watch →",
     "dismiss": "Dismiss",
-    "briefLabel": "Afternoon brief",
+    "briefLabels": {
+      "morning": "Morning brief",
+      "afternoon": "Afternoon brief",
+      "evening": "Evening brief"
+    },
     "updatedAt": "Updated at",
     "briefingTimeUnavailable": "Briefing time unavailable",
     "generateReport": "Generate report",
