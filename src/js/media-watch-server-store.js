@@ -18,6 +18,7 @@ let syncError = null;
 let loaded = false;
 let waiting = false;
 let loading = false;
+let refreshAttempted = false;
 const gate = createWatchRequestGate('media');
 const validateRow = (row) => {
   if (!row || typeof row.id !== 'string' || typeof row.title !== 'string' || !row.watch_definition || !row.monitoring_source?.url || !['monitoring', 'paused'].includes(row.monitoring_state)) {
@@ -232,6 +233,7 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
             loaded = true;
             waiting = false;
             loadError = null;
+            refreshAttempted = false;
             emailEnabled = body.emailEnabled === true;
             writeWatchCache('media', user, rows);
             for (const row of rows) {
@@ -242,6 +244,10 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
             }
           }
         } catch (error) {
+          if (error.code === 'AUTH_REFRESH_REQUIRED' && fresh() && !refreshAttempted) {
+            refreshAttempted = true;
+            await authSource?.refreshSession?.();
+          }
           if (fresh()) loadError = error;
           failure ||= error;
         }
@@ -283,6 +289,7 @@ export const configureMediaWatchServerStore = async (auth) => {
       const cached = readWatchCache('media', next, validateRow);
       rows = cached?.rows || []; loaded = Boolean(cached); waiting = false;
       loadError = null; syncError = null; loading = false;
+      refreshAttempted = false;
       emailEnabled = false; identity = next; notify();
     }
     // Recover owned local definitions whose pending record was never written; never adopt unowned legacy data.
