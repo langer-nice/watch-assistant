@@ -15,4 +15,9 @@ test('a generated media title follows the interface language without changing it
   assert.equal(JSON.stringify(watch), before);
   assert.equal(localizedGeneratedMediaTitle({ ...watch, title: 'My favourite artist' }, 'fr'), null);
   assert.equal(localizedGeneratedMediaTitle({ ...watch, titleKey: 'watchData.example' }, 'en'), null);
+  assert.equal(localizedGeneratedMediaTitle({
+    ...watch,
+    request: 'Tell me when Ed Sheeran is mentioned in the media',
+    title: 'Ed Sheeran media mentions',
+  }, 'fr'), 'Ed Sheeran dans les médias');
 });
