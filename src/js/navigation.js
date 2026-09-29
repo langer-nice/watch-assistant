@@ -7,6 +7,7 @@ import { selectHomeReport } from './home-report.js';
 import { getMediaServerWatches } from './media-watch-server-store.js';
 import { renderMediaPersistenceNotice } from './media-watch-persistence-notice.js';
 import { localizedGeneratedMediaTitle } from './media-watch-title.js';
+import { getLocalizedWatchCopy, translateStoredWatchCopy } from './watch-copy-translation.js';
 import {
   getWatches,
   getUserCreatedWatches,
@@ -523,7 +524,9 @@ const isDistinctMeaningfulText = (value, comparison = '') => (
 );
 
 const getWatchDisplayTitle = (watch) => getCompanyWatchTitle(watch, {
-  storedTitle: localizedGeneratedMediaTitle(watch, getLanguage()) || localizeField(watch, 'title'),
+  storedTitle: localizedGeneratedMediaTitle(watch, getLanguage())
+    || getLocalizedWatchCopy(watch, getLanguage(), 'title')
+    || localizeField(watch, 'title'),
   formatFallback: (siren) => t('newWatch.companyReviewTitleValue', { siren }),
 });
 
@@ -566,7 +569,8 @@ const getMonitoringSummary = (watch, title) => {
       .filter(hasMeaningfulText)
       .map(normalizeComparableText),
   );
-  const monitoringSummary = localizeField(watch, 'monitoringSummary');
+  const monitoringSummary = getLocalizedWatchCopy(watch, getLanguage(), 'summary')
+    || localizeField(watch, 'monitoringSummary');
   if (
     hasMeaningfulText(monitoringSummary)
     && !excludedValues.has(normalizeComparableText(monitoringSummary))
@@ -5114,6 +5118,31 @@ const resolveInitialHomeRoute = (env = import.meta.env) => {
   return null;
 };
 
+let watchTranslationTimer;
+const scheduleWatchTranslations = () => {
+  window.clearTimeout(watchTranslationTimer);
+  watchTranslationTimer = window.setTimeout(() => {
+    const language = getLanguage();
+    const watches = getUserCreatedWatches().filter((watch) => watch.inputType === 'text');
+    // A small queue avoids opening many model requests at once for older accounts.
+    void (async () => {
+      for (const watch of watches) {
+        if (getLanguage() !== language) return;
+        await translateStoredWatchCopy(watch, language, {
+          update: (id, targetLanguage, copy) => {
+            const current = getWatchById(id);
+            if (!current || current.title !== copy.sourceTitle
+              || (current.monitoringSummary || '') !== copy.sourceSummary) return;
+            updateWatch(id, {
+              localizedCopy: { ...current.localizedCopy, [targetLanguage]: copy },
+            });
+          },
+        });
+      }
+    })();
+  }, 200);
+};
+
 export const initApp = () => {
   const initialRoute = resolveInitialHomeRoute();
   if (initialRoute) {
@@ -5132,6 +5161,7 @@ export const initApp = () => {
   renderWatchList();
   renderWatchDetail();
   initForm();
+  scheduleWatchTranslations();
 
   window.addEventListener('storage', () => {
     renderHomeSummary();
@@ -5145,6 +5175,7 @@ export const initApp = () => {
     renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
+    scheduleWatchTranslations();
   });
 
   window.addEventListener(ACCOUNT_STORAGE_CHANGED_EVENT, () => {
@@ -5171,6 +5202,7 @@ export const initApp = () => {
     renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
+    scheduleWatchTranslations();
   });
 
   window.addEventListener(REPORTS_CHANGED_EVENT, () => {
@@ -5186,6 +5218,7 @@ export const initApp = () => {
     renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
+    scheduleWatchTranslations();
   });
 
   document.addEventListener('visibilitychange', () => {

@@ -3,6 +3,7 @@ import { defineConfig, loadEnv } from 'vite';
 import { resolve } from 'path';
 import { createUrlWatchMiddleware } from './server/url-watch-api.js';
 import { createRequestClarificationMiddleware } from './server/request-clarification-api.js';
+import { createWatchTranslationMiddleware } from './server/watch-translation-api.js';
 import { createCheckWatchMiddleware } from './server/check-watch-api.js';
 import { createMonitoringSourceMiddleware } from './server/monitoring-source-api.js';
 import { createCheckCompanyMiddleware } from './server/bodacc-api.js';
@@ -22,6 +23,10 @@ export default defineConfig(({ mode }) => {
     apiKey: process.env.OPENAI_API_KEY || env.OPENAI_API_KEY,
     model: process.env.OPENAI_MODEL || env.OPENAI_MODEL || 'gpt-5.6-luna',
   });
+  const translationMiddleware = createWatchTranslationMiddleware({
+    apiKey: process.env.OPENAI_API_KEY || env.OPENAI_API_KEY,
+    model: process.env.OPENAI_MODEL || env.OPENAI_MODEL || 'gpt-5.6-luna',
+  });
   const checkWatchMiddleware = createCheckWatchMiddleware();
   const monitoringSourceMiddleware = createMonitoringSourceMiddleware();
   const checkCompanyMiddleware = createCheckCompanyMiddleware();
@@ -32,6 +37,7 @@ export default defineConfig(({ mode }) => {
     configureServer(server) {
       server.middlewares.use(middleware);
       server.middlewares.use(clarificationMiddleware);
+      server.middlewares.use(translationMiddleware);
       server.middlewares.use(checkWatchMiddleware);
       server.middlewares.use(monitoringSourceMiddleware);
       server.middlewares.use(checkCompanyMiddleware);
@@ -42,6 +48,7 @@ export default defineConfig(({ mode }) => {
     configurePreviewServer(server) {
       server.middlewares.use(middleware);
       server.middlewares.use(clarificationMiddleware);
+      server.middlewares.use(translationMiddleware);
       server.middlewares.use(checkWatchMiddleware);
       server.middlewares.use(monitoringSourceMiddleware);
       server.middlewares.use(checkCompanyMiddleware);
