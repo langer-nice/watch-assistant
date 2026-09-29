@@ -98,6 +98,22 @@ test('pagehide does not publish sign-out before the signed-in editor can leave',
   assert.equal(ui.auth.getState().session.user.id, 'signed-in-owner');
 });
 
+test('mobile New Watch action appears only after authentication resolves', async () => {
+  const { document } = await setup('index.html', 'index.html');
+  const action = document.createElement('div');
+  action.className = 'mobile-new-watch-action';
+  action.hidden = true;
+  document.body.append(action);
+  const mock = client();
+  const ui = startUi({ client: mock });
+  assert.equal(action.hidden, true);
+  mock.resolve({ user: { id: 'mobile-owner', email: 'owner@example.test' }, access_token: 'token' });
+  await ui.ready;
+  assert.equal(action.hidden, false);
+  ui.auth.suspend();
+  assert.equal(action.hidden, true);
+});
+
 for (const route of ['new-watch.html','new-watch.html?onboarding=first-watch','new-watch.html?edit=private-id','new-watch.html?edit=private-id&presentation=modal']) {
   test(`only an in-memory new request is available before authentication: ${route}`, async () => {
     const {document,redirects}=await setup(route);
