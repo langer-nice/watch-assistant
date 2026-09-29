@@ -22,6 +22,17 @@ const normalize = (value) => String(value || '')
 
 const isGenericPlaceholder = (value) => /^(?:test|testing|example|sample|demo)$/i.test(value);
 
+// An ongoing news topic can be monitored without resolving it to one named incident.
+// Do not turn a broad update request into a forced local-only Watch.
+const isExplicitTopicUpdateRequest = (request) => {
+  const value = normalize(request).replace(/[.!?]+$/, '');
+  const subject = value.match(/^(?:(?:tell me|notify me|alert me) when there (?:is|are|’s|'s) (?:an? )?(?:update|development|news) (?:on|about|to|regarding)|(?:dis-moi|préviens-moi|previens-moi|alerte-moi) quand il y a (?:une? )?(?:mise à jour|nouvelle|évolution|evolution) (?:sur|concernant|de)) (.+)$/iu)?.[1]
+    ?.replace(/^(?:the|le|la|les|l’|l')\s*/iu, '')
+    .trim();
+  return Boolean(subject && (subject.match(/[\p{L}\p{N}]+/gu) || []).length >= 3
+    && !/^(?:something|anything|quelque chose|n'importe quoi)\b/iu.test(subject));
+};
+
 const getClarificationMessage = (request, language = 'en') => {
   const term = normalize(request).replace(/[.!?]+$/, '');
   const unidentifiedTerm = /^\p{L}[\p{L}\p{N}'’-]*$/u.test(term)
@@ -157,6 +168,7 @@ const createLocalClarification = (request, { language = 'en' } = {}) => {
 const validateClarification = (result, original, { language = 'en' } = {}) => {
   const request = normalize(original);
   if (parseMediaMentionRequest(request).recognized) return clearResult(request);
+  if (isExplicitTopicUpdateRequest(request)) return clearResult(request);
   const deterministicResult = createLocalClarification(request, { language });
   if (deterministicResult.type !== CLARIFICATION_TYPES.CLEAR) return deterministicResult;
 
@@ -180,6 +192,7 @@ export const clarifyWatchRequest = async (request, { language = 'en' } = {}) => 
   const original = normalize(request).slice(0, MAX_REQUEST_LENGTH);
   if (!original) return clearResult('');
   if (parseMediaMentionRequest(original).recognized) return clearResult(original);
+  if (isExplicitTopicUpdateRequest(original)) return clearResult(original);
 
   try {
     if (typeof window.watchAssistantClarifyRequest === 'function') {
