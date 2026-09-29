@@ -1,8 +1,14 @@
-import { WATCH_CLASSIFICATIONS } from './report-status.js';
+import { WATCH_CLASSIFICATIONS, isRecentlyCreatedWatch } from './report-status.js';
+import { getWatchCreationDate } from './watch-dates.js';
 
-// Home describes one saved report, not the current Watch inventory. In
-// particular, hydration and elapsed time must not add checks to that report.
-export const selectHomeReport = ({ report = null } = {}) => {
+// Home preserves the saved report and can additionally show Watches created
+// since then. Live hydration must not add completed checks to that report.
+export const selectHomeReport = ({
+  report = null,
+  watches = [],
+  now = new Date(),
+  isDisplayableWatch = (watch) => Boolean(watch.title || watch.request),
+} = {}) => {
   const snapshot = report ? structuredClone(report) : null;
   const attempts = snapshot?.attempts || [];
   const succeededIds = new Set(attempts.filter(attempt => attempt.status === 'succeeded').map(attempt => attempt.watchId));
@@ -18,7 +24,21 @@ export const selectHomeReport = ({ report = null } = {}) => {
   }
   const select = classification => [...byId.values()].filter(watch => statusById.get(watch.id) === classification);
   const attentionWatches = select(WATCH_CLASSIFICATIONS.ATTENTION);
-  const newlyCreatedWatches = select(WATCH_CLASSIFICATIONS.NEW);
+  const reportCompletedAt = Date.parse(snapshot?.completedAt);
+  const newlyCreatedSinceReport = (Array.isArray(watches) ? watches : [])
+    .filter((watch) => {
+      if (!watch?.id || byId.has(watch.id) || watch.status === 'completed'
+        || !isDisplayableWatch(watch) || !isRecentlyCreatedWatch(watch, now)) return false;
+      // Report entries stay fixed. Only an actual creation after that report
+      // can be displayed alongside it without changing its checked counts.
+      return !snapshot || (Number.isFinite(reportCompletedAt)
+        && getWatchCreationDate(watch).getTime() > reportCompletedAt);
+    })
+    .sort((a, b) => getWatchCreationDate(b) - getWatchCreationDate(a));
+  const newlyCreatedWatches = [...select(WATCH_CLASSIFICATIONS.NEW), ...newlyCreatedSinceReport];
+  for (const watch of newlyCreatedSinceReport) {
+    statusById.set(watch.id, WATCH_CLASSIFICATIONS.NEW);
+  }
   const updatedWatches = select(WATCH_CLASSIFICATIONS.UPDATED);
   return {
     report: snapshot, watches: [...attentionWatches, ...newlyCreatedWatches, ...updatedWatches], statusById,
