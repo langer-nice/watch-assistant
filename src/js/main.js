@@ -1,7 +1,7 @@
 import { applyExampleToEditor } from './example-watches.js';
 import { getAccountEpoch, getAccountOwner } from './account-storage.js';
 import { configureMediaWatchServerStore } from './media-watch-server-store.js';
-import { initApp } from './navigation.js';
+import { configureHomeGreeting, initApp } from './navigation.js';
 import { initializeLanguage, setLanguage } from './i18n.js';
 import { initTopNavigation } from './top-navigation.js';
 import { initIntroReplayLink } from './intro-flow.js';
@@ -30,6 +30,7 @@ const authUi = initAuthUi({ onResume: async (request, owner) => {
   authUi.revealEditor();
   document.querySelector('#newWatchForm').requestSubmit();
 } });
+configureHomeGreeting(authUi?.auth);
 // Drop sensitive DOM before a page can enter the back/forward cache. Restoration
 // must resolve the session again rather than reuse a frozen account snapshot.
 window.addEventListener('pagehide', () => {
