@@ -163,6 +163,33 @@ test('resolved simple and coordinated media mentions skip the generic clarificat
   }
 });
 
+test('a named ongoing news topic stays actionable without inventing an incident', async () => {
+  const originalWindow = globalThis.window;
+  let calls = 0;
+  globalThis.window = { watchAssistantClarifyRequest: async () => {
+    calls += 1;
+    return { resultType: 'clarification_required', suggestedRequest: '',
+      clarificationMessage: 'Which specific RAF base terror attack should be monitored?' };
+  } };
+  try {
+    for (const request of [
+      'Tell me when there is an update to the RAF base terror attack',
+      'Préviens-moi quand il y a une mise à jour sur la base RAF de Fairford',
+    ]) {
+      const result = await clarifyWatchRequest(request);
+      assert.equal(result.type, CLARIFICATION_TYPES.CLEAR);
+      assert.equal(result.suggestedRequest, request);
+    }
+    assert.equal(calls, 0);
+    assert.equal((await clarifyWatchRequest('Tell me when there is an update to something important today')).type,
+      CLARIFICATION_TYPES.CLARIFICATION_REQUIRED);
+    assert.equal(calls, 1);
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
+  }
+});
+
 test('unsupported alternatives, hedging, and missing subjects still allow clarification', () => {
   for (const request of [
     'Tell me when Elon Musk or Tesla is mentioned in the media.',
