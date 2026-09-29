@@ -1002,6 +1002,7 @@ const getHomeReport = () => selectHomeReport({
   report: getLatestReport(),
   watches: getWatches(),
   serverWatches: getHomeServerWatches(),
+  isDisplayableWatch: (watch) => hasMeaningfulText(getWatchDisplayTitle(watch)),
 });
 
 const formatHomeWatchTimestamp = (value) => {

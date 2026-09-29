@@ -35,6 +35,39 @@ test('one Bitcoin check included in the report without change yields one above a
   assert.deepEqual(counts(result),[1,1]);assert.equal(result.quietWatches[0].id,'bitcoin');assert.deepEqual(result.watches,[]);
 });
 
+test('a Watch created after the last report appears on Home immediately without altering report totals',()=>{
+  const report=reportFor([{id:'bitcoin'}]);
+  const newWatch={id:'ed-sheeran',title:'Ed Sheeran dans les médias',status:'watching',createdAt:'2026-09-27T08:02:00Z'};
+  const result=selectHomeReport({report,watches:[bitcoin,newWatch],now:new Date('2026-09-27T08:03:00Z')});
+  assert.deepEqual(result.watches.map(({id})=>id),['ed-sheeran']);
+  assert.deepEqual(result.newlyCreatedWatches.map(({id})=>id),['ed-sheeran']);
+  assert.equal(result.statusById.get('ed-sheeran'),'new');
+  assert.deepEqual(counts(result),[1,1]);
+  assert.deepEqual(result.report,report);
+});
+
+test('a first Watch appears before any report, then leaves Home after the new window',()=>{
+  const watch={id:'ed-sheeran',title:'Ed Sheeran dans les médias',status:'watching',createdAt:'2026-09-27T08:02:00Z'};
+  const fresh=selectHomeReport({watches:[watch],now:new Date('2026-09-27T08:03:00Z')});
+  assert.deepEqual(fresh.watches.map(({id})=>id),['ed-sheeran']);
+  assert.deepEqual(counts(fresh),[0,0]);
+  const expired=selectHomeReport({watches:[watch],now:new Date('2026-09-28T08:02:00Z')});
+  assert.deepEqual(expired.watches,[]);
+});
+
+test('the live overlay excludes report members, earlier Watches and completed Watches',()=>{
+  const report=reportFor([{id:'bitcoin',classification:'new'}]);
+  const at='2026-09-27T08:02:00Z';
+  const watches=[
+    {id:'bitcoin',title:'Bitcoin',status:'watching',createdAt:at},
+    {id:'older',title:'Older',status:'watching',createdAt:'2026-09-27T08:00:30Z'},
+    {id:'completed',title:'Completed',status:'completed',createdAt:at},
+    {id:'no-title',title:'',status:'watching',createdAt:at},
+  ];
+  const selected=selectHomeReport({report,watches,now:new Date('2026-09-27T08:03:00Z')});
+  assert.deepEqual(selected.newlyCreatedWatches.map(({id})=>id),['bitcoin']);
+});
+
 test('one check with a change is completed but not in Everything else',()=>{
   const result=selectHomeReport({report:reportFor([{id:'bitcoin',classification:'updated'}])});
   assert.deepEqual(counts(result),[1,0]);assert.equal(result.updatedWatches.length,1);
