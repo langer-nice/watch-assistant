@@ -115,9 +115,14 @@
     "today": "Today",
     "watchesChecked": "watches checked",
     "greetings": {
-      "morning": "Good morning, David.",
-      "afternoon": "Good afternoon, David.",
-      "evening": "Good evening, David."
+      "morning": "Good morning.",
+      "afternoon": "Good afternoon.",
+      "evening": "Good evening."
+    },
+    "namedGreetings": {
+      "morning": "Good morning, {name}.",
+      "afternoon": "Good afternoon, {name}.",
+      "evening": "Good evening, {name}."
     },
     "checkedAway": {
       "one": "{count} Watch check completed in this report.",
