@@ -87,6 +87,17 @@ test('a signed-in person can save a first name without deriving it from email', 
   assert.equal(document.querySelector('[data-auth-profile-form] [name="firstName"]').value, 'David');
 });
 
+test('pagehide does not publish sign-out before the signed-in editor can leave', async () => {
+  await setup();
+  const mock = client();
+  const ui = startUi({ client: mock });
+  mock.resolve({ user: { id: 'signed-in-owner', email: 'owner@example.test' }, access_token: 'token' });
+  await ui.ready;
+  window.dispatchEvent(new Event('pagehide'));
+  assert.equal(ui.auth.getState().status, 'authenticated');
+  assert.equal(ui.auth.getState().session.user.id, 'signed-in-owner');
+});
+
 for (const route of ['new-watch.html','new-watch.html?onboarding=first-watch','new-watch.html?edit=private-id','new-watch.html?edit=private-id&presentation=modal']) {
   test(`only an in-memory new request is available before authentication: ${route}`, async () => {
     const {document,redirects}=await setup(route);
