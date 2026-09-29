@@ -106,6 +106,10 @@
   stroke-width: 1.75;
 }
 
+.top-navigation__icon-button [data-auth-label]:empty {
+  display: none;
+}
+
 .top-navigation__popover {
   position: absolute;
   top: calc(100% + var(--space-xxs));
