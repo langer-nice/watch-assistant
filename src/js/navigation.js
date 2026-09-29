@@ -36,6 +36,7 @@ import {
   refreshLatestReport,
 } from './report-service.js';
 import { getLanguage, t } from './i18n.js';
+import { getProfileFirstName } from './profile-greeting.js';
 import {
   createVoiceDictationController,
   getSpeechRecognitionConstructor,
@@ -2317,6 +2318,16 @@ const initializeHomeReportProgress = () => {
   });
 };
 
+let homeGreetingAuth = null;
+let homeSummaryReady = false;
+
+export const configureHomeGreeting = (auth) => {
+  homeGreetingAuth = auth;
+  auth?.subscribe?.(() => {
+    if (homeSummaryReady) renderHomeSummary();
+  });
+};
+
 const renderHomeSummary = () => {
   initializeHomeReportProgress();
   const confirmationBanner = document.querySelector('#homeConfirmation');
@@ -2420,7 +2431,10 @@ const renderHomeSummary = () => {
   }
 
   if (greeting) {
-    greeting.textContent = t(`home.greetings.${daypart}`);
+    const name = getProfileFirstName(homeGreetingAuth?.getState?.());
+    greeting.textContent = name
+      ? t(`home.namedGreetings.${daypart}`, { name })
+      : t(`home.greetings.${daypart}`);
   }
   if (checkedSummary) {
     checkedSummary.hidden = uncertain;
@@ -5102,6 +5116,7 @@ export const initApp = () => {
     trackProductEventOnce(PRODUCT_EVENTS.MORNING_REPORT_VIEWED);
   }
 
+  homeSummaryReady = true;
   renderHomeSummary();
   renderHomeBriefing();
   initHomeWatchControls();
