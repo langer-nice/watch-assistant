@@ -311,7 +311,13 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
   });
   document.addEventListener('i18n:languageChanged', () => render(auth.getState()));
   const timer = window.setInterval(tick, 1000);
-  window.addEventListener('pagehide', () => { window.clearInterval(timer); discard(); auth.cancelChallenge(); });
+  window.addEventListener('pagehide', () => {
+    window.clearInterval(timer);
+    discard();
+    // A signed-in session is suspended by main.js after the editor is marked
+    // as leaving. Publishing anonymous here would redirect it back to the editor.
+    if (auth.getState().status !== 'authenticated') auth.cancelChallenge();
+  });
   window.addEventListener('pageshow', event => { if (event.persisted && content && !enteredEditor) window.location.reload(); });
   const ready = auth.initialize().then(state => { initialized = true; return state; });
   return {
