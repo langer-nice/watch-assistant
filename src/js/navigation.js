@@ -6,6 +6,7 @@ import { ACCOUNT_STORAGE_CHANGED_EVENT, getAccountEpoch } from './account-storag
 import { selectHomeReport } from './home-report.js';
 import { getMediaServerWatches } from './media-watch-server-store.js';
 import { renderMediaPersistenceNotice } from './media-watch-persistence-notice.js';
+import { localizedGeneratedMediaTitle } from './media-watch-title.js';
 import {
   getWatches,
   getUserCreatedWatches,
@@ -513,7 +514,7 @@ const isDistinctMeaningfulText = (value, comparison = '') => (
 );
 
 const getWatchDisplayTitle = (watch) => getCompanyWatchTitle(watch, {
-  storedTitle: localizeField(watch, 'title'),
+  storedTitle: localizedGeneratedMediaTitle(watch, getLanguage()) || localizeField(watch, 'title'),
   formatFallback: (siren) => t('newWatch.companyReviewTitleValue', { siren }),
 });
 
