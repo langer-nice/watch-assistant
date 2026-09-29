@@ -65,6 +65,7 @@ export const generateRequestClarification = async ({
       instructions: [
         'Evaluate a request for an automated monitoring Watch.',
         'Return resultType "clear" when it is already clear and actionable; return the original wording in suggestedRequest and leave clarificationMessage empty.',
+        'A request for updates about an identifiable news topic or event is actionable even when it does not identify one unique incident by date or location. Keep its broad scope and return clear; do not demand details the user did not intend to require.',
         'Return resultType "suggestion" only when you can provide one complete, precise monitoring instruction that can be used directly as a Watch; leave clarificationMessage empty.',
         'A suggestion must state what to monitor and the expected change or event. It must never be a question or an instruction asking the user to clarify, specify, explain, or add details.',
         'Return resultType "clarification_required" when the request is too ambiguous or incoherent to produce a reliable Watch.',
