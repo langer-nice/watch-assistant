@@ -49,6 +49,7 @@ export const renderAuthState = (root, state, { mode = 'magic-link', creation = f
     const busy = state.status === 'verifying';
     root.innerHTML = `
       <p class="auth-menu__email" ${root.hasAttribute('data-auth-gate-root') ? 'id="authGateTitle"' : ''}>${escapeHtml(t('auth.codeSent', { email: state.submittedEmail }))}</p>
+      <p class="auth-menu__code-instruction">${t('auth.enterCodeHere')}</p>
       <form class="auth-menu__form" data-auth-code-form>
         <label class="visually-hidden" for="${id}Code">${t('auth.codeLabel')}</label>
         <input id="${id}Code" name="code" placeholder="${t('auth.codePlaceholder')}" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code"
