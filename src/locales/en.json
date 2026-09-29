@@ -674,6 +674,7 @@
     "verifySignIn": "Sign in",
     "codePlaceholder": "Six-digit code",
     "codeLabel": "Six-digit sign-in code",
+    "enterCodeHere": "Keep this page open. Enter the code from your email here.",
     "verifying": "Verifying your code…",
     "malformedCode": "Enter exactly six digits. You can paste the code, with spaces only before or after it.",
     "incorrectCode": "That code is incorrect. Please check the email and try again.",
