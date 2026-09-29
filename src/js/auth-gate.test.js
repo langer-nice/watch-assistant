@@ -30,8 +30,8 @@ const client = () => {
     },
   };
 };
-const setup = async (path = 'new-watch.html') => {
-  const html = await readFile(new URL('../../new-watch.html', import.meta.url), 'utf8');
+const setup = async (path = 'new-watch.html', htmlFile = 'new-watch.html') => {
+  const html = await readFile(new URL(`../../${htmlFile}`, import.meta.url), 'utf8');
   const { window, document } = parseHTML(html);
   // Match native digit-containing data attributes (Linkedom treats digits as word boundaries).
   Object.defineProperty(window.Element.prototype, 'dataset', { configurable:true, get() {
@@ -62,6 +62,29 @@ test.afterEach(() => {
   for(const [key,descriptor] of Object.entries(originals)) {
     if(descriptor) Object.defineProperty(globalThis,key,descriptor); else delete globalThis[key];
   }
+});
+
+test('a signed-in person can save a first name without deriving it from email', async () => {
+  const { document } = await setup('index.html', 'index.html');
+  const mock = client();
+  const ui = startUi({ client: mock });
+  const session = { user: { id: 'owner-name', email: 'davidlangnce@example.com', user_metadata: {} }, access_token: 'token' };
+  mock.resolve(session);
+  await ui.ready;
+  const form = document.querySelector('[data-auth-profile-form]');
+  assert.equal(form.querySelector('[name="firstName"]').value, '');
+  let saved;
+  mock.auth.updateUser = async ({ data }) => {
+    saved = data;
+    mock.emit({ ...session, user: { ...session.user, user_metadata: data } });
+    return { error: null };
+  };
+  form.reportValidity = () => true;
+  form.querySelector('[name="firstName"]').value = 'David';
+  form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(saved, { first_name: 'David' });
+  assert.equal(document.querySelector('[data-auth-profile-form] [name="firstName"]').value, 'David');
 });
 
 for (const route of ['new-watch.html','new-watch.html?onboarding=first-watch','new-watch.html?edit=private-id','new-watch.html?edit=private-id&presentation=modal']) {
