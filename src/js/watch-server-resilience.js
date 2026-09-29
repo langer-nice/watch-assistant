@@ -58,7 +58,10 @@ export const createWatchRequestGate = (kind) => {
         throw error;
       }
     };
-    const promise = Promise.resolve().then(() => globalThis.navigator?.locks?.request
+    // An earlier session can leave a network request holding this lock. A restored
+    // session must read immediately; the old response is rejected by its caller's
+    // session generation check when it eventually returns.
+    const promise = Promise.resolve().then(() => globalThis.navigator?.locks?.request && !replacingSession
       ? navigator.locks.request(`watchAssistant:${kind}:${owner}`, execute) : execute())
       .finally(() => { if (flights.get(flightKey) === promise) flights.delete(flightKey); });
     flights.set(flightKey, promise);
