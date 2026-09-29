@@ -46,6 +46,17 @@ test('represents a connected session and follows auth changes', async () => {
   assert.equal(auth.getState().status, 'anonymous');
 });
 
+test('refreshes a rejected session for the same owner and publishes the new token', async () => {
+  const old = { user: { id: 'user-a' }, access_token: 'old-token' };
+  const updated = { user: { id: 'user-a' }, access_token: 'new-token' };
+  const client = createClient({ session: old });
+  client.auth.refreshSession = async () => ({ data: { session: updated }, error: null });
+  const auth = createAuthSession({ client, location });
+  await auth.initialize();
+  assert.equal(await auth.refreshSession(), true);
+  assert.equal(auth.getState().session.access_token, 'new-token');
+});
+
 test('sends a magic link to the stable index callback URL', async () => {
   const client = createClient();
   const auth = createAuthSession({ client, location });
