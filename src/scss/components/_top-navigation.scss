@@ -139,6 +139,10 @@
   gap: var(--space-xxs);
 }
 
+.auth-menu__profile-form {
+  margin-block: var(--space-sm);
+}
+
 .auth-menu__form label {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
