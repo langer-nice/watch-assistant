@@ -1,3 +1,4 @@
+import { parseCurrencyRequest } from '../src/js/currency-watch.js';
 import { parseCompanyWatchRequest } from '../src/js/company-watch-request.js';
 import { parseMediaStoryRequest } from '../src/js/media-story-request.js';
 import { discoverTextMonitoringSource } from './monitoring-source-api.js';
@@ -42,6 +43,7 @@ const isMonacoCompanyRequest = (request, companyRequest) => {
 export const planWatch = async (request, options = {}) => {
   if (typeof request !== 'string' || !request.trim()) return createPlannerDecision();
 
+  if (parseCurrencyRequest(request)) return createPlannerDecision({ strategy: 'structured_source', connector: 'ecb', confidence: 1, needsClarification: false, clarificationQuestion: null });
   const companyRequest = parseCompanyWatchRequest(request);
   if (companyRequest.valid) {
     return createPlannerDecision({

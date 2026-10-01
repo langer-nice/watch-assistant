@@ -410,3 +410,21 @@ test('middleware exposes safe structured source failure codes without upstream d
     assert.equal(JSON.stringify(upstreamResponse.body).includes('private upstream detail'), false);
   }
 });
+
+test('currency endpoint verifies structured criteria and exposes provider failures instead of empty success', async () => {
+  const request = 'The pound reaches 1,17 to the euro';
+  const now = () => new Date('2026-10-01T09:43:00Z');
+  const good = await callMiddleware({ body: JSON.stringify({ currencyRequest: request }), options: {
+    now, fetchImpl: async () => new Response('<Envelope><Cube><Cube time="2026-09-30"><Cube currency="GBP" rate="0.8547"/></Cube></Cube></Envelope>'),
+  } });
+  assert.equal(good.statusCode, 200);
+  assert.equal(good.body.criteria.target, '1.17');
+  assert.equal(good.body.observation.rate, '0.8547');
+  assert.equal(good.headers['cache-control'], 'no-store');
+  const failed = await callMiddleware({ body: JSON.stringify({ currencyRequest: request }), options: {
+    now, fetchImpl: async () => new Response('', { status: 503 }),
+  } });
+  assert.equal(failed.statusCode, 502);
+  assert.equal(failed.body.code, 'CURRENCY_PROVIDER_UNAVAILABLE');
+  assert.equal(failed.body.items, undefined);
+});

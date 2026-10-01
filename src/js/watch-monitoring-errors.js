@@ -11,10 +11,17 @@ const FAILURE_MESSAGE_KEYS = Object.freeze({
   invalidIdentifier: 'detail.checkFailure.invalidIdentifier',
   persistence: 'detail.checkFailure.persistence',
   configuration: 'detail.checkFailure.configuration',
+  currency: 'detail.checkFailure.currency',
+  edited: 'detail.checkFailure.edited',
   generic: 'detail.checkFailed',
 });
 
 const FAILURE_CATEGORY_BY_CODE = new Map([
+  ['STALE_CURRENCY_DATA', 'currency'],
+  ['INVALID_CURRENCY_DATA', 'currency'],
+  ['CURRENCY_PROVIDER_UNAVAILABLE', 'currency'],
+  ['INVALID_CURRENCY_CRITERIA', 'currency'],
+  ['STALE_CHECK', 'edited'],
   ['MISSING_FEED_URL', 'missingSource'],
   ['MISSING_SOURCE_URL', 'missingSource'],
   ['SOURCE_NOT_FOUND', 'notFound'],

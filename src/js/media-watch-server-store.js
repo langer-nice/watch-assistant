@@ -1,3 +1,4 @@
+import { currencyCriteriaFor } from './currency-watch.js';
 import { createWatchRequestGate, readWatchCache, writeWatchCache, watchRequest } from './watch-server-resilience.js';
 import { getAccountOwner, localWatchStorageKey, safeStorage } from './account-storage.js';
 import { addUpdateToWatch } from './watch-updates.js';
@@ -125,6 +126,13 @@ export const getMediaServerWatches = () => (owner() && owner() === identity ? ro
   status: row.monitoring_state === 'paused' ? 'paused' : row.current_status,
   createdAt: row.created_at,
   lastChecked: row.last_checked_at || null,
+  ...(row.watch_definition.currencyCriteria ? {
+    currencyEvaluation: row.currency_evaluation || null,
+    currencySatisfied: Boolean(row.last_change_item_id?.startsWith(`currency:${row.watch_definition.currencyRevision}:`)),
+    lastCheckOutcome: row.last_check_outcome ? { type: row.last_check_outcome } : null,
+    lastCheckAttempt: row.last_check_error_code ? { status: 'failed', code: row.last_check_error_code, attemptedAt: row.updated_at }
+      : row.last_checked_at ? { status: 'succeeded', attemptedAt: row.last_checked_at } : null,
+  } : {}),
   updates: row.last_change_item_id ? [{ id: row.last_change_item_id, timestamp: row.media_last_change_detected_at,
     sourceTitle: row.last_change_title, sourceUrl: row.last_change_url, summary: row.last_change_summary,
     publishedAt: row.last_change_published_at, status: 'new' }] : [],
@@ -144,8 +152,16 @@ export const mergeMediaWatches = (local) => {
       const localWatch = merged.get(row.id);
       let hydrated = { ...localWatch, ...remote, updates: localWatch?.updates || [] };
       // A scheduled hydration must not erase a more recent manual check on this device.
-      if (Date.parse(localWatch?.lastChecked) > (Date.parse(remote.lastChecked) || 0)) {
+      const currency = Boolean(currencyCriteriaFor(hydrated));
+      const sameCriteria = !currency || localWatch?.currencyRevision === hydrated.currencyRevision;
+      if (sameCriteria && Date.parse(localWatch?.lastChecked) > (Date.parse(remote.lastChecked) || 0)) {
         hydrated.lastChecked = localWatch.lastChecked;
+        if (currencyCriteriaFor(hydrated) && localWatch.currencyRevision === hydrated.currencyRevision) {
+          for (const key of ['currencyEvaluation','currencySatisfied','lastCheckOutcome']) hydrated[key] = localWatch[key];
+        }
+      }
+      if (currency && sameCriteria && Date.parse(localWatch?.lastCheckAttempt?.attemptedAt) > (Date.parse(remote.lastCheckAttempt?.attemptedAt) || 0)) {
+        hydrated.lastCheckAttempt = localWatch.lastCheckAttempt;
       }
       for (const update of remote.updates) hydrated = addUpdateToWatch(hydrated, update);
       merged.set(row.id, hydrated);

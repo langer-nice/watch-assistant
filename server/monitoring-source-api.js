@@ -1,3 +1,4 @@
+import { parseCurrencyRequest, CURRENCY_SOURCE } from '../src/js/currency-watch.js';
 import { fetchAndNormalizeFeed } from './check-watch-api.js';
 import { parseMediaMentionRequest } from '../src/js/media-mention-request.js';
 
@@ -36,6 +37,7 @@ export const discoverTextMonitoringSource = async ({
   request,
   language = 'en',
 }, options = {}) => {
+  if (parseCurrencyRequest(request)) return { monitoringSource: { ...CURRENCY_SOURCE } };
   const mediaMentionRequest = parseMediaMentionRequest(request);
   const query = mediaMentionRequest.query || String(request || '').trim();
   const sourceUrl = createNewsSearchFeedUrl(query, language);

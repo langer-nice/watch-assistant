@@ -1,3 +1,4 @@
+import { currencySummary, currencyOverview, currencyCriteriaFor } from './currency-watch.js';
 import { getWatchListAvailability, renderWatchLoadNotice } from './watch-load-notice.js';
 import { renderExampleWatches, renderExampleDetail } from './example-watches.js';
 import { renderSummaryCard } from './watch-summary-card.js';
@@ -931,6 +932,7 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     sourceUrl: sourceUrl || null,
     feedUrl: monitoringUrl,
     monitoringSource,
+    currencyLanguage: getLanguage(),
     ...(mediaMentionRequest?.recognized ? {
       mediaMention: {
         subjects: [...mediaMentionRequest.subjects],
@@ -1570,14 +1572,17 @@ const renderWatchDetail = () => {
     : t(inferCurrentSituationKey(request || '', watch.category, {
       isMediaStory: watch.inputType === 'url' && watch.isStory === true,
     }));
-  const currentUpdate = getCurrentSituationPresentation(watch, {
+  const watchForCurrentSituation = currencyCriteriaFor(watch) && !watch.currencyEvaluation
+    ? { ...watch, updates: [], candidateUpdates: [], monitoringUpdates: [] } : watch;
+  const currentUpdate = getCurrentSituationPresentation(watchForCurrentSituation, {
     fallback: pendingSituation,
     formatTimestamp: formatMonitoringTimestamp,
     sanitizeUrl: getSafeExternalUrl,
     translateBusinessEvent: t,
   });
   const latestMeaningfulUpdate = currentUpdate.update;
-  const currentSituation = currentUpdate.summary;
+  const currentSituation = watch.currencyEvaluation && currencyCriteriaFor(watch)
+    ? currencySummary(watch.currencyEvaluation, getLanguage()) : currentUpdate.summary;
   const hasCurrentSituation = setOptionalField(
     'currentSituation',
     currentSituationEl,
@@ -1599,7 +1604,10 @@ const renderWatchDetail = () => {
   if (currentUpdateLinkEl) {
     if (currentUpdate.articleUrl) {
       currentUpdateLinkEl.href = currentUpdate.articleUrl;
-      currentUpdateLinkEl.setAttribute('aria-label', t('detail.openArticle'));
+      const label = currencyCriteriaFor(watch) ? 'common.openSource' : 'detail.openArticle';
+      currentUpdateLinkEl.setAttribute('aria-label', t(label));
+      currentUpdateLinkEl.dataset.i18n = label;
+      currentUpdateLinkEl.textContent = t(label);
     } else {
       currentUpdateLinkEl.removeAttribute('href');
       currentUpdateLinkEl.removeAttribute('aria-label');
@@ -1620,7 +1628,8 @@ const renderWatchDetail = () => {
     );
   }
 
-  const storySummary = watch.storyProfile?.storySummary || '';
+  const storySummary = currencyCriteriaFor(watch)
+    ? currencyOverview(currencyCriteriaFor(watch), getLanguage()) : watch.storyProfile?.storySummary || '';
   if (storySummaryCopyEl) storySummaryCopyEl.textContent = storySummary;
   if (storySummaryEl) storySummaryEl.hidden = !storySummary;
   const monitoringScope = watch.inputType === 'url'
@@ -1846,7 +1855,7 @@ const renderWatchDetail = () => {
             <p class="timeline__event">${escapeHtml(item.label)}</p>
             ${item.articleUrl ? `
               <a class="timeline__article-link" href="${escapeHtml(item.articleUrl)}" target="_blank" rel="noopener noreferrer">
-                ${escapeHtml(t('detail.openArticle'))} <span aria-hidden="true">↗</span>
+                ${escapeHtml(t(currencyCriteriaFor(watch) ? 'common.openSource' : 'detail.openArticle'))} <span aria-hidden="true">↗</span>
               </a>
             ` : ''}
           </div>
@@ -1998,6 +2007,10 @@ const renderWatchDetail = () => {
       const reasonMessage = t(getMonitoringFailureMessageKey(watch.lastCheckAttempt?.code));
       checkFeedbackEl.textContent = `${t('detail.checkFailedStatus')} — ${reasonMessage}`;
       checkFeedbackEl.dataset.state = 'error';
+      checkFeedbackEl.hidden = false;
+    } else if (watch.currencyEvaluation && currencyCriteriaFor(watch)) {
+      checkFeedbackEl.textContent = currencySummary(watch.currencyEvaluation, getLanguage());
+      checkFeedbackEl.dataset.state = watch.currencyEvaluation.met ? 'new' : 'success';
       checkFeedbackEl.hidden = false;
     } else if (outcomeKey) {
       const reviewableUpdates = getLatestCheckUpdates(watch);
@@ -3237,6 +3250,7 @@ export function initForm() {
     });
     const changes = {
       request,
+      currencyLanguage: getLanguage(),
       requestKey: null,
       whyFollowing: whyFollowing.trim(),
       whyFollowingKey: null,

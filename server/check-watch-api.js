@@ -1,3 +1,4 @@
+import { fetchCurrencyRate } from './currency-rate.js';
 import { createHash } from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
@@ -518,6 +519,11 @@ export const createCheckWatchMiddleware = (options = {}) => (
 
     try {
       const body = await readJsonBody(request);
+      if (body.currencyRequest !== undefined) {
+        try { sendJson(response, 200, await fetchCurrencyRate(body.currencyRequest, options)); }
+        catch (error) { sendJson(response, error.statusCode || 502, { code: error.code || 'CURRENCY_PROVIDER_UNAVAILABLE' }); }
+        return;
+      }
       const sourceUrl = validateSourceUrlInput(body);
       sendJson(response, 200, await fetchAndNormalizeFeed(sourceUrl, options));
     } catch (cause) {

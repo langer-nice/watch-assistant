@@ -1,3 +1,4 @@
+import { currencySummary } from '../src/js/currency-watch.js';
 import { getWatchEmailConfig } from './watch-email-config.js';
 import { createHash } from 'node:crypto';
 import { sendWithResend } from './company-watch-email.js';
@@ -16,9 +17,12 @@ const messages = {
 const formatDate = (value, locale) => { if (value == null || value === '') return ''; const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date); };
 
 export const renderMediaWatchEmail = ({ locale, watchId, watchTitle, article, baseUrl }) => {
-  const language = locale === 'fr' ? 'fr' : 'en'; const copy = messages[language];
+  const language = locale === 'fr' ? 'fr' : 'en'; const currency = article?.currencyEvaluation;
+  const copy = !currency ? messages[language] : language === 'fr'
+    ? { subject: watch => `Seuil de change atteint : ${watch}`, heading: 'Seuil de change atteint', intro: () => 'Votre condition de change est satisfaite par le cours de référence quotidien de la BCE.', source: 'Source', date: 'Date du cours', summary: 'Résultat', article: 'Consulter la source', detail: 'Voir la Watch' }
+    : { subject: watch => `Exchange-rate target reached: ${watch}`, heading: 'Exchange-rate target reached', intro: () => 'Your currency condition is satisfied by the ECB daily reference rate.', source: 'Source', date: 'Rate date', summary: 'Result', article: 'View source', detail: 'View Watch details' };
   const watch = cleanText(watchTitle, 200) || 'Media Watch'; const title = cleanText(article?.title, 300) || (language === 'fr' ? 'Article sans titre' : 'Untitled article');
-  const source = cleanText(article?.source, 300) || (language === 'fr' ? 'Source inconnue' : 'Unknown source'); const summary = cleanText(article?.summary, 500); const date = formatDate(article?.publishedAt, language);
+  const source = cleanText(article?.source, 300) || (language === 'fr' ? 'Source inconnue' : 'Unknown source'); const summary = cleanText(currency ? currencySummary(currency, language) : article?.summary, 500); const date = formatDate(article?.publishedAt, language);
   const articleUrl = validHttpsUrl(article?.url); if (!articleUrl) throw Object.assign(new Error('Article URL is invalid.'), { code: 'INVALID_ARTICLE_URL' });
   const appUrl = validHttpsUrl(baseUrl); if (!appUrl) throw Object.assign(new Error('Application URL is invalid.'), { code: 'INVALID_APP_URL' });
   const detailUrl = new URL('/watch-detail.html', appUrl); detailUrl.searchParams.set('id', watchId);

@@ -1,3 +1,4 @@
+import { currencyCriteriaFor, currencyKey, applyCurrencyCheckResult } from './currency-watch.js';
 import { getStoryProfileIdentifiers } from './story-profile.js';
 import { addUpdateToWatch, getUnreadUpdates } from './watch-updates.js';
 import { MONITORING_FAILURE_CODES } from './watch-monitoring-errors.js';
@@ -644,11 +645,21 @@ export const requestCompanyCheck = async (siren, { fetchImpl = fetch } = {}) => 
   };
 };
 
+export const requestCurrencyCheck = async (request, { fetchImpl = fetch } = {}) => {
+  const response = await fetchImpl('/api/check-watch', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currencyRequest: request }),
+    signal: AbortSignal.timeout(10000) });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result) throw new MonitoringCheckError(result?.code || 'CURRENCY_PROVIDER_UNAVAILABLE', 'Currency verification failed.');
+  return result;
+};
+
 export const createWatchCheckController = ({
   getWatch,
   saveWatch,
   requestCheck = requestFeedCheck,
   requestCompany = requestCompanyCheck,
+  requestCurrency = requestCurrencyCheck,
   now = () => new Date(),
 }) => {
   const inFlight = new Map();
@@ -664,6 +675,8 @@ export const createWatchCheckController = ({
     });
     inFlight.set(watchId, operation);
 
+    let startedKey;
+    const definitionKey = (watch) => JSON.stringify([watch?.request, watch?.monitoringSource, currencyKey(watch)]);
     const run = async () => {
       onCheckingChange(true);
       try {
@@ -671,9 +684,14 @@ export const createWatchCheckController = ({
         if (!watch) {
           throw new MonitoringCheckError('WATCH_NOT_FOUND', 'The Watch could not be found.');
         }
+        startedKey = definitionKey(watch);
         let response;
         let trustedSourceType = null;
-        if (watch.monitoringSource?.type === 'bodacc') {
+        if (watch.monitoringSource?.type === 'currency' && !currencyCriteriaFor(watch)) throw new MonitoringCheckError('INVALID_CURRENCY_CRITERIA', 'Unsupported currency condition.');
+        if (currencyCriteriaFor(watch)) {
+          response = await requestCurrency(watch.request);
+          trustedSourceType = 'currency';
+        } else if (watch.monitoringSource?.type === 'bodacc') {
           const siren = getValidatedBodaccSiren(watch.monitoringSource);
           if (!siren) {
             throw new MonitoringCheckError(
@@ -693,7 +711,8 @@ export const createWatchCheckController = ({
           }
           response = await requestCheck(feedUrl);
         }
-        const result = applyFeedCheckResult(watch, response, { now, trustedSourceType });
+        if (definitionKey(getWatch(watchId)) !== startedKey) throw new MonitoringCheckError('STALE_CHECK', 'The Watch was edited during this check.');
+        const result = trustedSourceType === 'currency' ? applyCurrencyCheckResult(getWatch(watchId), response) : applyFeedCheckResult(watch, response, { now, trustedSourceType });
         const updatedWatch = saveWatch(watchId, result.changes);
         if (import.meta.env?.DEV) {
           console.info('[Watch monitoring] Check completed', {
@@ -704,8 +723,9 @@ export const createWatchCheckController = ({
         }
         return { ...result, watch: updatedWatch };
       } catch (error) {
+        if (startedKey && definitionKey(getWatch(watchId)) !== startedKey) throw new MonitoringCheckError('STALE_CHECK', 'The Watch was edited during this check.');
         const currentWatch = getWatch(watchId) || {};
-        const code = error instanceof MonitoringCheckError ? error.code : 'CHECK_FAILED';
+        const code = error instanceof MonitoringCheckError || MONITORING_FAILURE_CODES.includes(error.code) ? error.code : 'CHECK_FAILED';
         const failedAt = now().toISOString();
         if (code === 'MISSING_FEED_URL') {
           saveWatch(watchId, {

@@ -1,0 +1,14 @@
+{
+  "projectRef": "cztpitujsnzhhenedwjn",
+  "serverMajor": 17,
+  "catalogSha256": "9e7332f45deba794b1ee59f1ac73924141a9f691e43af14f413d79931657caf1",
+  "migrationSha256": "3ec56f4dd43415b17caab335936a17989f93a32de30929df1cf61bb327385842",
+  "before": {
+    "md5": "e0711f5aac458d2ef9f5b92a55b900db",
+    "objects": 260
+  },
+  "after": {
+    "md5": "a35f36da68175d6562fcc475a2d31d66",
+    "objects": 265
+  }
+}

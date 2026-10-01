@@ -261,7 +261,7 @@ export function updateWatch(id, changes) {
     id,
   };
   addWatch(updatedWatch);
-  return updatedWatch;
+  return getWatchById(id);
 }
 
 export function markUpdateAsRead(watchId, updateId) {
