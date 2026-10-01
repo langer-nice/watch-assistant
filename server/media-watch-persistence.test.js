@@ -535,7 +535,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       const { renderMediaWatchEmail } = await import('./media-watch-email.js');
       for (const locale of ['en','fr']) {
         const email = renderMediaWatchEmail({ locale, watchId: current.id, watchTitle: current.title, article: (await outbox()).find(item => item.article.currencyEvaluation.target === '1.16').article, baseUrl: 'https://watch.example' });
-        assert.match(email.text, /1.18 EUR/);
+        assert.match(email.text, locale === 'fr' ? /1,1800 EUR/ : /1\.1800 EUR/);
         assert.doesNotMatch(email.subject, /article/i);
       }
     });

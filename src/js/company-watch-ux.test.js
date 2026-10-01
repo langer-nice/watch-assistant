@@ -21,7 +21,7 @@ test('unknown BODACC monitoring status is omitted while the latest official even
   assert.match(detailRenderer, /showCompanyMonitoringStatus/);
   assert.match(detailHtml, /id="current-situation"/);
   assert.match(detailHtml, /id="watchCompanyEventNotice"/);
-  assert.match(detailRenderer, /const currentSituation = watch\.currencyEvaluation && currencyCriteriaFor\(watch\)[\s\S]*?: currentUpdate\.summary/);
+  assert.match(detailRenderer, /const currentSituation = watch\.currencyEvaluation && currencyCriteriaFor\(watch\)[\s\S]*?: eventCurrencySummary \|\| currentUpdate\.summary/);
   assert.match(detailRenderer, /hasCurrentSituation = setOptionalField/);
   assert.match(
     detailRenderer,

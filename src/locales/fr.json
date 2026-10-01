@@ -304,7 +304,9 @@
     "deleteCopy": "Cela arrêtera définitivement la surveillance et supprimera cette Watch.",
     "cancel": "Annuler",
     "notFoundTitle": "Watch introuvable",
-    "notFoundCopy": "Cette Watch est introuvable. Veuillez revenir à la liste des Watches."
+    "notFoundCopy": "Cette Watch est introuvable. Veuillez revenir à la liste des Watches.",
+    "originalInstruction": "Votre demande originale",
+    "originalInstructionCopy": "Votre demande originale : {request}"
   },
   "newWatch": {
     "back": "Accueil",
@@ -739,5 +741,14 @@
     "requestLabel": "Demande",
     "back": "Toutes les Watches",
     "unavailable": "Cet exemple n’est pas disponible."
+  },
+  "currency": {
+    "met": "Seuil atteint",
+    "notMet": "Seuil non atteint",
+    "result": "{decision} : 1 {base} {relation} {rate} {quote}. Seuil : ≥ {target} {quote}. Taux de référence quotidien de la BCE du {date}.",
+    "overview": "Suivre le cours quotidien BCE : 1 {base} ≥ {target} {quote}. Ce cours de référence n’est pas une cotation en temps réel.",
+    "detected": "Détecté le {date}",
+    "condition": "Condition surveillée",
+    "currentRate": "Dernier taux évalué"
   }
 }
