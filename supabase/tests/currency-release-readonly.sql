@@ -1,7 +1,11 @@
 -- Run before AND after in the explicitly verified project. No Watch content or secrets.
 begin read only;
 set local statement_timeout = '15s';
-select version,name from supabase_migrations.schema_migrations order by version;
+set local timezone = 'UTC';
+select to_regnamespace('supabase_migrations') as migration_namespace,
+ to_regclass('supabase_migrations.schema_migrations') as migration_registry;
+-- This SQL Editor deployment has no CLI history. Use the generated --preflight
+-- or --verify SQL to assert the full reviewed schema, not a historical claim.
 select column_name,data_type,is_nullable,column_default from information_schema.columns
  where table_schema='public' and table_name='watches' and column_name='currency_evaluation';
 select p.oid::regprocedure::text as signature,p.prosecdef,p.proconfig,p.proacl,

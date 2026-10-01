@@ -1,76 +1,96 @@
 # Currency threshold release — PR #47
 
-Prepared 2026-10-01. Production execution is **not authorized** by the preparation task. No production migration, merge, deployment, Watch check, cron invocation or notification was performed. The original Watch remains unverified.
+Revised 2026-10-01 after the [production migration-state audit](currency-migration-state-audit.md). **Prepared, not executed. New approval of the final PR head and this procedure is required.** Approval of `f405e015d4eedb59910c3a4916916d54ca374fe0` does not cover this wrapper. Production history and schema remain unchanged.
 
-## Review and evidence
+## Resolution and pinned artifacts
 
-Initial PR head: `c9d2d1dcd97b9910c400e67d782ab790120d1671`; base `master`: `aeb09ef6c7977d8a453b807877a644fd2042fc9e`. No intervening commits or base conflicts were found. GitHub records production deployment 6740858258 as successful at that base SHA (2026-09-29). This does not prove the production alias, configuration or database state today; those remain execution-time prerequisites.
+Production has no Supabase CLI history. All eight preceding migrations' current schema effects match, with preserved platform additions described in the audit. Use direct capability verification for the existing explicit SQL deployment workflow. No history table, fabricated execution record, baseline repair or replay of old migrations is proposed.
 
-The request parser is authoritative on creation/edit and normalizes `1,17` to `1.17`. The source is a fixed ECB XML endpoint; `1 GBP >= 1.17 EUR` is compared with ECB's EUR→GBP decimal by integer cross multiplication. The displayed reciprocal is truncated to 12 places with an approximation sign, never used to decide whether the threshold is met. Relevant edits create a new condition UUID and invalidate the evaluation. Browser definition guards and database revision/snapshot comparisons reject obsolete checks. Manual and scheduled checks use the same evaluator; first-match detection and condition event IDs prevent repeat/dip/rebound duplicates. Scheduled notifications reuse the existing claimed, idempotent outbox and feature flags. Manual checks do not send email. Failure remains distinct from a successful below-target observation.
+The exact source `supabase/migrations/20261001120000_currency_threshold_watches.sql` is unchanged, SHA-256 `3ec56f4dd43415b17caab335936a17989f93a32de30929df1cf61bb327385842`. It adds a nullable evaluation column without backfill, retains feed validation, installs currency validation/invalidation/completion and extends failure recording. RLS and existing rows are retained. The old application/RPC supports existing company/feed Watches after migration, but cannot evaluate new currency definitions.
 
-No new product-code defect was confirmed in this review. Preparation adds an upgrade/failure/retry regression test, guarded SQL generation, read-only verification, more holiday/DST cases, and explicit English/French browser assertions for reference-rate/non-live wording.
+`scripts/currency-schema-manifest.json` pins the production catalog before (`e0711f5aac458d2ef9f5b92a55b900db`, 260 entries) and after (`a35f36da68175d6562fcc475a2d31d66`, 265 entries). Catalog-query SHA-256 is `9e7332f45deba794b1ee59f1ac73924141a9f691e43af14f413d79931657caf1`. Generated transaction SHA-256 is `41710803edce4dc2e860d48bce5b27e0f133f57cb0fe12e6e02d8452c06a78f9`.
 
-Current local validation, rerun after these additions:
+Generation is local only:
 
-- `NODE_OPTIONS='--import=./server/test-support/no-external-network.mjs' npm test`: **1,117 passed**, zero failed/skipped. Includes real PostgreSQL semantics through PGlite, existing generic/company regressions, currency API/persistence/cron/outbox tests and the upgrade test.
-- Upgrade test seeds company and feed Watches on the preceding schema, exercises the old persistence RPC before and after migration, compares complete existing Watch rows and RLS policies, checks PT409 and service-only completion permission, injects a pre-commit failure and verifies rollback, then verifies successful application and safe rejection of a second application. The generated release SQL and read-only SQL both execute in that isolated database.
-- `npm run build`: passed; existing Sass legacy API deprecation warning.
-- Isolated Chrome English/French edit 1.70 → 1.17 → save → check flows passed, including source/date/non-live text, first match, repeat deduplication, below-target and stale-provider error. The deliberate 502 produces the expected console warning; no uncaught page errors. External traffic was blocked and no real notifications were sent.
-- `git diff --check`: passed. Current GitHub checks and final SHA are recorded in the PR/release handoff rather than treating older checks as final-head evidence.
+```sh
+node scripts/prepare-currency-migration.mjs > /tmp/watch-assistant-currency-release.sql
+shasum -a 256 /tmp/watch-assistant-currency-release.sql
+```
 
-Supabase CLI and `psql` are not installed here. Consequently a local Docker/Supabase reset and a hosted PostgREST migration were **not** run. PGlite is the repository's existing automated migration/persistence harness. Hosted schema cache, live database permissions/drift, volume/lock timing and authenticated production behavior remain preflight/post-release checks.
+The transaction locks Watches, asserts the entire reviewed catalog state, executes the original migration body verbatim, asserts the resulting catalog, and notifies PostgREST before commit. It does not write CLI history. PostgreSQL major 17, absent registry namespace, lock timeout 3 seconds and statement timeout 15 seconds are mandatory. An ACCESS EXCLUSIVE lock and CHECK validation scan are required; do not remove timeouts or terminate competing sessions to force success.
 
-## Migration and compatibility
+## Execution sequence — only after new approval
 
-Exact migration: `supabase/migrations/20261001120000_currency_threshold_watches.sql`.
+Use the final approved PR checkout, clean working tree, from the repository root. Record the full approved head in `APPROVED_HEAD`; never substitute an unapproved revision. The execution helper checks local HEAD and cleanliness for `--apply`, fixes the project/host/login, and uses `.pgpass` without displaying it. It requires mode 0600 and TLS verify-full with the official CA. No password in shell arguments or environment variables.
 
-SHA-256: `3ec56f4dd43415b17caab335936a17989f93a32de30929df1cf61bb327385842`.
+```sh
+export PSQL_PATH=/opt/homebrew/opt/postgresql@17/bin/psql
+export CA_PATH=/Users/davidlang/documents-local/watch-assistant-backups/production-20261001T121222Z/supabase-ca.crt
+export APPROVED_HEAD=REPLACE_WITH_FULL_NEWLY_APPROVED_PR_HEAD
+```
 
-It adds nullable `watches.currency_evaluation` with no default or backfill; preserves the old feed validator by renaming it; creates a currency-aware dispatcher and rebinds the validated CHECK constraint; adds edit invalidation and a service-role-only completion RPC; and extends scheduled failure recording without changing generic failure behavior. Existing RLS policies and persisted rows are unchanged. Authenticated/service roles gain SELECT on the new column; currency result writes are through the service RPC. The trigger is an invoker function and does not grant table privileges.
+1. **Revalidate release and identity.** Re-read PR #47 head, open/ready/mergeable state and all required checks for that exact head. Compare current base and deployed commit with audited `aeb09ef6c7977d8a453b807877a644fd2042fc9e`; investigate intervening changes. Confirm Vercel Production/Current deployment and alias `watch-assistant-omega.vercel.app`, and deployed Supabase ref `cztpitujsnzhhenedwjn` (`watch-assistant-pilot`, not staging `tseexvbwhrtofcsrvcqc`). Recheck artifact SHA-256 values above. Stop for material incompatibility or unapproved changes.
 
-ALTER TABLE takes an ACCESS EXCLUSIVE lock, and CHECK recreation scans existing Watches. The prepared wrapper limits lock acquisition to 3 seconds and each statement to 15 seconds. It does not terminate sessions or retry automatically. Review database size and active transactions first. If the scan cannot fit the limit, stop and plan a maintenance window or separately reviewed staged constraint validation; do not simply remove the limits.
-
-The current base application can keep serving existing company/feed Watches on the migrated schema. This was tested using its unchanged persistence RPC, including the PT409 conflict fix. Apply schema **before** merging because the new API selects the new column. Old code does not implement currency definitions: after new currency rows exist, an application rollback alone is insufficient (see recovery).
-
-## Ordered execution procedure — requires new authorization
-
-1. **Revalidate prerequisites.** Confirm approval covers migration, merge/automatic deployment and the original Watch's manual check. Re-read PR head, base, clean mergeability and green final-head checks; stop on drift. Confirm production Supabase project from the deployed application's non-secret project reference, not the historical staging ref `tseexvbwhrtofcsrvcqc`. Verify the production alias points to the expected current deployment, record its ID/SHA for rollback, and confirm a recoverable database backup. Verify Preview remains isolated from production before any authenticated Preview testing. Inspect existing notification flags without changing them; no new API key is required. Avoid overlap with the existing daily 06:00 UTC cron and inspect active transactions; do not invoke it.
-
-2. **Read-only database preflight.** In the verified production project's Supabase SQL Editor, run the whole `supabase/tests/currency-release-readonly.sql` and retain results privately. Expect the eight earlier migrations through `20260925130000`, no currency column/function/trigger or currency migration registration, and `persist_media_watch` definition MD5 `c9dfbd9127b543e5bd33ce2764eacc1a` (the PT409 version). Check there is no unreviewed schema drift, failed/looping transaction or lock contention. Record Watch fingerprints, outbox counts, RLS/policies/ACL and relation size. Never paste connection strings or Watch contents into logs. The fingerprint query has a 15-second bound; investigate rather than proceeding if it times out.
-
-3. **Generate and apply exactly one guarded migration.** From the reviewed PR checkout:
+2. **Backup and read-only preflight.** Reassess freshness of the verified 12:17:43 UTC backup recorded in the audit. Compare fresh data/schema evidence with its private manifest. If intervening changes exist or freshness cannot be established, create a new consistent logical backup and verify its isolated restore using private `RESTORE.md` before continuing. Retain old/new archives privately; never restore an older archive over newer production data. Confirm documented recovery coverage is sufficient; otherwise stop. Avoid the existing daily 06:00 UTC processing window and competing administrative DDL; do not invoke or alter schedules. Then run:
 
    ```sh
-   node scripts/prepare-currency-migration.mjs > /tmp/watch-assistant-currency-release.sql
-   shasum -a 256 supabase/migrations/20261001120000_currency_threshold_watches.sql /tmp/watch-assistant-currency-release.sql
+   node scripts/currency-release.mjs --preflight --ca "$CA_PATH"
+   node scripts/currency-release.mjs --inspect --ca "$CA_PATH"
    ```
 
-   The generated file's reviewed SHA-256 is `31ab19db2c6554fd23a82632feda293c3c049deeb8824a358265ad38b66ddee3`. Generation only writes a local file. In the verified production SQL Editor, open a new query, replace its complete contents with that file, verify beginning/end and hash-equivalent content, then execute the **whole** script after authorization. It wraps the exact migration body plus migration-history registration in one transaction, rejects wrong prerequisites/already-applied/partially-present schema, and notifies PostgREST to reload schema on commit. This follows the repository's prior guarded SQL Editor workflow in `docs/incidents/2026-09-25-staging-evidence/apply-staging.sql`. Do not execute the raw migration and then register it in a separate transaction; do not use a blanket `db push` against unknown pending migrations.
+   Both are read-only. Expect the before digest and absent history namespace/table, no currency objects, unchanged PT409 function, and reviewed RLS/ACL. Retain inspection output privately for comparison; it contains only metadata, fingerprints/counts and lock information. Stop on blocked/long transactions, lock contention, unexpected drift, insufficient recovery evidence, or scan size unsuitable for the time limit. No prerequisite repair/history reconciliation is needed or authorized by this procedure. A new history namespace or unexpected catalog hash requires investigation and a reviewed revision.
 
-4. **Read-only post-migration verification.** Rerun the same read-only SQL in a new transaction. Require exactly one `20261001120000 / currency_threshold_watches` registration; a nullable JSONB column with no default; enabled invalidation trigger; validated `watches_media_definition_check` calling the new dispatcher; both validators present; completion signature `(uuid,timestamptz,text,text,text[],jsonb,timestamptz,jsonb,text,jsonb,boolean,bigint,jsonb)`, SECURITY DEFINER, empty search path, EXECUTE only owner/service_role (not PUBLIC/anon/authenticated); dispatcher executable by authenticated/service_role. Compare function definitions with the reviewed migration, and unchanged PT409 function hash. Require unchanged RLS/policies, existing Watch fingerprints and outbox counts, allowing only independently explained concurrent user/cron changes. Stop if unexplained. Confirm a read-only authenticated media-list request works against the old app before proceeding; no Watch checks. Hosted PostgREST cache visibility must be verified after deploying the new API as well.
-
-5. **Merge using recent repository practice: squash.** Recheck PR head and checks immediately before merging. With `EXPECTED_HEAD` set to the full approved PR SHA:
+3. **Apply the exact guarded transaction once.** Only after every prerequisite passes:
 
    ```sh
-   gh pr merge 47 --repo langer-nice/watch-assistant --squash --match-head-commit "$EXPECTED_HEAD"
+   node scripts/currency-release.mjs --apply --approved-head "$APPROVED_HEAD" --ca "$CA_PATH"
+   ```
+
+   This pipes the pinned generated SQL to psql with ON_ERROR_STOP. Never use raw migration SQL, blanket `db push`, a separate registration statement, or override hashes. If the process fails or connection is lost, follow outcome verification below before considering retry.
+
+4. **Verify before merge.** In new read-only sessions:
+
+   ```sh
+   node scripts/currency-release.mjs --verify --ca "$CA_PATH"
+   node scripts/currency-release.mjs --inspect --ca "$CA_PATH"
+   ```
+
+   Require the after digest and still absent CLI history. This asserts full reviewed function bodies/ACL, nullable JSONB/no default, enabled invalidation trigger, validated dispatcher CHECK, preserved feed validator, PT409, RLS and old grants. Completion RPC must remain owner/service-only. Compare pre/post Watch fingerprints and outbox counts; accept differences only with independent evidence of normal concurrent activity. Confirm other existing application data/access protections remain intact. Use only read-only authenticated list requests to verify old app compatibility and hosted cache visibility. Do not load a UI flow that automatically syncs, edits or checks the original Watch. Stop on unexplained differences or PostgREST errors.
+
+5. **Squash merge, pinned to approval.** Recheck remote head/checks immediately before this step; do not enable auto-merge in advance:
+
+   ```sh
+   gh pr view 47 --repo langer-nice/watch-assistant --json headRefOid,baseRefOid,state,isDraft,mergeable,statusCheckRollup
+   gh pr merge 47 --repo langer-nice/watch-assistant --squash --match-head-commit "$APPROVED_HEAD"
    gh pr view 47 --repo langer-nice/watch-assistant --json mergeCommit,mergedAt
    ```
 
-   Recent PRs #44–46 used squash; the repository permits it. Do not enable auto-merge ahead of database verification. Record the resulting master merge SHA, which differs from the PR head.
+   Record resulting merge SHA. Repository Git integration deploys master automatically; do not create a duplicate deployment.
 
-6. **Verify deployment.** The Git integration deploys the merge; do not separately deploy the branch. Wait for a successful Production deployment whose Git SHA equals that resulting merge SHA. In Vercel verify `watch-assistant-omega.vercel.app` is assigned to that deployment. Using an existing authorized account, load Home/All Watches/details in EN/FR and perform read-only company/media list requests. Confirm the new media API's SELECT succeeds and no missing-column/RPC/schema-cache errors appear. Do not invoke cron, replay outbox or send test notifications.
+6. **Verify production read-only.** Wait for a successful Vercel Production deployment of that resulting merge SHA; confirm the production alias is assigned to it. Check static application availability and read-only authenticated media/company list requests for missing-column/RPC/cache failures. Record deployment ID/URL, alias and source SHA. Do not call monitoring APIs, click Check now, synchronize/edit/delete Watches, run scheduled processing, replay outboxes or send notifications. Normal existing schedules are not authorization for extra runs.
 
-7. **Validate the original Watch only within the new approval.** Use the owner's existing account, locate the original by its persisted ID, and record current request/source/revision plus last result. Do not delete/recreate it or force an unowned local Watch to sync. Confirm effective criteria `base=GBP`, `quote=EUR`, `operator=gte`, `target=1.17`; if this is not the intended Watch/state, stop for a scoped correction. Run one manual check. Record exact ECB provider decimal/date, check time, displayed reciprocal and outcome. Verify `1 >= 1.17 × providerRate` using decimal/rational precision; an already-satisfied fresh rate must be reported immediately. A below-target result may legitimately be correct. Repeat once to verify a single condition event and no manual notification. Confirm EN/FR source/date/reference/non-live wording and successful Last Checked. Do not assume the historical example rate is current or trigger a scheduled check to test email.
+7. **Hand off original Watch validation to its owner.** After deployment confirmation, provide these iPhone steps: reload Watch Assistant; open the original Watch and confirm `1 GBP ≥ 1.17 EUR`; if “Sync this Watch” appears, synchronize and wait for confirmation; click “Check now”; inspect exact ECB reference rate, observation date and decision (below 1.17 must not be achieved); repeat and confirm no duplicate update. The owner performs these steps manually. ECB rates are daily references, not live quotes; functional production validation remains pending that test.
 
-## Retry and recovery
+## Failure and recovery
 
-- **SQL error/lock timeout:** the transaction must roll back. If a session remains in an aborted transaction, issue `ROLLBACK` in that same session. In a new session run read-only verification: absent registry and absent currency schema plus unchanged old objects means no application. Resolve the cause, then rerun the exact wrapper only under the authorized execution scope.
-- **Connection lost / outcome unknown:** never retry blindly. Exactly one registry entry plus all expected schema objects means committed; proceed to verification, not reapplication. Registry/schema mismatch is an inconsistent state: stop, preserve evidence and investigate. Do not drop objects or fabricate migration history. A second wrapper execution after success deliberately raises an error without changing data.
-- **Deployment fails before currency use:** retain the additive schema and the PT409 fix; keep or restore the recorded previous successful deployment, then fix forward. Do not roll back data/schema to rescue a frontend deployment.
-- **Regression after currency use:** prefer fixing forward. Before reverting to old application code, disable scheduled monitoring and email delivery through the established operations controls under separate approval, account for already-running work/submissions, and prevent old clients from editing currency definitions. Existing currency Watches/outbox must be preserved and explicitly reconciled; the old RSS evaluator cannot safely run these definitions. If these controls cannot be guaranteed, stop and stage a compatibility fix instead of promoting the old app. Do not reset revisions, replay notification rows, undo PT409 or drop the new column/functions.
+- **Preflight failure:** stop, no DDL or merge. Retain evidence privately. Do not modify manifests to make a mismatch pass. A partial/incompatible state requires separately reviewed repair.
+- **SQL failure or uncertain connection outcome:** never blindly retry. If still in the same aborted session, ROLLBACK. The helper exits/closes on errors. In fresh sessions run `--verify`, then (only if needed) `--preflight` and `--inspect`. Matching after state means committed: verify data and continue, never reapply. Matching before state plus unchanged data means rolled back/not applied: resolve the cause and retry the identical transaction only within the approval scope. Neither match means uncertain/partial/drift: stop and investigate; do not drop objects or invent history. A repeated apply deliberately fails before DDL.
+- **Database verified but merge/deploy fails:** retain compatible additive schema. Report exact state and prefer fix-forward. Do not destructively roll back schema or restore old backup data.
+- **Application rollback:** never blindly promote old code once currency definitions may exist. Old code cannot evaluate them safely. Any recovery requiring disabling scheduled processing/email, preventing old-client edits, or reconciling currency Watches/outboxes needs separate authorization. Preserve revisions, records and the PT409 fix.
+
+## Validation and limits
+
+The full automated suite passes 1,117 tests with external network blocked; build and diff checks pass. Final-head CI results are recorded in the PR. The audit records successful restored PostgreSQL 17 and PGlite failure/upgrade/repeat/old-RPC tests. To reproduce the restored integration test, start only the documented private socket-only cluster from `RESTORE.md`, then run:
+
+```sh
+WATCH_RESTORE_SOCKET=/Users/davidlang/documents-local/watch-assistant-backups/production-20261001T121222Z \
+PSQL_PATH=/opt/homebrew/opt/postgresql@17/bin/psql node scripts/validate-currency-release-postgres.mjs
+```
+
+It creates/deletes only a uniquely named local clone, rejects a TCP/incorrect-role target, and rolls back synthetic user operations. Stop the local cluster afterward. Hosted platform event triggers/cache behavior, production lock timing, and the original Watch's functional behavior remain limitations until authorized execution and owner validation.
 
 ## Rate freshness and remaining limits
 
 [ECB reference-rate policy](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html) publishes around 16:00 CET on working days excluding TARGET closure days. [ECB's calendar](https://www.ecb.europa.eu/ecb/contacts/working-hours/html/index.en.html) marks New Year, Good Friday, Easter Monday, May Day and December 25/26 as TARGET closures. Office-only holidays are not excluded. The code uses Europe/Berlin civil time, accepts the previous TARGET business date until 18:00, then requires today's publication on publication days; weekends/closures retain the last publication. Two hours is an application grace policy, not an ECB guarantee. Unexpected publication delays become explicit verification failures.
 
-Observation date is the ECB daily date, not an intraday quote time. Check time is stored separately. Update `publishedAt` uses midnight as a date carrier and must not be interpreted as the ECB's actual publication timestamp. Daily 06:00 UTC scheduled checks usually see the preceding business day's rate and may detect a new reference rate the next morning. Only the supported GBP/EUR threshold language is covered; this is not a live trading-price service. Original production Watch behavior, live schema state and actual delivery remain unverified.
+Observation date is the ECB daily date, not an intraday quote time. Check time is stored separately. Update `publishedAt` uses midnight as a date carrier and must not be interpreted as the ECB's actual publication timestamp. Daily 06:00 UTC scheduled checks usually see the preceding business day's rate and may detect a new reference rate the next morning. Only the supported GBP/EUR threshold language is covered; this is not a live trading-price service. Original production Watch behavior and actual delivery remain unverified; production schema was inspected read-only.
