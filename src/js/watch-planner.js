@@ -5,7 +5,7 @@ const PLANNER_ENDPOINT = '/api/plan-watch?scope=migrated_routes';
 const STRATEGIES = new Set([
   'media_story', 'official_company', 'structured_source', 'web_search', 'unknown',
 ]);
-const CONNECTORS = new Set(['bodacc', 'media_story', 'rss', 'web_ai', 'rci_monaco', null]);
+const CONNECTORS = new Set(['ecb', 'bodacc', 'media_story', 'rss', 'web_ai', 'rci_monaco', null]);
 
 export class WatchPlannerError extends Error {
   constructor(code = 'PLANNER_UNAVAILABLE') {

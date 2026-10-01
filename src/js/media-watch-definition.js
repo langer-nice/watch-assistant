@@ -1,3 +1,4 @@
+import { currencyCriteriaFor, CURRENCY_SOURCE } from './currency-watch.js';
 import { SUPPORTED_WATCH_CATEGORIES } from './watch-category.js';
 // Only the fields used by feed discovery and matching cross the persistence boundary.
 const text = (value, limit) => {
@@ -9,11 +10,20 @@ const list = (value, limit = 8) => {
   return value.map((item) => text(item, 200));
 };
 export const isMediaWatch = (watch) => Boolean(
-  (watch?.inputType === 'text' && watch.mediaMention)
+  currencyCriteriaFor(watch) || (watch?.inputType === 'text' && watch.mediaMention)
   || (watch?.inputType === 'url' && watch.isStory === true && watch.storyProfile),
 );
 export const mediaWatchDefinition = (watch) => {
   if (!isMediaWatch(watch) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(watch.id)) throw new Error('INVALID_MEDIA_DEFINITION');
+  const criteria = currencyCriteriaFor(watch);
+  if (criteria) {
+    if (!/^[0-9a-f-]{36}$/i.test(watch.currencyRevision || '')) throw new Error('INVALID_MEDIA_DEFINITION');
+    return { id: watch.id, title: text(watch.title, 200),
+      monitoring_source: { type: 'currency', url: CURRENCY_SOURCE.url, provider: 'ecb' },
+      watch_definition: { inputType: 'text', request: text(watch.request, 500), category: 'finance',
+        currencyCriteria: criteria, currencyRevision: watch.currencyRevision, currencyLanguage: watch.currencyLanguage === 'fr' ? 'fr' : 'en' },
+      monitoring_state: ['paused', 'completed'].includes(watch.status) ? 'paused' : 'monitoring' };
+  }
   const url = new URL(text(watch.monitoringSource?.url, 2048));
   if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('INVALID_MEDIA_DEFINITION');
   const category = watch.category || 'news';

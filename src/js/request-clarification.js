@@ -1,3 +1,4 @@
+import { parseCurrencyRequest } from './currency-watch.js';
 import { parseMediaMentionRequest } from './media-mention-request.js';
 
 const MAX_REQUEST_LENGTH = 500;
@@ -191,6 +192,7 @@ const validateClarification = (result, original, { language = 'en' } = {}) => {
 export const clarifyWatchRequest = async (request, { language = 'en' } = {}) => {
   const original = normalize(request).slice(0, MAX_REQUEST_LENGTH);
   if (!original) return clearResult('');
+  if (parseCurrencyRequest(original)) return clearResult(original);
   if (parseMediaMentionRequest(original).recognized) return clearResult(original);
   if (isExplicitTopicUpdateRequest(original)) return clearResult(original);
 

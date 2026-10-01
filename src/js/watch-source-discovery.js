@@ -1,3 +1,4 @@
+import { CURRENCY_SOURCE } from './currency-watch.js';
 import { normalizeFeedUrl } from './watch-monitoring.js';
 
 export class SourceDiscoveryError extends Error {
@@ -9,6 +10,7 @@ export class SourceDiscoveryError extends Error {
 }
 
 export const normalizeMonitoringSource = (source) => {
+  if (source?.type === 'currency' && source?.provider === 'ecb') return { ...CURRENCY_SOURCE };
   const url = normalizeFeedUrl(source?.url || '');
   if (!url) return null;
   const query = typeof source?.query === 'string' && source.query.trim()

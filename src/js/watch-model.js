@@ -1,3 +1,4 @@
+import { normalizeCurrencyWatch } from './currency-watch.js';
 import { normalizeFeedUrl } from './watch-monitoring.js';
 import { createStoryProfile } from './story-profile.js';
 import {
@@ -350,8 +351,9 @@ export const migrateWatchModel = (watch) => {
     lastCheckResult: watch.lastCheckResult || watch.lastCheckOutcome || null,
     lastCheckAttempt: normalizeLastCheckAttempt(watch.lastCheckAttempt),
   };
+  const normalized = normalizeCurrencyWatch(migratedWatch);
   return {
-    watch: migratedWatch,
-    migrated: JSON.stringify(migratedWatch) !== JSON.stringify(watch),
+    watch: normalized,
+    migrated: JSON.stringify(normalized) !== JSON.stringify(watch),
   };
 };

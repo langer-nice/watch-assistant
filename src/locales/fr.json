@@ -274,7 +274,9 @@
       "duplicate": "Une Watch d’entreprise active existe déjà pour ce SIREN.",
       "invalidIdentifier": "Saisissez un SIREN valide à 9 chiffres pour cette entreprise française.",
       "persistence": "La Watch d’entreprise n’a pas pu être enregistrée. Vos Watches existantes n’ont pas été modifiées. Réessayez.",
-      "configuration": "La persistance serveur n’est pas disponible dans cet environnement. Réessayez lorsqu’elle sera configurée."
+      "configuration": "La persistance serveur n’est pas disponible dans cet environnement. Réessayez lorsqu’elle sera configurée.",
+      "currency": "Le taux de change n’a pas pu être vérifié. Le cours BCE est absent, invalide, indisponible ou trop ancien.",
+      "edited": "La Watch a changé pendant ce contrôle. Relancez le contrôle."
     },
     "monitoringUnavailable": "La source de surveillance est temporairement indisponible. Vous pouvez relancer la vérification.",
     "newItems": "Nouveaux articles",

@@ -1,8 +1,10 @@
+import { currencyCriteriaFor } from './currency-watch.js';
 import { getMediaWatchLoadState, getMediaPersistenceState, keepLocalMediaChanges, synchronizeMediaWatches } from './media-watch-server-store.js';
 import { claimLocalMediaWatch, getWatchById } from './watch-storage.js';
 
 const copy = {
   en: {
+    currencyEnabled: 'This Watch is synced. Email is enabled when the daily ECB rate meets the target, once per condition.',
     saved: 'This Watch is synced. Email notifications are disabled.',
     enabled: 'This Watch is synced. Email notifications are enabled for new matching articles after the first automatic check.',
     pending: 'Changes are saved on this device and waiting to sync. Automatic monitoring starts after the first sync; until then, only a previously synced version can run.',
@@ -13,6 +15,7 @@ const copy = {
     keep: 'Keep my local changes', retry: 'Retry sync', claim: 'Sync this Watch',
   },
   fr: {
+    currencyEnabled: 'Cette Watch est synchronisée. Un e-mail sera envoyé lorsque le cours quotidien BCE satisfait le seuil, une fois par condition.',
     saved: 'Cette Watch est synchronisée. Les notifications par e-mail sont désactivées.',
     enabled: 'Cette Watch est synchronisée. Les notifications par e-mail sont activées pour les nouveaux articles correspondants après le premier contrôle automatique.',
     pending: 'Les modifications sont enregistrées sur cet appareil et attendent la synchronisation. Le suivi automatique commence après la première synchronisation ; jusque-là, seule une version déjà synchronisée peut fonctionner.',
@@ -42,7 +45,7 @@ export const renderMediaPersistenceNotice = (watch, title, language) => {
   const message = notice.querySelector('p');
   message.textContent = sync.syncing ? labels.syncing : sync.syncError ? labels.failed
     : state.status === 'conflict' ? `${labels.conflict} ${state.remoteTitle} — ${state.remoteRequest}`
-      : state.status === 'saved' ? (state.emailEnabled ? labels.enabled : labels.saved)
+      : state.status === 'saved' ? (state.emailEnabled ? (currencyCriteriaFor(watch) ? labels.currencyEnabled : labels.enabled) : labels.saved)
         : state.status === 'pending' ? labels.pending
           : state.canClaim ? labels.claimable : labels.local;
   let button = notice.querySelector('button');

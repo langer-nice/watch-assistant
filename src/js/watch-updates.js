@@ -123,7 +123,7 @@ const normalizeUpdates = (updates) => {
     .filter((update) => {
       if (!update) return false;
       const identity = getUpdateIdentity(update);
-      const articleUrl = getCanonicalArticleUrl(update.sourceUrl);
+      const articleUrl = update.id.startsWith('currency:') ? null : getCanonicalArticleUrl(update.sourceUrl);
       if (
         seenIds.has(update.id)
         || seenResults.has(identity)
@@ -155,7 +155,8 @@ export const addUpdateToWatch = (watch, update) => {
 
   const updates = normalizeUpdates(watch.updates);
   const identity = getUpdateIdentity(normalizedUpdate);
-  const articleUrl = getCanonicalArticleUrl(normalizedUpdate.sourceUrl);
+  // Currency events share a provider URL; their versioned condition ID is the identity.
+  const articleUrl = normalizedUpdate.id.startsWith('currency:') ? null : getCanonicalArticleUrl(normalizedUpdate.sourceUrl);
   const duplicate = updates.some((existing) => (
     existing.id === normalizedUpdate.id
     || getUpdateIdentity(existing) === identity
