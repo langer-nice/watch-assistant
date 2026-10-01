@@ -4,7 +4,6 @@ import { configureMediaWatchServerStore } from './media-watch-server-store.js';
 import { configureHomeGreeting, initApp } from './navigation.js';
 import { initializeLanguage, setLanguage } from './i18n.js';
 import { initTopNavigation } from './top-navigation.js';
-import { initIntroReplayLink } from './intro-flow.js';
 import { initializeAnalytics } from './analytics.js';
 import { initAuthUi } from './auth-ui.js';
 import { configureCompanyWatchServerStore } from './company-watch-server-store.js';
@@ -16,7 +15,6 @@ configureOnboardingRequest();
 initializeLanguage();
 const callbackLanguage = new URLSearchParams(window.location.search).get('lang');
 if (['en', 'fr'].includes(callbackLanguage)) setLanguage(callbackLanguage);
-initIntroReplayLink();
 initTopNavigation();
 let appStarted = false;
 const authUi = initAuthUi({ onResume: async (request, owner) => {
