@@ -91,6 +91,13 @@ test('freshness handles weekdays, grace period, weekends, and TARGET Easter clos
   assert.equal(earliestAcceptableRateDate(new Date('2026-10-01T16:00Z')), '2026-10-01');
   assert.equal(earliestAcceptableRateDate(new Date('2026-10-04T12:00Z')), '2026-10-02');
   assert.equal(earliestAcceptableRateDate(new Date('2026-04-06T18:00Z')), '2026-04-02');
+  assert.equal(earliestAcceptableRateDate(new Date('2026-01-01T18:00Z')), '2025-12-31');
+  assert.equal(earliestAcceptableRateDate(new Date('2026-05-01T18:00Z')), '2026-04-30');
+  assert.equal(earliestAcceptableRateDate(new Date('2026-12-27T18:00Z')), '2026-12-24');
+  // ECB office holidays are not necessarily TARGET closures (Ascension Day).
+  assert.equal(earliestAcceptableRateDate(new Date('2026-05-14T16:00Z')), '2026-05-14');
+  assert.equal(earliestAcceptableRateDate(new Date('2026-10-26T16:59Z')), '2026-10-23');
+  assert.equal(earliestAcceptableRateDate(new Date('2026-10-26T17:00Z')), '2026-10-26');
 });
 
 test('JSONB property ordering neither rearms a condition nor rejects an equivalent response', () => {

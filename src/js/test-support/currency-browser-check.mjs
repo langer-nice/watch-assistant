@@ -25,6 +25,8 @@ const body = await page.locator('body').innerText();
 assert.match(body,/1 GBP ≈ 1.170001170001 EUR/);
 assert.match(body,/(target|objectif) ≥ 1.17/);
 assert.match(body,/2026-09-30/);
+assert.ok(body.includes(language === 'fr' ? 'BCE, cours de référence quotidien' : 'ECB daily reference rate'));
+assert.ok(body.includes(language === 'fr' ? 'pas une cotation en temps réel' : 'not a live quote'));
 assert.doesNotMatch(body,/No meaningful update has been detected yet/);
 assert.ok(body.includes(language === 'fr' ? 'Seuil atteint' : 'Target reached'));
 const count = await page.evaluate(()=>JSON.parse(localStorage.getItem('watchAssistant.watches.v2.account.synthetic-user-a'))[0].updates.length);
