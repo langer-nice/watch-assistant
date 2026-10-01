@@ -34,6 +34,8 @@ export const getBodaccBusinessEventLabel = (update, translate = () => '') => {
   return key ? translate(key) : '';
 };
 
+const sameCopy = (a, b) => String(a || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase() === String(b || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase();
+
 export const getCurrentSituationPresentation = (watch, {
   fallback = '',
   formatTimestamp = (value) => value || '',
@@ -53,7 +55,7 @@ export const getCurrentSituationPresentation = (watch, {
 
   const summary = update.summary || update.sourceTitle || fallback;
   const businessEventLabel = getBodaccBusinessEventLabel(update, translateBusinessEvent);
-  const title = businessEventLabel || (update.sourceTitle && update.sourceTitle !== summary
+  const title = businessEventLabel || (update.sourceTitle && !sameCopy(update.sourceTitle, summary)
     ? update.sourceTitle
     : '');
   const metadata = [

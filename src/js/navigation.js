@@ -1,3 +1,4 @@
+import { currencyUpdateSummary } from './currency-display.js';
 import { currencySummary, currencyOverview, currencyCriteriaFor } from './currency-watch.js';
 import { getWatchListAvailability, renderWatchLoadNotice } from './watch-load-notice.js';
 import { renderExampleWatches, renderExampleDetail } from './example-watches.js';
@@ -84,7 +85,6 @@ import {
   shouldRegenerateStoryFingerprint,
 } from './story-fingerprint-migration.js';
 import {
-  createLocalEditorialSummary,
   generateMonitoringSummary,
 } from './monitoring-summary.js';
 import {
@@ -556,7 +556,8 @@ const getLatestChange = (watch) => {
 
 const getHomeUpdateText = (watch) => {
   const latestUpdate = getLatestUpdate(watch);
-  return getBodaccBusinessEventLabel(latestUpdate, t)
+  return currencyUpdateSummary(watch, latestUpdate, getLanguage())
+    || getBodaccBusinessEventLabel(latestUpdate, t)
     || latestUpdate?.sourceTitle
     || latestUpdate?.summary
     || getLatestChange(watch)
@@ -564,6 +565,8 @@ const getHomeUpdateText = (watch) => {
 };
 
 const getMonitoringSummary = (watch, title) => {
+  if (currencyCriteriaFor(watch)) return currencySummary(watch.currencyEvaluation, getLanguage())
+    || currencyOverview(currencyCriteriaFor(watch), getLanguage());
   const request = localizeField(watch, 'request');
   const excludedValues = new Set(
     [title, request, getLatestChange(watch), t('watchData.created'), 'undefined', 'null']
@@ -580,7 +583,7 @@ const getMonitoringSummary = (watch, title) => {
   }
 
   const requestText = hasMeaningfulText(request) ? request : '';
-  const fallback = createLocalEditorialSummary(requestText);
+  const fallback = requestText ? t('detail.originalInstructionCopy', { request: requestText }) : '';
   return (
     normalizeComparableText(fallback) !== normalizeComparableText(title) ? fallback : ''
   );
@@ -1091,7 +1094,8 @@ const renderHomeWatchCards = (watches, statusById) => {
       : watch.reportFailureCode
         ? t(getMonitoringFailureMessageKey(watch.reportFailureCode))
       : latestUpdate
-      ? getBodaccBusinessEventLabel(latestUpdate, t)
+      ? currencyUpdateSummary(watch, latestUpdate, getLanguage())
+        || getBodaccBusinessEventLabel(latestUpdate, t)
         || latestUpdate.sourceTitle
         || latestUpdate.summary
         || t('detail.untitledItem')
@@ -1581,8 +1585,15 @@ const renderWatchDetail = () => {
     translateBusinessEvent: t,
   });
   const latestMeaningfulUpdate = currentUpdate.update;
+  const rateHeading = currentSituationContainerEl?.querySelector('.section-heading');
+  if (rateHeading) {
+    const key = currencyCriteriaFor(watch) ? 'currency.currentRate' : 'detail.currentSituation';
+    rateHeading.dataset.i18n = key;
+    rateHeading.textContent = t(key);
+  }
+  const eventCurrencySummary = currencyUpdateSummary(watch, currentUpdate.update, getLanguage());
   const currentSituation = watch.currencyEvaluation && currencyCriteriaFor(watch)
-    ? currencySummary(watch.currencyEvaluation, getLanguage()) : currentUpdate.summary;
+    ? currencySummary(watch.currencyEvaluation, getLanguage()) : eventCurrencySummary || currentUpdate.summary;
   const hasCurrentSituation = setOptionalField(
     'currentSituation',
     currentSituationEl,
@@ -1594,11 +1605,12 @@ const renderWatchDetail = () => {
       || !isBodaccBusinessEvent(latestMeaningfulUpdate);
   }
   if (currentUpdateTitleEl) {
-    currentUpdateTitleEl.textContent = currentUpdate.title;
-    currentUpdateTitleEl.hidden = !currentUpdate.title;
+    currentUpdateTitleEl.textContent = eventCurrencySummary ? '' : currentUpdate.title;
+    currentUpdateTitleEl.hidden = Boolean(eventCurrencySummary) || !currentUpdate.title;
   }
   if (currentUpdateMetadataEl) {
-    currentUpdateMetadataEl.textContent = currentUpdate.metadata;
+    currentUpdateMetadataEl.textContent = eventCurrencySummary
+      ? t('currency.detected', { date: formatMonitoringTimestamp(currentUpdate.update.timestamp) }) : currentUpdate.metadata;
     currentUpdateMetadataEl.hidden = !currentUpdate.metadata;
   }
   if (currentUpdateLinkEl) {
@@ -1628,8 +1640,21 @@ const renderWatchDetail = () => {
     );
   }
 
+  const originalInstruction = watch.inputType === 'text' && !currencyCriteriaFor(watch)
+    && normalizeComparableText(watch.storyProfile?.storySummary || watch.request) === normalizeComparableText(watch.request);
   const storySummary = currencyCriteriaFor(watch)
-    ? currencyOverview(currencyCriteriaFor(watch), getLanguage()) : watch.storyProfile?.storySummary || '';
+    ? currencyOverview(currencyCriteriaFor(watch), getLanguage())
+    : originalInstruction ? watch.request
+      : watch.storyProfile?.storySummary === watch.monitoringSummary
+        ? getLocalizedWatchCopy(watch, getLanguage(), 'summary') || watch.storyProfile?.storySummary || ''
+        : watch.storyProfile?.storySummary || '';
+  const overviewHeading = storySummaryEl?.querySelector('.section-heading');
+  if (overviewHeading) {
+    const key = currencyCriteriaFor(watch) ? 'currency.condition'
+      : originalInstruction ? 'detail.originalInstruction' : 'detail.storyOverview';
+    overviewHeading.dataset.i18n = key;
+    overviewHeading.textContent = t(key);
+  }
   if (storySummaryCopyEl) storySummaryCopyEl.textContent = storySummary;
   if (storySummaryEl) storySummaryEl.hidden = !storySummary;
   const monitoringScope = watch.inputType === 'url'
@@ -1821,7 +1846,8 @@ const renderWatchDetail = () => {
       const label = item.type === 'created'
         ? t('watchData.created')
         : item.type === 'update'
-          ? getBodaccBusinessEventLabel(item.source, t)
+          ? currencyUpdateSummary(watch, item.source, getLanguage())
+            || getBodaccBusinessEventLabel(item.source, t)
             || item.source.sourceTitle
             || item.source.summary
             || t('detail.updateDetected')
@@ -1829,9 +1855,10 @@ const renderWatchDetail = () => {
       if (!label) {
         return null;
       }
-      const date = item.dateKey
-        ? t(item.dateKey)
-        : item.timestamp ? formatDate(item.timestamp) : '';
+      const currencyEvent = item.type === 'update' && currencyUpdateSummary(watch, item.source, getLanguage());
+      const date = currencyEvent
+        ? t('currency.detected', { date: formatMonitoringTimestamp(item.source.timestamp) })
+        : item.dateKey ? t(item.dateKey) : item.timestamp ? formatDate(item.timestamp) : '';
       return {
         date,
         label,
@@ -1896,13 +1923,14 @@ const renderWatchDetail = () => {
       .map((item, index) => {
         const itemUrl = getSafeExternalUrl(item.sourceUrl);
         const legacyChange = index === 0 ? getLatestChange(watch) : '';
-        const title = item.sourceTitle || item.summary || legacyChange || t('detail.untitledItem');
+        const currencyText = currencyUpdateSummary(watch, item, getLanguage());
+        const title = currencyText || item.sourceTitle || item.summary || legacyChange || t('detail.untitledItem');
         const timestamp = formatMonitoringTimestamp(item.timestamp);
         const metadata = [
           item.sourceDomain,
-          timestamp,
+          currencyText ? t('currency.detected', { date: timestamp }) : timestamp,
         ].filter(Boolean).join(' · ');
-        const summary = item.summary && item.summary !== title ? item.summary : '';
+        const summary = !currencyText && item.summary && normalizeComparableText(item.summary) !== normalizeComparableText(title) ? item.summary : '';
         return `
           <li class="monitoring-update">
             ${itemUrl
@@ -5137,7 +5165,7 @@ const scheduleWatchTranslations = () => {
   window.clearTimeout(watchTranslationTimer);
   watchTranslationTimer = window.setTimeout(() => {
     const language = getLanguage();
-    const watches = getUserCreatedWatches().filter((watch) => watch.inputType === 'text');
+    const watches = getUserCreatedWatches().filter((watch) => watch.inputType === 'text' && !currencyCriteriaFor(watch));
     // A small queue avoids opening many model requests at once for older accounts.
     void (async () => {
       for (const watch of watches) {

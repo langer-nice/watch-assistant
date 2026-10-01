@@ -304,7 +304,9 @@
     "deleteCopy": "This will permanently stop monitoring and remove this Watch.",
     "cancel": "Cancel",
     "notFoundTitle": "Watch not found",
-    "notFoundCopy": "We could not find that watch. Please return to the watch list."
+    "notFoundCopy": "We could not find that watch. Please return to the watch list.",
+    "originalInstruction": "Your original instruction",
+    "originalInstructionCopy": "Your original instruction: {request}"
   },
   "newWatch": {
     "back": "Home",
@@ -739,5 +741,14 @@
     "requestLabel": "Request",
     "back": "All Watches",
     "unavailable": "This example is not available."
+  },
+  "currency": {
+    "met": "Target reached",
+    "notMet": "Target not reached",
+    "result": "{decision}: 1 {base} {relation} {rate} {quote}. Target: ≥ {target} {quote}. ECB daily reference rate for {date}.",
+    "overview": "Monitor the daily ECB rate: 1 {base} ≥ {target} {quote}. This is a reference rate, not a live quote.",
+    "detected": "Detected on {date}",
+    "condition": "Monitored condition",
+    "currentRate": "Latest evaluated rate"
   }
 }

@@ -105,6 +105,7 @@ export const normalizeUpdate = (update, { fallbackTimestamp = null } = {}) => {
     sourceDomain,
     summary,
     status,
+    ...(update.currencyEvaluation ? { currencyEvaluation: update.currencyEvaluation } : {}),
     ...(publishedAt ? { publishedAt } : {}),
     ...(detectedAt ? { detectedAt } : {}),
     ...(monitoringProvenance ? { monitoringProvenance } : {}),

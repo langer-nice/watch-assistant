@@ -1,3 +1,4 @@
+import { formatCurrencySummary, formatCurrencyOverview } from './currency-display.js';
 import { addUpdateToWatch, getUnreadUpdates } from './watch-updates.js';
 
 export const CURRENCY_SOURCE = Object.freeze({ type: 'currency', provider: 'ecb',
@@ -75,15 +76,8 @@ export const evaluateCurrencyRate = (criteria, observation) => {
     inverted: observation.base !== criteria.base };
 };
 
-export const currencyOverview = (criteria, language = 'en') => language === 'fr'
-  ? `Suivre le cours quotidien BCE : 1 ${criteria.base} ≥ ${criteria.target} ${criteria.quote}. Ce cours de référence n’est pas une cotation en temps réel.`
-  : `Monitor the daily ECB rate: 1 ${criteria.base} ≥ ${criteria.target} ${criteria.quote}. This is a reference rate, not a live quote.`;
-export const currencySummary = (evaluation, language = 'en') => {
-  const { base, quote, observedRate, target, observationDate, met, inverted } = evaluation;
-  return language === 'fr'
-    ? `${met ? 'Seuil atteint' : 'Seuil non atteint'} : 1 ${base} ${inverted ? '≈' : '='} ${observedRate} ${quote} ; objectif ≥ ${target}. BCE, cours de référence quotidien du ${observationDate}.`
-    : `${met ? 'Target reached' : 'Target not reached'}: 1 ${base} ${inverted ? '≈' : '='} ${observedRate} ${quote}; target ≥ ${target}. ECB daily reference rate, ${observationDate}.`;
-};
+export const currencyOverview = formatCurrencyOverview;
+export const currencySummary = formatCurrencySummary;
 export const applyCurrencyCheckResult = (watch, response) => {
   const criteria = currencyCriteriaFor(watch);
   if (!criteria || !sameCurrencyCriteria(criteria, response?.criteria) || !response?.observation
