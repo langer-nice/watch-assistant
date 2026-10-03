@@ -254,7 +254,9 @@
     "notCheckedYet": "Not checked yet",
     "checkFailedStatus": "Check failed",
     "noNewUpdates": "No new updates found.",
-    "noMatchingUpdates": "No new updates found.",
+    "noMatchingUpdates": "New articles were retrieved, but none matched this Watch.",
+    "baselineEstablished": "Initial reference established. Articles found in this first check are not new alerts.",
+    "feedBaselineNotice": "The first successful check establishes a reference from the articles returned by the source. These existing articles do not appear as alerts. Later checks look for unseen matching articles; coverage is limited to the source’s returned results.",
     "newItemsFound": {
       "one": "{count} new update found.",
       "other": "{count} new updates found."

@@ -254,7 +254,9 @@
     "notCheckedYet": "Pas encore vérifiée",
     "checkFailedStatus": "Échec de la vérification",
     "noNewUpdates": "Aucune nouvelle mise à jour trouvée.",
-    "noMatchingUpdates": "Aucune nouvelle mise à jour trouvée.",
+    "noMatchingUpdates": "De nouveaux articles ont été récupérés, mais aucun ne correspond à cette Watch.",
+    "baselineEstablished": "État de référence établi. Les articles trouvés lors de cette première vérification ne sont pas de nouvelles alertes.",
+    "feedBaselineNotice": "La première vérification réussie établit une référence à partir des articles renvoyés par la source. Ces articles existants ne sont pas affichés comme des alertes. Les vérifications suivantes recherchent des articles correspondants encore jamais vus ; la couverture se limite aux résultats renvoyés par la source.",
     "newItemsFound": {
       "one": "{count} nouvelle mise à jour trouvée.",
       "other": "{count} nouvelles mises à jour trouvées."

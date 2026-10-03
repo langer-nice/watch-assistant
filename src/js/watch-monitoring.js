@@ -1,4 +1,5 @@
 import { currencyCriteriaFor, currencyKey, applyCurrencyCheckResult } from './currency-watch.js';
+import { mediaSubjectAliases } from './media-subject-aliases.js';
 import { getStoryProfileIdentifiers } from './story-profile.js';
 import { addUpdateToWatch, getUnreadUpdates } from './watch-updates.js';
 import { MONITORING_FAILURE_CODES } from './watch-monitoring-errors.js';
@@ -306,7 +307,9 @@ export const matchFeedItemToMediaMention = (item, mediaMention) => {
   if (!text || !subjects.length || mediaMention?.matchMode !== 'all') {
     return { matched: false, evidence: [] };
   }
-  const matchedSubjects = subjects.filter((subject) => containsCanonicalPhrase(text, subject));
+  const matchedSubjects = subjects.filter((subject) => (
+    mediaSubjectAliases(subject).some((name) => containsCanonicalPhrase(text, name))
+  ));
   return {
     matched: matchedSubjects.length === subjects.length,
     evidence: matchedSubjects.map((label) => ({

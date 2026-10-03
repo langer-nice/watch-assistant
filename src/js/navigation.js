@@ -2021,10 +2021,15 @@ const renderWatchDetail = () => {
     checkReviewEl.removeAttribute('aria-label');
     checkReviewEl.onclick = null;
   }
+  const feedBaselineNoticeEl = document.querySelector('#watchFeedBaselineNotice');
+  if (feedBaselineNoticeEl) {
+    feedBaselineNoticeEl.hidden = !normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl)
+      || isCompanyWatch(watch) || Boolean(currencyCriteriaFor(watch));
+  }
   if (checkFeedbackEl && !detailCheckInProgress) {
     const outcome = watch.lastCheckOutcome?.type;
     const outcomeKey = outcome === 'baseline'
-      ? 'detail.noNewUpdates'
+      ? 'detail.baselineEstablished'
       : outcome === 'no-new-items'
         ? 'detail.noNewUpdates'
         : outcome === 'no-matching-items'
