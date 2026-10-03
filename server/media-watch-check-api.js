@@ -6,7 +6,8 @@ import { applyFeedCheckResult, matchFeedItemToWatch } from '../src/js/watch-moni
 
 export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSupabaseRequest,
   serviceClient, fetchFeed = fetchAndNormalizeFeed, ...options } = {}) => async (request, response, next) => {
-  if (new URL(request.url || '/', 'http://localhost').pathname !== '/api/check-media-watch') return next?.();
+  const url = new URL(request.url || '/', 'http://localhost');
+  if (url.pathname !== '/api/media-watches' || url.searchParams.get('action') !== 'check') return next?.();
   const send = (status, body) => {
     response.statusCode = status;
     response.setHeader('Content-Type', 'application/json');

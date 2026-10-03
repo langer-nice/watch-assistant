@@ -136,7 +136,7 @@ export const checkStoredMediaWatch = async (watch) => {
   const remote = rows.find(row => row.id === watch.id && !row.deleted_at);
   if (!synced?.ok || saved?.pending || saved?.conflict || saved?.localOnly || !remote
     || epoch !== generation || user !== owner()) throw Object.assign(new Error('Watch not synchronized'), { code: 'PERSISTENCE_UNAVAILABLE' });
-  const response = await watchRequest('/api/check-media-watch', {
+  const response = await watchRequest('/api/media-watches?action=check', {
     method: 'POST', headers: { Authorization: `Bearer ${session().access_token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: watch.id, revision: Number(remote.media_revision) }),
   }, 15000);

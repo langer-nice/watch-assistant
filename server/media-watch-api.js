@@ -1,9 +1,15 @@
+import { createMediaWatchCheckMiddleware } from './media-watch-check-api.js';
 import { getMediaWatchEmailConfig } from './media-watch-email.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
 import { mediaWatchDefinition } from '../src/js/media-watch-definition.js';
 
 export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabaseRequest, ...options } = {}) => async (request, response, next) => {
-  if (new URL(request.url || '/', 'http://localhost').pathname !== '/api/media-watches') return next?.();
+  const url = new URL(request.url || '/', 'http://localhost');
+  if (url.pathname !== '/api/media-watches') return next?.();
+  // Share the existing Vercel function; do not exceed the Hobby function limit.
+  if (url.searchParams.get('action') === 'check') {
+    return createMediaWatchCheckMiddleware({ authenticate, ...options })(request, response, next);
+  }
   const startedAt = Date.now();
   const send = (status, body) => {
     console.info('[Media Watches]', { method: request.method, statusCode: status, durationMs: Date.now() - startedAt, code: body.code || 'OK' });

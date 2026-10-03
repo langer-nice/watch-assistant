@@ -9,7 +9,6 @@ const { createWatchObject } = await import('../src/js/navigation.js');
 import { PGlite } from '@electric-sql/pglite';
 import { testResources } from './test-support/fixture-resources.js';
 import { createMediaWatchMiddleware } from './media-watch-api.js';
-import { createMediaWatchCheckMiddleware } from './media-watch-check-api.js';
 import { createWatchCheckController } from '../src/js/watch-monitoring.js';
 import { parseMediaMentionRequest } from '../src/js/media-mention-request.js';
 import { initialContextArticles } from '../src/js/initial-context.js';
@@ -95,15 +94,9 @@ test('news Watch creation, authenticated manual checks, durable context and acco
     state = id ? { status: 'authenticated', session: { access_token: id, user: { id } } } : { status: 'anonymous', session: null };
     for (const fn of listeners) fn(state);
   };
-  const apiEnv = {};
-  const middleware = createMediaWatchMiddleware({ env: apiEnv, authenticate: async (request) => {
-    const id = request.headers.authorization.replace('Bearer ', '');
-    if (![USER_A, USER_B].includes(id)) throw Object.assign(new Error('Invalid token'), { statusCode: 401 });
-    return { user: { id }, client: client('authenticated', id) };
-  } });
   let feedItems = []; let feedError = false; let time = new Date('2026-10-03T14:00:00Z');
   let fetchCount = 0;
-  const checkMiddleware = createMediaWatchCheckMiddleware({ serviceClient: client('service_role', null),
+  const middleware = createMediaWatchMiddleware({ serviceClient: client('service_role', null),
     authenticate: async request => {
       const id = request.headers.authorization?.replace('Bearer ', '');
       if (![USER_A, USER_B].includes(id)) throw Object.assign(new Error('Unauthenticated'), {statusCode:401,code:'AUTH_REQUIRED'});
@@ -113,9 +106,9 @@ test('news Watch creation, authenticated manual checks, durable context and acco
       time = new Date(time.getTime()+60000); return {checkedAt:time.toISOString(),items:feedItems}; },
   });
   globalThis.fetch = async (url, options) => {
-    assert.ok(['/api/media-watches','/api/check-media-watch'].includes(url), 'No external network');
+    assert.ok(['/api/media-watches','/api/media-watches?action=check'].includes(url), 'No external network');
     let status; let body;
-    await (url === '/api/check-media-watch' ? checkMiddleware : middleware)({ url, method: options?.method || 'GET', headers: { authorization: options.headers.Authorization },
+    await middleware({ url, method: options?.method || 'GET', headers: { authorization: options.headers.Authorization },
       ...(options.body ? { body: JSON.parse(options.body) } : {}) }, {
       setHeader() {}, set statusCode(value) { status = value; }, end(value) { body = JSON.parse(value); },
     });
@@ -250,10 +243,10 @@ test('news Watch creation, authenticated manual checks, durable context and acco
   switchUser(USER_B); configureAccountStorage(auth); await store.configureMediaWatchServerStore(auth);await flush();
   assert.equal(store.getMediaServerWatches().length,0);
   const beforeFetch=fetchCount;
-  const denied=await fetch('/api/check-media-watch',{method:'POST',headers:{Authorization:`Bearer ${USER_B}`},body:JSON.stringify({id,revision:1})});
+  const denied=await fetch('/api/media-watches?action=check',{method:'POST',headers:{Authorization:`Bearer ${USER_B}`},body:JSON.stringify({id,revision:1})});
   assert.equal(denied.status,404);assert.equal(fetchCount,beforeFetch);
   assert.equal((await scoped('authenticated',USER_B,'select * from public.media_watch_snapshots')).rows.length,0);
-  const anonymous=await fetch('/api/check-media-watch',{method:'POST',headers:{Authorization:'Bearer none'},body:JSON.stringify({id,revision:1})});
+  const anonymous=await fetch('/api/media-watches?action=check',{method:'POST',headers:{Authorization:'Bearer none'},body:JSON.stringify({id,revision:1})});
   assert.equal(anonymous.status,401);
   assert.equal(await count('media_watch_notifications'),0);
   assert.ok(rpcCalls.every(({name})=>!String(name).includes('email')));
