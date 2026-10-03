@@ -1,3 +1,5 @@
+import { renderInitialContext } from './initial-context.js';
+import { canCheckStoredMediaWatch, checkStoredMediaWatch } from './media-watch-server-store.js';
 import { currencyUpdateSummary } from './currency-display.js';
 import { currencySummary, currencyOverview, currencyCriteriaFor } from './currency-watch.js';
 import { getWatchListAvailability, renderWatchLoadNotice } from './watch-load-notice.js';
@@ -232,6 +234,7 @@ const currentCheckController = () => {
   if (epoch !== checkControllerEpoch) {
     checkControllerEpoch = epoch;
     sessionCheckController = createWatchCheckController({
+      checkStoredWatch: watch => canCheckStoredMediaWatch(watch) ? checkStoredMediaWatch(watch) : null,
       getWatch: (id) => epoch === getAccountEpoch() ? getWatchById(id) : null,
       saveWatch: (id, changes) => epoch === getAccountEpoch() ? updateWatch(id, changes) : null,
     });
@@ -1408,6 +1411,7 @@ const renderWatchDetail = () => {
   const deleteConfirmEl = document.querySelector('#watchDeleteConfirm');
 
   renderMediaPersistenceNotice(watch, titleEl, getLanguage());
+  renderInitialContext(document.querySelector('#watchInitialContext'), watch, { t, formatTimestamp: formatMonitoringTimestamp });
 
   const hideDetailContent = () => {
     [
@@ -2021,12 +2025,17 @@ const renderWatchDetail = () => {
     checkReviewEl.removeAttribute('aria-label');
     checkReviewEl.onclick = null;
   }
+  const feedBaselineNoticeEl = document.querySelector('#watchFeedBaselineNotice');
+  if (feedBaselineNoticeEl) {
+    feedBaselineNoticeEl.hidden = !normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl)
+      || isCompanyWatch(watch) || Boolean(currencyCriteriaFor(watch));
+  }
   if (checkFeedbackEl && !detailCheckInProgress) {
     const outcome = watch.lastCheckOutcome?.type;
     const outcomeKey = outcome === 'baseline'
-      ? 'detail.noNewUpdates'
+      ? 'detail.baselineEstablished'
       : outcome === 'no-new-items'
-        ? 'detail.noNewUpdates'
+        ? isCompanyWatch(watch) ? 'detail.noNewUpdates' : 'detail.noUnseenArticles'
         : outcome === 'no-matching-items'
           ? 'detail.noMatchingUpdates'
           : ['matching-items', 'new-items'].includes(outcome) ? 'detail.newItemsFound' : null;
@@ -3396,6 +3405,7 @@ export function initForm() {
       const actionRequired = isUserActionRequired(editingWatch);
       Object.assign(changes, {
         monitoringSnapshot: null,
+        initialContext: null,
         seenMonitoringItemIds: [],
         monitoringUpdates: [],
         monitoringReviewStatus: null,

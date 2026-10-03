@@ -1,4 +1,5 @@
 import { currencyCriteriaFor, currencyKey, applyCurrencyCheckResult } from './currency-watch.js';
+import { mediaSubjectAliases } from './media-subject-aliases.js';
 import { getStoryProfileIdentifiers } from './story-profile.js';
 import { addUpdateToWatch, getUnreadUpdates } from './watch-updates.js';
 import { MONITORING_FAILURE_CODES } from './watch-monitoring-errors.js';
@@ -306,7 +307,9 @@ export const matchFeedItemToMediaMention = (item, mediaMention) => {
   if (!text || !subjects.length || mediaMention?.matchMode !== 'all') {
     return { matched: false, evidence: [] };
   }
-  const matchedSubjects = subjects.filter((subject) => containsCanonicalPhrase(text, subject));
+  const matchedSubjects = subjects.filter((subject) => (
+    mediaSubjectAliases(subject).some((name) => containsCanonicalPhrase(text, name))
+  ));
   return {
     matched: matchedSubjects.length === subjects.length,
     evidence: matchedSubjects.map((label) => ({
@@ -394,10 +397,12 @@ export const applyFeedCheckResult = (watch, response, {
   const previouslySeenKeys = new Set([
     ...(Array.isArray(watch.seenMonitoringItemKeys) ? watch.seenMonitoringItemKeys : []),
     ...previousItems.map(getItemCompatibilityKey),
+    ...(watch.initialContext?.items || []).map(getItemCompatibilityKey),
   ]);
   const previouslySeen = new Set([
     ...(Array.isArray(watch.seenMonitoringItemIds) ? watch.seenMonitoringItemIds : []),
     ...(hasBaseline ? watch.monitoringSnapshot.itemIds : []),
+    ...(watch.initialContext?.items || []).map(item => item.id),
     ...(Array.isArray(watch.monitoringUpdates)
       ? watch.monitoringUpdates.map(({ id }) => id)
       : []),
@@ -516,6 +521,7 @@ export const applyFeedCheckResult = (watch, response, {
         ...(enrichedCompanyName ? { title: enrichedCompanyName, titleKey: null } : {}),
         company: nextCompany,
       } : {}),
+      ...(trustedSourceType !== 'bodacc' && !hasBaseline ? { initialContext: { checkedAt, items } } : {}),
       monitoringSnapshot: {
         checkedAt,
         source: response.source && typeof response.source === 'object'
@@ -658,6 +664,7 @@ export const createWatchCheckController = ({
   getWatch,
   saveWatch,
   requestCheck = requestFeedCheck,
+  checkStoredWatch = null,
   requestCompany = requestCompanyCheck,
   requestCurrency = requestCurrencyCheck,
   now = () => new Date(),
@@ -676,7 +683,12 @@ export const createWatchCheckController = ({
     inFlight.set(watchId, operation);
 
     let startedKey;
-    const definitionKey = (watch) => JSON.stringify([watch?.request, watch?.monitoringSource, currencyKey(watch)]);
+    const definitionKey = (watch) => JSON.stringify([watch?.request,
+      watch?.monitoringSource?.type === 'rss' ? 'feed' : watch?.monitoringSource?.type,
+      watch?.monitoringSource?.url || watch?.feedUrl, watch?.monitoringSource?.siren, currencyKey(watch),
+      watch?.mediaMention?.subjects || [], watch?.mediaMention?.matchMode,
+      (watch?.storyProfile?.concepts || []).map(({ label, type }) => [label, type]),
+      watch?.storyProfile?.userAddedConcepts || []]);
     const run = async () => {
       onCheckingChange(true);
       try {
@@ -685,6 +697,16 @@ export const createWatchCheckController = ({
           throw new MonitoringCheckError('WATCH_NOT_FOUND', 'The Watch could not be found.');
         }
         startedKey = definitionKey(watch);
+        if (checkStoredWatch) {
+          const stored = await checkStoredWatch(watch);
+          if (stored) {
+            if (definitionKey(getWatch(watchId)) !== startedKey) throw new MonitoringCheckError('STALE_CHECK', 'The Watch changed during this check.');
+            const changes = { ...stored.changes };
+            // Keep previous local history; the server returns this check's updates.
+            if (changes.updates) changes.updates = uniqueById([...changes.updates, ...(watch.updates || [])], MAX_MONITORING_UPDATES);
+            return { ...stored, changes, watch: saveWatch(watchId, changes) };
+          }
+        }
         let response;
         let trustedSourceType = null;
         if (watch.monitoringSource?.type === 'currency' && !currencyCriteriaFor(watch)) throw new MonitoringCheckError('INVALID_CURRENCY_CRITERIA', 'Unsupported currency condition.');

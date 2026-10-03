@@ -24,6 +24,14 @@ const splitCoordinatedSubjects = (query, language) => {
 const PATTERNS = [
   {
     language: 'en',
+    pattern: /^(?:please\s+)?(?:monitor(?:ing)?|watch)\s+(?:(?:for|there\s+is)\s+)?(?:new\s+)?(?:information|news|updates)\s+(?:about|on)\s+(.+)$/iu,
+  },
+  {
+    language: 'fr',
+    pattern: /^surveille\s+(?:les\s+)?(?:nouvelles\s+informations|actualit[ée]s|informations)\s+(?:sur|concernant)\s+(.+)$/iu,
+  },
+  {
+    language: 'en',
     pattern: /^(?:please\s+)?(?:tell\s+me|let\s+me\s+know|notify\s+me|alert\s+me)\s+(?:when|whenever|if)\s+(.+?)\s+(?:is\s+mentioned|appears?)\s+in\s+(?:the\s+)?(?:media|news|press)$/iu,
   },
   {

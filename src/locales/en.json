@@ -254,7 +254,9 @@
     "notCheckedYet": "Not checked yet",
     "checkFailedStatus": "Check failed",
     "noNewUpdates": "No new updates found.",
-    "noMatchingUpdates": "No new updates found.",
+    "noMatchingUpdates": "New articles were retrieved, but none matched this Watch.",
+    "baselineEstablished": "Initial reference established. Articles found in this first check are not new alerts.",
+    "feedBaselineNotice": "The first successful check establishes a reference from the articles returned by the source. These existing articles do not appear as alerts. Later checks look for unseen matching articles; coverage is limited to the source’s returned results.",
     "newItemsFound": {
       "one": "{count} new update found.",
       "other": "{count} new updates found."
@@ -306,7 +308,13 @@
     "notFoundTitle": "Watch not found",
     "notFoundCopy": "We could not find that watch. Please return to the watch list.",
     "originalInstruction": "Your original instruction",
-    "originalInstructionCopy": "Your original instruction: {request}"
+    "originalInstructionCopy": "Your original instruction: {request}",
+    "initialContextTitle": "Initial context",
+    "initialContextCopy": "Matching articles returned by the available source at the first successful check ({date}). This is not comprehensive historical coverage. These articles do not count as new updates.",
+    "initialContextEmpty": "No matching articles were returned at this first check.",
+    "initialContextPending": "Initial context will appear after the first successful check.",
+    "initialContextUnavailable": "Initial context was not retained for this Watch. Later results are not shown as its starting point.",
+    "noUnseenArticles": "No unseen articles were returned by the source."
   },
   "newWatch": {
     "back": "Home",
