@@ -1,3 +1,4 @@
+import { createMediaWatchCheckMiddleware } from './server/media-watch-check-api.js';
 import { createMediaWatchMiddleware } from './server/media-watch-api.js';
 import { defineConfig, loadEnv } from 'vite';
 import { resolve } from 'path';
@@ -44,6 +45,7 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use(planWatchMiddleware);
       server.middlewares.use(companyWatchMiddleware);
       server.middlewares.use(createMediaWatchMiddleware({ env }));
+      server.middlewares.use(createMediaWatchCheckMiddleware({ env }));
     },
     configurePreviewServer(server) {
       server.middlewares.use(middleware);
@@ -55,6 +57,7 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use(planWatchMiddleware);
       server.middlewares.use(companyWatchMiddleware);
       server.middlewares.use(createMediaWatchMiddleware({ env }));
+      server.middlewares.use(createMediaWatchCheckMiddleware({ env }));
     },
   };
 

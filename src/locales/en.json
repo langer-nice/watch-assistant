@@ -308,7 +308,13 @@
     "notFoundTitle": "Watch not found",
     "notFoundCopy": "We could not find that watch. Please return to the watch list.",
     "originalInstruction": "Your original instruction",
-    "originalInstructionCopy": "Your original instruction: {request}"
+    "originalInstructionCopy": "Your original instruction: {request}",
+    "initialContextTitle": "Initial context",
+    "initialContextCopy": "Matching articles returned by the available source at the first successful check ({date}). This is not comprehensive historical coverage. These articles do not count as new updates.",
+    "initialContextEmpty": "No matching articles were returned at this first check.",
+    "initialContextPending": "Initial context will appear after the first successful check.",
+    "initialContextUnavailable": "Initial context was not retained for this Watch. Later results are not shown as its starting point.",
+    "noUnseenArticles": "No unseen articles were returned by the source."
   },
   "newWatch": {
     "back": "Home",

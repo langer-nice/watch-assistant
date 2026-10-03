@@ -28,7 +28,7 @@ const create = (request = reformulated) => createWatchObject(request, '', null, 
 });
 
 test('original and reformulated news requests extract the subject and persist as media Watches', async () => {
-  for (const request of [original, reformulated, 'Monitor news about Royal Caribbean Group', 'Surveille les nouvelles informations sur Royal Caribbean Cruises.']) {
+  for (const request of [original, reformulated, 'Monitor news about Royal Caribbean Group', 'Monitor news about Royal Caribbean Cruises Ltd.', 'Surveille les nouvelles informations sur Royal Caribbean Cruises.']) {
     const parsed = parseMediaMentionRequest(request);
     assert.equal(parsed.recognized, true);
     assert.equal(inferWatchCategory(request), 'news');
@@ -115,5 +115,22 @@ test('failed or truncated provider responses preserve the last successful refere
     assert.equal(watch.lastChecked, snapshot.checkedAt);
     assert.equal(watch.lastCheckAttempt.status, 'failed');
     assert.equal(watch.updates.length, 0);
+  }
+});
+
+
+test('authenticated check tolerates persistence normalization but rejects changed matching criteria', async () => {
+  for (const changed of [false,true]) {
+    let watch={...create(),storyProfile:{concepts:[{label:'Royal Caribbean Group',type:'organization',displayOnly:'local'}],userAddedConcepts:[]}};
+    const controller=createWatchCheckController({getWatch:()=>watch,saveWatch:(_id,changes)=>(watch={...watch,...changes}),
+      checkStoredWatch:async()=>{
+        watch={...watch,monitoringSource:{type:'feed',url:watch.monitoringSource.url},
+          mediaMention:{matchMode:'all',subjects:changed?['Carnival']:watch.mediaMention.subjects},
+          storyProfile:{concepts:[{type:'organization',label:'Royal Caribbean Group'}],userAddedConcepts:[]}};
+        return {outcome:'baseline',changes:{lastChecked:'2026-10-03T16:00:00Z'}};
+      },
+    });
+    if(changed) await assert.rejects(controller.check(watch.id),error=>error.code==='STALE_CHECK');
+    else assert.equal((await controller.check(watch.id)).outcome,'baseline');
   }
 });

@@ -308,7 +308,13 @@
     "notFoundTitle": "Watch introuvable",
     "notFoundCopy": "Cette Watch est introuvable. Veuillez revenir à la liste des Watches.",
     "originalInstruction": "Votre demande originale",
-    "originalInstructionCopy": "Votre demande originale : {request}"
+    "originalInstructionCopy": "Votre demande originale : {request}",
+    "initialContextTitle": "Contexte initial",
+    "initialContextCopy": "Articles correspondants renvoyés par la source disponible lors de la première vérification réussie ({date}). Ce contexte ne couvre pas tout l’historique. Ces articles ne comptent pas comme de nouvelles mises à jour.",
+    "initialContextEmpty": "Aucun article correspondant n’a été renvoyé lors de cette première vérification.",
+    "initialContextPending": "Le contexte initial apparaîtra après la première vérification réussie.",
+    "initialContextUnavailable": "Le contexte initial de cette Watch n’a pas été conservé. Les résultats ultérieurs ne sont pas présentés comme son point de départ.",
+    "noUnseenArticles": "La source n’a renvoyé aucun article encore jamais vu."
   },
   "newWatch": {
     "back": "Accueil",
