@@ -56,7 +56,21 @@ existing policy preservation, and PostgreSQL strict daily sequences with repeate
 observations, immutable events, policy changes and account isolation.
 Provider-sequence tests use controlled fixtures, not live market rates.
 
-At this checkpoint the Mac was locked. The staging migration and corrected
-hosted creation/manual-check/reload validation are still pending browser access.
-The earlier hosted OTP validation remains valid. No monitoring email was sent.
-Manual currency checks follow the existing no-email convention.
+The migration was applied through the verified staging project's SQL editor;
+readback confirmed both strict validation and strict server evaluation. Production
+was not migrated.
+
+Real staging with controlled provider fixtures: the named synthetic Watch
+`b9e7e9f3-fab4-4f3c-af86-e0dd03e4fc17` persisted the exact original request,
+`gt`, and `daily`. Rates `[1.17, 1.18, 1.18, 1.16, 1.19]` produced event counts
+`[0, 1, 0, 0, 1]`; every repeated check was silent. Two immutable events and zero
+outbox rows were verified. This Watch belongs to a synthetic test account and
+was paused afterward. These are fixtures, not live market observations.
+Reproduction script: `scripts/validate-currency-creation-staging.mjs` (staging
+reference and disabled-email guards; refuses duplicate fixture creation).
+
+The corrected hosted authenticated creation/manual-check/reload validation is
+pending user OTP entry on the stable PR-branch preview. The field is prepared;
+no code or browser token is read or extracted. The earlier hosted OTP validation
+remains valid. No monitoring email was sent. Manual currency checks follow the
+existing no-email convention.
