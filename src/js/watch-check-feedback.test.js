@@ -8,7 +8,8 @@ test('manual Check Now uses explicit singular, plural, and quiet feedback', asyn
   assert.equal(english.detail.newItemsFound.one, '{count} new update found.');
   assert.equal(english.detail.newItemsFound.other, '{count} new updates found.');
   assert.equal(english.detail.noNewUpdates, 'No new updates found.');
-  assert.equal(english.detail.noMatchingUpdates, 'No new updates found.');
+  assert.equal(english.detail.noMatchingUpdates, 'New articles were retrieved, but none matched this Watch.');
+  assert.notEqual(english.detail.baselineEstablished, english.detail.noNewUpdates);
 });
 
 test('manual Check Now acknowledges exactly the developments displayed by its result', async () => {

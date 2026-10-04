@@ -119,12 +119,51 @@ export const queueMediaWatchDeletion = (watch) => {
   queueMicrotask(() => { void synchronizeMediaWatches(); });
 };
 
+// Only explicitly owned, synchronized feed Watches use the authenticated path.
+export const canCheckStoredMediaWatch = (watch) => Boolean(owner()
+  && watch?.mediaPersistence?.ownerId === owner() && !currencyCriteriaFor(watch));
+export const checkStoredMediaWatch = async (watch) => {
+  const user = owner(); const epoch = generation;
+  if (!canCheckStoredMediaWatch(watch)) throw Object.assign(new Error('Not owned'), { code: 'AUTH_REQUIRED' });
+  let synced = await synchronizeMediaWatches();
+  // A coalesced in-flight read may have started before this new Watch was queued.
+  // Drain that new job once; never retry a failed network/database write here.
+  if (epoch === generation && user === owner()
+    && (synced?.ok || synced?.code === 'BACKOFF') && read(user, watch.id)?.pending) {
+    synced = await synchronizeMediaWatches();
+  }
+  const saved = read(user, watch.id);
+  const remote = rows.find(row => row.id === watch.id && !row.deleted_at);
+  if (!synced?.ok || saved?.pending || saved?.conflict || saved?.localOnly || !remote
+    || epoch !== generation || user !== owner()) throw Object.assign(new Error('Watch not synchronized'), { code: 'PERSISTENCE_UNAVAILABLE' });
+  const response = await watchRequest('/api/media-watches?action=check', {
+    method: 'POST', headers: { Authorization: `Bearer ${session().access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: watch.id, revision: Number(remote.media_revision) }),
+  }, 15000);
+  const result = await response.json();
+  if (!response.ok) throw Object.assign(new Error('Check failed'), { code: result.code || 'CHECK_FAILED' });
+  if (epoch !== generation || user !== owner()) throw Object.assign(new Error('Account changed'), { code: 'AUTH_SESSION_CHANGED' });
+  return result;
+};
+const feedSnapshot = row => Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
+const feedState = row => {
+  const snapshot = feedSnapshot(row);
+  return {
+    initialContext: snapshot?.initial_items == null ? null : { checkedAt: snapshot.baseline_at, items: snapshot.initial_items },
+    ...(snapshot ? { monitoringSnapshot: { checkedAt: snapshot.checked_at, itemIds: snapshot.item_ids, items: snapshot.items } } : {}),
+    lastCheckOutcome: row.last_check_outcome ? { type: row.last_check_outcome } : null,
+    lastCheckAttempt: row.last_check_error_code ? { status: 'failed', code: row.last_check_error_code, attemptedAt: row.updated_at }
+      : row.last_checked_at ? { status: 'succeeded', attemptedAt: row.last_checked_at } : null,
+  };
+};
+
 export const getMediaServerWatches = () => (owner() && owner() === identity ? rows : []).filter((row) => !row.deleted_at).map((row) => ({
   id: row.id, title: row.title, ...row.watch_definition,
   ...(row.watch_definition.inputType === 'url' ? { isStory: true } : {}),
   monitoringSource: row.monitoring_source, feedUrl: row.monitoring_source.url,
   status: row.monitoring_state === 'paused' ? 'paused' : row.current_status,
   createdAt: row.created_at,
+  ...(!row.watch_definition.currencyCriteria ? feedState(row) : {}),
   lastChecked: row.last_checked_at || null,
   ...(row.watch_definition.currencyCriteria ? {
     currencyEvaluation: row.currency_evaluation || null,
@@ -153,14 +192,25 @@ export const mergeMediaWatches = (local) => {
       let hydrated = { ...localWatch, ...remote, updates: localWatch?.updates || [] };
       // A scheduled hydration must not erase a more recent manual check on this device.
       const currency = Boolean(currencyCriteriaFor(hydrated));
-      const sameCriteria = !currency || localWatch?.currencyRevision === hydrated.currencyRevision;
+      let sameCriteria = localWatch?.currencyRevision === hydrated.currencyRevision;
+      if (!currency) {
+        try {
+          const localDefinition = mediaWatchDefinition(localWatch);
+          const remoteDefinition = mediaWatchDefinition(remote);
+          sameCriteria = JSON.stringify(localDefinition.watch_definition) === JSON.stringify(remoteDefinition.watch_definition)
+            && localDefinition.monitoring_source.url === remoteDefinition.monitoring_source.url;
+        } catch { sameCriteria = false; }
+      }
       if (sameCriteria && Date.parse(localWatch?.lastChecked) > (Date.parse(remote.lastChecked) || 0)) {
         hydrated.lastChecked = localWatch.lastChecked;
+        if (!currency) for (const key of ['initialContext','monitoringSnapshot','lastCheckOutcome','lastCheckAttempt']) {
+          if (localWatch[key] !== undefined) hydrated[key] = localWatch[key];
+        }
         if (currencyCriteriaFor(hydrated) && localWatch.currencyRevision === hydrated.currencyRevision) {
           for (const key of ['currencyEvaluation','currencySatisfied','lastCheckOutcome']) hydrated[key] = localWatch[key];
         }
       }
-      if (currency && sameCriteria && Date.parse(localWatch?.lastCheckAttempt?.attemptedAt) > (Date.parse(remote.lastCheckAttempt?.attemptedAt) || 0)) {
+      if (sameCriteria && Date.parse(localWatch?.lastCheckAttempt?.attemptedAt) > (Date.parse(remote.lastCheckAttempt?.attemptedAt) || 0)) {
         hydrated.lastCheckAttempt = localWatch.lastCheckAttempt;
       }
       for (const update of remote.updates) hydrated = addUpdateToWatch(hydrated, update);

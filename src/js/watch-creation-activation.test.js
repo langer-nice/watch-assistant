@@ -21,7 +21,7 @@ test('Watch creation persists, activates monitoring, then navigates', async () =
   assert.match(navigation, /await completeWatchCreation\(createWatchObject\(/);
 });
 
-test('Watch Detail presents active monitoring without baseline terminology', async () => {
+test('Watch Detail explains the first reference without technical jargon', async () => {
   const [navigation, english, french] = await Promise.all([
     read('./navigation.js'),
     read('../locales/en.json'),
@@ -35,7 +35,10 @@ test('Watch Detail presents active monitoring without baseline terminology', asy
   assert.match(fr.detail.createdCopy, /surveillance est active/);
   assert.equal(Object.hasOwn(en.detail, 'baselineCreated'), false);
   assert.equal(Object.hasOwn(fr.detail, 'baselineCreated'), false);
-  assert.doesNotMatch(`${english}\n${french}`, /baseline|référence de surveillance/i);
+  assert.doesNotMatch(`${en.detail.feedBaselineNotice} ${fr.detail.feedBaselineNotice}`, /baseline|RSS|Atom/i);
+  assert.match(en.detail.feedBaselineNotice, /existing articles do not appear as alerts/);
+  assert.match(fr.detail.feedBaselineNotice, /ne sont pas affichés comme des alertes/);
+  assert.match(navigation, /feedBaselineNoticeEl.hidden[\s\S]*?isCompanyWatch\(watch\)[\s\S]*?currencyCriteriaFor\(watch\)/);
   assert.doesNotMatch(navigation, /detail\.baselineCreated/);
 });
 

@@ -1,6 +1,7 @@
 import { parseCurrencyRequest, CURRENCY_SOURCE } from '../src/js/currency-watch.js';
 import { fetchAndNormalizeFeed } from './check-watch-api.js';
 import { parseMediaMentionRequest } from '../src/js/media-mention-request.js';
+import { mediaMentionSearchQuery } from '../src/js/media-subject-aliases.js';
 
 const ENDPOINT = '/api/monitoring-source';
 const MAX_BODY_BYTES = 4_096;
@@ -39,7 +40,8 @@ export const discoverTextMonitoringSource = async ({
 }, options = {}) => {
   if (parseCurrencyRequest(request)) return { monitoringSource: { ...CURRENCY_SOURCE } };
   const mediaMentionRequest = parseMediaMentionRequest(request);
-  const query = mediaMentionRequest.query || String(request || '').trim();
+  const query = mediaMentionRequest.recognized
+    ? mediaMentionSearchQuery(mediaMentionRequest) : String(request || '').trim();
   const sourceUrl = createNewsSearchFeedUrl(query, language);
   try {
     const feed = await fetchAndNormalizeFeed(sourceUrl, options);
