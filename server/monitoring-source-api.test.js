@@ -137,10 +137,10 @@ test('discovery middleware validates input and exposes no upstream details', asy
     body: { code: 'INVALID_BODY', error: 'The request must be valid JSON.' },
   });
   assert.deepEqual(await call(JSON.stringify({ request: 'US–Iran strikes' })), {
-    status: 422,
+    status: 503,
     body: {
-      code: 'NO_COMPATIBLE_SOURCE',
-      error: 'No supported public monitoring source could be found.',
+      code: 'SOURCE_UNAVAILABLE',
+      error: 'The source is temporarily unavailable.',
     },
   });
 });

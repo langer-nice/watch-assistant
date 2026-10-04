@@ -1,3 +1,5 @@
+import { showCurrencyCreationReview } from './currency-creation-review.js';
+import { parseCurrencyRequest, CURRENCY_SOURCE } from './currency-watch.js';
 import { renderCurrencyPolicyControl } from './currency-policy-control.js';
 import { renderInitialContext } from './initial-context.js';
 import { canCheckStoredMediaWatch, checkStoredMediaWatch } from './media-watch-server-store.js';
@@ -940,6 +942,7 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     feedUrl: monitoringUrl,
     monitoringSource,
     currencyLanguage: getLanguage(),
+    ...(options.currencyPolicy ? { currencyPolicy: options.currencyPolicy } : {}),
     ...(mediaMentionRequest?.recognized ? {
       mediaMention: {
         subjects: [...mediaMentionRequest.subjects],
@@ -3483,12 +3486,20 @@ export function initForm() {
       preserveOriginalWording = false,
       useRequestAsTitle = false,
       createdAsWrittenAfterClarityWarning,
+      currencyConfirmedPolicy,
     } = {},
   ) => {
     if (!editor.isCurrent()) return;
     const selectedRequest = preserveOriginalWording ? request : request.trim();
     if (!selectedRequest.trim() || creationInProgress) return;
 
+    if (!isEditMode && parseCurrencyRequest(selectedRequest) && !currencyConfirmedPolicy) {
+      showCurrencyCreationReview({ form, request: selectedRequest, language: getLanguage(),
+        listen: (target, event, handler) => editor.listen(target, event, handler),
+        confirm: policy => savePlainTextWatch(selectedRequest, whyFollowing, { preserveOriginalWording: true, currencyConfirmedPolicy: policy }),
+      });
+      return;
+    }
     creationInProgress = true;
     if (input) input.value = selectedRequest;
     synchronizeInferredFields(selectedRequest);
@@ -3501,17 +3512,28 @@ export function initForm() {
       return;
     }
     const createOptions = getCreateOptions();
-    if (!createOptions.feedUrl) {
+    if (currencyConfirmedPolicy) {
+      createOptions.currencyPolicy = currencyConfirmedPolicy;
+      createOptions.monitoringSource = { ...CURRENCY_SOURCE };
+      createOptions.feedUrl = null;
+    }
+    if (!createOptions.feedUrl && !createOptions.monitoringSource) {
       try {
         createOptions.monitoringSource = await requestMonitoringSource(selectedRequest, {
           language: getLanguage(),
         });
         if (!editor.isCurrent()) return;
-      } catch {
+      } catch (error) {
         if (!editor.isCurrent()) return;
         creationInProgress = false;
         setCreationControlsDisabled(false);
         setSubmitLabel();
+        if (error.code === 'DISCOVERY_UNAVAILABLE' || error.code === 'SOURCE_UNAVAILABLE') {
+          if (watchError) watchError.textContent = getLanguage() === 'fr'
+            ? 'La source est temporairement indisponible. Votre demande est conservée ; réessayez.'
+            : 'The source is temporarily unavailable. Your request is preserved; please retry.';
+          return;
+        }
         showClarification(
           selectedRequest,
           createCapabilityLimitation(
@@ -4630,6 +4652,10 @@ export function initForm() {
     }
 
     synchronizeInferredFields(request);
+    if (!isEditMode && parseCurrencyRequest(request)) {
+      await savePlainTextWatch(request, whyFollowing, { preserveOriginalWording: true });
+      return;
+    }
 
     let watchPlan = null;
     planningInProgress = true;

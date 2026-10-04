@@ -542,11 +542,12 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     });
     await t.test('recurring currency policies persist ordered state, immutable history, outbox uniqueness and RLS', async () => {
       const { parseCurrencyRequest } = await import('../src/js/currency-watch.js');
-      for (const [policy, rates, expected] of [
+      for (const [policy, rates, expected, request = 'The pound reaches 1.17 to the euro'] of [
+        ['daily',['1.17','1.18','1.18','1.16','1.19'],[0,1,0,0,1],'Préviens-moi chaque fois que le taux de la livre sterling change et qu’une livre vaut plus de 1,17 euro.'],
         ['crossing',['1.16','1.17','1.18','1.16','1.19'],[0,1,0,0,1]],
         ['daily',['1.17','1.18','1.18','1.16','1.19'],[1,1,0,0,1]],
       ]) {
-        const w={...makeWatch(),request:'The pound reaches 1.17 to the euro',mediaMention:null,currencyPolicy:policy};
+        const w={...makeWatch(),request,mediaMention:null,currencyPolicy:policy};
         watches.addWatch(w); await flush();
         const one=async(day,rate,overrides={})=>{
           const date=`2026-10-${String(day).padStart(2,'0')}`;

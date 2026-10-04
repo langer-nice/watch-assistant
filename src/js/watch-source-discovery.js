@@ -49,7 +49,7 @@ export const requestMonitoringSource = async (
   const monitoringSource = normalizeMonitoringSource(result?.monitoringSource);
   if (!response.ok || !monitoringSource) {
     throw new SourceDiscoveryError(
-      typeof result?.code === 'string' ? result.code : 'NO_COMPATIBLE_SOURCE',
+      response.status >= 500 ? 'SOURCE_UNAVAILABLE' : typeof result?.code === 'string' ? result.code : 'NO_COMPATIBLE_SOURCE',
     );
   }
   return monitoringSource;

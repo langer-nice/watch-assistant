@@ -754,8 +754,8 @@
     "evaluated": "Last evaluated on {date}",
     "met": "Target reached",
     "notMet": "Target not reached",
-    "result": "{decision}: 1 {base} {relation} {rate} {quote}. Target: ≥ {target} {quote}. ECB daily reference rate for {date}.",
-    "overview": "Monitor the daily ECB rate: 1 {base} ≥ {target} {quote}. This is a reference rate, not a live quote.",
+    "result": "{decision}: 1 {base} {relation} {rate} {quote}. Target: {operator} {target} {quote}. ECB daily reference rate for {date}.",
+    "overview": "Monitor the daily ECB rate: 1 {base} {operator} {target} {quote}. This is a reference rate, not a live quote.",
     "detected": "Detected on {date}",
     "condition": "Monitored condition",
     "currentRate": "Latest evaluated rate"

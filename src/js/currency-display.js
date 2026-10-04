@@ -24,7 +24,7 @@ export const localizedDecimal = (value, language = 'en') => String(value).replac
   new Intl.NumberFormat(language === 'fr' ? 'fr-FR' : 'en-GB').formatToParts(1.1).find(p => p.type === 'decimal').value);
 export const hasCurrencyEvaluation = e => Boolean(e && e.provider === 'ecb'
   && ['GBP', 'EUR'].includes(e.base) && ['GBP', 'EUR'].includes(e.quote) && e.base !== e.quote
-  && e.operator === 'gte' && decimal(e.observedRate) && decimal(e.target) && typeof e.met === 'boolean'
+  && ['gt', 'gte'].includes(e.operator) && decimal(e.observedRate) && decimal(e.target) && typeof e.met === 'boolean'
   && /^\d{4}-\d{2}-\d{2}$/.test(e.observationDate || '')
   && Number.isFinite(Date.parse(e.observationDate))
   && new Date(e.observationDate).toISOString().slice(0, 10) === e.observationDate);
@@ -32,18 +32,19 @@ export const hasCurrencyEvaluation = e => Boolean(e && e.provider === 'ecb'
 export const formatCurrencySummary = (e, language = 'en') => {
   if (!hasCurrencyEvaluation(e)) return '';
   let rate = rounded(e.observedRate, 4);
+  const matches = value => e.operator === 'gt' ? compare(value, e.target) > 0n : compare(value, e.target) >= 0n;
   // Display precision must never contradict the persisted exact decision.
-  for (let digits = 5; (compare(rate, '0') === 0n || (e.met ? compare(rate, e.target) < 0n : compare(rate, e.target) >= 0n)) && digits <= 12; digits++) rate = rounded(e.observedRate, digits);
-  const below = !e.met && compare(rate, e.target) >= 0n;
-  const relation = below ? '<' : e.inverted || compare(rate, e.observedRate) !== 0n ? '≈' : '=';
+  for (let digits = 5; (compare(rate, '0') === 0n || matches(rate) !== e.met) && digits <= 12; digits++) rate = rounded(e.observedRate, digits);
+  const below = matches(rate) !== e.met;
+  const relation = below ? (e.met ? '>' : e.operator === 'gt' ? '≤' : '<') : e.inverted || compare(rate, e.observedRate) !== 0n ? '≈' : '=';
   return copy(language, 'result', {
-    decision: copy(language, e.met ? 'met' : 'notMet'), base: e.base, quote: e.quote, relation,
+    operator: e.operator === 'gt' ? '>' : '≥', decision: copy(language, e.met ? 'met' : 'notMet'), base: e.base, quote: e.quote, relation,
     rate: localizedDecimal(below ? e.target : rate, language), target: localizedDecimal(e.target, language),
     date: new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${e.observationDate}T00:00:00Z`)),
   });
 };
 export const formatCurrencyOverview = (criteria, language = 'en') => copy(language, 'overview', {
-  ...criteria, target: localizedDecimal(criteria.target, language),
+  ...criteria, operator: criteria.operator === 'gt' ? '>' : '≥', target: localizedDecimal(criteria.target, language),
 });
 
 // Only structured, event-specific data is used. Never parse publisher prose or
