@@ -69,8 +69,33 @@ was paused afterward. These are fixtures, not live market observations.
 Reproduction script: `scripts/validate-currency-creation-staging.mjs` (staging
 reference and disabled-email guards; refuses duplicate fixture creation).
 
-The corrected hosted authenticated creation/manual-check/reload validation is
-pending user OTP entry on the stable PR-branch preview. The field is prepared;
-no code or browser token is read or extracted. The earlier hosted OTP validation
-remains valid. No monitoring email was sent. Manual currency checks follow the
-existing no-email convention.
+## Hosted authenticated validation completed
+
+On the stable PR branch preview, the user entered the OTP directly in the page.
+The exact original French request was submitted with a visible staging-test note.
+The review displayed `1 GBP > 1,17 EUR`, daily ECB cadence, and the selected daily
+changed-rate policy. Confirmation created exactly one currency test Watch:
+`7c198734-e1f6-49aa-b038-e18136307e99`.
+
+An independent read of that staging row confirmed the unchanged original request,
+`GBP` → `EUR`, target `1.17`, operator `gt`, policy `daily`, and ECB source. The
+hosted detail view and a full reload retained these settings and authentication.
+The live provider returned its 2026-10-02 publication (EUR/GBP `0.85033`), displayed
+as approximately 1.1760 EUR/GBP after inversion; this was a real hosted observation,
+not one of the fixture rates above.
+
+Two explicit hosted manual checks succeeded. Server reads showed evaluation time
+advancing from `2026-10-04T12:24:51.427Z` to `2026-10-04T12:26:15.149Z`, with the
+same single event and original detection time `2026-10-04T12:24:34.421Z`. The
+notification outbox for the test Watch stayed empty. Manual checks intentionally
+do not enqueue email; both staging monitoring-email flags also remain disabled.
+
+A separate hosted confirmation-only test of “Notify me when GBP reaches 1.17 EUR”
+showed `≥` and required a policy choice, with creation disabled until selection.
+Selecting threshold crossing enabled creation and changed the explanation. That
+review was canceled without creating another Watch.
+
+No code/token was read or extracted. The PR remains open, production has not been
+migrated or deployed, and its Watches were not touched. Unsupported or ambiguous
+currency grammar still asks for clarification; only GBP/EUR and EUR/GBP daily ECB
+conditions are supported, not live prices or arbitrary currency pairs.
