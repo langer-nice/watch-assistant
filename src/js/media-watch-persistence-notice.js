@@ -1,3 +1,4 @@
+import { getAccountOwner } from './account-storage.js';
 import { currencyCriteriaFor } from './currency-watch.js';
 import { getMediaWatchLoadState, getMediaPersistenceState, keepLocalMediaChanges, synchronizeMediaWatches } from './media-watch-server-store.js';
 import { claimLocalMediaWatch, getWatchById } from './watch-storage.js';
@@ -11,7 +12,9 @@ const copy = {
     local: 'This Watch is saved only on this device. It will not appear on other devices or send automatic emails. Open Edit Watch to review the request and monitoring source; wait for a synced confirmation before relying on it.',
     claimable: 'This Watch is saved only on this device. Select Sync this Watch to save this existing Watch to your account, then wait for confirmation.',
     conflict: 'Your changes are saved on this device. A newer version exists on the server:',
-    syncing: 'Syncing…', failed: 'Sync failed. Your changes are still saved on this device.',
+    loading: 'Loading saved Watch…',
+    unknown: 'This Watch is saved. Email notification settings are not yet confirmed.',
+    saving: 'Saving changes…', syncing: 'Syncing…', failed: 'Sync failed. Your changes are still saved on this device.',
     keep: 'Keep my local changes', retry: 'Retry sync', claim: 'Sync this Watch',
   },
   fr: {
@@ -22,7 +25,9 @@ const copy = {
     local: 'Cette Watch est enregistrée uniquement sur cet appareil. Elle ne sera pas visible sur vos autres appareils et n’enverra pas d’e-mails automatiques. Ouvrez Modifier pour vérifier la demande et la source de surveillance ; attendez la confirmation de synchronisation.',
     claimable: 'Cette Watch est enregistrée uniquement sur cet appareil. Choisissez Synchroniser cette Watch pour enregistrer cette Watch existante dans votre compte, puis attendez la confirmation.',
     conflict: 'Vos modifications sont enregistrées sur cet appareil. Une version plus récente existe sur le serveur :',
-    syncing: 'Synchronisation en cours…', failed: 'La synchronisation a échoué. Vos modifications restent enregistrées sur cet appareil.',
+    loading: 'Chargement de la Watch enregistrée…',
+    unknown: 'Cette Watch est enregistrée. Les paramètres des notifications par e-mail ne sont pas encore confirmés.',
+    saving: 'Enregistrement…', syncing: 'Synchronisation en cours…', failed: 'La synchronisation a échoué. Vos modifications restent enregistrées sur cet appareil.',
     keep: 'Conserver mes modifications locales', retry: 'Réessayer la synchronisation', claim: 'Synchroniser cette Watch',
   },
 };
@@ -40,14 +45,20 @@ export const renderMediaPersistenceNotice = (watch, title, language) => {
     notice.append(document.createElement('p'));
     title.insertAdjacentElement('afterend', notice);
   }
+  notice.dataset.watchId = watch.id;
+  const account = getAccountOwner();
+  const isCurrent = () => notice.isConnected && notice.dataset.watchId === watch.id && getAccountOwner() === account;
   const sync = getMediaWatchLoadState();
-  notice.setAttribute('aria-busy', String(sync.syncing));
+  notice.setAttribute('aria-busy', String(Boolean(state.operation)));
   const message = notice.querySelector('p');
-  message.textContent = sync.syncing ? labels.syncing : sync.syncError ? labels.failed
+  const text = state.operation ? labels[state.operation] : sync.syncError && state.status === 'pending' ? labels.failed
     : state.status === 'conflict' ? `${labels.conflict} ${state.remoteTitle} — ${state.remoteRequest}`
-      : state.status === 'saved' ? (state.emailEnabled ? (currencyCriteriaFor(watch) ? labels.currencyEnabled : labels.enabled) : labels.saved)
+      : state.status === 'saved' ? (state.emailEnabled == null ? labels.unknown : state.emailEnabled ? (currencyCriteriaFor(watch) ? labels.currencyEnabled : labels.enabled) : labels.saved)
+        : state.status === 'loading' ? labels.loading
         : state.status === 'pending' ? labels.pending
           : state.canClaim ? labels.claimable : labels.local;
+  // Leave the live region untouched during ordinary background reads.
+  if (message.textContent !== text) message.textContent = text;
   let button = notice.querySelector('button');
   const actionable = state.canClaim || state.status === 'pending'
     || (state.status === 'conflict' && Number.isSafeInteger(state.revision));
@@ -64,16 +75,18 @@ export const renderMediaPersistenceNotice = (watch, title, language) => {
     if (button.disabled) return;
     const hadFocus = document.activeElement === button;
     button.disabled = true;
-    message.textContent = labels.syncing;
+    message.textContent = state.canClaim ? labels.syncing : labels.saving;
     notice.setAttribute('aria-busy', 'true');
     try {
       if (state.canClaim && !claimLocalMediaWatch(watch.id)) throw new Error('Local claim unavailable');
       const result = state.status === 'conflict'
         ? await keepLocalMediaChanges(watch.id, state.revision) : await synchronizeMediaWatches();
+      if (!isCurrent() || result?.code === 'AUTH_SESSION_CHANGED') return;
       if (!result?.ok) message.textContent = labels.failed;
       else renderMediaPersistenceNotice(getWatchById(watch.id) || watch, title, language);
-    } catch { message.textContent = labels.failed; }
+    } catch { if (isCurrent()) message.textContent = labels.failed; }
     finally {
+      if (!isCurrent()) return;
       button.disabled = false; notice.setAttribute('aria-busy', 'false');
       if (hadFocus && button.isConnected && document.activeElement === document.body) button.focus();
     }

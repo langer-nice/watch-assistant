@@ -14,7 +14,7 @@ export const initialContextArticles = watch => {
 };
 
 // Context never enters Watch updates, unread state, or notification delivery.
-export const renderInitialContext = (root, watch, { t, formatTimestamp }) => {
+const renderContent = (root, watch, { t, formatTimestamp }) => {
   if (!root) return;
   root.replaceChildren();
   root.hidden = !watch || watch.inputType === 'company' || Boolean(currencyCriteriaFor(watch))
@@ -49,4 +49,15 @@ export const renderInitialContext = (root, watch, { t, formatTimestamp }) => {
     if (metadata) add('p', metadata, li).className = 'monitoring-update__metadata';
     if (item.excerpt && item.excerpt !== item.title) add('p', item.excerpt, li).className = 'monitoring-update__description';
   }
+};
+
+// Background hydration frequently renders the same context. Keep existing links
+// (and their focus/scroll anchor) when the displayed content has not changed.
+export const renderInitialContext = (root, watch, options) => {
+  if (!root) return;
+  const next = root.cloneNode(false);
+  renderContent(next, watch, options);
+  if (root.isEqualNode(next)) return;
+  root.hidden = next.hidden;
+  root.replaceChildren(...next.childNodes);
 };

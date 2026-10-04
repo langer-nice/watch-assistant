@@ -18,9 +18,10 @@ for (const language of ['en','fr']) test(`${language}: initial context, empty, p
   assert.ok(root.textContent.includes(messages.detail.initialContextTitle));
   assert.equal(root.querySelectorAll('a').length,1);assert.equal(document.querySelector('#updates').textContent,'');
   assert.equal(JSON.stringify(watch),before,'rendering cannot create unread updates');
-  const first=root.innerHTML;
+  const first=root.innerHTML;const firstLink=root.querySelector('a');
   render({...watch,updates:[{id:'future',sourceTitle:'Later development',status:'new'}],lastCheckAttempt:{status:'failed',code:'TIMEOUT'}});
   assert.equal(root.innerHTML,first,'later updates and failures preserve the initial reference');
+  assert.equal(root.querySelector('a'),firstLink,'unchanged context retains the focused link node');
   render({...watch,initialContext:{...watch.initialContext,items:[{id:'other',title:'Carnival'}]}});
   assert.ok(root.textContent.includes(messages.detail.initialContextEmpty));
   render({...watch,initialContext:null});assert.ok(root.textContent.includes(messages.detail.initialContextPending));
