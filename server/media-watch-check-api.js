@@ -1,3 +1,5 @@
+import { currencyCriteriaFor, applyCurrencyCheckResult } from '../src/js/currency-watch.js';
+import { fetchCurrencyRate } from './currency-rate.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
 import { createSupabaseServiceClient } from './supabase-service.js';
 import { fetchAndNormalizeFeed } from './check-watch-api.js';
@@ -5,7 +7,7 @@ import { mediaArticleIdentityKeys } from './media-article-identity.js';
 import { applyFeedCheckResult, matchFeedItemToWatch } from '../src/js/watch-monitoring.js';
 
 export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSupabaseRequest,
-  serviceClient, fetchFeed = fetchAndNormalizeFeed, ...options } = {}) => async (request, response, next) => {
+  serviceClient, fetchCurrency = fetchCurrencyRate, fetchFeed = fetchAndNormalizeFeed, ...options } = {}) => async (request, response, next) => {
   const url = new URL(request.url || '/', 'http://localhost');
   if (url.pathname !== '/api/media-watches' || url.searchParams.get('action') !== 'check') return next?.();
   const send = (status, body) => {
@@ -34,10 +36,30 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     if (error) throw Object.assign(new Error('Database unavailable'), { code: 'PERSISTENCE_UNAVAILABLE' });
     row = data?.[0];
     if (!row) return send(404, { code: 'WATCH_NOT_FOUND' });
-    if (row.monitoring_source?.type !== 'feed') return send(400, { code: 'INVALID_MONITORING_SOURCE' });
+    if (!['feed','currency'].includes(row.monitoring_source?.type)) return send(400, { code: 'INVALID_MONITORING_SOURCE' });
     if (Number(row.media_revision) !== body.revision) return send(409, { code: 'MEDIA_CONFLICT' });
     prior = Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
     service = serviceClient || createSupabaseServiceClient(options);
+    if (row.monitoring_source.type === 'currency') {
+      if (row.monitoring_state !== 'monitoring') return send(409, { code: 'MEDIA_CONFLICT' });
+      const watch = { ...row.watch_definition, id: row.id, status: row.current_status,
+        currencyEvaluation: row.currency_evaluation,
+        currencySatisfied: Boolean(row.last_change_item_id?.startsWith(`currency:${row.watch_definition.currencyRevision}:`)) };
+      if (!currencyCriteriaFor(watch)) return send(400, { code: 'INVALID_CURRENCY_CRITERIA' });
+      const result = applyCurrencyCheckResult(watch, await fetchCurrency(watch.request));
+      const snapshot = result.changes.monitoringSnapshot;
+      const completion = await service.rpc('complete_currency_watch_check', {
+        p_watch_id: row.id, p_expected_revision: body.revision,
+        p_checked_at: snapshot.checkedAt, p_source_title: snapshot.source.title, p_source_url: snapshot.source.url,
+        p_item_ids: snapshot.itemIds, p_items: snapshot.items,
+        p_expected_checked_at: prior?.checked_at || null, p_expected_items: prior?.items || null,
+        p_outcome: result.outcome, p_evaluation: result.changes.currencyEvaluation,
+        p_notification_items: result.matchedItems, p_enqueue_notifications: false,
+      });
+      if (completion.error) throw Object.assign(new Error('Check not saved'), { code: 'PERSISTENCE_UNAVAILABLE' });
+      if (completion.data === 'skipped') return send(409, { code: 'MEDIA_CONFLICT' });
+      return send(200, result);
+    }
     const feed = await fetchFeed(row.monitoring_source.url);
     const watch = { ...row.watch_definition, id: row.id, status: row.current_status };
     const normalized = applyFeedCheckResult(watch, feed).changes.monitoringSnapshot;
@@ -74,8 +96,8 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
   } catch (error) {
     // CAS prevents a failed/stale request from damaging a newer successful check.
     if (row && service) {
-      try { await service.rpc('fail_manual_media_watch_check', {
-        p_watch_id: row.id, p_user_id: row.user_id, p_revision: row.media_revision, p_expected_checked_at: prior?.checked_at || null, p_code: error.code || 'CHECK_FAILED',
+      try { await service.rpc(row.monitoring_source.type === 'currency' ? 'fail_scheduled_media_watch_check' : 'fail_manual_media_watch_check', {
+        p_watch_id: row.id, p_revision: row.media_revision, p_expected_checked_at: prior?.checked_at || null, ...(row.monitoring_source.type === 'currency' ? {} : { p_user_id: row.user_id, p_code: error.code || 'CHECK_FAILED' }),
       }); } catch { /* Do not replace the original failure. */ }
     }
     return send(error.statusCode || 503, { code: error.code || 'CHECK_FAILED' });

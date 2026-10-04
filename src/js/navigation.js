@@ -1,3 +1,4 @@
+import { renderCurrencyPolicyControl } from './currency-policy-control.js';
 import { renderInitialContext } from './initial-context.js';
 import { canCheckStoredMediaWatch, checkStoredMediaWatch } from './media-watch-server-store.js';
 import { currencyUpdateSummary } from './currency-display.js';
@@ -1411,6 +1412,7 @@ const renderWatchDetail = () => {
   const deleteConfirmEl = document.querySelector('#watchDeleteConfirm');
 
   renderMediaPersistenceNotice(watch, titleEl, getLanguage());
+  renderCurrencyPolicyControl(watch, titleEl, getLanguage());
   renderInitialContext(document.querySelector('#watchInitialContext'), watch, { t, formatTimestamp: formatMonitoringTimestamp });
 
   const hideDetailContent = () => {
@@ -1613,9 +1615,10 @@ const renderWatchDetail = () => {
     currentUpdateTitleEl.hidden = Boolean(eventCurrencySummary) || !currentUpdate.title;
   }
   if (currentUpdateMetadataEl) {
-    currentUpdateMetadataEl.textContent = eventCurrencySummary
-      ? t('currency.detected', { date: formatMonitoringTimestamp(currentUpdate.update.timestamp) }) : currentUpdate.metadata;
-    currentUpdateMetadataEl.hidden = !currentUpdate.metadata;
+    currentUpdateMetadataEl.textContent = watch.currencyEvaluation && currencyCriteriaFor(watch)
+      ? t('currency.evaluated', { date: formatMonitoringTimestamp(watch.currencyEvaluation.checkedAt) })
+      : eventCurrencySummary ? t('currency.detected', { date: formatMonitoringTimestamp(currentUpdate.update.timestamp) }) : currentUpdate.metadata;
+    currentUpdateMetadataEl.hidden = !currentUpdateMetadataEl.textContent;
   }
   if (currentUpdateLinkEl) {
     if (currentUpdate.articleUrl) {

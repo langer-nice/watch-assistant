@@ -34,7 +34,10 @@ test('reverse pair compares by rational cross multiplication, not rounded invers
 });
 test('repeated checks, a dip and reappearance produce one event; relevant edits rearm', () => {
   let watch = make();
-  for (const rate of ['1.18','1.18','1.16','1.18']) watch = { ...watch, ...applyCurrencyCheckResult(watch, response(watch, rate)).changes };
+  for (const [i, rate] of ['1.18','1.18','1.16','1.18'].entries()) {
+    const date = `2026-10-${String(5+i).padStart(2,'0')}`;
+    watch = { ...watch, ...applyCurrencyCheckResult(watch, { ...response(watch, rate, {date}), checkedAt: `${date}T17:00:00Z` }).changes };
+  }
   assert.equal(watch.updates.length, 1);
   const oldRevision = watch.currencyRevision;
   watch = normalizeCurrencyWatch({ ...watch, request: 'The pound reaches 1.16 to the euro' });

@@ -5,7 +5,7 @@ import { claimLocalMediaWatch, getWatchById } from './watch-storage.js';
 
 const copy = {
   en: {
-    currencyEnabled: 'This Watch is synced. Email is enabled when the daily ECB rate meets the target, once per condition.',
+    currencyEnabled: 'This Watch is synced. Email is enabled for eligible new currency alerts under the selected policy.',
     saved: 'This Watch is synced. Email notifications are disabled.',
     enabled: 'This Watch is synced. Email notifications are enabled for new matching articles after the first automatic check.',
     pending: 'Changes are saved on this device and waiting to sync. Automatic monitoring starts after the first sync; until then, only a previously synced version can run.',
@@ -18,7 +18,7 @@ const copy = {
     keep: 'Keep my local changes', retry: 'Retry sync', claim: 'Sync this Watch',
   },
   fr: {
-    currencyEnabled: 'Cette Watch est synchronisée. Un e-mail sera envoyé lorsque le cours quotidien BCE satisfait le seuil, une fois par condition.',
+    currencyEnabled: 'Cette Watch est synchronisée. Les e-mails sont activés pour les nouvelles alertes de change éligibles selon la politique choisie.',
     saved: 'Cette Watch est synchronisée. Les notifications par e-mail sont désactivées.',
     enabled: 'Cette Watch est synchronisée. Les notifications par e-mail sont activées pour les nouveaux articles correspondants après le premier contrôle automatique.',
     pending: 'Les modifications sont enregistrées sur cet appareil et attendent la synchronisation. Le suivi automatique commence après la première synchronisation ; jusque-là, seule une version déjà synchronisée peut fonctionner.',

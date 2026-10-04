@@ -24,7 +24,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
       const watches = [];
       for (let start = 0; ; start += 100) {
         const { data, error } = await client.from('watches')
-          .select('id,title,watch_definition,monitoring_source,monitoring_state,current_status,created_at,deleted_at,media_revision,media_mutation_id,last_checked_at,media_last_change_detected_at,last_change_item_id,last_change_title,last_change_url,last_change_summary,last_change_published_at,currency_evaluation,last_check_error_code,last_check_outcome,updated_at,media_watch_snapshots(*)')
+          .select('id,title,watch_definition,monitoring_source,monitoring_state,current_status,created_at,deleted_at,media_revision,media_mutation_id,last_checked_at,media_last_change_detected_at,last_change_item_id,last_change_title,last_change_url,last_change_summary,last_change_published_at,currency_evaluation,last_check_error_code,last_check_outcome,updated_at,media_watch_snapshots(*),currency_watch_events(*)')
           .eq('user_id', user.id).eq('type', 'media_news').order('id').range(start, start + 99);
         if (error) throw Object.assign(new Error('DATABASE_ERROR'), { code: 'DATABASE_ERROR', databaseCode: error.code });
         watches.push(...data);

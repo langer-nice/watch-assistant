@@ -28,7 +28,9 @@ export const currencyCriteriaFor = (watch) => watch?.inputType === 'text' ? pars
 export const sameCurrencyCriteria = (left, right) => left == null || right == null
   ? left == null && right == null
   : ['base', 'quote', 'operator', 'target'].every(key => left[key] === right[key]);
-export const currencyKey = (watch) => JSON.stringify([currencyCriteriaFor(watch), watch?.currencyRevision || null]);
+export const CURRENCY_POLICIES = ['once', 'crossing', 'daily'];
+export const currencyPolicyFor = watch => CURRENCY_POLICIES.includes(watch?.currencyPolicy) ? watch.currencyPolicy : 'once';
+export const currencyKey = (watch) => JSON.stringify([currencyCriteriaFor(watch), watch?.currencyRevision || null, currencyPolicyFor(watch)]);
 
 // Request text is authoritative; stored/LLM-generated criteria never override an edit.
 export const normalizeCurrencyWatch = (watch) => {
@@ -84,12 +86,24 @@ export const applyCurrencyCheckResult = (watch, response) => {
     || !Number.isFinite(Date.parse(response.checkedAt))) return fail('INVALID_CURRENCY_DATA');
   validateObservation(response.observation, new Date(response.checkedAt));
   const evaluation = { ...evaluateCurrencyRate(criteria, response.observation), checkedAt: response.checkedAt };
-  const id = `currency:${watch.currencyRevision}:${criteria.base}:${criteria.quote}:${criteria.target}`;
+  const prior = watch.currencyEvaluation;
+  if (prior && (evaluation.observationDate < prior.observationDate || Date.parse(response.checkedAt) < Date.parse(prior.checkedAt))) return fail('STALE_CURRENCY_DATA');
+  // One immutable observation per publication date. Corrections must not rearm or
+  // generate another daily alert; keep the last successful observation intact.
+  if (prior?.observationDate === evaluation.observationDate &&
+    (prior.providerRate !== evaluation.providerRate || prior.providerBase !== evaluation.providerBase || prior.providerQuote !== evaluation.providerQuote)) return fail('INVALID_CURRENCY_DATA');
+  const policy = currencyPolicyFor(watch);
+  const conditionId = `currency:${watch.currencyRevision}:${criteria.base}:${criteria.quote}:${criteria.target}`;
+  const id = policy === 'once' ? conditionId : `${conditionId}:${evaluation.observationDate}`;
   const item = { id, title: currencySummary(evaluation, watch.currencyLanguage), excerpt: currencySummary(evaluation, watch.currencyLanguage),
     source: 'ECB', url: CURRENCY_SOURCE.url, publishedAt: `${evaluation.observationDate}T00:00:00.000Z`,
     detectedAt: response.checkedAt, status: 'candidate', currencyEvaluation: evaluation };
-  const alreadySatisfied = watch.currencySatisfied || (watch.updates || []).some(update => update.id === id);
-  const matchedItems = evaluation.met && !alreadySatisfied ? [item] : [];
+  const alreadySatisfied = watch.currencySatisfied || (watch.updates || []).some(update => update.id.startsWith(conditionId));
+  const newer = !prior || evaluation.observationDate > prior.observationDate;
+  const changedRate = !prior || prior.providerRate !== evaluation.providerRate || prior.providerBase !== evaluation.providerBase || prior.providerQuote !== evaluation.providerQuote;
+  const eligible = policy === 'once' ? !alreadySatisfied
+    : policy === 'crossing' ? newer && !prior?.met : newer && changedRate;
+  const matchedItems = evaluation.met && eligible && !(watch.updates || []).some(update => update.id === id) ? [item] : [];
   const updated = matchedItems.length ? addUpdateToWatch(watch, { ...item, timestamp: response.checkedAt,
     sourceUrl: item.url, sourceTitle: item.title, sourceName: 'ECB', summary: item.excerpt, status: 'new', rawMonitoringResult: item }) : watch;
   const outcome = evaluation.met ? 'currency-met' : 'currency-not-met';

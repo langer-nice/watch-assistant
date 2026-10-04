@@ -751,6 +751,7 @@
     "unavailable": "This example is not available."
   },
   "currency": {
+    "evaluated": "Last evaluated on {date}",
     "met": "Target reached",
     "notMet": "Target not reached",
     "result": "{decision}: 1 {base} {relation} {rate} {quote}. Target: ≥ {target} {quote}. ECB daily reference rate for {date}.",

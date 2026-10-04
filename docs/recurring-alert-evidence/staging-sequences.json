@@ -1,0 +1,52 @@
+{
+  "project": "tseexvbwhrtofcsrvcqc",
+  "emailDelivery": "disabled",
+  "sequences": [
+    {
+      "policy": "crossing",
+      "expected": [
+        0,
+        1,
+        0,
+        0,
+        1
+      ],
+      "observed": [
+        0,
+        1,
+        0,
+        0,
+        1
+      ],
+      "eventCount": 2,
+      "repeatedChecks": "silent",
+      "policyChange": "no replay",
+      "foreignRead": "empty",
+      "foreignWrite": "rejected",
+      "outboxCount": 0
+    },
+    {
+      "policy": "daily",
+      "expected": [
+        1,
+        1,
+        0,
+        0,
+        1
+      ],
+      "observed": [
+        1,
+        1,
+        0,
+        0,
+        1
+      ],
+      "eventCount": 3,
+      "repeatedChecks": "silent",
+      "policyChange": "no replay",
+      "foreignRead": "empty",
+      "foreignWrite": "rejected",
+      "outboxCount": 0
+    }
+  ]
+}

@@ -122,7 +122,7 @@ export const queueMediaWatchDeletion = (watch) => {
 
 // Only explicitly owned, synchronized feed Watches use the authenticated path.
 export const canCheckStoredMediaWatch = (watch) => Boolean(owner()
-  && watch?.mediaPersistence?.ownerId === owner() && !currencyCriteriaFor(watch));
+  && watch?.mediaPersistence?.ownerId === owner());
 export const checkStoredMediaWatch = async (watch) => {
   const user = owner(); const epoch = generation;
   if (!canCheckStoredMediaWatch(watch)) throw Object.assign(new Error('Not owned'), { code: 'AUTH_REQUIRED' });
@@ -173,7 +173,7 @@ export const getMediaServerWatches = () => (owner() && owner() === identity ? ro
     lastCheckAttempt: row.last_check_error_code ? { status: 'failed', code: row.last_check_error_code, attemptedAt: row.updated_at }
       : row.last_checked_at ? { status: 'succeeded', attemptedAt: row.last_checked_at } : null,
   } : {}),
-  updates: row.last_change_item_id ? [{ id: row.last_change_item_id, timestamp: row.media_last_change_detected_at,
+  updates: row.currency_watch_events?.length ? row.currency_watch_events.map(event => ({ id: event.id, timestamp: event.detected_at, sourceTitle: event.article.title, sourceUrl: event.article.url, summary: event.article.excerpt, publishedAt: event.article.publishedAt, currencyEvaluation: event.evaluation, status: 'new' })) : row.last_change_item_id ? [{ id: row.last_change_item_id, timestamp: row.media_last_change_detected_at,
     sourceTitle: row.last_change_title, sourceUrl: row.last_change_url, summary: row.last_change_summary,
     publishedAt: row.last_change_published_at, status: 'new' }] : [],
   mediaPersistence: { ownerId: owner() },
@@ -193,7 +193,7 @@ export const mergeMediaWatches = (local) => {
       let hydrated = { ...localWatch, ...remote, updates: localWatch?.updates || [] };
       // A scheduled hydration must not erase a more recent manual check on this device.
       const currency = Boolean(currencyCriteriaFor(hydrated));
-      let sameCriteria = localWatch?.currencyRevision === hydrated.currencyRevision;
+      let sameCriteria = localWatch?.currencyRevision === hydrated.currencyRevision && localWatch?.currencyPolicy === hydrated.currencyPolicy;
       if (!currency) {
         try {
           const localDefinition = mediaWatchDefinition(localWatch);

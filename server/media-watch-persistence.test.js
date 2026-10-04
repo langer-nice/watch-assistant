@@ -63,7 +63,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
         or(value) { const cutoff=value.split('claimed_at.lt.')[1]; args.push(cutoff); conditions.push(`(w.claim_token is null or w.claimed_at < $${args.length}::timestamptz)`); return q; },
         async range(start, end) {
           try {
-            const result = await scoped(role, user, `select w.* ${snapshots ? ", (select coalesce(jsonb_agg(s),'[]'::jsonb) from public.media_watch_snapshots s where s.watch_id=w.id) as media_watch_snapshots" : ''}
+            const result = await scoped(role, user, `select w.* ${snapshots ? ", (select coalesce(jsonb_agg(s),'[]'::jsonb) from public.media_watch_snapshots s where s.watch_id=w.id) as media_watch_snapshots, (select coalesce(jsonb_agg(e),'[]'::jsonb) from public.currency_watch_events e where e.watch_id=w.id) as currency_watch_events" : ''}
               from public.${table} w ${conditions.length ? `where ${conditions.join(' and ')}` : ''} order by ${ordering.join(',') || 'w.id'} limit ${end-start+1} offset ${start}`, args);
             return { data: result.rows, error: null };
           } catch (error) { return { data: null, error }; }
@@ -488,18 +488,19 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.equal(row.watch_definition.currencyCriteria.target, '1.17');
       assert.ok(row.media_revision > oldRevision);
       const { parseCurrencyRequest } = await import('../src/js/currency-watch.js');
-      const checkedAt = '2026-10-01T09:43:00.000Z';
+      let day = 5;
+      const checkedAt = '2026-10-06T17:00:00.000Z';
       const runCurrency = (rate, override = {}) => run([], {
         client: { ...service, from: table => service.from(table).eq('id', current.id) },
-        fetchCurrency: async request => ({ criteria: parseCurrencyRequest(request), checkedAt,
-          observation: { base: 'GBP', quote: 'EUR', rate, date: '2026-09-30' } }), ...override });
+        fetchCurrency: async request => { const date = `2026-10-${String(day++).padStart(2,'0')}`; return { criteria: parseCurrencyRequest(request), checkedAt: `${date}T17:00:00Z`,
+          observation: { base: 'GBP', quote: 'EUR', rate, date } }; }, ...override });
       const outbox = async () => (await db.query('select * from public.media_watch_notifications where watch_id=$1',[current.id])).rows;
       assert.equal((await runCurrency('1.1699')).unchangedCount, 1);
       assert.equal((await outbox()).length, 0);
       const { createWatchCheckController } = await import('../src/js/watch-monitoring.js');
       const manual = createWatchCheckController({ getWatch: watches.getWatchById, saveWatch: watches.updateWatch,
         requestCurrency: async request => ({ criteria: parseCurrencyRequest(request), checkedAt,
-          observation: { base: 'GBP', quote: 'EUR', rate: '1.17', date: '2026-09-30' } }) });
+          observation: { base: 'GBP', quote: 'EUR', rate: '1.17', date: '2026-10-06' } }) });
       await manual.check(current.id);
       assert.equal((await outbox()).length, 0, 'manual checks follow the existing no-email convention');
       assert.equal((await runCurrency('1.17')).changedCount, 1);
@@ -537,6 +538,47 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
         const email = renderMediaWatchEmail({ locale, watchId: current.id, watchTitle: current.title, article: (await outbox()).find(item => item.article.currencyEvaluation.target === '1.16').article, baseUrl: 'https://watch.example' });
         assert.match(email.text, locale === 'fr' ? /1,1800 EUR/ : /1\.1800 EUR/);
         assert.doesNotMatch(email.subject, /article/i);
+      }
+    });
+    await t.test('recurring currency policies persist ordered state, immutable history, outbox uniqueness and RLS', async () => {
+      const { parseCurrencyRequest } = await import('../src/js/currency-watch.js');
+      for (const [policy, rates, expected] of [
+        ['crossing',['1.16','1.17','1.18','1.16','1.19'],[0,1,0,0,1]],
+        ['daily',['1.17','1.18','1.18','1.16','1.19'],[1,1,0,0,1]],
+      ]) {
+        const w={...makeWatch(),request:'The pound reaches 1.17 to the euro',mediaMention:null,currencyPolicy:policy};
+        watches.addWatch(w); await flush();
+        const one=async(day,rate,overrides={})=>{
+          const date=`2026-10-${String(day).padStart(2,'0')}`;
+          return run([], { client:{...service,from:table=>service.from(table).eq('id',w.id)},
+            fetchCurrency:async request=>({criteria:parseCurrencyRequest(request),checkedAt:`${date}T17:00:00Z`,observation:{base:'GBP',quote:'EUR',rate,date}}), ...overrides });
+        };
+        for (const [i,rate] of rates.entries()) {
+          const result=await one(5+i,rate); assert.equal(result.failedCount,0); assert.equal(result.changedCount,expected[i]);
+          assert.equal((await one(5+i,rate)).changedCount,0);
+          const retry=rpcCalls.findLast(call=>call.name==='complete_currency_watch_check').params;
+          assert.equal((await service.rpc('complete_currency_watch_check',retry)).data,'unchanged');
+        }
+        const events=async()=>(await db.query('select * from public.currency_watch_events where watch_id=$1 order by detected_at',[w.id])).rows;
+        const before=await events(); assert.equal(before.length,expected.reduce((a,b)=>a+b,0));
+        assert.equal((await db.query('select * from public.media_watch_notifications where watch_id=$1',[w.id])).rows.length,before.length);
+        assert.equal((await one(8,'1.16')).failedCount,1,'old observation rejected');
+        assert.equal((await one(12,null,{fetchCurrency:async()=>{throw new Error('provider offline');}})).failedCount,1);
+        assert.deepEqual(await events(),before);
+        watches.updateWatch(w.id,{currencyPolicy:policy==='daily'?'crossing':'daily'}); await flush();
+        assert.equal((await one(9,'1.19')).changedCount,0,'policy change does not replay latest rate');
+        assert.deepEqual(await events(),before);
+        // A full storage clear must recover policy, last evaluation and all events.
+        switchUser(null); await store.configureMediaWatchServerStore(null);
+        globalThis.localStorage=storage(); switchUser(USER_A); await store.configureMediaWatchServerStore(auth); await flush();
+        const restored=watches.getWatchById(w.id);
+        assert.equal(restored.currencyPolicy,policy==='daily'?'crossing':'daily');
+        assert.equal(restored.currencyEvaluation.providerRate,'1.19');
+        assert.equal(restored.updates.length,before.length);
+        assert.equal(restored.updates[0].timestamp,new Date(before[0].detected_at).toISOString());
+        assert.equal((await scoped('authenticated',USER_B,'select * from public.currency_watch_events where watch_id=$1',[w.id])).rows.length,0);
+        await assert.rejects(scoped('authenticated',USER_B,'update public.currency_watch_events set evaluation=null where watch_id=$1',[w.id]));
+        assert.equal((await client('authenticated',USER_B).rpc('complete_currency_watch_check',rpcCalls.findLast(call=>call.name==='complete_currency_watch_check').params)).error.code,'42501');
       }
     });
     await t.test('failed outbox constraints roll back Watch, snapshot and identity ledger together',async()=>{

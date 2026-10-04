@@ -1143,3 +1143,15 @@ body.is-watch-edit-open {
   padding: 0;
   list-style: none;
 }
+
+#currencyPolicyControl {
+  margin-block: var(--space-lg);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+
+  label { display: block; font-weight: 600; margin-bottom: var(--space-sm); }
+  select { max-width: 100%; padding: var(--space-sm); margin: 0 var(--space-sm) var(--space-sm) 0; font: inherit; }
+  p { margin-top: var(--space-sm); }
+}

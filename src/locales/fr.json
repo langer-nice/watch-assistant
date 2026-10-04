@@ -751,6 +751,7 @@
     "unavailable": "Cet exemple n’est pas disponible."
   },
   "currency": {
+    "evaluated": "Dernière évaluation le {date}",
     "met": "Seuil atteint",
     "notMet": "Seuil non atteint",
     "result": "{decision} : 1 {base} {relation} {rate} {quote}. Seuil : ≥ {target} {quote}. Taux de référence quotidien de la BCE du {date}.",
