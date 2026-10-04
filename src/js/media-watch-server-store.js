@@ -12,7 +12,8 @@ let generation = 0;
 let latestRead = 0;
 let identity = null;
 let rows = [];
-let emailEnabled = false;
+let emailEnabled = null;
+let activeWrites = new Map();
 let running = null;
 let loadError = null;
 let syncError = null;
@@ -88,7 +89,7 @@ export const prepareMediaWatch = (watch, previous, { claimExistingLocal = false 
       const remote = rows.find((row) => row.id === watch.id);
       write(user, watch.id, {
         definition, revision: existing?.revision ?? Number(remote?.media_revision ?? 0),
-        mutation: crypto.randomUUID(), baseMutation: existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: false,
+        mutation: crypto.randomUUID(), baseMutation: existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: false, operation: explicitClaim ? 'syncing' : 'saving',
       });
       queueMicrotask(() => { void synchronizeMediaWatches(); });
     }
@@ -227,12 +228,12 @@ export const getMediaPersistenceState = (watch) => {
     return { status: 'local-only', canClaim: canClaimLocalMediaWatch(watch) };
   }
   const job = read(user, watch.id);
-  const remote = rows.find((row) => row.id === watch.id);
+  const remote = user === identity ? rows.find((row) => row.id === watch.id) : null;
   if (job?.localOnly) return { status: 'local-only' };
   if (job?.conflict) return { status: 'conflict', remoteTitle: remote?.title || '', remoteRequest: remote?.watch_definition?.request || '', revision: Number(remote?.media_revision) };
-  if (job?.pending) return { status: 'pending' };
-  if (job?.localOnly || (!job && !remote)) return { status: 'local-only' };
-  return { status: 'saved', emailEnabled };
+  if (job?.pending) return { status: 'pending', operation: activeWrites.get(watch.id) || null };
+  if (!job && !remote) return { status: loaded ? 'local-only' : 'loading' };
+  return { status: 'saved', emailEnabled: user === identity ? emailEnabled : null };
 };
 
 export const keepLocalMediaChanges = async (id, reviewedRevision) => {
@@ -270,6 +271,8 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
           // Old automatic pause jobs were marked localOnly. Quarantine them; never replay.
           if (!job?.pending || job.conflict || job.localOnly) continue;
           try {
+            activeWrites.set(job.definition.id, job.operation === 'syncing' ? 'syncing' : 'saving');
+            notify();
             const { watch } = await request(token, { method: 'POST', body: JSON.stringify(job) });
             if (!watch || !Number.isSafeInteger(Number(watch.media_revision))) throw Object.assign(new Error('Invalid sync response.'), { code: 'INVALID_PERSISTED_WATCH' });
             if (!fresh()) return { ok: false, code: 'AUTH_SESSION_CHANGED' };
@@ -300,7 +303,7 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
             waiting = false;
             loadError = null;
             refreshAttempted = false;
-            emailEnabled = body.emailEnabled === true;
+            emailEnabled = typeof body.emailEnabled === 'boolean' ? body.emailEnabled : emailEnabled;
             writeWatchCache('media', user, rows);
             for (const row of rows) {
               const current = read(user, row.id);
@@ -320,7 +323,7 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
         if (failure) throw failure;
         return { ok: true };
       } finally {
-        if (running === attempt) running = null;
+        if (running === attempt) { running = null; activeWrites.clear(); }
         if (fresh()) { loading = false; syncError = failure; notify(); }
       }
     }, { automatic, scope: epoch, deferRead: automatic, isCurrent: fresh, onSkipped: () => {
@@ -351,12 +354,13 @@ export const configureMediaWatchServerStore = async (auth) => {
     lastToken = token;
     generation += 1;
     latestRead += 1;
+    running = null; activeWrites = new Map(); loading = false;
     if (next !== identity) {
       const cached = readWatchCache('media', next, validateRow);
       rows = cached?.rows || []; loaded = Boolean(cached); waiting = false;
       loadError = null; syncError = null; loading = false;
       refreshAttempted = false;
-      emailEnabled = false; identity = next; notify();
+      emailEnabled = null; identity = next; notify();
     }
     // Recover owned local definitions whose pending record was never written; never adopt unowned legacy data.
     try {
@@ -373,8 +377,8 @@ export const configureMediaWatchServerStore = async (auth) => {
 };
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => { void synchronizeMediaWatches({ automatic: true }); });
-  window.addEventListener('focus', () => { void synchronizeMediaWatches({ automatic: true }); });
+  window.addEventListener('focus', () => { void synchronizeMediaWatches({ automatic: true, readOnly: true }); });
   window.addEventListener('storage', (event) => {
-    if (event.key?.startsWith(PREFIX)) { notify(); void synchronizeMediaWatches({ automatic: true }); }
+    if (owner() && event.key?.startsWith(`${PREFIX}${owner()}.`)) { notify(); void synchronizeMediaWatches({ automatic: true }); }
   });
 }

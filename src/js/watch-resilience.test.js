@@ -154,7 +154,7 @@ test('Retry Sync reports failure and success in FR/EN and coalesces double activ
       if(failing)return Response.json({code:'DATABASE_ERROR'},{status:503});
       return Response.json({watch:{media_revision:2}});
     }
-    return Response.json({watches:[media()]});
+    return Response.json({watches:[media()],emailEnabled:true});
   };
   await ms.configureMediaWatchServerStore(auth);
   t.after(()=>ms.configureMediaWatchServerStore(null));
