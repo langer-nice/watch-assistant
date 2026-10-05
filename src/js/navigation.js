@@ -3537,7 +3537,8 @@ export function initForm() {
         creationInProgress = false;
         setCreationControlsDisabled(false);
         setSubmitLabel();
-        showClarification(
+        resetUrlFlow({ clearInput: false });
+      showClarification(
           selectedRequest,
           createCapabilityLimitation(
             selectedRequest,
@@ -3568,6 +3569,7 @@ export function initForm() {
       creationInProgress = false;
       setCreationControlsDisabled(false);
       setSubmitLabel();
+      resetUrlFlow({ clearInput: false });
       showClarification(
         selectedRequest,
         createCapabilityLimitation(selectedRequest, t('newWatch.watchCreationUnavailable')),

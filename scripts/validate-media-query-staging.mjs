@@ -16,7 +16,13 @@ const service=createClient(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,option
 const ok=({data,error})=>{assert.ifError(error);return data;};
 const users=[];
 await mkdir('/tmp/watch-media-query-staging',{recursive:true,mode:0o700});
+let saved=[];
+try { saved=JSON.parse(await readFile('/tmp/watch-media-query-staging/private-fixtures.json','utf8')); } catch {}
 for(let i=0;i<2;i++) {
+ if(saved[i]) {
+   const client=createClient(env.SUPABASE_URL,env.SUPABASE_ANON_KEY,options);
+   ok(await client.auth.setSession(saved[i].session)); users.push({...saved[i],client}); continue;
+ }
  const email=`media-query-${randomUUID()}@example.test`,password=randomBytes(32).toString('base64url');
  const {user}=ok(await service.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{purpose:'synthetic-media-query-validation'}}));
  const client=createClient(env.SUPABASE_URL,env.SUPABASE_ANON_KEY,options);
@@ -24,6 +30,16 @@ for(let i=0;i<2;i++) {
  users.push({id:user.id,email,client,session});
  await writeFile('/tmp/watch-media-query-staging/private-fixtures.json',JSON.stringify(users.map(({client,...rest})=>rest)),{mode:0o600});
 }
-const evidence=await exerciseMediaQueryRecovery({service,clientA:users[0].client,clientB:users[1].client,userA:users[0].id,userB:users[1].id,legacyInitialContext:true});
+const evidence=await exerciseMediaQueryRecovery({service,clientA:users[0].client,clientB:users[1].client,userA:users[0].id,userB:users[1].id,legacyInitialContext:true,inspectLedger:false,
+ afterBaseline: async id => {
+   await writeFile('/tmp/watch-media-query-staging/baseline-ready.json',JSON.stringify({watchId:id,project:ref}));
+   console.log('Synthetic baseline ready for SQL inspection:',id);
+   const deadline=Date.now()+600000;
+   while (Date.now()<deadline) {
+     try { if ((await readFile('/tmp/watch-media-query-staging/continue','utf8')).trim()===id) return; } catch {}
+     await new Promise(resolve=>setTimeout(resolve,1000));
+   }
+   throw Error('Staging fixture inspection timed out');
+ }});
 await writeFile('/tmp/watch-media-query-staging/evidence.json',JSON.stringify({project:ref,...evidence},null,2));
 console.log(JSON.stringify({project:ref,...evidence},null,2));

@@ -68,7 +68,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
     }
     return send(200, { watch: data });
   } catch (error) {
-    console.warn('[Media Watches] Request failed.', { code: error.code || 'PERSISTENCE_UNAVAILABLE', databaseCode: /^[A-Z0-9]{5,12}$/.test(error.databaseCode || '') ? error.databaseCode : undefined, durationMs: Date.now() - startedAt });
+    console.warn('[Media Watches] Request failed.', { code: error.code || 'PERSISTENCE_UNAVAILABLE', queryReason: error.code === 'MEDIA_QUERY_REVIEW_REQUIRED' ? error.reason : undefined, databaseCode: /^[A-Z0-9]{5,12}$/.test(error.databaseCode || '') ? error.databaseCode : undefined, durationMs: Date.now() - startedAt });
     if (error instanceof SyntaxError) return send(400, { code: 'INVALID_BODY' });
     // Auth can verify a token just as PostgREST starts rejecting its claims.
     // Tell the browser to refresh its session instead of treating this as a

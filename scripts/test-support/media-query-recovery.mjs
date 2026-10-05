@@ -8,7 +8,7 @@ import { mediaWatchDefinition } from '../../src/js/media-watch-definition.js';
 
 // Deterministic provider fixtures, usable with PGlite or an explicitly isolated
 // staging client. Never processes another Watch or any notification queue.
-export async function exerciseMediaQueryRecovery({ service, clientA, clientB, userA, userB, legacyInitialContext = false }) {
+export async function exerciseMediaQueryRecovery({ service, clientA, clientB, userA, userB, legacyInitialContext = false, inspectLedger = true, afterBaseline }) {
   const id = randomUUID();
   const request = 'Dis-moi quand Ed Sheeran est mentionné dans les médias';
   const planned = planMediaQuery(request, { language: 'fr' });
@@ -17,7 +17,7 @@ export async function exerciseMediaQueryRecovery({ service, clientA, clientB, us
   const definition = { inputType: 'text', request, category: 'news', mediaMention: planned.mediaMention };
   const rpc = async (client, name, params) => { const r = await client.rpc(name, params); assert.ifError(r.error); return r.data; };
   const rows = async (table, owner = service) => { const r = await owner.from(table).select('*').eq(table === 'watches' ? 'id' : 'watch_id', id).range(0, 99); assert.ifError(r.error); return r.data; };
-  const state = async () => ({ row: (await rows('watches'))[0], snapshot: (await rows('media_watch_snapshots'))[0], seen: (await rows('media_watch_seen_articles')).map(x => x.article_key).sort(), notifications: await rows('media_watch_notifications') });
+  const state = async () => ({ row: (await rows('watches'))[0], snapshot: (await rows('media_watch_snapshots'))[0], seen: inspectLedger ? (await rows('media_watch_seen_articles')).map(x => x.article_key).sort() : null, notifications: await rows('media_watch_notifications') });
   const persist = async (source, rev) => rpc(clientA, 'persist_media_watch', {p_id:id,p_title:'SYNTHETIC media query recovery',p_source:source,p_definition:definition,p_state:'monitoring',p_revision:rev,p_mutation:randomUUID(),p_deleted:false});
   let row = await persist(legacySource, 0); // Deliberately reproduce old persisted data, bypassing the new API guard.
   const item = (name, publishedAt = '2026-10-01T18:00:00Z', url = `https://fixture.example/${name}`) => ({id:name,title:`Ed Sheeran ${name}`,url,publishedAt,excerpt:'Deterministic test article'});
@@ -32,7 +32,8 @@ export async function exerciseMediaQueryRecovery({ service, clientA, clientB, us
   };
   assert.equal((await seed([old])).outcome,'baseline');
   // Mimic pre-PR50 rows only in the explicitly created fixture, if supported.
-  if (legacyInitialContext) { const r=await service.from('media_watch_snapshots').update({initial_items:null}).eq('watch_id',id); assert.ifError(r.error); }
+  if (afterBaseline) await afterBaseline(id);
+  else if (legacyInitialContext) { const r=await service.from('media_watch_snapshots').update({initial_items:null}).eq('watch_id',id); assert.ifError(r.error); }
   assert.equal((await seed([old,item('existing-event','2026-09-30T06:36:00Z')])).outcome,'matching-items');
   const before = await state();
   let items = [old]; let fail = false; let fetches = 0;
@@ -55,6 +56,7 @@ export async function exerciseMediaQueryRecovery({ service, clientA, clientB, us
   assert.deepEqual(repaired.notifications,before.notifications);
   for (const key of ['last_checked_at','last_change_item_id','media_last_change_detected_at','last_change_published_at']) assert.equal(key.endsWith('_at') ? Date.parse(row[key]) : row[key], key.endsWith('_at') ? Date.parse(before.row[key]) : before.row[key]);
   assert.equal(row.watch_definition.request,request);
+  assert.equal((await check()).data.outcome,'no-new-items'); // Baseline identity still known after repair.
   // Scoped scheduled pipeline: global queue maintenance is deliberately skipped.
   const scopedService = { from: table => { assert.equal(table,'watches'); return { select:fields => service.from(table).select(fields).eq('id',id) }; },
     rpc:(name,params)=>name==='maintain_media_watch_notifications' ? Promise.resolve({data:null,error:null}) : service.rpc(name,params) };
@@ -73,7 +75,7 @@ export async function exerciseMediaQueryRecovery({ service, clientA, clientB, us
   const failed=await state(); assert.deepEqual(failed.snapshot,successful.snapshot); assert.deepEqual(failed.row.last_checked_at,successful.row.last_checked_at);
   assert.equal(failed.row.last_check_error_code,'TIMEOUT'); assert.equal(failed.row.last_change_item_id,successful.row.last_change_item_id);
   const reload=await call('GET'); const restored=reload.data.watches.find(x=>x.id===id);
-  assert.equal(restored.monitoring_source.query,'Ed Sheeran'); assert.equal(Date.parse(restored.media_watch_snapshots[0].baseline_at),Date.parse(before.snapshot.baseline_at));
+  assert.equal(restored.monitoring_source.query,'Ed Sheeran'); assert.equal(Date.parse((Array.isArray(restored.media_watch_snapshots) ? restored.media_watch_snapshots[0] : restored.media_watch_snapshots).baseline_at),Date.parse(before.snapshot.baseline_at));
   assert.equal((await check('fixture-B')).status,404);
   assert.equal((await call('GET',undefined,'fixture-B')).data.watches.some(x=>x.id===id),false);
   assert.equal((await call('POST',{definition:repairedDefinition,revision:row.media_revision,mutation:randomUUID(),deleted:false},'fixture-B')).status,409);
