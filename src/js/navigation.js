@@ -3538,7 +3538,7 @@ export function initForm() {
         setCreationControlsDisabled(false);
         setSubmitLabel();
         resetUrlFlow({ clearInput: false });
-      showClarification(
+        showClarification(
           selectedRequest,
           createCapabilityLimitation(
             selectedRequest,

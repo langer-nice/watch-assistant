@@ -443,3 +443,21 @@ test('legal first Watch uses shared planning, clarification, source validation a
     assert.equal(window.location.href, 'http://localhost/index.html');
   });
 });
+
+
+test('a failed media discovery exits confirmation and visibly preserves the request for retry', async () => {
+  const request = 'Dis-moi quand Ed Sheeran est mentionné dans les médias';
+  await withBrowserForm({ request, language: 'fr', fetchImpl: async path => {
+    if (path.startsWith('/api/plan-watch')) return {ok:true,json:async()=>({strategy:'web_search',connector:'web_ai',confidence:0.5,needsClarification:false})};
+    if (path==='/api/monitoring-source') return {ok:false,status:422,json:async()=>({code:'NO_COMPATIBLE_SOURCE'})};
+    throw Error(`Unexpected request: ${path}`);
+  }}, async ({elements,form,input,storage}) => {
+    assert.equal(elements.get('#urlReview').hidden,false);
+    await elements.get('#urlReviewCreate').dispatch('click');
+    assert.equal(form.classList.contains('is-reviewing'),false);
+    assert.equal(elements.get('#requestClarification').hidden,false);
+    assert.equal(elements.get('#clarificationOriginal').textContent,request);
+    assert.equal(input.value,request);
+    assert.equal(JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches'))||'[]').length,0);
+  });
+});

@@ -47,11 +47,16 @@ export async function exerciseMediaQueryRecovery({ service, clientA, clientB, us
   };
   const check = async (account = 'fixture-A') => call('POST',{id,revision:row.media_revision},account,true);
   assert.equal((await check()).data.code,'MEDIA_QUERY_REVIEW_REQUIRED'); assert.equal(fetches,0);
+  const legacyDefinition = mediaWatchDefinition({id,title:row.title,...definition,monitoringSource:legacySource});
+  const unchanged = await call('POST',{definition:legacyDefinition,revision:row.media_revision,mutation:randomUUID(),deleted:false});
+  assert.equal(unchanged.status,200); row=unchanged.data.watch;
+  const staleEdit = await call('POST',{definition:{...legacyDefinition,watch_definition:{...definition,request:'Tell me when Bono is mentioned in the media',mediaMention:{subjects:['Bono'],matchMode:'all'}}},revision:row.media_revision,mutation:randomUUID(),deleted:false});
+  assert.equal(staleEdit.status,422);
   const repairedDefinition = mediaWatchDefinition({id,title:row.title,...definition,monitoringSource:planned.monitoringSource});
   const save = await call('POST',{definition:repairedDefinition,revision:row.media_revision,mutation:randomUUID(),deleted:false});
   assert.equal(save.status,200); row=save.data.watch;
   const repaired=await state();
-  assert.equal(row.media_revision, before.row.media_revision+1);
+  assert.equal(row.media_revision, before.row.media_revision+2);
   assert.deepEqual(repaired.snapshot,before.snapshot); assert.deepEqual(repaired.seen,before.seen);
   assert.deepEqual(repaired.notifications,before.notifications);
   for (const key of ['last_checked_at','last_change_item_id','media_last_change_detected_at','last_change_published_at']) assert.equal(key.endsWith('_at') ? Date.parse(row[key]) : row[key], key.endsWith('_at') ? Date.parse(before.row[key]) : before.row[key]);
