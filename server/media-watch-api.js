@@ -63,7 +63,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
       // Keep pause/delete/title-only synchronization available for legacy rows.
       // Only an explicit criteria/source edit must supply a coherent new query.
       const prior = await client.from('watches').select('*').eq('id', definition.id)
-        .eq('user_id', user.id).eq('type', 'media_news').is('deleted_at', null).range(0, 0);
+        .eq('user_id', user.id).eq('type', 'media_news').range(0, 0);
       if (prior.error) throw Object.assign(new Error('DATABASE_ERROR'), { code: 'DATABASE_ERROR' });
       const old = prior.data?.[0];
       const config = (d, s) => JSON.stringify([d?.inputType, d?.request,
