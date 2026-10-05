@@ -191,7 +191,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.equal(watches.getWatchById(watch.id).lastChecked, watches.getStoredWatches().find(w=>w.id===watch.id).lastChecked);
       const stale = rpcCalls.findLast((call) => call.name === 'complete_scheduled_media_watch_check').params;
       watches.updateWatch(watch.id, { request: 'Tell me when SpaceX is mentioned in the media.', mediaMention: { subjects: ['SpaceX'], matchMode: 'all' } }); await flush();
-      assert.equal(await count('media_watch_snapshots'), 0);
+      assert.equal(await count('media_watch_snapshots'), 1);
       assert.equal((await service.rpc('complete_scheduled_media_watch_check', stale)).data, 'skipped');
       await run([article('different-history')]); assert.equal(await count('media_watch_notifications'), 1);
       assert.equal((await db.query('select status from public.media_watch_notifications')).rows[0].status, 'failed');

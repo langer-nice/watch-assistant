@@ -23,6 +23,7 @@ import {
   isStoryPageType,
   normalizePageType,
 } from './page-classification.js';
+import { mediaMentionDefinition } from './media-provider-query.js';
 import { parseMediaMentionRequest } from './media-mention-request.js';
 
 export const WATCH_MODEL_VERSION = 10;
@@ -207,10 +208,7 @@ export const migrateWatchModel = (watch) => {
     ? parseMediaMentionRequest(watch.request)
     : null;
   const mediaMention = parsedMediaMention?.recognized
-    ? {
-      subjects: [...parsedMediaMention.subjects],
-      matchMode: parsedMediaMention.matchMode,
-    }
+    ? mediaMentionDefinition(parsedMediaMention)
     : null;
   const normalizeGeneratedMediaConcepts = Boolean(mediaMention && !selectionWasManuallyEdited);
   const mediaMentionFingerprint = normalizeGeneratedMediaConcepts
@@ -260,7 +258,7 @@ export const migrateWatchModel = (watch) => {
   const categorySource = watch.categorySource === 'manual' || (
     watch.categorySource !== 'inferred' && watch.category
   ) ? 'manual' : 'inferred';
-  const inferredCategory = inferWatchCategory([
+  const inferredCategory = parseMediaMentionRequest(watch.request).recognized ? 'news' : inferWatchCategory([
     watch.request,
     watch.sourceTitle,
     watch.title,

@@ -271,14 +271,14 @@ for (const fixture of [
   {
     language: 'en',
     request: 'Tell me when Elon Musk and Tesla are mentioned in the media',
-    query: 'Elon Musk and Tesla',
+    query: '"Elon Musk" "Tesla"' ,
     title: 'Elon Musk and Tesla media mentions',
     clarificationMessage: 'Should the Watch alert you when a media item mentions both Elon Musk and Tesla, or when either one is mentioned?',
   },
   {
     language: 'fr',
     request: 'Dis-moi quand Elon Musk et Tesla sont mentionnés dans les médias',
-    query: 'Elon Musk et Tesla',
+    query: '"Elon Musk" "Tesla"' ,
     title: 'Elon Musk et Tesla dans les médias',
     clarificationMessage: 'La Watch doit-elle vous alerter lorsque les deux sujets sont mentionnés, ou lorsqu’un seul est mentionné ?',
   },
@@ -334,6 +334,10 @@ for (const fixture of [
       assert.match(elements.get('#watchKeywordChips').innerHTML, /Elon Musk/u);
       assert.match(elements.get('#watchKeywordChips').innerHTML, /Tesla/u);
 
+      assert.equal(elements.get('#urlReview').hidden, false);
+      assert.equal(JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')) || '[]').length, 0);
+      await elements.get('#urlReviewCreate').dispatch('click');
+      await new Promise(resolve => setImmediate(resolve));
       const watches = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')) || '[]');
       assert.equal(watches.length, 1);
       assert.equal(watches[0].request, fixture.request);

@@ -278,7 +278,8 @@
       "persistence": "The Company Watch could not be saved. Your existing Watches were not changed. Try again.",
       "configuration": "Server persistence is not available in this environment. Try again when it is configured.",
       "currency": "The exchange rate could not be verified. The ECB rate is missing, invalid, unavailable, or out of date.",
-      "edited": "The Watch changed during this check. Check again."
+      "edited": "The Watch changed during this check. Check again.",
+      "mediaQuery": "Review and save the media search instruction before checking again."
     },
     "monitoringUnavailable": "The monitoring source is temporarily unavailable. You can retry this check.",
     "newItems": "New articles",
@@ -443,7 +444,11 @@
     "clarificationDone": "Done",
     "examplesTitle": "For example",
     "emptyError": "Tell me what you would like me to watch.",
-    "meaningfulError": "Please add a little more detail."
+    "meaningfulError": "Please add a little more detail.",
+    "mediaQueryReviewRequired": "The media subject or constraints could not be interpreted safely. Please clarify the instruction; no broader search was saved.",
+    "mediaQueryHeading": "Confirm media monitoring",
+    "mediaQuerySummary": "Search: {query}. The first successful check establishes the reference; existing articles do not create alerts.",
+    "mediaQueryEditSummary": "Search: {query}. Keep the original reference and article history. Previously unseen matching articles may appear at the next check; scheduled checks keep the original publication cutoff."
   },
   "flow2": {
     "headline": "Tell us what matters.",

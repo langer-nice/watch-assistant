@@ -1,3 +1,4 @@
+import { validateMediaQuery } from '../src/js/media-provider-query.js';
 import { createMediaWatchCheckMiddleware } from './media-watch-check-api.js';
 import { getMediaWatchEmailConfig } from './media-watch-email.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
@@ -55,6 +56,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
         status: input?.monitoring_state === 'paused' ? 'paused' : 'watching',
       });
     } catch { return send(400, { code: 'INVALID_MEDIA_DEFINITION' }); }
+    validateMediaQuery(definition.watch_definition, definition.monitoring_source);
     const { data, error } = await client.rpc('persist_media_watch', {
       p_id: definition.id, p_title: definition.title, p_source: definition.monitoring_source,
       p_definition: definition.watch_definition, p_state: definition.monitoring_state,

@@ -32,7 +32,10 @@ export const mediaWatchDefinition = (watch) => {
   if (watch.inputType === 'text') {
     const subjects = list(watch.mediaMention.subjects);
     if (!subjects.length || watch.mediaMention.matchMode !== 'all') throw new Error('INVALID_MEDIA_DEFINITION');
-    definition.mediaMention = { subjects, matchMode: 'all' };
+    definition.mediaMention = { subjects, matchMode: 'all',
+      ...Object.fromEntries(['topics','exclusions'].filter(k => watch.mediaMention[k]).map(k => [k, list(watch.mediaMention[k])])),
+      ...(watch.mediaMention.locale ? { locale: watch.mediaMention.locale } : {}),
+    };
   } else {
     const profile = watch.storyProfile;
     if (!Array.isArray(profile.concepts) || !profile.concepts.length || profile.concepts.length > 8) throw new Error('INVALID_MEDIA_DEFINITION');

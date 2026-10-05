@@ -1,3 +1,4 @@
+import { googleNewsSource, validateMediaQuery } from '../src/js/media-provider-query.js';
 import { currencyCriteriaFor, applyCurrencyCheckResult } from '../src/js/currency-watch.js';
 import { fetchCurrencyRate } from './currency-rate.js';
 import { withinMediaDeadline } from './media-deadline.js';
@@ -36,6 +37,7 @@ export const runMediaMonitoring = async ({ client, env = process.env, fetchFeed 
     const sourceUrl = normalizeFeedUrl(row.monitoring_source?.url); if (!sourceUrl) { skippedCount += 1; return; }
     const watch = asWatch(row); const isCurrency = Boolean(currencyCriteriaFor(watch));
     if (row.monitoring_source?.type === 'currency' && !isCurrency) throw new Error('INVALID_CURRENCY_CRITERIA');
+    if (!isCurrency) validateMediaQuery(row.watch_definition, row.monitoring_source);
     const response = await withinMediaDeadline(() => isCurrency
       ? fetchCurrency(watch.request, { timeoutMs: Math.min(8000, Math.max(1, deadline - Date.now())) })
       : fetchFeed(sourceUrl, { timeoutMs: Math.min(8000, Math.max(1, deadline - Date.now())) }), deadline);
@@ -46,7 +48,16 @@ export const runMediaMonitoring = async ({ client, env = process.env, fetchFeed 
     const { data, error } = await withinMediaDeadline(() => client.rpc(isCurrency ? 'complete_currency_watch_check' : 'complete_scheduled_media_watch_check', { p_watch_id: row.id, p_expected_revision: row.media_revision, p_checked_at: result.changes.monitoringSnapshot.checkedAt, p_source_title: result.changes.monitoringSnapshot.source?.title, p_source_url: result.changes.monitoringSnapshot.source?.url, p_item_ids: result.changes.monitoringSnapshot.itemIds, p_items: result.changes.monitoringSnapshot.items, p_expected_checked_at: prior?.checked_at || null, p_expected_items: prior?.items || null, p_outcome: result.outcome, ...(isCurrency ? { p_evaluation: result.changes.currencyEvaluation } : {}), p_notification_items: result.matchedItems, p_enqueue_notifications: emailNotificationsEnabled(env, 'MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED') }), deadline);
     if (error) throw Object.assign(new Error('Media persistence failed.'), { code: 'DATABASE_ERROR' });
     if (data === 'changed') changedCount += 1; else if (data === 'skipped') skippedCount += 1; else unchangedCount += 1;
-  } catch { failedCount += 1;
+  } catch (error) { failedCount += 1;
+    // Query-backed media failures retain the last successful retrieval, just as
+    // manual checks do. Other monitoring types retain their existing behavior.
+    if (row.watch_definition?.inputType === 'text' && googleNewsSource(row.monitoring_source?.url)) {
+      try { await withinMediaDeadline(() => client.rpc('fail_manual_media_watch_check', {
+        p_watch_id: row.id, p_user_id: row.user_id, p_revision: row.media_revision,
+        p_expected_checked_at: snapshot(row)?.checked_at || null, p_code: error.code || 'CHECK_FAILED',
+      }), deadline); } catch { /* Keep other Watches independent. */ }
+      return;
+    }
     try { await withinMediaDeadline(() => client.rpc('fail_scheduled_media_watch_check', { p_watch_id: row.id, p_revision: row.media_revision, p_expected_checked_at: snapshot(row)?.checked_at || null }), deadline); } catch { /* Keep other Watches independent. */ }
   } });
   let notifications = { status: 'disabled', pendingCount: 0, sentCount: 0, failedCount: 0, skippedCount: 0 };

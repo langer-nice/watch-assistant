@@ -1,3 +1,4 @@
+import { planMediaQuery, googleNewsSource, mediaMentionDefinition } from './media-provider-query.js';
 import { renderInitialContext } from './initial-context.js';
 import { canCheckStoredMediaWatch, checkStoredMediaWatch } from './media-watch-server-store.js';
 import { currencyUpdateSummary } from './currency-display.js';
@@ -940,10 +941,7 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     monitoringSource,
     currencyLanguage: getLanguage(),
     ...(mediaMentionRequest?.recognized ? {
-      mediaMention: {
-        subjects: [...mediaMentionRequest.subjects],
-        matchMode: mediaMentionRequest.matchMode,
-      },
+      mediaMention: mediaMentionDefinition(mediaMentionRequest),
     } : {}),
     category,
     categorySource: options.categorySource || 'inferred',
@@ -3260,9 +3258,21 @@ export function initForm() {
     const previousFeedUrl = normalizeFeedUrl(editingWatch.feedUrl || '');
     const manualFeedChanged = feedInputUrl !== previousFeedUrl;
     const discoveredFeedUrl = normalizeFeedUrl(urlAnalysis?.monitoringSource?.url || '');
-    const feedUrl = manualFeedChanged
-      ? feedInputUrl
-      : discoveredFeedUrl || previousFeedUrl;
+    let feedUrl = manualFeedChanged ? feedInputUrl : discoveredFeedUrl || previousFeedUrl;
+    let mediaQueryPlan = null;
+    const textFeedEdit = editingWatch.inputType === 'text' && editingWatch.mediaMention
+      && googleNewsSource(editingWatch.monitoringSource?.url);
+    if (textFeedEdit && !manualFeedChanged) {
+      try {
+        mediaQueryPlan = planMediaQuery(request, { sourceUrl: editingWatch.monitoringSource.url });
+        feedUrl = mediaQueryPlan.monitoringSource.url;
+      } catch {
+        creationInProgress = false;
+        setCreationControlsDisabled(false);
+        if (watchError) watchError.textContent = t('newWatch.mediaQueryReviewRequired');
+        return;
+      }
+    }
     const feedUrlChanged = !sameCompanyEdit && feedUrl !== previousFeedUrl;
     const monitoringSummary = requestChanged && !urlAnalysis
       ? await generateMonitoringSummary(request)
@@ -3340,6 +3350,7 @@ export function initForm() {
       mediaMention: derivedData.mediaMention || null,
       ...getPreservedCompanyEditChanges(editingWatch, urlAnalysis),
     };
+    if (mediaQueryPlan) Object.assign(changes, mediaQueryPlan);
     if (derivedData.isStory === false) changes.storyProfile = null;
 
     if (typeof createdAsWrittenAfterClarityWarning === 'boolean') {
@@ -3351,7 +3362,7 @@ export function initForm() {
       changes.titleKey = null;
     }
 
-    if (monitoringCriteriaChanged) {
+    if (monitoringCriteriaChanged && !textFeedEdit) {
       const actionRequired = isUserActionRequired(editingWatch);
       Object.assign(changes, {
         monitoringSummary: derivedData.monitoringSummary,
@@ -3400,7 +3411,7 @@ export function initForm() {
       });
     }
 
-    if (feedUrlChanged) {
+    if (feedUrlChanged && !textFeedEdit) {
       const missingMonitoringSource = derivedData.inputType === 'url' && !feedUrl;
       const actionRequired = isUserActionRequired(editingWatch);
       Object.assign(changes, {
@@ -3477,6 +3488,7 @@ export function initForm() {
     request,
     whyFollowing,
     {
+      mediaConfirmed = false,
       preserveOriginalWording = false,
       useRequestAsTitle = false,
       createdAsWrittenAfterClarityWarning,
@@ -3486,6 +3498,22 @@ export function initForm() {
     const selectedRequest = preserveOriginalWording ? request : request.trim();
     if (!selectedRequest.trim() || creationInProgress) return;
 
+    const parsedMedia = parseMediaMentionRequest(selectedRequest);
+    if (parsedMedia.recognized && !mediaConfirmed) {
+      const plan = planMediaQuery(selectedRequest, { language: getLanguage(),
+        ...(isEditMode && googleNewsSource(editingWatch.monitoringSource?.url) ? { sourceUrl: editingWatch.monitoringSource.url } : {}),
+      });
+      pendingRequest = selectedRequest; pendingWhyFollowing = whyFollowing;
+      clarificationInProgress = false;
+      form.classList.remove('is-clarifying');
+      if (clarification) clarification.hidden = true;
+      showReview({ status: 'success', inputType: 'media-query', title: createTitle(selectedRequest),
+        summary: t(isEditMode ? 'newWatch.mediaQueryEditSummary' : 'newWatch.mediaQuerySummary', { query: plan.monitoringSource.query }),
+        source: `Google News · ${new URL(plan.monitoringSource.url).searchParams.get('ceid')}`,
+        monitoringSource: plan.monitoringSource, keywords: parsedMedia.subjects });
+      setCreationControlsDisabled(false);
+      return;
+    }
     creationInProgress = true;
     if (input) input.value = selectedRequest;
     synchronizeInferredFields(selectedRequest);
@@ -3504,7 +3532,7 @@ export function initForm() {
           language: getLanguage(),
         });
         if (!editor.isCurrent()) return;
-      } catch {
+      } catch (error) {
         if (!editor.isCurrent()) return;
         creationInProgress = false;
         setCreationControlsDisabled(false);
@@ -3513,7 +3541,7 @@ export function initForm() {
           selectedRequest,
           createCapabilityLimitation(
             selectedRequest,
-            t('newWatch.monitoringCapabilityUnavailable'),
+            t(error.code === 'MEDIA_QUERY_REVIEW_REQUIRED' ? 'newWatch.mediaQueryReviewRequired' : 'newWatch.monitoringCapabilityUnavailable'),
           ),
           whyFollowing,
         );
@@ -3669,7 +3697,7 @@ export function initForm() {
   const setReviewEditing = (editing) => {
     const isCompanyReview = pendingAnalysis?.inputType === 'company';
     const isNonStoryPage = pendingAnalysis?.isStory === false;
-    const effectiveEditing = isCompanyReview || isNonStoryPage ? false : editing;
+    const effectiveEditing = isCompanyReview || isNonStoryPage || pendingAnalysis?.inputType === 'media-query' ? false : editing;
     review?.classList.toggle('is-editing', effectiveEditing);
     if (reviewTitle) {
       reviewTitle.readOnly = !effectiveEditing;
@@ -3793,6 +3821,11 @@ export function initForm() {
         ? ''
         : analysis?.monitoringScope || '';
     }
+    if (analysis?.inputType === 'media-query') {
+      setReviewTranslation(reviewHeading, 'newWatch.mediaQueryHeading');
+      setReviewTranslation(reviewSummaryLabel, 'newWatch.companyReviewWatchingForRequired');
+      if (reviewMonitoringScopeField) reviewMonitoringScopeField.hidden = true;
+    }
     if (!isCompanyReview) return;
     const siren = analysis.company.siren;
     if (reviewTitle) reviewTitle.value = getWatchDisplayTitle(analysis);
@@ -3880,7 +3913,7 @@ export function initForm() {
       keywordsManuallyEdited = false;
       renderKeywords();
       if (categorySource === 'inferred' && categoryInputEl) {
-        categoryInputEl.value = inferWatchCategory([
+        categoryInputEl.value = analysis?.inputType === 'media-query' ? 'news' : inferWatchCategory([
           analysis.title,
           analysis.sourceTitle,
           ...analysis.keywords,
@@ -4720,6 +4753,10 @@ export function initForm() {
       return;
     }
 
+    if (parseMediaMentionRequest(request).recognized) {
+      await savePlainTextWatch(originalRequest, whyFollowing, { preserveOriginalWording: true });
+      return;
+    }
     const storedRequest = isEditMode
       ? (localizeField(editingWatch, 'request') || '')
       : '';
@@ -4868,7 +4905,7 @@ export function initForm() {
   };
 
   editor.listen(reviewEdit, 'click', () => {
-    if (pendingAnalysis?.inputType === 'company') return restoreCompanyRequestForEditing();
+    if (['company','media-query'].includes(pendingAnalysis?.inputType)) return restoreCompanyRequestForEditing();
     setReviewEditing(!review?.classList.contains('is-editing'));
   });
 
@@ -4890,6 +4927,10 @@ export function initForm() {
       return;
     }
 
+    if (pendingAnalysis.inputType === 'media-query') {
+      await savePlainTextWatch(pendingRequest, pendingWhyFollowing, { mediaConfirmed: true, preserveOriginalWording: true });
+      return;
+    }
     const analysis = {
       ...pendingAnalysis,
       status: 'success',
