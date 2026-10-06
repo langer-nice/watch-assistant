@@ -67,11 +67,13 @@ export const getLatestReportEntryForWatch = (reports, watchId) => (
     .find((entry) => entry.watchId === watchId) || null
 );
 
+export const monitoringUnavailable = watch => Boolean(watch?.monitoringAvailability && watch.monitoringAvailability !== 'saved');
+
 export const getUserFacingWatchClassification = (watch, { now = new Date() } = {}) => {
   if (!watch || typeof watch !== 'object' || watch.status === 'completed') {
     return WATCH_CLASSIFICATIONS.WATCHING;
   }
-  if (watch.lastCheckAttempt?.status === 'failed' || isUserActionRequired(watch)) {
+  if (monitoringUnavailable(watch) || watch.lastCheckAttempt?.status === 'failed' || isUserActionRequired(watch)) {
     return WATCH_CLASSIFICATIONS.ATTENTION;
   }
   const meaningful = getMeaningfulWatchUpdate(watch);

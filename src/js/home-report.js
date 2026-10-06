@@ -1,4 +1,4 @@
-import { WATCH_CLASSIFICATIONS, isRecentlyCreatedWatch } from './report-status.js';
+import { WATCH_CLASSIFICATIONS, isRecentlyCreatedWatch, monitoringUnavailable } from './report-status.js';
 import { getWatchCreationDate } from './watch-dates.js';
 
 // Home preserves the saved report and can additionally show Watches created
@@ -21,6 +21,15 @@ export const selectHomeReport = ({
       reportCheckedAt: entry.checkedAt, reportFailureCode: entry.failureCode,
     });
     statusById.set(entry.watchId, entry.classification);
+  }
+  // Keep the stored report immutable, but do not present a currently local-only
+  // or pending Watch as successfully monitored. Surface it regardless of age.
+  const unavailableIds = new Set();
+  for (const watch of watches) {
+    if (!watch?.id || ['paused','completed'].includes(watch.status) || !isDisplayableWatch(watch) || !monitoringUnavailable(watch)) continue;
+    unavailableIds.add(watch.id);
+    byId.set(watch.id, watch);
+    statusById.set(watch.id, WATCH_CLASSIFICATIONS.ATTENTION);
   }
   const select = classification => [...byId.values()].filter(watch => statusById.get(watch.id) === classification);
   const attentionWatches = select(WATCH_CLASSIFICATIONS.ATTENTION);
@@ -45,6 +54,6 @@ export const selectHomeReport = ({
     attentionWatches, newlyCreatedWatches, updatedWatches,
     // An unchanged Watch alone is not evidence of a completed report check.
     quietWatches: select(WATCH_CLASSIFICATIONS.WATCHING).filter(watch => succeededIds.has(watch.id)),
-    totalChecked: attempts.filter(attempt => ['succeeded', 'failed'].includes(attempt.status)).length,
+    totalChecked: attempts.filter(attempt => !unavailableIds.has(attempt.watchId) && ['succeeded', 'failed'].includes(attempt.status)).length,
   };
 };

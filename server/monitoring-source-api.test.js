@@ -27,7 +27,7 @@ test('builds a deterministic public news-search feed without special-casing stor
 test('discovers and returns a supported source only after the feed is fetched and parsed', async () => {
   const requestedUrls = [];
   const result = await discoverTextMonitoringSource({
-    request: 'US–Iran strikes BBC News',
+    request: 'US–Iran strikes BBC News', storyDiscovery: true,
     language: 'en',
   }, {
     lookup: publicLookup,
@@ -94,7 +94,7 @@ test('unrecognized conversational intent requires review without querying the pr
 });
 
 test('unsupported or malformed discovery results fail safely instead of returning a source', async () => {
-  await assert.rejects(discoverTextMonitoringSource({ request: 'Unsupported source' }, {
+  await assert.rejects(discoverTextMonitoringSource({ request: 'News about synthetic elections' }, {
     lookup: publicLookup,
     fetchImpl: async () => new Response('<html>not a feed</html>', {
       headers: { 'content-type': 'text/html' },
@@ -127,7 +127,7 @@ test('discovery middleware validates input and exposes no upstream details', asy
     status: 400,
     body: { code: 'INVALID_BODY', error: 'The request must be valid JSON.' },
   });
-  assert.deepEqual(await call(JSON.stringify({ request: 'US–Iran strikes' })), {
+  assert.deepEqual(await call(JSON.stringify({ request: 'News about US–Iran strikes' })), {
     status: 422,
     body: {
       code: 'NO_COMPATIBLE_SOURCE',

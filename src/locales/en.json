@@ -202,6 +202,7 @@
     "breadcrumbLabel": "Watch location",
     "title": "Watch detail",
     "createdTitle": "Your Watch has been created.",
+    "savedLocallyCopy": "Your request is saved on this device. Review the synchronization notice before relying on automatic monitoring.",
     "createdCopy": "Monitoring is active. I’ll check automatically for future updates.",
     "updatedTitle": "Watch updated",
     "updatedCopy": "Your changes have been saved.",

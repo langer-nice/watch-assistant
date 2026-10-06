@@ -1,6 +1,7 @@
-import { planMediaQuery, googleNewsSource, mediaMentionDefinition } from './media-provider-query.js';
+import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
+import { planMediaQuery, googleNewsSource, mediaMentionDefinition, validateMediaQuery } from './media-provider-query.js';
 import { renderInitialContext } from './initial-context.js';
-import { canCheckStoredMediaWatch, checkStoredMediaWatch } from './media-watch-server-store.js';
+import { canCheckStoredMediaWatch, checkStoredMediaWatch, ensureMediaWatchSaved } from './media-watch-server-store.js';
 import { currencyUpdateSummary } from './currency-display.js';
 import { currencySummary, currencyOverview, currencyCriteriaFor } from './currency-watch.js';
 import { getWatchListAvailability, renderWatchLoadNotice } from './watch-load-notice.js';
@@ -2181,7 +2182,8 @@ const renderWatchDetail = () => {
       const titleKey = confirmationType === 'updated'
         ? 'detail.updatedTitle'
         : 'detail.createdTitle';
-      const copyKey = confirmationType === 'updated'
+      const copyKey = watch.monitoringAvailability && watch.monitoringAvailability !== 'saved'
+        ? 'detail.savedLocallyCopy' : confirmationType === 'updated'
         ? 'detail.updatedCopy'
         : 'detail.createdCopy';
       if (confirmationTitleEl) {
@@ -2561,7 +2563,8 @@ const renderHomeSummary = () => {
             : 'home.confirmationTitle');
         }
         if (confirmationBody) {
-          confirmationBody.textContent = t(homeFirstWatchConfirmation
+          confirmationBody.textContent = createdWatch.monitoringAvailability && createdWatch.monitoringAvailability !== 'saved'
+            ? t('detail.savedLocallyCopy') : t(homeFirstWatchConfirmation
             ? 'home.firstConfirmationCopy'
             : 'home.confirmationCopy');
         }
@@ -3160,8 +3163,15 @@ export function initForm() {
       window.location.href = getCreatedWatchDetailHref(createdWatch.id);
       return;
     }
+    // Local retention and server activation are separate. Never activate a
+    // generic feed object that has no supported account persistence route.
+    if (!isMediaWatch(watch)) throw Object.assign(new Error('Unsupported monitoring'), { code: 'MEDIA_QUERY_REVIEW_REQUIRED' });
+    const definition = mediaWatchDefinition(watch);
+    validateMediaQuery(definition.watch_definition, definition.monitoring_source);
     addWatch(watch);
     try {
+      await ensureMediaWatchSaved(getWatchById(watch.id));
+      if (!editor.isCurrent()) return;
       await activateWatchMonitoring(watch.id, {
         checkController: watchCheckController,
         saveWatch: (id, changes) => editor.isCurrent() ? updateWatch(id, changes) : null,
@@ -3169,8 +3179,10 @@ export function initForm() {
       if (!editor.isCurrent()) return;
     } catch (error) {
       if (!editor.isCurrent()) return;
-      deleteWatch(watch.id);
-      throw error;
+      // Keep the same ID, request and pending mutation for an explicit retry.
+      // A failed retrieval after persistence is also recoverable from detail.
+      updateWatch(watch.id, { monitoringState: 'needs-attention',
+        lastCheckAttempt: { status: 'failed', code: error.code || 'CHECK_FAILED', attemptedAt: new Date().toISOString() } });
     }
     trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, {
       input_type: ['url', 'company'].includes(watch.inputType) ? watch.inputType : 'text',
@@ -3514,6 +3526,10 @@ export function initForm() {
       setCreationControlsDisabled(false);
       return;
     }
+    if (!parsedMedia.recognized && !currencyCriteriaFor({ inputType: 'text', request: selectedRequest })) {
+      showClarification(selectedRequest, createCapabilityLimitation(selectedRequest, t('newWatch.mediaQueryReviewRequired')), whyFollowing);
+      return;
+    }
     creationInProgress = true;
     if (input) input.value = selectedRequest;
     synchronizeInferredFields(selectedRequest);
@@ -3526,7 +3542,11 @@ export function initForm() {
       return;
     }
     const createOptions = getCreateOptions();
-    if (!createOptions.feedUrl) {
+    if (parsedMedia.recognized) {
+      createOptions.monitoringSource = planMediaQuery(selectedRequest, { language: getLanguage() }).monitoringSource;
+      createOptions.feedUrl = null;
+    }
+    if (!createOptions.feedUrl && !createOptions.monitoringSource) {
       try {
         createOptions.monitoringSource = await requestMonitoringSource(selectedRequest, {
           language: getLanguage(),

@@ -21,7 +21,13 @@ const splitCoordinatedSubjects = (query, language) => {
   return subjects;
 };
 
+// Short topic requests are news only when they explicitly name news or a
+// public-event topic. Bare entities and operational conditions require review.
+const NEWS_TOPIC = /(?<![\p{L}\p{N}])(?:protests?|elections?|strikes?|summits?|legislation|referendums?|manifestations?|grèves?|élections?|référendums?|actualité|actualités)(?![\p{L}\p{N}])/iu;
+const NON_NEWS_INTENT = /\b(?:price|prices|stock|available|availability|drops?|reaches?|above|below|real[- ]time|every|daily|hourly|when|whenever|if|until|before|after|since|changes?|quand|lorsque|si|avant|après|depuis|prix|disponib|atteint|dépasse|inférieur|supérieur|quotidien|chaque)\b|[<>≤≥]/iu;
 const PATTERNS = [
+  { language: 'en', pattern: /^(?:(?:please\s+)?(?:follow|track|watch)\s+)?news\s+(?:about|on)\s+(.+)$/iu },
+
   {
     language: 'en',
     pattern: /^(?:please\s+)?(?:monitor(?:ing)?|watch)\s+(?:(?:for|there\s+is)\s+)?(?:new\s+)?(?:information|news|updates)\s+(?:about|on)\s+(.+)$/iu,
@@ -56,6 +62,8 @@ const PATTERNS = [
     language: 'fr',
     pattern: /^(?:s['’]il\s+te\s+pla[îi]t\s+)?surveille\s+(?:les\s+)?mentions?\s+(?:de|d['’])\s*(.+?)\s+dans\s+(?:les\s+m[ée]dias|le\s+m[ée]dia|la\s+presse|l['’]actualit[ée])$/iu,
   },
+  { language: 'en', topic: true, pattern: /^(?:please\s+)?(?:monitor(?:ing)?|follow|track|watch)\s+(.+)$/iu },
+  { language: 'fr', topic: true, pattern: /^(?:surveille[r]?|suivre|suis|suivi\s+de)\s+(.+)$/iu },
 ];
 
 export const parseMediaMentionRequest = (request) => {
@@ -98,11 +106,12 @@ export const parseMediaMentionRequest = (request) => {
       || /[;<>"\\]|\b(?:only|without|uniquement|sans|or|ou|in|en|before|after|since|depuis|avant|après)\b/iu.test(v)))) invalid = true;
   }
   if (Object.keys(locale).length) constraints.locale = locale;
-  for (const { language, pattern, coordinated = false } of PATTERNS) {
+  for (const { language, pattern, coordinated = false, topic = false } of PATTERNS) {
     const match = value.match(pattern);
     const query = cleanQuery(match?.[1]);
     if (
       !invalid && query
+      && (!topic || (NEWS_TOPIC.test(query) && !NON_NEWS_INTENT.test(query)))
       && query.length <= 200
       && /[\p{L}\p{N}]/u.test(query)
       && !UNSAFE_GENERIC_SUBJECT.test(query)

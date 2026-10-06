@@ -29,6 +29,11 @@ export const mediaWatchDefinition = (watch) => {
   const category = watch.category || 'news';
   if (!SUPPORTED_WATCH_CATEGORIES.includes(category)) throw new Error('INVALID_MEDIA_DEFINITION');
   const definition = { inputType: watch.inputType, request: text(watch.request, 500), category };
+  if (watch.localCreatedAt !== undefined) {
+    if (typeof watch.localCreatedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(watch.localCreatedAt)
+      || !Number.isFinite(Date.parse(watch.localCreatedAt))) throw new Error('INVALID_MEDIA_DEFINITION');
+    definition.localCreatedAt = new Date(watch.localCreatedAt).toISOString();
+  }
   if (watch.inputType === 'text') {
     const subjects = list(watch.mediaMention.subjects);
     if (!subjects.length || watch.mediaMention.matchMode !== 'all') throw new Error('INVALID_MEDIA_DEFINITION');

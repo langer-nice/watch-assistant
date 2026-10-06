@@ -1,3 +1,4 @@
+import { planLocalMediaRecovery } from './local-media-recovery.js';
 import { currencyCriteriaFor } from './currency-watch.js';
 import { createWatchRequestGate, readWatchCache, writeWatchCache, watchRequest } from './watch-server-resilience.js';
 import { getAccountOwner, localWatchStorageKey, safeStorage } from './account-storage.js';
@@ -67,6 +68,18 @@ export const canClaimLocalMediaWatch = (watch) => {
   catch { return false; }
 };
 
+export const canRecoverLocalMediaWatch = (watch) => {
+  const user = owner();
+  if (!user || user !== getAccountOwner() || user !== identity || !loaded || loadError
+    || watch?.mediaPersistence?.ownerId || rows.some(row => row.id === watch?.id) || read(user, watch?.id)) return false;
+  try {
+    const local = JSON.parse(safeStorage.getItem(localWatchStorageKey('watchAssistant.watches')) || '[]');
+    if (!local.some(item => item.id === watch.id && item.request === watch.request && !item.mediaPersistence?.ownerId)) return false;
+    planLocalMediaRecovery(watch);
+    return true;
+  } catch { return false; }
+};
+
 // Called before local creation/update is committed. Never adopt an existing unowned Watch.
 export const prepareMediaWatch = (watch, previous, { claimExistingLocal = false } = {}) => {
   if (!isMediaWatch(watch) && !previous?.mediaPersistence?.ownerId) return watch;
@@ -123,9 +136,9 @@ export const queueMediaWatchDeletion = (watch) => {
 // Only explicitly owned, synchronized feed Watches use the authenticated path.
 export const canCheckStoredMediaWatch = (watch) => Boolean(owner()
   && watch?.mediaPersistence?.ownerId === owner() && !currencyCriteriaFor(watch));
-export const checkStoredMediaWatch = async (watch) => {
+export const ensureMediaWatchSaved = async (watch) => {
   const user = owner(); const epoch = generation;
-  if (!canCheckStoredMediaWatch(watch)) throw Object.assign(new Error('Not owned'), { code: 'AUTH_REQUIRED' });
+  if (!user || watch?.mediaPersistence?.ownerId !== user) throw Object.assign(new Error('Not owned'), { code: 'AUTH_REQUIRED' });
   let synced = await synchronizeMediaWatches();
   // A coalesced in-flight read may have started before this new Watch was queued.
   // Drain that new job once; never retry a failed network/database write here.
@@ -137,6 +150,11 @@ export const checkStoredMediaWatch = async (watch) => {
   const remote = rows.find(row => row.id === watch.id && !row.deleted_at);
   if (!synced?.ok || saved?.pending || saved?.conflict || saved?.localOnly || !remote
     || epoch !== generation || user !== owner()) throw Object.assign(new Error('Watch not synchronized'), { code: 'PERSISTENCE_UNAVAILABLE' });
+  return remote;
+};
+export const checkStoredMediaWatch = async (watch) => {
+  const user = owner(); const epoch = generation;
+  const remote = await ensureMediaWatchSaved(watch);
   const response = await watchRequest('/api/media-watches?action=check', {
     method: 'POST', headers: { Authorization: `Bearer ${session().access_token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: watch.id, revision: Number(remote.media_revision) }),
@@ -163,7 +181,7 @@ export const getMediaServerWatches = () => (owner() && owner() === identity ? ro
   ...(row.watch_definition.inputType === 'url' ? { isStory: true } : {}),
   monitoringSource: row.monitoring_source, feedUrl: row.monitoring_source.url,
   status: row.monitoring_state === 'paused' ? 'paused' : row.current_status,
-  createdAt: row.created_at,
+  createdAt: row.watch_definition?.localCreatedAt || row.created_at,
   ...(!row.watch_definition.currencyCriteria ? feedState(row) : {}),
   lastChecked: row.last_checked_at || null,
   ...(row.watch_definition.currencyCriteria ? {
@@ -218,20 +236,25 @@ export const mergeMediaWatches = (local) => {
       merged.set(row.id, hydrated);
     }
   }
-  return [...merged.values()];
+  return [...merged.values()].map(watch => {
+    const state = getMediaPersistenceState(watch);
+    return state ? { ...watch, monitoringAvailability: state.status } : watch;
+  });
 };
 
 export const getMediaPersistenceState = (watch) => {
-  if (!isMediaWatch(watch) && !watch?.mediaPersistence?.ownerId) return null;
+  if (!isMediaWatch(watch) && !watch?.mediaPersistence?.ownerId) {
+    return ['text', 'url'].includes(watch?.inputType) ? { status: 'unsupported', canRecover: canRecoverLocalMediaWatch(watch) } : null;
+  }
   const user = owner();
   if (!user || watch.mediaPersistence?.ownerId !== user) {
-    return { status: 'local-only', canClaim: canClaimLocalMediaWatch(watch) };
+    return { status: 'local-only', canClaim: canClaimLocalMediaWatch(watch), canRecover: canRecoverLocalMediaWatch(watch) };
   }
   const job = read(user, watch.id);
   const remote = user === identity ? rows.find((row) => row.id === watch.id) : null;
   if (job?.localOnly) return { status: 'local-only' };
   if (job?.conflict) return { status: 'conflict', remoteTitle: remote?.title || '', remoteRequest: remote?.watch_definition?.request || '', revision: Number(remote?.media_revision) };
-  if (job?.pending) return { status: 'pending', operation: activeWrites.get(watch.id) || null };
+  if (job?.pending) return { status: job.errorCode ? 'failed' : 'pending', operation: activeWrites.get(watch.id) || null };
   if (!job && !remote) return { status: loaded ? 'local-only' : 'loading' };
   return { status: 'saved', emailEnabled: user === identity ? emailEnabled : null };
 };
@@ -278,7 +301,7 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
             if (!fresh()) return { ok: false, code: 'AUTH_SESSION_CHANGED' };
             const current = read(user, job.definition.id);
             if (current?.mutation === job.mutation) {
-              write(user, job.definition.id, { ...current, revision: Number(watch.media_revision), pending: false });
+              write(user, job.definition.id, { ...current, revision: Number(watch.media_revision), pending: false, errorCode: null });
             } else if (current && current.revision === job.revision && current.baseMutation === job.mutation) {
               write(user, job.definition.id, { ...current, revision: Number(watch.media_revision), baseMutation: null });
             }
@@ -288,6 +311,7 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
             if (error.code === 'MEDIA_CONFLICT' && current?.mutation === job.mutation) {
               write(user, job.definition.id, { ...current, conflict: true });
             }
+            if (current?.mutation === job.mutation) write(user, job.definition.id, { ...read(user, job.definition.id), errorCode: error.code || 'SYNC_FAILED' });
             failure = error;
             break; // One failed write ends this attempt, never a retry storm.
           }

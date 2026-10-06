@@ -174,7 +174,7 @@ test('Retry Sync reports failure and success in FR/EN and coalesces double activ
     assert.equal(notice.getAttribute('aria-busy'),'true');
     hold=false;release();await Promise.all([attempt,duplicate]);
     assert.match(notice.textContent,language==='fr'?/synchronisation a échoué/:/Sync failed/);
-    assert.equal(ms.getMediaPersistenceState(watch).status,'pending');
+    assert.equal(ms.getMediaPersistenceState(watch).status,'failed');
     assert.equal(button.disabled,false);
     failing=false;await button.onclick();
     assert.equal(ms.getMediaPersistenceState(watch).status,'saved');

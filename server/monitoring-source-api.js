@@ -37,10 +37,11 @@ export const createNewsSearchFeedUrl = (request, language = 'en') => {
 export const discoverTextMonitoringSource = async ({
   request,
   language = 'en',
+  storyDiscovery = false,
 }, options = {}) => {
   if (parseCurrencyRequest(request)) return { monitoringSource: { ...CURRENCY_SOURCE } };
   const mediaMentionRequest = parseMediaMentionRequest(request);
-  if (!mediaMentionRequest.recognized && /^(?:please\s+)?(?:tell|let|notify|alert|dis|préviens|informe|avertis|surveille|monitor|watch|keep)\b/iu.test(String(request))) throw mediaQueryError();
+  if (!mediaMentionRequest.recognized && !storyDiscovery) throw mediaQueryError();
   const planned = mediaMentionRequest.recognized ? planMediaQuery(request, { language }) : null;
   // Bare article titles remain supported for URL/story discovery.
   const query = planned?.monitoringSource.query || String(request || '').trim();

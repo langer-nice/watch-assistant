@@ -202,6 +202,7 @@
     "breadcrumbLabel": "Emplacement de la Watch",
     "title": "Détails de la Watch",
     "createdTitle": "Votre Watch a été créée.",
+    "savedLocallyCopy": "Votre demande est enregistrée sur cet appareil. Consultez l’état de synchronisation avant de compter sur le suivi automatique.",
     "createdCopy": "La surveillance est active. Je vérifierai automatiquement les prochaines mises à jour.",
     "updatedTitle": "Watch mise à jour",
     "updatedCopy": "Vos modifications ont été enregistrées.",

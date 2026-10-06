@@ -16,7 +16,8 @@ test('Watch creation persists, activates monitoring, then navigates', async () =
   assert.ok(addIndex >= 0 && addIndex < activationIndex);
   assert.ok(activationIndex < detailNavigationIndex);
   assert.equal((completion.match(/addWatch\(watch\)/g) || []).length, 1);
-  assert.match(completion, /deleteWatch\(watch\.id\)/);
+  assert.doesNotMatch(completion, /deleteWatch\(watch\.id\)/);
+  assert.match(completion, /ensureMediaWatchSaved/);
   assert.match(navigation, /await completeWatchCreation\(watch\)/);
   assert.match(navigation, /await completeWatchCreation\(createWatchObject\(/);
 });

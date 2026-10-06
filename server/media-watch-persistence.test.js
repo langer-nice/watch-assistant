@@ -560,6 +560,44 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
         and ((p.proname like '%media%notification%' or p.proname='begin_media_watch_email_submission') or p.proname='complete_scheduled_media_watch_check')`)).rows;
       assert.ok(rows.length >= 6); assert.ok(rows.every((row) => row.allowed === false));
     });
+    await t.test('topic creation and explicit legacy recovery retain identity/history with idempotent ownership-safe persistence', async () => {
+      switchUser(USER_A); await flush();
+      const { planMediaQuery } = await import('../src/js/media-provider-query.js');
+      const { selectHomeReport } = await import('../src/js/home-report.js');
+      const request = 'Monitoring French students protests.';
+      const plan = planMediaQuery(request);
+      const fresh = { ...makeWatch(), ...plan, request, category:'general', createdAt:'2026-09-01T10:00:00Z' };
+      offline = true; watches.addWatch(fresh); await flush();
+      assert.equal(watches.getWatchById(fresh.id).monitoringAvailability, 'failed');
+      assert.equal(selectHomeReport({ watches:watches.getWatches() }).attentionWatches.some(w=>w.id===fresh.id),true);
+      assert.equal((await db.query('select count(*) as n from public.watches where id=$1',[fresh.id])).rows[0].n,0);
+      offline = false; await flush(); await store.ensureMediaWatchSaved(watches.getWatchById(fresh.id));
+      assert.equal(watches.getWatchById(fresh.id).monitoringAvailability,'saved');
+      await flush();
+      assert.equal((await db.query('select count(*) as n from public.watches where id=$1',[fresh.id])).rows[0].n,1);
+      const legacy = { ...fresh, id:randomUUID(), title:'Synthetic local recovery', mediaMention:null,
+        monitoringSource:{type:'feed',url:'https://news.google.com/rss/search?q=old'},
+        monitoringSnapshot:{checkedAt:'2026-09-02T10:00:00Z',items:[article('legacy')]},
+        seenMonitoringItemIds:['legacy'],updates:[{id:'legacy',timestamp:'2026-09-02T10:00:00Z',summary:'Synthetic local result'}] };
+      localStorage.setItem(localWatchStorageKey('watchAssistant.watches'),JSON.stringify([...watches.getStoredWatches(),legacy]));
+      await flush();
+      assert.equal(store.canRecoverLocalMediaWatch(legacy),true);
+      const before = structuredClone(watches.getWatchById(legacy.id));
+      const claimed = watches.recoverLocalMediaWatch(legacy.id,legacy.request,'en');
+      assert.equal(claimed.id,legacy.id);await flush();
+      const row=(await db.query('select * from public.watches where id=$1',[legacy.id])).rows[0];
+      assert.equal(row.user_id,USER_A);assert.equal(row.watch_definition.request,request);
+      assert.equal(new Date(row.created_at).toISOString(),new Date(legacy.createdAt).toISOString());
+      assert.equal(row.monitoring_source.query,'French students protests');
+      assert.deepEqual(watches.getWatchById(legacy.id).localRecoveryHistory.monitoringSnapshot,before.monitoringSnapshot);
+      assert.deepEqual(watches.getWatchById(legacy.id).localRecoveryHistory.updates,before.updates);
+      assert.equal((await db.query('select count(*) as n from public.media_watch_snapshots where watch_id=$1',[legacy.id])).rows[0].n,0);
+      assert.equal(watches.recoverLocalMediaWatch(legacy.id,legacy.request,'en'),null);
+      await flush();assert.equal((await db.query('select count(*) as n from public.watches where id=$1',[legacy.id])).rows[0].n,1);
+      switchUser(USER_B);await flush();assert.equal(watches.getWatchById(legacy.id),null);
+      assert.equal(watches.recoverLocalMediaWatch(legacy.id,legacy.request,'en'),null);
+      switchUser(USER_A);await flush();
+    });
     await t.test('automated tests cannot invoke real Resend transport', async () => {
       await assert.rejects(sendWithResend({}), { code: 'TEST_EMAIL_TRANSPORT_DISABLED' });
     });

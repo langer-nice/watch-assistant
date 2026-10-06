@@ -1,0 +1,71 @@
+// Opt-in staging validation. Provider fixtures, synthetic accounts, no mail.
+import { register } from 'node:module';
+register('../src/js/test-support/json-module-loader.js', import.meta.url);
+import assert from 'node:assert/strict';
+import { readFile, writeFile } from 'node:fs/promises';
+import { parseEnv } from 'node:util';
+import { randomUUID, randomBytes } from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
+const env = parseEnv(await readFile(process.argv[2], 'utf8'));
+const ref='tseexvbwhrtofcsrvcqc';
+for(const k of ['SUPABASE_URL','VITE_SUPABASE_URL']) assert.equal(env[k],`https://${ref}.supabase.co`);
+for(const k of ['SUPABASE_SERVICE_ROLE_KEY','SUPABASE_ANON_KEY','VITE_SUPABASE_ANON_KEY']) assert.equal(JSON.parse(Buffer.from(env[k].split('.')[1],'base64url')).ref,ref);
+for(const k of ['MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED','WATCH_EMAIL_NOTIFICATIONS_ENABLED']) assert.equal(env[k],'false');
+const options={auth:{persistSession:false,autoRefreshToken:false}};
+const service=createClient(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,options);
+const ok=r=>{assert.ifError(r.error);return r.data;};
+const users=[];
+for(let i=0;i<2;i++) {
+ const email=`pr53-generic-${randomUUID()}@example.test`,password=randomBytes(32).toString('base64url');
+ const {user}=ok(await service.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{purpose:'synthetic PR53 generic Watch validation'}}));
+ const client=createClient(env.SUPABASE_URL,env.SUPABASE_ANON_KEY,options);
+ const {session}=ok(await client.auth.signInWithPassword({email,password}));
+ users.push({id:user.id,email,password,client,session});
+}
+await writeFile('/tmp/pr53-synthetic-private.json',JSON.stringify(users.map(({client,...u})=>u)),{mode:0o600});
+const nativeFetch=globalThis.fetch;
+const storage=()=>{const data={};return Object.assign(data,{getItem:k=>data[k]??null,setItem:(k,v)=>data[k]=String(v),removeItem:k=>delete data[k]});};
+globalThis.localStorage=storage();globalThis.window=new EventTarget();
+const { configureAccountStorage,localWatchStorageKey }=await import('../src/js/account-storage.js');
+const store=await import('../src/js/media-watch-server-store.js');
+const watches=await import('../src/js/watch-storage.js');
+const {planMediaQuery}=await import('../src/js/media-provider-query.js');
+const {createMediaWatchMiddleware}=await import('../server/media-watch-api.js');
+let userIndex=0,offline=false; const listeners=new Set();
+const auth={getState:()=>({status:'authenticated',session:users[userIndex].session}),subscribe:fn=>(listeners.add(fn),()=>listeners.delete(fn))};
+const middleware=createMediaWatchMiddleware({env,serviceClient:service,
+ authenticate:async request=>{const u=users.find(u=>request.headers.authorization===`Bearer ${u.session.access_token}`);assert.ok(u);return {user:{id:u.id},client:u.client};},
+ fetchFeed:async url=>({checkedAt:new Date().toISOString(),source:{url,title:'Synthetic deterministic feed'},items:[{id:'synthetic-baseline',title:'French students protests synthetic baseline',url:'https://fixture.example/baseline',publishedAt:'2026-10-01T12:00:00Z'}]})});
+globalThis.fetch=async (url,options={})=>{
+ if(!String(url).startsWith('/api/media-watches'))return nativeFetch(url,options);
+ if(offline)throw Error('Synthetic offline');
+ let status,body;
+ await middleware({url,method:options.method||'GET',headers:{authorization:options.headers.Authorization},...(options.body?{body:JSON.parse(options.body)}:{})}, {setHeader(){},set statusCode(v){status=v;},end(v){body=JSON.parse(v);}});
+ return {ok:status<400,status,json:async()=>body};
+};
+configureAccountStorage(auth);await store.configureMediaWatchServerStore(auth);
+const flush=async()=>{await new Promise(r=>setTimeout(r,0));await store.synchronizeMediaWatches();await store.synchronizeMediaWatches();};
+const request='Monitoring French students protests.';
+const created={id:randomUUID(),title:'TEST STAGING PR53 French students protests',request,inputType:'text',category:'general',status:'watching',createdAt:new Date().toISOString(),updates:[],...planMediaQuery(request)};
+offline=true;watches.addWatch(created);await flush();
+assert.equal(watches.getWatchById(created.id).monitoringAvailability,'failed');
+offline=false;await flush();await store.ensureMediaWatchSaved(watches.getWatchById(created.id));
+const result=await store.checkStoredMediaWatch(watches.getWatchById(created.id));assert.equal(result.outcome,'baseline');assert.equal(result.matchedItems.length,0);await flush();
+assert.equal(ok(await users[0].client.from('watches').select('id').eq('id',created.id)).length,1);
+const legacy={...created,id:randomUUID(),title:'TEST STAGING PR53 legacy recovery',createdAt:'2026-09-01T10:00:00Z',mediaMention:null,monitoringSource:{type:'feed',url:'https://news.google.com/rss/search?q=old'},monitoringSnapshot:{checkedAt:'2026-09-02T10:00:00Z',items:[{id:'local-old'}]},updates:[{id:'local-old',timestamp:'2026-09-02T10:00:00Z',summary:'Synthetic prior local result'}]};
+localStorage.setItem(localWatchStorageKey('watchAssistant.watches'),JSON.stringify([...watches.getStoredWatches(),legacy]));
+assert.ok(watches.recoverLocalMediaWatch(legacy.id,request,'en'));await flush();
+assert.equal(watches.recoverLocalMediaWatch(legacy.id,request,'en'),null);
+let row=ok(await users[0].client.from('watches').select('*,media_watch_snapshots(*)').eq('id',legacy.id))[0];
+assert.equal(row.created_at,new Date(legacy.createdAt).toISOString().replace('.000Z','+00:00'));
+assert.equal(row.media_watch_snapshots?.length??0,0);
+assert.equal(watches.getWatchById(legacy.id).localRecoveryHistory.monitoringSnapshot.items[0].id,'local-old');
+const baseline=await store.checkStoredMediaWatch(watches.getWatchById(legacy.id));assert.equal(baseline.outcome,'baseline');assert.equal(baseline.matchedItems.length,0);
+const beforeCount=ok(await users[0].client.from('watches').select('id').eq('id',legacy.id)).length;await flush();assert.equal(beforeCount,1);
+assert.equal(ok(await users[1].client.from('watches').select('id').eq('id',legacy.id)).length,0);
+const foreign=await users[1].client.rpc('persist_media_watch',{p_id:legacy.id,p_title:legacy.title,p_source:row.monitoring_source,p_definition:row.watch_definition,p_state:'monitoring',p_revision:row.media_revision,p_mutation:randomUUID(),p_deleted:false});assert.ok(foreign.error);
+userIndex=1;for(const fn of listeners)fn(auth.getState());await flush();assert.equal(watches.getWatchById(legacy.id),null);
+userIndex=0;globalThis.localStorage=storage();for(const fn of listeners)fn(auth.getState());await store.configureMediaWatchServerStore(auth);await flush();assert.equal(watches.getWatchById(legacy.id).id,legacy.id);
+const outbox=ok(await service.from('media_watch_notifications').select('watch_id').in('watch_id',[created.id,legacy.id]));assert.equal(outbox.length,0);
+const evidence={project:ref,createdId:created.id,recoveredId:legacy.id,offlineRetained:true,retryIdempotent:true,baselineWithoutAlerts:true,localHistoryPreserved:true,creationTimePreserved:true,foreignReadWriteDenied:true,emptySessionHydration:true,notifications:0};
+await writeFile('/tmp/pr53-generic-staging-evidence.json',JSON.stringify(evidence,null,2));console.log(evidence);

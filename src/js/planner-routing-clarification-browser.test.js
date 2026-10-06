@@ -248,7 +248,7 @@ test('Create as written surfaces source failure, preserves input, and resets for
     await elements.get('#clarificationActions').dispatch('click', { target: create });
 
     assert.equal(elements.get('#requestClarification').hidden, false);
-    assert.match(elements.get('#clarificationMessage').textContent, /couldn’t find a monitoring source/iu);
+    assert.match(elements.get('#clarificationMessage').textContent, /could not be interpreted safely/iu);
     assert.equal(elements.get('#clarificationOriginal').textContent, request);
     assert.deepEqual(elements.get('#clarificationActions').children.map((button) => button.textContent), [
       'Edit my request',
@@ -351,10 +351,11 @@ for (const fixture of [
         subjects: ['Elon Musk', 'Tesla'],
         matchMode: 'all',
       });
-      assert.equal(watches[0].monitoringSource.type, 'rss');
-      assert.equal(watches[0].monitoringSource.discovery, 'news-search');
+      assert.equal(watches[0].monitoringSource.type, 'feed');
+      assert.equal(watches[0].monitoringSource.discovery, 'manual');
       assert.equal(watches[0].monitoringSource.query, fixture.query);
-      assert.equal(watches[0].monitoringSnapshot.itemIds.length, 0);
+      assert.equal(watches[0].monitoringSnapshot, undefined);
+      assert.equal(watches[0].lastCheckAttempt.status, 'failed');
       assert.equal(watches[0].updates.length, 0);
       assert.match(window.location.href, /watch-detail\.html\?id=/u);
     });
@@ -402,7 +403,7 @@ for (const request of [
   });
 }
 
-test('legal first Watch uses shared planning, clarification, source validation and creation', async () => {
+test('unsupported legal condition requires review before first-Watch activation', async () => {
   const request = 'Tell me when new regulations affecting Monaco real estate are announced.';
   await withBrowserForm({
     request,
@@ -431,21 +432,15 @@ test('legal first Watch uses shared planning, clarification, source validation a
   }, async ({ calls, storage, window }) => {
     assert.deepEqual(calls.map(({ path }) => path), [
       '/api/plan-watch?scope=migrated_routes', '/api/request-clarification',
-      '/api/monitoring-source', '/api/check-watch',
     ]);
     assert.equal(JSON.parse(calls[0].options.body).request, request);
-    const watches = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')));
-    assert.equal(watches.length, 1);
-    assert.equal(watches[0].request, request);
-    assert.equal(watches[0].updates.length, 0);
-    assert.equal(storage.getItem('watchAssistant.firstWatchConfirmation'), watches[0].id);
-    assert.equal(storage.getItem('watchAssistant.onboardingCompleted'), 'true');
-    assert.equal(window.location.href, 'http://localhost/index.html');
+    assert.equal(storage.getItem(localWatchStorageKey('watchAssistant.watches')), null);
+    assert.equal(storage.getItem('watchAssistant.onboardingCompleted'), null);
   });
 });
 
 
-test('a failed media discovery exits confirmation and visibly preserves the request for retry', async () => {
+test('a failed persistence retains the confirmed request without a local monitoring check', async () => {
   const request = 'Dis-moi quand Ed Sheeran est mentionné dans les médias';
   await withBrowserForm({ request, language: 'fr', fetchImpl: async path => {
     if (path.startsWith('/api/plan-watch')) return {ok:true,json:async()=>({strategy:'web_search',connector:'web_ai',confidence:0.5,needsClarification:false})};
@@ -454,10 +449,11 @@ test('a failed media discovery exits confirmation and visibly preserves the requ
   }}, async ({elements,form,input,storage}) => {
     assert.equal(elements.get('#urlReview').hidden,false);
     await elements.get('#urlReviewCreate').dispatch('click');
-    assert.equal(form.classList.contains('is-reviewing'),false);
-    assert.equal(elements.get('#requestClarification').hidden,false);
-    assert.equal(elements.get('#clarificationOriginal').textContent,request);
-    assert.equal(input.value,request);
-    assert.equal(JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches'))||'[]').length,0);
+    assert.equal(input.value, request);
+    const retained = JSON.parse(storage.getItem(localWatchStorageKey('watchAssistant.watches')) || '[]');
+    assert.equal(retained.length, 1);
+    assert.equal(retained[0].request, request);
+    assert.equal(retained[0].lastCheckAttempt.status, 'failed');
+    assert.equal(retained[0].monitoringSnapshot, undefined);
   });
 });
