@@ -221,6 +221,7 @@ export function hydrateWatchStorage() {
 
 export function addWatch(watch) {
   if (!getAccountOwner()) return null;
+  if (watch?.serverReadOnly) return watch;
   const stored = getStoredWatches();
   const previous = stored.find((item) => item.id === watch.id);
   const normalizedWatch = prepareMediaWatch(migrateWatchModel(watch).watch, previous);

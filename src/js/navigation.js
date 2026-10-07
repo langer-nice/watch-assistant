@@ -1467,7 +1467,7 @@ const renderWatchDetail = () => {
     openWatchEditSheet(watch.id);
   };
   if (editActionEl) {
-    editActionEl.hidden = false;
+    editActionEl.hidden = Boolean(watch.serverReadOnly);
     editActionEl.href = editWatchHref;
     editActionEl.onclick = openExistingWatchEditor;
   }
@@ -1966,7 +1966,7 @@ const renderWatchDetail = () => {
   }
   if (checkNowEl) {
     checkNowEl.hidden = isPreparing;
-    checkNowEl.disabled = detailCheckInProgress || isPreparing;
+    checkNowEl.disabled = detailCheckInProgress || isPreparing || Boolean(watch.serverReadOnly);
     checkNowEl.setAttribute('aria-busy', String(detailCheckInProgress));
     checkNowEl.onclick = async () => {
       if (detailCheckInProgress || watchCheckController.isChecking(watch.id)) return;
@@ -2103,6 +2103,7 @@ const renderWatchDetail = () => {
 
   const isPaused = watch.status === 'paused';
   const resumeWatch = () => {
+    if (watch.serverReadOnly) return;
     if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
       void updateServerCompanyWatch(watch.id, { monitoringState: 'monitoring' })
         .then(() => renderWatchDetail());
@@ -2115,10 +2116,11 @@ const renderWatchDetail = () => {
     }
   };
   if (pausedResumeEl) {
+    pausedResumeEl.hidden = Boolean(watch.serverReadOnly);
     pausedResumeEl.onclick = resumeWatch;
   }
   if (pauseResumeEl) {
-    pauseResumeEl.hidden = false;
+    pauseResumeEl.hidden = Boolean(watch.serverReadOnly);
     if (pauseResumeLabelEl) {
       pauseResumeLabelEl.textContent = t(isPaused ? 'detail.resumeWatch' : 'detail.pauseWatch');
     }
@@ -2141,6 +2143,7 @@ const renderWatchDetail = () => {
       };
   }
 
+  if (deleteEl) deleteEl.hidden = Boolean(watch.serverReadOnly);
   if (deleteEl && deleteDialogEl) {
     deleteEl.onclick = () => {
       deleteDialogEl.showModal();

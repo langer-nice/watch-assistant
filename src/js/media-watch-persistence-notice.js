@@ -6,6 +6,7 @@ import { claimLocalMediaWatch, recoverLocalMediaWatch, getWatchById } from './wa
 
 const copy = {
   en: {
+    incompatible: 'This Watch is saved on the server, but its configuration requires a different application version. It is read-only here; its data and monitoring settings have not been changed.',
     unsupported: 'Automatic monitoring is not configured. This request is kept on this device. Edit it to clarify a supported news topic or source.',
     recover: 'Review automatic monitoring', confirmRecovery: 'Activate this news Watch',
     recovery: 'Search: {query}. Save this existing Watch to your account? The first server check creates a new baseline without alerts for existing articles. Past local results remain on this device; they are not uploaded as a server baseline.',
@@ -22,6 +23,7 @@ const copy = {
     keep: 'Keep my local changes', retry: 'Retry sync', claim: 'Sync this Watch',
   },
   fr: {
+    incompatible: 'Cette Watch est enregistrée sur le serveur, mais sa configuration nécessite une autre version de l’application. Elle est en lecture seule ici ; ses données et paramètres de surveillance sont conservés.',
     unsupported: 'Le suivi automatique n’est pas configuré. Cette demande reste sur cet appareil. Modifiez-la pour préciser un sujet d’actualité ou une source compatible.',
     recover: 'Vérifier le suivi automatique', confirmRecovery: 'Activer cette Watch d’actualité',
     recovery: 'Recherche : {query}. Enregistrer cette Watch existante dans votre compte ? Le premier contrôle serveur établira une nouvelle référence sans alerte pour les articles existants. Les anciens résultats restent sur cet appareil ; ils ne deviennent pas une référence serveur.',
@@ -59,7 +61,7 @@ export const renderMediaPersistenceNotice = (watch, title, language) => {
   notice.setAttribute('aria-busy', String(Boolean(state.operation)));
   const message = notice.querySelector('p');
   const reviewingRecovery = state.canRecover && notice.dataset.recoveryRequest === watch.request;
-  const text = reviewingRecovery ? labels.recovery.replace('{query}', planLocalMediaRecovery(watch, { language }).monitoringSource.query) : state.status === 'unsupported' ? labels.unsupported : state.status === 'failed' && !state.operation ? labels.failed : state.operation ? labels[state.operation] : sync.syncError && state.status === 'pending' ? labels.failed
+  const text = state.status === 'incompatible' ? labels.incompatible : reviewingRecovery ? labels.recovery.replace('{query}', planLocalMediaRecovery(watch, { language }).monitoringSource.query) : state.status === 'unsupported' ? labels.unsupported : state.status === 'failed' && !state.operation ? labels.failed : state.operation ? labels[state.operation] : sync.syncError && state.status === 'pending' ? labels.failed
     : state.status === 'conflict' ? `${labels.conflict} ${state.remoteTitle} — ${state.remoteRequest}`
       : state.status === 'saved' ? (state.emailEnabled == null ? labels.unknown : state.emailEnabled ? (currencyCriteriaFor(watch) ? labels.currencyEnabled : labels.enabled) : labels.saved)
         : state.status === 'loading' ? labels.loading

@@ -27,14 +27,18 @@ const validateRow = (row) => {
   if (!row || typeof row.id !== 'string' || typeof row.title !== 'string' || !row.watch_definition || !row.monitoring_source?.url || !['monitoring', 'paused'].includes(row.monitoring_state)) {
     throw Object.assign(new Error('Invalid media Watch list.'), { code: 'INVALID_PERSISTED_WATCHES' });
   }
-  mediaWatchDefinition({ ...row.watch_definition, id: row.id, title: row.title,
+  try { mediaWatchDefinition({ ...row.watch_definition, id: row.id, title: row.title,
     isStory: row.watch_definition.inputType === 'url', monitoringSource: row.monitoring_source,
     status: row.monitoring_state === 'paused' ? 'paused' : 'watching' });
-  return row;
+  } catch {
+    // A newer persisted definition is readable but cannot be edited by this client.
+    return { ...row, clientReadOnly: true };
+  }
+  return { ...row, clientReadOnly: false };
 };
 export const getMediaWatchLoadState = () => ({
   status: !owner() ? 'idle' : loadError ? (loaded ? 'stale' : 'unavailable') : loaded ? 'ready' : 'loading',
-  hasSnapshot: loaded, error: loadError, waiting, refreshing: loading, syncing: Boolean(running), syncError,
+  hasSnapshot: loaded, incompatible: rows.filter(row => !row.deleted_at && row.clientReadOnly).length, error: loadError, waiting, refreshing: loading, syncing: Boolean(running), syncError,
 });
 const session = () => {
   const state = authSource?.getState?.();
@@ -82,6 +86,7 @@ export const canRecoverLocalMediaWatch = (watch) => {
 
 // Called before local creation/update is committed. Never adopt an existing unowned Watch.
 export const prepareMediaWatch = (watch, previous, { claimExistingLocal = false } = {}) => {
+  if (watch?.serverReadOnly || rows.some(row => row.id === watch?.id && row.clientReadOnly)) throw Object.assign(new Error('Read-only Watch definition'), { code: 'UNSUPPORTED_WATCH_VERSION' });
   if (!isMediaWatch(watch) && !previous?.mediaPersistence?.ownerId) return watch;
   const user = owner();
   const ownership = previous?.mediaPersistence?.ownerId || watch.mediaPersistence?.ownerId;
@@ -119,6 +124,7 @@ export const prepareMediaWatch = (watch, previous, { claimExistingLocal = false 
 };
 
 export const queueMediaWatchDeletion = (watch) => {
+  if (watch?.serverReadOnly) throw Object.assign(new Error('Read-only Watch definition'), { code: 'UNSUPPORTED_WATCH_VERSION' });
   const user = owner();
   if (!user || watch?.mediaPersistence?.ownerId !== user) return;
   const existing = read(user, watch.id);
@@ -138,6 +144,7 @@ export const canCheckStoredMediaWatch = (watch) => Boolean(owner()
   && watch?.mediaPersistence?.ownerId === owner() && !currencyCriteriaFor(watch));
 export const ensureMediaWatchSaved = async (watch) => {
   const user = owner(); const epoch = generation;
+  if (watch?.serverReadOnly) throw Object.assign(new Error('Read-only Watch definition'), { code: 'UNSUPPORTED_WATCH_VERSION' });
   if (!user || watch?.mediaPersistence?.ownerId !== user) throw Object.assign(new Error('Not owned'), { code: 'AUTH_REQUIRED' });
   let synced = await synchronizeMediaWatches();
   // A coalesced in-flight read may have started before this new Watch was queued.
@@ -177,7 +184,7 @@ const feedState = row => {
 };
 
 export const getMediaServerWatches = () => (owner() && owner() === identity ? rows : []).filter((row) => !row.deleted_at).map((row) => ({
-  id: row.id, title: row.title, ...row.watch_definition,
+  id: row.id, title: row.title, ...row.watch_definition, serverReadOnly: Boolean(row.clientReadOnly),
   ...(row.watch_definition.inputType === 'url' ? { isStory: true } : {}),
   monitoringSource: row.monitoring_source, feedUrl: row.monitoring_source.url,
   status: row.monitoring_state === 'paused' ? 'paused' : row.current_status,
@@ -243,6 +250,7 @@ export const mergeMediaWatches = (local) => {
 };
 
 export const getMediaPersistenceState = (watch) => {
+  if (watch?.serverReadOnly) return { status: 'incompatible' };
   if (!isMediaWatch(watch) && !watch?.mediaPersistence?.ownerId) {
     return ['text', 'url'].includes(watch?.inputType) ? { status: 'unsupported', canRecover: canRecoverLocalMediaWatch(watch) } : null;
   }
@@ -292,7 +300,7 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
           if (!fresh()) return { ok: false, code: 'AUTH_SESSION_CHANGED' };
           const job = JSON.parse(localStorage.getItem(name) || 'null');
           // Old automatic pause jobs were marked localOnly. Quarantine them; never replay.
-          if (!job?.pending || job.conflict || job.localOnly) continue;
+          if (!job?.pending || job.conflict || job.localOnly || rows.some(row => row.id === job.definition?.id && row.clientReadOnly)) continue;
           try {
             activeWrites.set(job.definition.id, job.operation === 'syncing' ? 'syncing' : 'saving');
             notify();
