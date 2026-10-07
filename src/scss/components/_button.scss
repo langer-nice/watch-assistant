@@ -37,3 +37,8 @@
   color: var(--color-action-on-tint);
   background: var(--color-action-tint);
 }
+
+// Component display styles must not override the HTML hidden state.
+.button[hidden] {
+  display: none;
+}
