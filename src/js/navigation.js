@@ -1,3 +1,4 @@
+import { getReadOnlyCardPresentation, getHomeReportHeader } from './watch-report-presentation.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
 import { planMediaQuery, googleNewsSource, mediaMentionDefinition, validateMediaQuery } from './media-provider-query.js';
 import { renderInitialContext } from './initial-context.js';
@@ -1064,8 +1065,11 @@ const renderSummaryWatchCard = ({
   const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
   const categoryModifier = watch.category || 'general';
   const statusPresentation = getSummaryCardStatus(status);
+  const readOnly = getReadOnlyCardPresentation(watch, t, getLanguage());
   return renderSummaryCard({
-    title, category, categoryModifier, statusPresentation, supportingText, timestamp,
+    title, category, categoryModifier, statusPresentation,
+    supportingText: readOnly ? readOnly.explanation : supportingText,
+    timestamp: readOnly ? '' : timestamp, historicalResult: readOnly?.result,
     articleId, dataAttribute,
     renderLink: (content) => renderWatchCardLink({
       watchId: watch.id,
@@ -2461,7 +2465,9 @@ const renderHomeSummary = () => {
     }
   }
 
+  const reportHeader = getHomeReportHeader({ hasReport, uncertain, totalChecked: homeReport.totalChecked }, t);
   if (briefingDate) {
+    briefingDate.hidden = reportHeader.hideTimestamp;
     const storedTimestamp = resolveHomeReportTimestamp({
       report: homeReport.report,
       watches: getServerCompanyWatches(),
@@ -2503,10 +2509,8 @@ const renderHomeSummary = () => {
       : t(`home.greetings.${daypart}`);
   }
   if (checkedSummary) {
-    checkedSummary.hidden = uncertain;
-    checkedSummary.textContent = t(pluralKey('home.checkedAway', totalChecked), {
-      count: totalChecked,
-    });
+    checkedSummary.hidden = reportHeader.hideSummary;
+    checkedSummary.textContent = reportHeader.summary;
   }
   if (attentionCount) {
     attentionCount.textContent = uncertain ? '—' : String(attentionWatches.length);

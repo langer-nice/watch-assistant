@@ -1,4 +1,11 @@
 {
+  "watchCard": {
+    "readOnly": "Read-only: configuration not supported by this version.",
+    "savedResult": "Last saved result.",
+    "savedThreshold": "Last saved result: threshold reached.",
+    "detectedAt": "Result detected on",
+    "sourceDate": "Source reference date"
+  },
   "common": {
     "brand": "Watch Assistant",
     "back": "Back",
@@ -103,6 +110,7 @@
       "evening": "Evening brief"
     },
     "updatedAt": "Updated at",
+    "noReport": "No report available on this device.",
     "briefingTimeUnavailable": "Briefing time unavailable",
     "generateReport": "Generate report",
     "generatingReport": "Generating report…",

@@ -38,6 +38,10 @@
   text-align: right;
 }
 
+.briefing-summary__timestamp[hidden] {
+  display: none;
+}
+
 .briefing-summary__timestamp-label {
   color: var(--color-text-subtle);
   font-weight: var(--font-weight-regular);
