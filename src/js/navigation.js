@@ -1,5 +1,5 @@
 import { showCurrencyCreationReview } from './currency-creation-review.js';
-import { parseCurrencyRequest, CURRENCY_SOURCE } from './currency-watch.js';
+import { parseCurrencyRequest, normalizeCurrencyWatch, CURRENCY_SOURCE } from './currency-watch.js';
 import { renderCurrencyPolicyControl } from './currency-policy-control.js';
 import { getReadOnlyCardPresentation, getHomeReportHeader, renderReportReadiness } from './watch-report-presentation.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
@@ -3176,6 +3176,9 @@ export function initForm() {
     }
     // Local retention and server activation are separate. Never activate a
     // generic feed object that has no supported account persistence route.
+    // Allocate currency criteria/revision once, before the persistence boundary.
+    // The same normalized object is validated, retained locally and activated.
+    watch = normalizeCurrencyWatch(watch);
     if (!isMediaWatch(watch)) throw Object.assign(new Error('Unsupported monitoring'), { code: 'MEDIA_QUERY_REVIEW_REQUIRED' });
     const definition = mediaWatchDefinition(watch);
     validateMediaQuery(definition.watch_definition, definition.monitoring_source);

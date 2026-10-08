@@ -103,6 +103,17 @@ export const prepareMediaWatch = (watch, previous, { claimExistingLocal = false 
       definition.monitoring_state = confirmedRow.monitoring_state;
     }
     if (existing?.deleted) return owned;
+    // A hydrated Watch may have no local journal. Reading a result or adding
+    // report provenance changes only device state, not the saved definition.
+    // Compare with the confirmed server definition before creating a mutation;
+    // never clear or replace an existing pending/failed/conflicted job here.
+    const confirmedDefinition = !existing && confirmedRow && !confirmedRow.deleted_at
+      ? mediaWatchDefinition({ ...confirmedRow.watch_definition, id: confirmedRow.id,
+        title: confirmedRow.title, isStory: confirmedRow.watch_definition.inputType === 'url',
+        monitoringSource: confirmedRow.monitoring_source,
+        status: confirmedRow.monitoring_state === 'paused' ? 'paused' : 'watching' })
+      : null;
+    if (!existing && JSON.stringify(confirmedDefinition) === JSON.stringify(definition)) return owned;
     if (JSON.stringify(existing?.definition) !== JSON.stringify(definition)) {
       const remote = rows.find((row) => row.id === watch.id);
       write(user, watch.id, {
