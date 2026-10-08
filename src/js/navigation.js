@@ -1,4 +1,4 @@
-import { getReadOnlyCardPresentation, getHomeReportHeader } from './watch-report-presentation.js';
+import { getReadOnlyCardPresentation, getHomeReportHeader, renderReportReadiness } from './watch-report-presentation.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
 import { planMediaQuery, googleNewsSource, mediaMentionDefinition, validateMediaQuery } from './media-provider-query.js';
 import { renderInitialContext } from './initial-context.js';
@@ -2448,11 +2448,9 @@ const renderHomeSummary = () => {
 
   if (generateReportButton) {
     const generating = isReportGenerationInProgress();
-    const generateLabel = t(generating ? 'home.generatingReport' : 'home.generateReport');
-    generateReportButton.disabled = uncertain || generating || !hasLocalUserCreatedWatches;
-    generateReportButton.setAttribute('aria-label', generateLabel);
-    generateReportButton.setAttribute('title', generateLabel);
-    generateReportButton.toggleAttribute('aria-busy', generating);
+    renderReportReadiness({ button: generateReportButton,
+      message: document.querySelector('#homeReportReadiness'),
+      availability, generating, hasWatches: hasLocalUserCreatedWatches }, t);
     generateReportButton.onclick = runHomeReportGeneration;
   }
 

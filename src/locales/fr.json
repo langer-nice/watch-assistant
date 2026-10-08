@@ -110,6 +110,8 @@
       "evening": "Brief du soir"
     },
     "updatedAt": "Mis à jour",
+    "reportPreparing": "Chargement du compte et des Watches…",
+    "reportPreparationFailed": "Rapport indisponible : réessayez le chargement des Watches.",
     "noReport": "Aucun rapport disponible sur cet appareil.",
     "briefingTimeUnavailable": "Heure indisponible",
     "generateReport": "Générer le rapport",

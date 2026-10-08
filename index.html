@@ -24,14 +24,16 @@
                 class="briefing-summary__generate"
                 id="homeGenerateReport"
                 type="button"
-                data-i18n-aria-label="home.generateReport"
-                data-i18n-title="home.generateReport"
+                disabled aria-busy="true" aria-describedby="homeReportReadiness"
+                data-i18n-aria-label="home.reportPreparing"
+                data-i18n-title="home.reportPreparing"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5"></path>
                   <path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"></path>
                 </svg>
               </button>
+              <span id="homeReportReadiness" class="briefing-summary__readiness" role="status" data-i18n="home.reportPreparing">Loading your account and Watches…</span>
             </div>
           </header>
 

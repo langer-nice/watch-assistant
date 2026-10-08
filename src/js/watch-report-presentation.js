@@ -34,3 +34,21 @@ export const getHomeReportHeader = ({ hasReport, uncertain, totalChecked }, tran
   summary: !hasReport ? translate('home.noReport')
     : translate(`home.checkedAway.${totalChecked === 1 ? 'one' : 'other'}`, { count: totalChecked }),
 });
+
+// Readiness describes the existing guard; it never starts or retries a request.
+export const renderReportReadiness = ({ button, message, availability, generating, hasWatches }, translate) => {
+  const loading = availability.uncertain && !availability.failed;
+  const labelKey = generating ? 'home.generatingReport' : loading ? 'home.reportPreparing' : 'home.generateReport';
+  button.disabled = availability.uncertain || generating || !hasWatches;
+  button.toggleAttribute('aria-busy', generating || loading);
+  for (const attribute of ['aria-label', 'title']) {
+    button.setAttribute(attribute, translate(labelKey));
+    button.setAttribute(`data-i18n-${attribute}`, labelKey);
+  }
+  if (message) {
+    message.hidden = generating || !availability.uncertain;
+    const key = availability.failed ? 'home.reportPreparationFailed' : 'home.reportPreparing';
+    message.dataset.i18n = key;
+    message.textContent = translate(key);
+  }
+};

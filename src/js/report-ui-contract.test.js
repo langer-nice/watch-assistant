@@ -48,7 +48,8 @@ test('Home blocks interaction and exposes accessible progress, success, and retr
   assert.match(home, /id="homeReportProgressClose"[\s\S]*data-i18n="home\.reportClose"/);
   assert.doesNotMatch(home, /homeReportAttemptSummary|homeReportHistory|homeReportHistoryList/);
   assert.doesNotMatch(navigation, /reportAttemptCounts|reportHistoryCounts|homeReportAttemptSummary|homeReportHistory/);
-  assert.match(navigation, /toggleAttribute\('aria-busy', generating\)/);
+  assert.match(navigation, /renderReportReadiness\(/);
+  assert.match(await read('./watch-report-presentation.js'), /toggleAttribute\('aria-busy', generating \|\| loading\)/);
   assert.match(navigation, /setAttribute\('aria-label', generateLabel\)[\s\S]*setAttribute\('title', generateLabel\)/);
   assert.match(navigation, /if \(isReportGenerationInProgress\(\) \|\| homeReportProgressState === 'loading'/);
   assert.match(navigation, /dialog\.showModal\(\)/);

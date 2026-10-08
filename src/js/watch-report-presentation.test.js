@@ -110,3 +110,30 @@ test('rendering works with network and storage writes prohibited', () => {
     getHomeReportHeader({hasReport: false, uncertain: false, totalChecked: 0}, translate('en'));
   } finally { globalThis.fetch = originalFetch; globalThis.localStorage = originalStorage; }
 });
+
+test('report control is disabled before auth initializes, then explains hydration, failure and readiness', async () => {
+  const {renderReportReadiness} = await import('./watch-report-presentation.js');
+  const {document} = parseHTML(readFileSync(new URL('../../index.html', import.meta.url), 'utf8'));
+  const button=document.querySelector('#homeGenerateReport'), message=document.querySelector('#homeReportReadiness');
+  assert.equal(button.hasAttribute('disabled'),true);
+  assert.equal(button.getAttribute('aria-busy'),'true');
+  assert.equal(button.getAttribute('aria-describedby'),message.id);
+  assert.equal(message.hidden,false);
+  const cases=[
+    {availability:{uncertain:true,failed:false},disabled:true,busy:true,visible:true,key:'reportPreparing'},
+    {availability:{uncertain:true,failed:false,cached:true,waiting:true},disabled:true,busy:true,visible:true,key:'reportPreparing'},
+    {availability:{uncertain:true,failed:true,cached:true},disabled:true,busy:false,visible:true,key:'reportPreparationFailed'},
+    {availability:{uncertain:false,incompatible:true},disabled:false,busy:false,visible:false},
+    {availability:{uncertain:false,loading:true,cached:true},disabled:false,busy:false,visible:false},
+    {availability:{uncertain:false},generating:true,disabled:true,busy:true,visible:false},
+    {availability:{uncertain:false},hasWatches:false,disabled:true,busy:false,visible:false},
+    {availability:{uncertain:false},disabled:false,busy:false,visible:false},
+  ];
+  for(const language of ['en','fr'])for(const state of cases){
+    renderReportReadiness({button,message,generating:false,hasWatches:true,...state},translate(language));
+    assert.equal(button.disabled,state.disabled);
+    assert.equal(button.hasAttribute('aria-busy'),state.busy);
+    assert.equal(message.hidden,!state.visible);
+    if(state.key)assert.equal(message.textContent,{en,fr}[language].home[state.key]);
+  }
+});

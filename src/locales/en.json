@@ -110,6 +110,8 @@
       "evening": "Evening brief"
     },
     "updatedAt": "Updated at",
+    "reportPreparing": "Loading your account and Watches…",
+    "reportPreparationFailed": "Report unavailable: retry loading your Watches.",
     "noReport": "No report available on this device.",
     "briefingTimeUnavailable": "Briefing time unavailable",
     "generateReport": "Generate report",

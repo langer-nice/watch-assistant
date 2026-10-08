@@ -143,3 +143,13 @@
 .briefing-summary__status--new .briefing-summary__dot {
   color: var(--color-status-success);
 }
+
+.briefing-summary__readiness {
+  max-width: 18rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.briefing-summary__readiness[hidden] { display: none; }
