@@ -1,3 +1,4 @@
+import { creationConfirmationKey, watchCreationState } from './watch-creation-state.js';
 import { showCurrencyCreationReview } from './currency-creation-review.js';
 import { parseCurrencyRequest, normalizeCurrencyWatch, CURRENCY_SOURCE } from './currency-watch.js';
 import { renderCurrencyPolicyControl } from './currency-policy-control.js';
@@ -1857,7 +1858,7 @@ const renderWatchDetail = () => {
   })
     .map((item) => {
       const label = item.type === 'created'
-        ? t('watchData.created')
+        ? t(watchCreationState(watch) === 'local' ? 'watchData.draftRetained' : 'watchData.created')
         : item.type === 'update'
           ? currencyUpdateSummary(watch, item.source, getLanguage())
             || getBodaccBusinessEventLabel(item.source, t)
@@ -2195,10 +2196,8 @@ const renderWatchDetail = () => {
       const titleKey = confirmationType === 'updated'
         ? 'detail.updatedTitle'
         : 'detail.createdTitle';
-      const copyKey = watch.monitoringAvailability && watch.monitoringAvailability !== 'saved'
-        ? 'detail.savedLocallyCopy' : confirmationType === 'updated'
-        ? 'detail.updatedCopy'
-        : 'detail.createdCopy';
+      const copyKey = confirmationType === 'updated' && watchCreationState(watch) === 'active'
+        ? 'detail.updatedCopy' : creationConfirmationKey(watch);
       if (confirmationTitleEl) {
         confirmationTitleEl.dataset.i18n = titleKey;
         confirmationTitleEl.textContent = t(titleKey);
@@ -2574,8 +2573,8 @@ const renderHomeSummary = () => {
             : 'home.confirmationTitle');
         }
         if (confirmationBody) {
-          confirmationBody.textContent = createdWatch.monitoringAvailability && createdWatch.monitoringAvailability !== 'saved'
-            ? t('detail.savedLocallyCopy') : t(homeFirstWatchConfirmation
+          confirmationBody.textContent = watchCreationState(createdWatch) !== 'active'
+            ? t(creationConfirmationKey(createdWatch)) : t(homeFirstWatchConfirmation
             ? 'home.firstConfirmationCopy'
             : 'home.confirmationCopy');
         }
@@ -3158,11 +3157,20 @@ export function initForm() {
     refreshEditSaveState();
   };
 
+  let pendingCompanyCreation = null;
   const completeWatchCreation = async (watch) => {
     if (!editor.isCurrent()) return;
     if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
+      const key = JSON.stringify([watch.request, watch.title, watch.company?.siren]);
+      if (pendingCompanyCreation?.key === key) watch.id = pendingCompanyCreation.id;
+      else pendingCompanyCreation = { key, id: watch.id };
       const createdWatch = await createServerCompanyWatch(watch);
+      pendingCompanyCreation = null;
       if (!editor.isCurrent()) return;
+      if (watchCreationState(createdWatch) !== 'active') {
+        window.location.href = `watch-detail.html?id=${encodeURIComponent(createdWatch.id)}`;
+        return;
+      }
       trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, { input_type: 'company' });
       sessionStorage.removeItem('watchAssistant.newWatchId');
       if (isOnboardingFirstWatch()) {
@@ -3197,6 +3205,11 @@ export function initForm() {
       // A failed retrieval after persistence is also recoverable from detail.
       updateWatch(watch.id, { monitoringState: 'needs-attention',
         lastCheckAttempt: { status: 'failed', code: error.code || 'CHECK_FAILED', attemptedAt: new Date().toISOString() } });
+    }
+    const retained = getWatchById(watch.id);
+    if (watchCreationState(retained) !== 'active') {
+      window.location.href = `watch-detail.html?id=${encodeURIComponent(watch.id)}`;
+      return;
     }
     trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, {
       input_type: ['url', 'company'].includes(watch.inputType) ? watch.inputType : 'text',

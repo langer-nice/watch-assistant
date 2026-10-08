@@ -112,7 +112,7 @@ export const createCompanyWatchMiddleware = ({
         setStage('read-body');
         const { watch, result } = await repository.create(await readJsonBody(request));
         setStage('create-complete');
-        reply(201, { watch, outcome: result.outcome });
+        reply(201, { watch, outcome: result?.outcome || watch.lastCheckOutcome?.type || 'activation-pending' });
         return;
       }
       response.setHeader('Allow', 'GET, POST');

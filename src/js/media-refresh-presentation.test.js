@@ -24,10 +24,11 @@ test('confirmed presentation, unknown notification state, writes, errors and acc
  t.after(async()=>{await store.configureMediaWatchServerStore(null);for(const[k,v]of Object.entries(originals)){if(v===undefined)delete globalThis[k];else globalThis[k]=v;}});
  const watch={...row.watch_definition,id:row.id,title:row.title,monitoringSource:row.monitoring_source,status:'watching',mediaPersistence:{ownerId:'presentation-a'}};
  const render=(lang='en',w=watch)=>{renderMediaPersistenceNotice(w,document.querySelector('h1'),lang);return document.getElementById('watchMediaPersistenceNotice');};
- // A saved local job has no confirmed email setting until the first response.
+ // A completed local job alone cannot confirm a saved server Watch.
  localStorage.setItem('watchAssistant.mediaSync.presentation-a.'+row.id,JSON.stringify({pending:false,revision:1}));
  let wait=deferred();response=()=>wait.promise;const initial=store.configureMediaWatchServerStore(auth);await flush();
- assert.match(render().textContent,/not yet confirmed/);assert.doesNotMatch(render().textContent,/disabled/);
+ assert.equal(store.getMediaPersistenceState(watch).status,'loading');
+ assert.match(render().textContent,/Loading saved Watch/);assert.doesNotMatch(render().textContent,/disabled/);
  wait.resolve(Response.json({watches:[row],emailEnabled:true}));await initial;
  for(const language of ['en','fr'])for(const enabled of [true,false]){
   response=()=>Response.json({watches:[row],emailEnabled:enabled});await store.synchronizeMediaWatches({readOnly:true});
@@ -39,6 +40,13 @@ test('confirmed presentation, unknown notification state, writes, errors and acc
   wait.resolve(Response.json({watches:[row],emailEnabled:!enabled}));await refresh;
   assert.notEqual(render(language).textContent,before,'genuine server setting changes are shown');
  }
+ // A confirmed successful server check replaces a retained local activation failure.
+ const checkedRow={...row,last_checked_at:'2026-10-08T14:05:00Z',last_check_outcome:'baseline'};
+ response=()=>Response.json({watches:[checkedRow],emailEnabled:false});await store.synchronizeMediaWatches({readOnly:true});
+ const [reconciled]=store.mergeMediaWatches([{...watch,monitoringState:'needs-attention',lastCheckAttempt:{status:'failed',attemptedAt:'2026-10-08T14:04:00Z'}}]);
+ assert.equal(reconciled.monitoringState,'monitoring');assert.equal(reconciled.lastCheckAttempt.status,'succeeded');
+ assert.doesNotMatch(render('en',reconciled).textContent,/check failed|first check is pending/);
+ assert.equal(store.getMediaServerWatches()[0].monitoringState,'monitoring');
  response=()=>Response.json({watches:[row],emailEnabled:true});await store.synchronizeMediaWatches({readOnly:true});const confirmed=render().textContent;
  response=()=>Response.json({watches:[row]});await store.synchronizeMediaWatches({readOnly:true});assert.equal(render().textContent,confirmed,'missing email field must not disable notifications');
  response=()=>Response.json({code:'DATABASE_ERROR'},{status:503});await store.synchronizeMediaWatches({readOnly:true});

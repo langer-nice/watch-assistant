@@ -198,6 +198,7 @@ export const getMediaServerWatches = () => (owner() && owner() === identity ? ro
   id: row.id, title: row.title, ...row.watch_definition, serverReadOnly: Boolean(row.clientReadOnly),
   ...(row.watch_definition.inputType === 'url' ? { isStory: true } : {}),
   monitoringSource: row.monitoring_source, feedUrl: row.monitoring_source.url,
+  monitoringState: row.monitoring_state,
   status: row.monitoring_state === 'paused' ? 'paused' : row.current_status,
   createdAt: row.watch_definition?.localCreatedAt || row.created_at,
   ...(!row.watch_definition.currencyCriteria ? feedState(row) : {}),
@@ -274,7 +275,8 @@ export const getMediaPersistenceState = (watch) => {
   if (job?.localOnly) return { status: 'local-only' };
   if (job?.conflict) return { status: 'conflict', remoteTitle: remote?.title || '', remoteRequest: remote?.watch_definition?.request || '', revision: Number(remote?.media_revision) };
   if (job?.pending) return { status: job.errorCode ? 'failed' : 'pending', operation: activeWrites.get(watch.id) || null };
-  if (!job && !remote) return { status: loaded ? 'local-only' : 'loading' };
+  // A completed local journal is not a server record (deleted/missing rows too).
+  if (!remote || remote.deleted_at) return { status: loaded ? 'local-only' : 'loading' };
   return { status: 'saved', emailEnabled: user === identity ? emailEnabled : null };
 };
 

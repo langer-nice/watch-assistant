@@ -73,6 +73,7 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
     assert.match(requests[0].options.headers.Authorization, /^Bearer /u);
 
     const created = await store.createServerCompanyWatch({
+      id: initialWatch.id,
       title: 'Company A',
       request: 'Company A, SIREN 552100554',
       whyFollowing: 'Pilot',
@@ -84,6 +85,7 @@ test('authenticated Company store hydrates, refreshes failed checks, and clears 
     ));
     assert.ok(creationRequest);
     assert.deepEqual(JSON.parse(creationRequest.options.body), {
+      id: initialWatch.id,
       siren: '552100554',
       title: 'Company A',
       request: 'Company A, SIREN 552100554',

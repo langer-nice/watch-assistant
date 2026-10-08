@@ -139,6 +139,7 @@ test('authenticated CEMEX creation never falls back to the removed check-company
         return Response.json({ code: 'NOT_FOUND' }, { status: 404 });
       }
       if (path === '/api/company-watches' && options.method === 'POST') {
+        persistedWatch.id = JSON.parse(options.body).id;
         return Response.json({ watch: persistedWatch, outcome: 'baseline' }, { status: 201 });
       }
       throw new Error(`Unexpected request: ${path}`);
@@ -179,7 +180,9 @@ test('authenticated CEMEX creation never falls back to the removed check-company
     const createCall = calls.at(-1);
     assert.equal(createCall.options.method, 'POST');
     assert.match(createCall.options.headers.Authorization, /^Bearer /u);
+    assert.match(persistedWatch.id, /^[0-9a-f-]{36}$/);
     assert.deepEqual(JSON.parse(createCall.options.body), {
+      id: persistedWatch.id,
       siren: '552005969',
       title: 'CEMEX GRANULATS',
       request,
@@ -188,7 +191,7 @@ test('authenticated CEMEX creation never falls back to the removed check-company
       category: 'general',
     });
     assert.equal(storage.getItem(localWatchStorageKey('watchAssistant.watches')), null);
-    assert.match(window.location.href, /watch-detail\.html\?id=00000000-0000-4000-8000-00000000000c/u);
+    assert.equal(new URL(window.location.href).searchParams.get('id'), persistedWatch.id);
   } finally {
     console.warn = originalWarn;
     for (const [key, descriptor] of Object.entries(originalGlobals)) {

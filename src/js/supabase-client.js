@@ -1,14 +1,7 @@
+import { isSupabaseEndpoint } from './supabase-endpoint.js';
 import { createClient } from '@supabase/supabase-js';
 
 const REQUIRED_KEYS = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
-
-const isValidSupabaseUrl = (value) => {
-  try {
-    return new URL(value).protocol === 'https:';
-  } catch {
-    return false;
-  }
-};
 
 export const getSupabaseBrowserConfig = (env = import.meta.env) => {
   const exposedServiceKey = env?.VITE_SUPABASE_SERVICE_ROLE_KEY;
@@ -24,7 +17,7 @@ export const getSupabaseBrowserConfig = (env = import.meta.env) => {
     return { enabled: false, reason: 'missing-config', missing };
   }
 
-  if (!isValidSupabaseUrl(url)) {
+  if (!isSupabaseEndpoint(url, env?.DEV === true && !env?.VITE_VERCEL_ENV && env?.VITE_SUPABASE_LOCAL_TEST === 'true')) {
     return { enabled: false, reason: 'invalid-url', missing: [] };
   }
 

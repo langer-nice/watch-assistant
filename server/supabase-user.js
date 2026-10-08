@@ -1,3 +1,4 @@
+import { isSupabaseEndpoint } from '../src/js/supabase-endpoint.js';
 import { createClient } from '@supabase/supabase-js';
 
 export class SupabaseAuthError extends Error {
@@ -16,7 +17,7 @@ const getServerConfig = (env = process.env) => {
     throw new SupabaseAuthError('SERVER_NOT_CONFIGURED', 503, 'Server persistence is unavailable.');
   }
   try {
-    if (new URL(url).protocol !== 'https:') throw new Error('invalid protocol');
+    if (!isSupabaseEndpoint(url, env.SUPABASE_LOCAL_TEST === 'true' && !env.VERCEL_ENV && env.NODE_ENV !== 'production')) throw new Error('invalid protocol');
   } catch {
     throw new SupabaseAuthError('SERVER_NOT_CONFIGURED', 503, 'Server persistence is unavailable.');
   }

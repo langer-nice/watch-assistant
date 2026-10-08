@@ -212,6 +212,8 @@
     "breadcrumbLabel": "Watch location",
     "title": "Watch detail",
     "createdTitle": "Your Watch has been created.",
+    "activationFailedCopy": "This Watch is saved, but its initial check failed. Use Check now to retry; monitoring has not been confirmed.",
+    "activationPendingCopy": "This Watch is saved. Its first check is still pending.",
     "savedLocallyCopy": "Your request is saved on this device. Review the synchronization notice before relying on automatic monitoring.",
     "createdCopy": "Monitoring is active. I’ll check automatically for future updates.",
     "updatedTitle": "Watch updated",
@@ -553,6 +555,7 @@
     "low": "Low"
   },
   "watchData": {
+    "draftRetained": "Request saved on this device",
     "created": "Watch created",
     "genericMonitoringScope": "This Watch will follow relevant future reporting, including major developments and significant follow-up reporting.",
     "monitoringSummaries": {

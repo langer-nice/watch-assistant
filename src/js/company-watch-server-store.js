@@ -211,6 +211,7 @@ export const createServerCompanyWatch = async (watch) => {
   const body = await request('/api/company-watches', {
     method: 'POST',
     body: JSON.stringify({
+      id: watch.id,
       siren: watch.company?.siren,
       title: watch.title,
       request: watch.request,
@@ -219,6 +220,7 @@ export const createServerCompanyWatch = async (watch) => {
       category: watch.category || 'general',
     }),
   });
+  if (body.watch?.id !== watch.id) throw Object.assign(new Error('Creation ID mismatch'), { code: 'PERSISTED_ID_MISMATCH' });
   return replaceWatch(body.watch);
 };
 

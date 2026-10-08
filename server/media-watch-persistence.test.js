@@ -142,7 +142,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       assert.equal(await count('media_watch_snapshots'), 0); assert.equal(await count('media_watch_notifications'), 0);
       assert.equal(watches.getStoredWatches()[0].id, watch.id);
     });
-    await t.test('Home retains its completed report results after API hydration and reload', async () => {
+    await t.test('Home does not treat a report fixture as proof of a successful first check', async () => {
       const {selectHomeReport}=await import('../src/js/home-report.js');
       const row=(await db.query('select created_at from public.watches where id=$1',[watch.id])).rows[0];
       const now=new Date(new Date(row.created_at).getTime()+3*60*1000);
@@ -151,8 +151,9 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       const report={entries:[{watchId:watch.id,title:watch.title,category:'news',classification:'watching'}],attempts:[{watchId:watch.id,status:'succeeded'}],counts:{completed:1}};
       const result=selectHomeReport({report,watches:watches.getWatches(),serverWatches:store.getMediaServerWatches(),now});
       assert.deepEqual(result.newlyCreatedWatches,[]);
-      assert.deepEqual(result.quietWatches.map(w=>w.id),[watch.id]);
-      assert.equal(result.totalChecked,1);
+      assert.deepEqual(result.quietWatches,[]);
+      assert.deepEqual(result.attentionWatches.map(w=>w.id),[watch.id]);
+      assert.equal(result.totalChecked,0); // No completedAt: this fixture is not a usable report.
       await store.configureMediaWatchServerStore(auth);await flush();
       assert.deepEqual(selectHomeReport({report,watches:watches.getWatches(),serverWatches:store.getMediaServerWatches(),now}),result);
     });
