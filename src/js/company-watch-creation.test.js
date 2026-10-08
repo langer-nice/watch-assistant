@@ -160,7 +160,8 @@ test('Company Watch creation carries the approved shape into the existing transa
   assert.match(derivation, /monitoringSource = companyMonitoringSource \|\|/);
   assert.equal((completion.match(/addWatch\(watch\)/g) || []).length, 1);
   assert.match(completion, /await activateWatchMonitoring\(watch\.id/);
-  assert.match(completion, /deleteWatch\(watch\.id\)/);
+  assert.doesNotMatch(completion, /deleteWatch\(watch\.id\)/);
+  assert.match(completion, /ensureMediaWatchSaved/);
   assert.match(completion, /getCreatedWatchDetailHref\(watch\.id\)/);
   assert.match(createHandler, /creationInProgress/);
   assert.match(createHandler, /createOptions\.monitoringSource = analysis\.monitoringSource/);

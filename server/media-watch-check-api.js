@@ -1,5 +1,6 @@
 import { currencyCriteriaFor, applyCurrencyCheckResult } from '../src/js/currency-watch.js';
 import { fetchCurrencyRate } from './currency-rate.js';
+import { validateMediaQuery } from '../src/js/media-provider-query.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
 import { createSupabaseServiceClient } from './supabase-service.js';
 import { fetchAndNormalizeFeed } from './check-watch-api.js';
@@ -60,6 +61,7 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
       if (completion.data === 'skipped') return send(409, { code: 'MEDIA_CONFLICT' });
       return send(200, result);
     }
+    validateMediaQuery(row.watch_definition, row.monitoring_source);
     const feed = await fetchFeed(row.monitoring_source.url);
     const watch = { ...row.watch_definition, id: row.id, status: row.current_status };
     const normalized = applyFeedCheckResult(watch, feed).changes.monitoringSnapshot;

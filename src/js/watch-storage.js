@@ -1,5 +1,6 @@
+import { planLocalMediaRecovery } from './local-media-recovery.js';
 import { localWatchStorageKey, getAccountOwner, safeStorage } from './account-storage.js';
-import { canClaimLocalMediaWatch, prepareMediaWatch, queueMediaWatchDeletion, mergeMediaWatches } from './media-watch-server-store.js';
+import { canClaimLocalMediaWatch, canRecoverLocalMediaWatch, prepareMediaWatch, queueMediaWatchDeletion, mergeMediaWatches } from './media-watch-server-store.js';
 import { mockWatches } from './data/mock-watches.js';
 import { normalizeWatchCreationDate } from './watch-dates.js';
 import { migrateWatchModel } from './watch-model.js';
@@ -220,6 +221,7 @@ export function hydrateWatchStorage() {
 
 export function addWatch(watch) {
   if (!getAccountOwner()) return null;
+  if (watch?.serverReadOnly) return watch;
   const stored = getStoredWatches();
   const previous = stored.find((item) => item.id === watch.id);
   const normalizedWatch = prepareMediaWatch(migrateWatchModel(watch).watch, previous);
@@ -232,6 +234,22 @@ export function addWatch(watch) {
   saveWatches(stored);
   saveDeletedWatchIds(getDeletedWatchIds().filter((id) => id !== normalizedWatch.id));
   notifyWatchStorageChanged();
+}
+
+export function recoverLocalMediaWatch(id, reviewedRequest, language) {
+  const stored = getStoredWatches();
+  const index = stored.findIndex(watch => watch.id === id);
+  const previous = stored[index];
+  if (!previous || previous.request !== reviewedRequest || !canRecoverLocalMediaWatch(previous)) return null;
+  const recovered = planLocalMediaRecovery(previous, { language });
+  // The scoped storage lookup above is the ownership evidence. No foreign or
+  // unscoped Watch can be adopted. Reuse the existing explicit-claim protections.
+  const claimed = prepareMediaWatch(recovered, recovered, { claimExistingLocal: true });
+  if (claimed.mediaPersistence?.ownerId !== getAccountOwner()) return null;
+  stored[index] = claimed;
+  saveWatches(stored);
+  notifyWatchStorageChanged();
+  return claimed;
 }
 
 export function claimLocalMediaWatch(id) {

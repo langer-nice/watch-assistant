@@ -63,7 +63,7 @@ for(const failure of [503,401,'network','timeout'])test(`deferred ${failure} is 
   const h=await setup(t);h.seed();h.setMode(failure);await h.configure();h.notices(true,false);
   await h.advance(failure==='timeout'?23000:15000);assert.equal(h.calls.length,2);h.notices(false,true);
   assert.equal(media.getMediaServerWatches()[0].title,'Cache a');
-  assert.equal(media.getMediaWatchLoadState().error.code,failure==='timeout'?'TIMEOUT':failure===401?'AUTH_REQUIRED':failure===503?'DATABASE_ERROR':undefined);
+  assert.equal(media.getMediaWatchLoadState().error.code,failure==='timeout'?'TIMEOUT':failure===401?'AUTH_REQUIRED':failure===503?'DATABASE_ERROR':'NETWORK_ERROR');
   await h.advance(300000);assert.equal(h.calls.length,2,'failure is not automatically retried');
 });
 

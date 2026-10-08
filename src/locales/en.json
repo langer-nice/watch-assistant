@@ -1,4 +1,11 @@
 {
+  "watchCard": {
+    "readOnly": "Read-only: configuration not supported by this version.",
+    "savedResult": "Last saved result.",
+    "savedThreshold": "Last saved result: threshold reached.",
+    "detectedAt": "Result detected on",
+    "sourceDate": "Source reference date"
+  },
   "common": {
     "brand": "Watch Assistant",
     "back": "Back",
@@ -103,6 +110,9 @@
       "evening": "Evening brief"
     },
     "updatedAt": "Updated at",
+    "reportPreparing": "Loading your account and Watches…",
+    "reportPreparationFailed": "Report unavailable: retry loading your Watches.",
+    "noReport": "No report available on this device.",
     "briefingTimeUnavailable": "Briefing time unavailable",
     "generateReport": "Generate report",
     "generatingReport": "Generating report…",
@@ -202,6 +212,7 @@
     "breadcrumbLabel": "Watch location",
     "title": "Watch detail",
     "createdTitle": "Your Watch has been created.",
+    "savedLocallyCopy": "Your request is saved on this device. Review the synchronization notice before relying on automatic monitoring.",
     "createdCopy": "Monitoring is active. I’ll check automatically for future updates.",
     "updatedTitle": "Watch updated",
     "updatedCopy": "Your changes have been saved.",
@@ -278,7 +289,8 @@
       "persistence": "The Company Watch could not be saved. Your existing Watches were not changed. Try again.",
       "configuration": "Server persistence is not available in this environment. Try again when it is configured.",
       "currency": "The exchange rate could not be verified. The ECB rate is missing, invalid, unavailable, or out of date.",
-      "edited": "The Watch changed during this check. Check again."
+      "edited": "The Watch changed during this check. Check again.",
+      "mediaQuery": "Review and save the media search instruction before checking again."
     },
     "monitoringUnavailable": "The monitoring source is temporarily unavailable. You can retry this check.",
     "newItems": "New articles",
@@ -443,7 +455,11 @@
     "clarificationDone": "Done",
     "examplesTitle": "For example",
     "emptyError": "Tell me what you would like me to watch.",
-    "meaningfulError": "Please add a little more detail."
+    "meaningfulError": "Please add a little more detail.",
+    "mediaQueryReviewRequired": "The media subject or constraints could not be interpreted safely. Please clarify the instruction; no broader search was saved.",
+    "mediaQueryHeading": "Confirm media monitoring",
+    "mediaQuerySummary": "Search: {query}. The first successful check establishes the reference; existing articles do not create alerts.",
+    "mediaQueryEditSummary": "Search: {query}. Keep the original reference and article history. Previously unseen matching articles may appear at the next check; scheduled checks keep the original publication cutoff."
   },
   "flow2": {
     "headline": "Tell us what matters.",

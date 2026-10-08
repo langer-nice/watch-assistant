@@ -7,7 +7,7 @@ const hasText = value => typeof value === 'string' && value.trim().length >= 3 &
 
 export const renderSummaryCard = ({
   title, category, categoryModifier = 'general', statusPresentation = null,
-  supportingText = '', timestamp = '', articleId = '', dataAttribute = '', renderLink,
+  supportingText = '', timestamp = '', historicalResult = null, articleId = '', dataAttribute = '', renderLink,
 }) => {
   const link = renderLink(`
       <div class="briefing-item__header">
@@ -25,6 +25,11 @@ export const renderSummaryCard = ({
       </div>
       <h2>${escapeHtml(title)}</h2>
       ${hasText(supportingText) ? `<p>${escapeHtml(supportingText)}</p>` : ''}
+      ${historicalResult ? `<div class="briefing-item__historical-result">
+        <p><strong>${escapeHtml(historicalResult.label)}</strong></p>
+        ${hasText(historicalResult.summary) ? `<p>${escapeHtml(historicalResult.summary)}</p>` : ''}
+        ${historicalResult.dates.map(date => `<p>${escapeHtml(date.label)} : <time datetime="${escapeHtml(date.value)}">${escapeHtml(date.text)}</time></p>`).join('')}
+      </div>` : ''}
     `);
   if (!link) return '';
   return `<article class="briefing-item"${articleId ? ` id="${escapeHtml(articleId)}"` : ''}${dataAttribute}>${link}</article>`;

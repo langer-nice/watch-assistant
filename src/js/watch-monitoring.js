@@ -311,7 +311,9 @@ export const matchFeedItemToMediaMention = (item, mediaMention) => {
     mediaSubjectAliases(subject).some((name) => containsCanonicalPhrase(text, name))
   ));
   return {
-    matched: matchedSubjects.length === subjects.length,
+    matched: matchedSubjects.length === subjects.length
+      && (mediaMention.topics || []).every(topic => containsCanonicalPhrase(text, topic))
+      && !(mediaMention.exclusions || []).some(term => containsCanonicalPhrase(text, term)),
     evidence: matchedSubjects.map((label) => ({
       field: 'mediaMentionSubjects',
       strength: 'strong',
@@ -687,6 +689,7 @@ export const createWatchCheckController = ({
       watch?.monitoringSource?.type === 'rss' ? 'feed' : watch?.monitoringSource?.type,
       watch?.monitoringSource?.url || watch?.feedUrl, watch?.monitoringSource?.siren, currencyKey(watch),
       watch?.mediaMention?.subjects || [], watch?.mediaMention?.matchMode,
+      watch?.mediaMention?.topics, watch?.mediaMention?.exclusions, watch?.mediaMention?.locale,
       (watch?.storyProfile?.concepts || []).map(({ label, type }) => [label, type]),
       watch?.storyProfile?.userAddedConcepts || []]);
     const run = async () => {

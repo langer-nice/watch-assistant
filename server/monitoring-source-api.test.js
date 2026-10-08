@@ -27,7 +27,7 @@ test('builds a deterministic public news-search feed without special-casing stor
 test('discovers and returns a supported source only after the feed is fetched and parsed', async () => {
   const requestedUrls = [];
   const result = await discoverTextMonitoringSource({
-    request: 'US–Iran strikes BBC News',
+    request: 'US–Iran strikes BBC News', storyDiscovery: true,
     language: 'en',
   }, {
     lookup: publicLookup,
@@ -86,24 +86,15 @@ test('normalizes explicit media-mention requests before building localized searc
   }
 });
 
-test('preserves the existing full-request query when no safe mention subject is recognized', async () => {
-  const request = 'Tell me when something important happens in AI.';
-  let requestedUrl = null;
-  const result = await discoverTextMonitoringSource({ request, language: 'en' }, {
+test('unrecognized conversational intent requires review without querying the provider', async () => {
+  await assert.rejects(discoverTextMonitoringSource({ request: 'Tell me when something important happens in AI.', language: 'en' }, {
     lookup: publicLookup,
-    fetchImpl: async (url) => {
-      requestedUrl = new URL(url);
-      return new Response(validFeed, {
-        headers: { 'content-type': 'application/rss+xml' },
-      });
-    },
-  });
-  assert.equal(requestedUrl.searchParams.get('q'), request);
-  assert.equal(result.monitoringSource.query, request);
+    fetchImpl: async () => assert.fail('No speculative provider query'),
+  }), { code: 'MEDIA_QUERY_REVIEW_REQUIRED', statusCode: 422 });
 });
 
 test('unsupported or malformed discovery results fail safely instead of returning a source', async () => {
-  await assert.rejects(discoverTextMonitoringSource({ request: 'Unsupported source' }, {
+  await assert.rejects(discoverTextMonitoringSource({ request: 'News about synthetic elections' }, {
     lookup: publicLookup,
     fetchImpl: async () => new Response('<html>not a feed</html>', {
       headers: { 'content-type': 'text/html' },
@@ -136,7 +127,7 @@ test('discovery middleware validates input and exposes no upstream details', asy
     status: 400,
     body: { code: 'INVALID_BODY', error: 'The request must be valid JSON.' },
   });
-  assert.deepEqual(await call(JSON.stringify({ request: 'US–Iran strikes' })), {
+  assert.deepEqual(await call(JSON.stringify({ request: 'News about US–Iran strikes' })), {
     status: 503,
     body: {
       code: 'SOURCE_UNAVAILABLE',

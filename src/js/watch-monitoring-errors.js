@@ -1,4 +1,5 @@
 const FAILURE_MESSAGE_KEYS = Object.freeze({
+  mediaQuery: 'detail.checkFailure.mediaQuery',
   missingSource: 'detail.checkFailure.missingSource',
   notFound: 'detail.checkFailure.notFound',
   accessDenied: 'detail.checkFailure.accessDenied',
@@ -17,6 +18,7 @@ const FAILURE_MESSAGE_KEYS = Object.freeze({
 });
 
 const FAILURE_CATEGORY_BY_CODE = new Map([
+  ['MEDIA_QUERY_REVIEW_REQUIRED', 'mediaQuery'],
   ['STALE_CURRENCY_DATA', 'currency'],
   ['INVALID_CURRENCY_DATA', 'currency'],
   ['CURRENCY_PROVIDER_UNAVAILABLE', 'currency'],

@@ -174,16 +174,16 @@ test('opening detail acknowledges one latest preview development and refreshes r
     addWatch(original);
     localStorage.setItem(getReportsStorageKey(), JSON.stringify([seedReport(original)]));
 
-    assert.equal(getCanonicalWatchClassification(getWatchById(original.id), { now: NOW }), 'updated');
+    assert.equal(getCanonicalWatchClassification(getWatchById(original.id), { now: NOW }), 'attention');
     const acknowledged = acknowledgeLatestWatchUpdate(original.id);
     const repeated = acknowledgeLatestWatchUpdate(original.id);
     const report = refreshLatestReport({ watches: [repeated], now: () => NOW });
 
-    assert.equal(getCanonicalWatchClassification(acknowledged, { now: NOW }), 'watching');
+    assert.equal(getCanonicalWatchClassification(acknowledged, { now: NOW }), 'attention');
     assert.equal(repeated.updates.length, 1);
     assert.equal(repeated.updates[0].status, 'read');
     assert.equal(getWatchTimelineEvents(repeated).filter(({ type }) => type === 'update').length, 1);
-    assert.equal(report.entries[0].classification, 'watching');
+    assert.equal(report.entries[0].classification, 'attention');
     assert.equal(JSON.parse(localStorage.getItem(getReportsStorageKey())).length, 1);
   }
 });

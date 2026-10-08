@@ -138,6 +138,6 @@ test('FR/EN singular/plural use the same report totals and quiet subset; rendere
   }
   const source=await readFile(new URL('./navigation.js',import.meta.url),'utf8');
   assert.match(source,/if \(allQuiet\) allQuiet.hidden = !hasQuietItems/);
-  assert.match(source,/pluralKey\('home.checkedAway', totalChecked\)/);
+  assert.match(source,/checkedSummary.textContent = reportHeader.summary/);
   assert.match(source,/pluralKey\('home.everythingChecked', quietWatches.length\)/);
 });

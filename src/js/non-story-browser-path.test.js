@@ -180,9 +180,10 @@ test('classified non-article pages use the existing advisory clarification inste
     await elements.get('#clarificationActions').dispatch('click', { target: createAnyway });
     assert.equal(calls.filter((path) => path === '/api/page-title').length, 1);
     assert.equal(calls.filter((path) => path === '/api/monitoring-source').length, 1);
-    assert.equal(calls.filter((path) => path === '/api/check-watch').length, 1);
+    assert.equal(calls.filter((path) => path === '/api/check-watch').length, 0);
     assert.equal(elements.get('#watchError').textContent, '');
-    assert.match(window.location.href, /watch-detail\.html\?id=/);
+    assert.doesNotMatch(window.location.href, /watch-detail\.html\?id=/);
+    assert.equal(elements.get('#requestClarification').hidden, false);
   } finally {
     for (const [key, descriptor] of Object.entries(originalGlobals)) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor);

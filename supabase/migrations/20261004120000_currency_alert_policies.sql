@@ -12,6 +12,9 @@ create table public.currency_watch_events (
 alter table public.currency_watch_events enable row level security;
 create policy currency_events_owner_select on public.currency_watch_events for select to authenticated
  using (user_id=auth.uid());
+-- Supabase default privileges can include TRUNCATE, which bypasses RLS.
+-- Establish the intended immutable-history permissions explicitly.
+revoke all on public.currency_watch_events from public,anon,authenticated,service_role;
 grant select on public.currency_watch_events to authenticated,service_role;
 grant insert on public.currency_watch_events to service_role;
 -- Preserve original timestamps and prose; never substitute today's rate into

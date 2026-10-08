@@ -9,9 +9,12 @@ export const mediaSubjectAliases = (subject) => (
 
 export const mediaMentionSearchQuery = (parsed) => {
   const alternatives = parsed.subjects.map(mediaSubjectAliases);
-  if (!alternatives.some((names) => names.length > 1)) return parsed.query;
-  return alternatives.map((names) => (
+  const plain = alternatives.length === 1 && alternatives[0].length === 1;
+  const subjectQuery = plain ? parsed.subjects[0] : alternatives.map((names) => (
     names.length > 1 ? `(${names.map((name) => `"${name}"`).join(' OR ')})`
       : `"${names[0].replace(/"/gu, '')}"`
   )).join(' ');
+  const quote = value => `"${value.replace(/["\\]/gu, '')}"`;
+  return [subjectQuery, ...(parsed.topics || []).map(quote),
+    ...(parsed.exclusions || []).map(value => `-${quote(value)}`)].join(' ');
 };

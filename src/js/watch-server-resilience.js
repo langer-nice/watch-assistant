@@ -76,10 +76,16 @@ export const watchRequest = async (path, options = {}, timeoutMs = 8000) => {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(path, { ...options, signal: controller.signal });
-    const body = await response.json();
+    let body;
+    try { body = await response.json(); }
+    catch (error) {
+      if (controller.signal.aborted) throw error;
+      throw Object.assign(new Error('Watch response was not valid JSON.'), { code: 'INVALID_RESPONSE', statusCode: response.status });
+    }
     return { ok: response.ok, status: response.status, headers: response.headers, json: async () => body };
   } catch (error) {
     if (controller.signal.aborted) throw Object.assign(new Error('Watch request timed out.'), { code: 'TIMEOUT' });
+    if (!error.code && error instanceof TypeError) throw Object.assign(new Error('Watch network request failed.'), { code: 'NETWORK_ERROR' });
     throw error;
   } finally { clearTimeout(timer); }
 };

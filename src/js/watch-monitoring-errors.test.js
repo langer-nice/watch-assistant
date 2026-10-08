@@ -8,6 +8,7 @@ import {
 } from './watch-monitoring-errors.js';
 
 const expectedCategories = {
+  MEDIA_QUERY_REVIEW_REQUIRED: 'mediaQuery',
   STALE_CURRENCY_DATA: 'currency', INVALID_CURRENCY_DATA: 'currency', CURRENCY_PROVIDER_UNAVAILABLE: 'currency', INVALID_CURRENCY_CRITERIA: 'currency', STALE_CHECK: 'edited',
   MISSING_FEED_URL: 'missingSource',
   MISSING_SOURCE_URL: 'missingSource',
