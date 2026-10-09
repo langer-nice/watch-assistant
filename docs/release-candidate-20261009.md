@@ -334,3 +334,88 @@ configuration gates are satisfied.
 No push, merge, deployment, hosted check, retry, email, remote data/configuration or
 schedule change occurred. Both held PRs and the original reliability branch remain
 unchanged. Documentation-only candidate preparation is committed locally.
+
+## Authorized Preview attempt — 9 October 2026, blocked before push
+
+Prepared SHA remains c622167442bc850f306a5cd4ebfaf670ff9cf3d0. The user authorized
+candidate-only Preview configuration, then push/deploy only after isolation, and
+synthetic tests afterward. Application code/dependencies remain unchanged.
+
+Securely retrieved the eight exact staging override values from the existing #52
+Preview scope; verified URL/project claims, key roles, OTP and false notification
+flags without printing credentials. The candidate had no overrides. Retained a
+private metadata/rollback snapshot under `/tmp/rc-preview-config-private` (not Git).
+Vercel rejected the candidate-only bulk creation with HTTP 400:
+
+> Branch "codex/release-candidate-20261009" not found in the connected Git repository.
+
+A diagnostic resubmission returned the same explicit requirement after confirming no
+partial entries. Final metadata comparison is identical to the pre-attempt snapshot:
+zero candidate overrides; no shared defaults, held-branch or Production settings changed.
+This is a Vercel API validation rejection, not an automatic approval-review rejection.
+No push/deployment was attempted, respecting the explicit isolation-before-push gate.
+The candidate branch remains absent remotely; held #52/#53 remote heads are unchanged.
+
+### Additional staging schema evidence
+
+Read-only SQL through the authorized dashboard for tseexvbwhrtofcsrvcqc inspected
+all 34 public function hashes, security-definer/search_path settings and ACLs. Compared
+with an empty local PGlite schema assembled from the candidate migrations: 33 hashes
+match exactly. The sole raw hash difference is complete_currency_watch_check:
+staging d0d06bb04d07c43ee97408a0acf9a3aa, local a22f5260736b1e20ecbde8b6674a55d4.
+An exported definition comparison proves the difference consists only of two missing
+comment lines; code is identical after removing comments/whitespace. No function
+migration is justified by that discrepancy. Service-only completion/notification
+functions and authenticated persistence/validator ACLs match the intended roles.
+No function, trigger or row was changed; all executed SQL used BEGIN READ ONLY/ROLLBACK.
+
+Current table-level effective grants, complete RLS/trigger verification and private
+Auth templates/redirect configuration are still unfinished. Browser export completed,
+but the subsequent browser-control session detached; native SQL editor input did not
+reliably replace the query, so no unverified query was executed as a workaround.
+Earlier ACL/OTP evidence remains historical, not a substitute for these current gates.
+No real tester records, credentials or OTPs were read. No synthetic account/session,
+Watch, report, initial check, cron or notification test was started.
+
+### Narrow proposed sequencing exception — not executed
+
+Vercel's documented branch-only git.deploymentEnabled switch provides a safe bootstrap
+route (https://vercel.com/docs/project-configuration/git-configuration). The reviewable
+local `candidate-bootstrap-proposal.patch` adds exactly:
+
+```json
+"git": {
+  "deploymentEnabled": {
+    "codex/release-candidate-20261009": false
+  }
+}
+```
+
+This is a proposal, not an applied change to vercel.json or remote configuration.
+It affects only the candidate branch; unspecified branches retain their default.
+Request explicit authorization to amend the original ordering as follows:
+
+1. Commit this branch-only no-auto-deployment guard and push only the candidate branch
+   to register its existence, **before** environment isolation, with deployment disabled.
+2. Verify no deployment occurred, install the eight candidate Preview overrides, and
+   verify staging association/disabled flags plus the remaining schema/Auth gates.
+3. Remove that guard in a new candidate commit only after isolation is established,
+   push to trigger the authorized Preview, verify exact revision and run the authorized
+   synthetic checks. No force push or held-branch change.
+
+The original instruction says not to push before isolation, so this bootstrap push
+is not presumed authorized merely because it is designed to suppress deployment.
+Do not alter project-wide defaults, disconnect Git integration, or push c622167 with
+unsafe inherited values. David's final supervised creation remains pending: no ready
+Preview URL exists yet and no creation/reload instructions are issued prematurely.
+
+## Authorized bootstrap — 9 October 2026
+
+David explicitly authorized the branch-only bootstrap exception. At 11:50 UTC the
+project still used GitHub/master, without an ignored-build command or competing
+Git deployment override. Current Vercel documentation confirms an exact branch false
+rule disables commit deployments, with unspecified branches unaffected. The applied
+vercel.json contains only the exact candidate rule and no competing true pattern.
+The remote candidate branch returned 404 before this first push. Application code,
+held branches and all other vercel.json settings remain unchanged. Deployment stays
+blocked until eight candidate-only settings and staging Auth/RLS gates are verified.
