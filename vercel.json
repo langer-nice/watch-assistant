@@ -10,10 +10,5 @@
       "path": "/api/cron/company-monitoring",
       "schedule": "0 6 * * *"
     }
-  ],
-  "git": {
-    "deploymentEnabled": {
-      "codex/release-candidate-20261009": false
-    }
-  }
+  ]
 }

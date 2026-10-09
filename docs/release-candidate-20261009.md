@@ -419,3 +419,43 @@ vercel.json contains only the exact candidate rule and no competing true pattern
 The remote candidate branch returned 404 before this first push. Application code,
 held branches and all other vercel.json settings remain unchanged. Deployment stays
 blocked until eight candidate-only settings and staging Auth/RLS gates are verified.
+
+### Bootstrap and isolation observed — 11:52–12:02 UTC
+
+Protected bootstrap commit: 4e24d44a837bed81d1ef18f2fd2f24ab3ac11c41. Only the
+candidate branch was pushed. Vercel lists by branch and SHA returned zero deployments
+immediately and again after configuration/readiness inspection; no cancellation needed.
+The eight exact candidate/Preview overrides were created and individually re-read:
+all five Supabase settings match staging (anon/service roles verified), OTP is `otp`,
+both email strings are `false`. All unrelated environment metadata matched the private
+before snapshot. Private rollback metadata remains outside Git. No shared defaults changed.
+
+Current read-only staging SQL exported 33 catalog rows and a 27-row effective privilege
+matrix. All nine public tables have RLS enabled. Watch/profile CRUD policies enforce
+Auth ownership on both USING and WITH CHECK; snapshot ownership and parent ownership
+checks are present. Currency history permits authenticated owner SELECT and service
+SELECT+INSERT only; anon has no table rights. Effective checks include inherited/PUBLIC
+rights. Authenticated and anon are neither superusers nor BYPASSRLS; service is BYPASSRLS
+as expected. All nine public triggers match the candidate's intended behavior. Prior
+34-function comparison remains valid (one comment-only difference).
+
+Legacy privilege limitation: authenticated still has TRUNCATE/REFERENCES/TRIGGER/MAINTAIN
+on profiles, watches and company_watch_snapshots; service_role has those rights on the
+other eight tables. These are existing grants left by the older migrations (which do
+not revoke them), not introduced by the candidate. RLS is not protection for TRUNCATE.
+No app route/public RPC exposes arbitrary SQL or TRUNCATE in the inspected code/functions;
+normal PostgREST row operations remain owner-scoped. This does not block isolated normal
+UI tests, but it is explicitly NOT a least-privilege certification and needs separate
+hardening review before a broad release. No privilege changes or destructive probe made.
+
+Auth URL configuration still points to the older staging branch (three allowlisted
+variants). Both sign-in and signup templates contain only .Token and instructions to
+stay on the original page; no ConfirmationURL/SiteURL/RedirectTo links. Candidate OTP
+mode omits emailRedirectTo and verifies on the same origin. Therefore no callback URL
+or shared Auth change is required for this OTP-only test. No OTP has yet been sent;
+actual delivery is a hosted acceptance test, not inferred from configuration.
+
+Candidate application/schema/build inputs still match tested ccfa7ac. Existing 1,195
+passing tests/build are reused; temporary vercel.json guard syntax/diff checks passed.
+Isolation gates for scoped UI testing are satisfied; remove only the temporary guard
+next. All hosted candidate acceptance results remain pending until observed.
