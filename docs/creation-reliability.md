@@ -202,3 +202,76 @@ David must enter the request and perform OTP sign-in and final creation himself.
 No final Watch or final test account was pre-created. Stop at handoff; coordinate
 reload and a separate authenticated context after he signals completion. No push,
 merge, deployment, remote migration, held-branch change or tester email is permitted.
+
+### David's actual creation — first observation, 9 October 2026
+
+David confirmed he performed the creation himself. Observed Chrome page and local
+instrumentation agree on Watch `fe22544e-ec0a-412e-a134-22f824393824` (Nvidia).
+Exact request `Tell me when Nvidia is mentioned in the media` survived the OTP
+handoff and is stored in `watch_definition.request` (the top-level legacy `request`
+column is null for this media schema). Independent SQL confirms one matching row,
+owned by the authenticated supervised test account; no duplicate logical creation.
+
+Recorded UTC sequence: original request 07:17:16.589; restored after sign-in
+07:18:06.314; row created 07:18:10.017047; save API 200 at 07:18:10.024;
+independent read saw persisted/unchecked row at 07:18:10.736; baseline check
+07:18:10.777 and check response 200 at 07:18:10.798; visible creation confirmation
+and Watching badge at 07:18:10.933. Thus the database and successful initial check
+preceded visible success. Revision 1, no check error, both notification tables empty.
+Browser detail explicitly says synced and email disabled, and separates initial
+reference articles from new alerts. This proves initial retrieval/activation
+eligibility, not future scheduled execution or delivery.
+
+Three optional translation requests returned 502: local OPENAI_API_KEY is absent,
+and the translation handler explicitly fails in that case. Original English content
+remained visible and persisted; this did not block creation. No configuration changed.
+Home, David's browser reload, and an independently authenticated fresh context remain
+pending at this observation. They must not be inferred from creation success.
+
+David subsequently confirmed visibility after his own Chrome browser reload, without
+another report or check. Read-only browser observation shows Home with the same ID,
+Nvidia title, New badge, one new / zero attention / zero updated, and no local report.
+UI traces contain the same Home ID both before reload (07:27:44.600 UTC) and after
+(07:27:58.767 UTC); authenticated list GETs returned 200. No new check POST appeared
+in this interval. The observer briefly sampled a detail heading 'Watch not found'
+during navigation; it reads DOM text without visibility checks, so this alone is
+not evidence that an error was visibly displayed. Current Home is confirmed visible.
+Fresh independently authenticated browser context remains pending.
+
+### Final supervised outcome — 9 October 2026
+
+David confirmed “Nvidia visible en privé” after signing in from a new Chrome private
+window, as instructed. This is **user-confirmed private-window observation**, not a
+Codex screenshot or independently read private DOM. Chrome's connector could not
+find the exact private list tab; broad native-app inspection was rejected by automatic
+review because it could expose unrelated tabs. No workaround or broader inspection
+was attempted. An exact local-URL lookup was the narrower allowed alternative and
+returned no accessible tab.
+
+Independent read-only Auth metadata shows a fresh session for the same supervised
+account at 07:30:16.357272 UTC, followed by successful media/company list GETs at
+07:30:16.500 / .499. No session tokens were read. Final SQL still returns exactly one
+Watch for this account, `fe22544e-ec0a-412e-a134-22f824393824`, revision 1, original
+Nvidia request, `monitoring`, baseline at 07:18:10.777 UTC, no error. Both monitoring
+notification tables remain empty. The subsequent reload and private session did not
+change its check timestamp or create another row.
+
+| Step | Outcome and evidence |
+| --- | --- |
+| Request → OTP → restored request | Pass: UI traces and exact persisted definition agree. |
+| Durable persistence and ownership | Pass: independent SQL, one row, expected synthetic owner. |
+| Persistence before visible success | Pass: row/save response and baseline completion precede confirmation. |
+| ID reconciliation | Pass for creation, database, detail and Home; private-list title visibility is user-confirmed, its DOM ID was not independently inspected. |
+| Home and browser reload | Pass: David's confirmation plus observed Home ID/New badge and traces. |
+| Fresh private authentication/retrieval | Pass on David's observation, supported by new same-account Auth session and successful list reads; no copied storage/tokens. |
+| Activation | Initial provider retrieval/baseline and eligible persisted state verified. Future cron and email delivery not tested. |
+| Duplicates and notifications | One account Watch, zero duplicates, zero notification rows. |
+
+Tested application commit remains `ccfa7aca8ffc052264569d965436a285e9b7bc6b`.
+Only this validation document changed afterwards; tests/build were not repeated.
+The specific supervised media-creation journey passed. This is not proof of universal
+reliability, all browser/network failure scenarios, or production readiness. Local
+translation remains unconfigured; no new reliability failure was demonstrated by
+this journey. Existing #53/#52 release dependencies, production configuration checks
+and release approval remain outstanding. No push, merge, deployment, production
+change, tester email or scheduled check was performed. Both PRs remain on hold.
