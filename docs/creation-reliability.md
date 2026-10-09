@@ -152,3 +152,53 @@ do not merge duplicate histories blindly. Their migration/configuration/release
 prerequisites remain, including previously unverified production server association
 and effective email settings. This pass does not resolve those production blockers.
 No application data repair, local-only Watch recovery or production rollout is implied.
+
+## Review and supervised handoff — 9 October 2026
+
+Reviewed commit `26819bf`; parent `889606f` and ancestry through PR #53 `d4c184b`
+confirmed locally. Original test/build logs substantiate the reported 1,194 passes
+and build; real Auth/API/RLS evidence is separate from source-assertion tests.
+
+**P1, corrected:** `navigation.js` detail rendering hid Check now for a saved Company
+Watch still in `preparing` after baseline failure. `fail_company_watch_check` clears
+the check lock and records the error but intentionally leaves that state. The old
+`scheduleFirstMonitoringPass` then changed local state based only on elapsed time,
+without a successful check. Removed that simulated transition and its creation
+countdown fields. Pending/failed saved Watches can explicitly retry; only an actual
+in-progress check displays the preparation state. No database migration is needed.
+
+Reproduction: a dedicated local fixture `fc000000-0000-4000-8000-000000000001`, owned
+by the existing synthetic account, has `preparing`, null last check and
+`DATABASE_ERROR`. With the corrected UI, its detail shows Needs attention, Check
+failed, and an enabled Check now. Independent SQL after browser display confirms it
+remains preparing/unchecked: displaying it does not activate it. No check was run.
+A lifecycle regression covers an expired legacy timer date without changing the
+Watch or its attention classification. Existing source-extraction tests only needed
+a new renderer boundary after removal of the obsolete function.
+
+After the correction: full suite **1,195 passed**, build and diff checks passed.
+This does not replace David's still-pending real journey. No other concrete blocker
+was established in the reviewed creation changes. Anonymous draft recovery after
+closing/reloading during OTP remains unverified; same-page cancellation/retry was
+previously observed. Future scheduled execution and delivery remain untested here.
+
+Laboratory restarted with the existing data. The separate `review-health@example.test`
+account passed real OTP capture/verification without creating a Watch. The new
+`david-supervised@example.test` account was confirmed absent before handoff. Seven
+existing Watches are diagnostic data (including the failed-company fixture), not
+David's supervised creation.
+
+Supervised Chrome origin: `http://localhost:5199/new-watch.html`, observed signed out.
+Mail capture: `http://127.0.0.1:54324`. Browser and server target local Supabase
+`http://127.0.0.1:54321`; both notification flags false, no notification transport
+key, no database cron. `/tmp/wa-supervised.config.mjs` adds local-only observation
+around the unchanged application middleware: timestamps, route/status, returned
+Watch ID/state, and UI request/confirmation/badge/Home IDs. It captures no OTP,
+Authorization header, session token or credentials. Evidence stays outside Git at
+`/tmp/wa-supervised-evidence.jsonl`; independent read-only SQL observations supplement
+it. This instrumentation is not a deployed endpoint and is not application code.
+
+David must enter the request and perform OTP sign-in and final creation himself.
+No final Watch or final test account was pre-created. Stop at handoff; coordinate
+reload and a separate authenticated context after he signals completion. No push,
+merge, deployment, remote migration, held-branch change or tester email is permitted.

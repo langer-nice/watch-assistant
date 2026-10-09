@@ -184,7 +184,7 @@ test('renderers use Updated badges, semantic update destinations, and the shared
   const homeRenderer = navigation.match(/const renderHomeWatchCards =[\s\S]*?const renderHomeBriefing/)?.[0] || '';
   const sharedRenderer = navigation.match(/const getSummaryCardStatus =[\s\S]*?const renderHomeWatchCards/)?.[0] || '';
   const allRenderer = navigation.match(/const renderWatchList =[\s\S]*?const renderWatchDetail/)?.[0] || '';
-  const detailRenderer = navigation.match(/const renderWatchDetail = \(\) => \{[\s\S]*?function scheduleFirstMonitoringPass/)?.[0] || '';
+  const detailRenderer = navigation.match(/const renderWatchDetail = \(\) => \{[\s\S]*?const waitForHomeReportProgress/)?.[0] || '';
 
   assert.match(sharedRenderer, /getWatchStatusPresentation\(status, t\)/);
   assert.doesNotMatch(homeRenderer, /statuses\.new/);

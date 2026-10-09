@@ -104,7 +104,7 @@ test('Review and Watch Detail render company status without adding administrativ
     /const renderWatchList[\s\S]*?const renderWatchDetail/,
   )?.[0] || '';
   const detail = navigation.match(
-    /const renderWatchDetail = \(\) => \{[\s\S]*?function scheduleFirstMonitoringPass/,
+    /const renderWatchDetail = \(\) => \{[\s\S]*?const waitForHomeReportProgress/,
   )?.[0] || '';
 
   assert.match(reviewHtml, /id="companyReviewStatus"/);

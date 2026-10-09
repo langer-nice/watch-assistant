@@ -224,14 +224,11 @@ let detailConfirmationHideTimer = null;
 let detailCheckInProgress = false;
 let detailCheckErrorWatchId = null;
 let detailRevealedUpdateRoute = null;
-let firstMonitoringTimer = null;
-let firstMonitoringTransitionTimer = null;
 let editSheetCloseTimer = null;
 let editSheetBackgroundScrollY = 0;
 let homeReportProgressState = 'closed';
 let homeReportProgressScrollY = 0;
 
-const FIRST_MONITORING_DELAY = 3200;
 const HOME_REPORT_READY_DURATION_MS = 700;
 const HOME_REPORT_FADE_DURATION_MS = 180;
 let checkControllerEpoch = -1;
@@ -1007,7 +1004,6 @@ export const createWatchObject = (request, whyFollowing = '', urlAnalysis = null
     actionRequired: false,
     attentionReason: null,
     monitoringState: 'preparing',
-    firstCheckCompletesAt: new Date(Date.now() + FIRST_MONITORING_DELAY).toISOString(),
     createdAt: now,
     lastChecked: null,
     lastUpdated: null,
@@ -1330,17 +1326,9 @@ const renderWatchDetail = () => {
       }
     }
   }
-  if (
-    watch?.monitoringState === 'preparing'
-    && Date.parse(watch.firstCheckCompletesAt) <= Date.now()
-  ) {
-    watch = updateWatch(watch.id, {
-      monitoringState: 'monitoring',
-      firstCheckCompletedAt: new Date().toISOString(),
-      firstCheckCompletesAt: null,
-    });
-  }
-  const isPreparing = watch?.monitoringState === 'preparing';
+  // A persisted pending/failed first check needs an explicit, available retry.
+  // Elapsed browser time must never turn it into a successful check.
+  const isPreparing = detailCheckInProgress && watch?.monitoringState === 'preparing';
   const detailPageEl = document.querySelector('.page--detail');
   detailPageEl?.classList.toggle('is-paused', watch?.status === 'paused');
 
@@ -1965,12 +1953,6 @@ const renderWatchDetail = () => {
     preparingEl.hidden = !isPreparing;
     preparingEl.classList.remove('is-leaving');
   }
-  if (isPreparing) {
-    scheduleFirstMonitoringPass(watch, preparingEl);
-  } else {
-    window.clearTimeout(firstMonitoringTimer);
-    firstMonitoringTimer = null;
-  }
 
   if (managementEl) {
     managementEl.hidden = false;
@@ -2212,40 +2194,6 @@ const renderWatchDetail = () => {
     }
   }
 };
-
-function scheduleFirstMonitoringPass(watch, preparingEl) {
-  window.clearTimeout(firstMonitoringTimer);
-  const completesAt = Date.parse(watch.firstCheckCompletesAt);
-  const remaining = Number.isNaN(completesAt)
-    ? FIRST_MONITORING_DELAY
-    : Math.max(0, completesAt - Date.now());
-
-  firstMonitoringTimer = window.setTimeout(() => {
-    const currentWatch = getWatchById(watch.id);
-    if (currentWatch?.monitoringState !== 'preparing') {
-      return;
-    }
-
-    preparingEl?.classList.add('is-leaving');
-    window.clearTimeout(firstMonitoringTransitionTimer);
-    firstMonitoringTransitionTimer = window.setTimeout(() => {
-      const checkedAt = new Date().toISOString();
-      updateWatch(watch.id, {
-        monitoringState: 'monitoring',
-        firstCheckCompletedAt: checkedAt,
-        firstCheckCompletesAt: null,
-      });
-      renderWatchDetail();
-
-      const refreshedMonitoringControlsEl = document.querySelector('#watchMonitoringControls');
-      if (refreshedMonitoringControlsEl && !refreshedMonitoringControlsEl.hidden) {
-        refreshedMonitoringControlsEl.classList.add('is-revealing');
-        window.setTimeout(() => refreshedMonitoringControlsEl.classList.remove('is-revealing'), 420);
-      }
-      firstMonitoringTransitionTimer = null;
-    }, 240);
-  }, remaining);
-}
 
 const waitForHomeReportProgress = (duration) => new Promise((resolve) => {
   window.setTimeout(resolve, duration);
@@ -3446,7 +3394,6 @@ export function initForm() {
           : null,
         monitoringState: 'preparing',
         firstCheckCompletedAt: null,
-        firstCheckCompletesAt: new Date(Date.now() + FIRST_MONITORING_DELAY).toISOString(),
       });
     }
 

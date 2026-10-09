@@ -21,3 +21,13 @@ test('local Auth opt-in cannot authorize insecure remote or deployed endpoints',
  assert.equal(getSupabaseBrowserConfig(env).enabled,true);
  for(const override of [{DEV:false},{VITE_VERCEL_ENV:'preview'},{VITE_VERCEL_ENV:'production'}])assert.equal(getSupabaseBrowserConfig({...env,...override}).enabled,false);
 });
+
+test('failed persisted company preparation stays attention even after its old timer date', async () => {
+ const { getCanonicalWatchClassification } = await import('./report-status.js');
+ const watch={id:'company-failed',inputType:'company',title:'Company',status:'watching',monitoringState:'preparing',firstCheckCompletesAt:'2020-01-01T00:00:00Z',lastCheckAttempt:{status:'failed',code:'DATABASE_ERROR'}};
+ const before=structuredClone(watch);
+ assert.equal(watchCreationState(watch),'failed');
+ assert.equal(getCanonicalWatchClassification(watch),'attention');
+ assert.equal(selectHomeReport({watches:[watch]}).statusById.get(watch.id),'attention');
+ assert.deepEqual(watch,before);
+});

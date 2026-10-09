@@ -210,7 +210,7 @@ test('Review, Home, All Watches and Watch Detail use the shared Company title he
   const review = navigation.match(/const renderReviewPresentation[\s\S]*?const validateReviewSummary/)?.[0] || '';
   const home = navigation.match(/const renderHomeWatchCards[\s\S]*?const renderHomeBriefing/)?.[0] || '';
   const allWatches = navigation.match(/const renderWatchList[\s\S]*?const renderWatchDetail/)?.[0] || '';
-  const detail = navigation.match(/const renderWatchDetail = \(\) => \{[\s\S]*?function scheduleFirstMonitoringPass/)?.[0] || '';
+  const detail = navigation.match(/const renderWatchDetail = \(\) => \{[\s\S]*?const waitForHomeReportProgress/)?.[0] || '';
 
   assert.match(review, /getWatchDisplayTitle\(analysis\)/);
   assert.match(home, /const title = getWatchDisplayTitle\(watch\)/);
