@@ -275,3 +275,95 @@ translation remains unconfigured; no new reliability failure was demonstrated by
 this journey. Existing #53/#52 release dependencies, production configuration checks
 and release approval remain outstanding. No push, merge, deployment, production
 change, tester email or scheduled check was performed. Both PRs remain on hold.
+
+## Controlled scheduled processing and local email — 9 October 2026
+
+**Passed on David's actual local Nvidia Watch**, no substitute and no rewritten
+baseline. Application revision `63ea8025621af02a0132f01c3505835d8cdeb255` (application
+code identical to `ccfa7ac`). Harness: `scripts/verify-local-scheduled-email.mjs`.
+No application transport change was required: its existing injection points suffice.
+
+Preflight independently verified the local API/browser Supabase URL, local Docker
+DB, correct confirmed synthetic Auth owner, baseline `2026-10-09T07:18:10.777Z`, 20
+recoverable baseline articles, zero outbox records, absent database cron, disabled
+application email flags, no external transport key, and no Mailpit relay configuration.
+A private before-state copy including the snapshot and seen ledger was retained at
+`/tmp/wa-nvidia-scheduled-before.json`; detailed results are at
+`/tmp/wa-nvidia-scheduled-result.json`. Neither contains credentials or OTPs.
+
+### Real processing boundary and local-only routing
+
+The actual `createCompanyMonitoringCronHandler` ran with its Bearer authorization
+check; an invalid token returned 401 without feed or email calls. Both normal runners
+were retained. Because the cron has no Watch-ID scope, a PostgREST client wrapper adds
+`id = fe22544e-ec0a-412e-a134-22f824393824` to the real eligible-Watch query and the
+same Watch restriction to notification selection. Company selection returned zero,
+media selection one. RPCs targeting any other Watch are rejected. Maintenance was
+allowed only after verifying there were no other local outbox records. Hash comparison
+confirmed all unrelated Watch rows stayed unchanged.
+
+The original source URL/query was not edited. A process-only HTTP adapter routed its
+retrieval to an actual loopback RSS server; the real `fetchAndNormalizeFeed` XML parser,
+matching, identity generation, stored seen ledger, scheduled persistence RPC, outbox
+claims, verified-Auth recipient lookup, renderer and dispatcher all ran. DNS resolution
+was supplied deterministically for the original logical source; no public source was
+contacted in these runs. All process HTTP destinations were restricted to the exact
+local Supabase, Mailpit and temporary fixture origins. There were three actual feed
+requests, including the unchanged replay; the harness did not suppress processing.
+
+The exact production notification gate was enabled only in a private function-argument
+configuration object (`VERCEL_ENV=production`, media flag true, company flag false),
+with a dummy local-only provider key, an allowed sender and an HTTPS `.test` application
+base URL. No `.env`, Vercel, browser, database configuration or schedule was changed.
+The real `sendWithResend` constructed and submitted its normal payload and idempotency
+header through a loopback Resend-compatible adapter, which submitted the rendered
+message to Mailpit's real HTTP Send API. This is local capture, not a mocked send
+function and not external inbox delivery. See Mailpit's
+[Send API documentation](https://mailpit.axllent.org/docs/usage/sending-messages/).
+The adapter's idempotency cache was not responsible for repeat suppression: the third
+processing pass made **zero** transport requests.
+
+### Runs (Europe/Paris, UTC+02:00)
+
+| Run | Time | Expected additional notifications / emails | Observed | Result |
+| --- | --- | --- | --- | --- |
+| Replay existing 20 reference articles | 09:42:11.310 | 0 / 0 | 0 / 0 | unchanged; no failures |
+| Same feed plus one synthetic Nvidia article | 09:42:11.424 | 1 / 1 | 1 / 1 | changed; one claimed/submitted/sent |
+| Identical feed again | 09:42:11.459 | 0 / 0 | 0 / 0 | unchanged; cumulative totals stay 1 / 1 |
+
+The test article is clearly titled `[SYNTHETIC LOCAL TEST] Nvidia scheduled notification`,
+source `Local synthetic fixture`, ID `local-nvidia-76cdbee3-b83b-461e-b808-977be0815134`,
+URL `https://local-fixture.invalid/nvidia/e6c7ce22-ab91-478d-a234-07d128caf87f`.
+Its publication time is after the baseline. These are artificial observations, not
+claims about a live Nvidia publication. The normal source settings are unchanged.
+
+Notification `ed3e3058-f8f8-4f8e-997d-92487024adb4` belongs to the correct Watch and
+owner, is `sent`, has no error, and records provider message ID
+`6NmCDFa55TrEdnP840Jzkd`, matching Mailpit's captured message. `sent` here means local
+provider acceptance. Captured text/HTML were checked for Watch name, synthetic headline,
+source, 9 October 2026 date, summary, article URL and detail URL with the correct ID.
+The `.invalid` article and `.test` app links are deliberately synthetic and do not
+assert a reachable production destination. The message remains available at
+`http://127.0.0.1:54324/view/6NmCDFa55TrEdnP840Jzkd` while the lab runs.
+
+The baseline timestamp and initial reference JSON remained byte-for-byte equivalent
+through all runs. Request, ownership, definition, source and revision were unchanged.
+The last-check snapshot, seen ledger, latest result and one notification changed only
+through the normal scheduled-processing RPCs. Those synthetic additions are retained
+as evidence, not deleted to restore a cosmetically clean state. The temporary HTTP
+adapter was closed and process-only routing/configuration disappeared on exit;
+application email flags remain false and automatic scheduling remains disabled.
+
+Delivery-failure policy was reviewed separately: failed/uncertain submissions are not
+automatically replayed; pending claims and stable idempotency keys guard duplication.
+23 focused email/outbox tests passed, including simulated rejection, retryable failure
+and uncertain submission scenarios. Those failure tests use controlled doubles and
+are not claimed as Mailpit failure observations. Build and diff checks passed. The
+previous full application suite was not repeated because application code did not change.
+
+No failure was exposed in this run. This validates the scheduled **processing logic**,
+notification persistence, real local message capture and stored-state deduplication.
+It does not validate automatic Vercel cron invocation, real external email delivery,
+or completeness of future Nvidia news coverage. Production/staging data and tester
+accounts were untouched; no real emails, shared cron, push, deployment or merge.
+PR #52/#53 remain on hold.
