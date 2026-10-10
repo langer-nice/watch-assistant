@@ -1,3 +1,4 @@
+import { validateMediaQuery } from '../src/js/media-provider-query.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
 import { createSupabaseServiceClient } from './supabase-service.js';
 import { fetchAndNormalizeFeed } from './check-watch-api.js';
@@ -38,6 +39,7 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     if (Number(row.media_revision) !== body.revision) return send(409, { code: 'MEDIA_CONFLICT' });
     prior = Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
     service = serviceClient || createSupabaseServiceClient(options);
+    validateMediaQuery(row.watch_definition, row.monitoring_source);
     const feed = await fetchFeed(row.monitoring_source.url);
     const watch = { ...row.watch_definition, id: row.id, status: row.current_status };
     const normalized = applyFeedCheckResult(watch, feed).changes.monitoringSnapshot;

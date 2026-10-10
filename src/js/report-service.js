@@ -1,6 +1,7 @@
 import { getAccountOwner, getAccountEpoch } from './account-storage.js';
 import {
   classifyReportAttempt,
+  monitoringUnavailable,
   getMeaningfulWatchUpdate,
 } from './report-status.js';
 import { getReports, saveReport, REPORT_STORAGE_VERSION } from './report-storage.js';
@@ -54,6 +55,7 @@ const snapshotEntry = (watch, attempt, checkedAt) => {
 };
 
 const storedAttemptForWatch = (watch, completedAt) => {
+  const unavailable = monitoringUnavailable(watch);
   const paused = watch.status === 'paused';
   const latest = watch.lastCheckAttempt;
   const failed = latest?.status === 'failed';
@@ -62,10 +64,10 @@ const storedAttemptForWatch = (watch, completedAt) => {
   const resultIds = !failed && meaningful?.update?.id ? [meaningful.update.id] : [];
   return {
     watchId: watch.id,
-    status: paused ? 'skipped' : failed ? 'failed' : 'succeeded',
+    status: paused || unavailable || !latest ? 'skipped' : failed ? 'failed' : 'succeeded',
     startedAt: checkedAt,
     completedAt: checkedAt,
-    outcome: paused ? 'paused' : failed ? 'failed' : latest?.outcome || 'no-new-items',
+    outcome: unavailable ? 'persistence-unavailable' : paused ? 'paused' : failed ? 'failed' : latest?.outcome || 'no-new-items',
     code: failed ? latest.code || 'CHECK_FAILED' : null,
     baselineCheckedAt: watch.monitoringSnapshot?.checkedAt || null,
     resultIds,
@@ -86,8 +88,8 @@ export const refreshLatestReport = ({ watches, now = () => new Date(), save = sa
     ...latest,
     completedAt,
     watchIdsConsidered: considered.map(({ id }) => id),
-    watchIdsChecked: considered.filter((watch) => watch.status !== 'paused').map(({ id }) => id),
-    watchIdsSkipped: considered.filter((watch) => watch.status === 'paused').map(({ id }) => id),
+    watchIdsChecked: attempts.filter(attempt => attempt.status !== 'skipped').map(attempt => attempt.watchId),
+    watchIdsSkipped: attempts.filter(attempt => attempt.status === 'skipped').map(attempt => attempt.watchId),
     attempts,
     entries: considered.map((watch, index) => snapshotEntry(
       watch,
@@ -143,15 +145,15 @@ export const generateReport = ({
     for (const originalWatch of eligible) {
       requireCurrentAccount();
       const attemptStartedAt = iso(clock);
-      if (!hasCompatibleSource(originalWatch)) {
+      if (monitoringUnavailable(originalWatch) || !hasCompatibleSource(originalWatch)) {
         const completedAt = iso(clock);
         const attempt = {
           watchId: originalWatch.id,
           status: 'skipped',
           startedAt: attemptStartedAt,
           completedAt,
-          outcome: 'missing-source',
-          code: 'MISSING_FEED_URL',
+          outcome: monitoringUnavailable(originalWatch) ? 'persistence-unavailable' : 'missing-source',
+          code: monitoringUnavailable(originalWatch) ? 'PERSISTENCE_UNAVAILABLE' : 'MISSING_FEED_URL',
           baselineCheckedAt: originalWatch.monitoringSnapshot?.checkedAt || null,
           resultIds: [],
         };

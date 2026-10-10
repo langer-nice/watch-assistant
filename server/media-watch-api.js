@@ -1,3 +1,4 @@
+import { validateMediaQuery } from '../src/js/media-provider-query.js';
 import { createMediaWatchCheckMiddleware } from './media-watch-check-api.js';
 import { getMediaWatchEmailConfig } from './media-watch-email.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
@@ -55,6 +56,23 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
         status: input?.monitoring_state === 'paused' ? 'paused' : 'watching',
       });
     } catch { return send(400, { code: 'INVALID_MEDIA_DEFINITION' }); }
+    try {
+      validateMediaQuery(definition.watch_definition, definition.monitoring_source);
+    } catch (error) {
+      if (error.code !== 'MEDIA_QUERY_REVIEW_REQUIRED' || raw.revision === 0) throw error;
+      // Keep pause/delete/title-only synchronization available for legacy rows.
+      // Only an explicit criteria/source edit must supply a coherent new query.
+      const prior = await client.from('watches').select('*').eq('id', definition.id)
+        .eq('user_id', user.id).eq('type', 'media_news').range(0, 0);
+      if (prior.error) throw Object.assign(new Error('DATABASE_ERROR'), { code: 'DATABASE_ERROR' });
+      const old = prior.data?.[0];
+      const config = (d, s) => JSON.stringify([d?.inputType, d?.request,
+        ...['subjects','matchMode','topics','exclusions'].map(k => d?.mediaMention?.[k]),
+        d?.mediaMention?.locale?.language, d?.mediaMention?.locale?.country,
+        s?.type, s?.url, s?.query]);
+      if (!old || config(old.watch_definition, old.monitoring_source)
+        !== config(definition.watch_definition, definition.monitoring_source)) throw error;
+    }
     const { data, error } = await client.rpc('persist_media_watch', {
       p_id: definition.id, p_title: definition.title, p_source: definition.monitoring_source,
       p_definition: definition.watch_definition, p_state: definition.monitoring_state,
@@ -66,7 +84,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
     }
     return send(200, { watch: data });
   } catch (error) {
-    console.warn('[Media Watches] Request failed.', { code: error.code || 'PERSISTENCE_UNAVAILABLE', databaseCode: /^[A-Z0-9]{5,12}$/.test(error.databaseCode || '') ? error.databaseCode : undefined, durationMs: Date.now() - startedAt });
+    console.warn('[Media Watches] Request failed.', { code: error.code || 'PERSISTENCE_UNAVAILABLE', queryReason: error.code === 'MEDIA_QUERY_REVIEW_REQUIRED' ? error.reason : undefined, databaseCode: /^[A-Z0-9]{5,12}$/.test(error.databaseCode || '') ? error.databaseCode : undefined, durationMs: Date.now() - startedAt });
     if (error instanceof SyntaxError) return send(400, { code: 'INVALID_BODY' });
     // Auth can verify a token just as PostgREST starts rejecting its claims.
     // Tell the browser to refresh its session instead of treating this as a

@@ -1,4 +1,11 @@
 {
+  "watchCard": {
+    "readOnly": "Lecture seule : configuration non prise en charge par cette version.",
+    "savedResult": "Dernier résultat enregistré.",
+    "savedThreshold": "Dernier résultat enregistré : seuil atteint.",
+    "detectedAt": "Résultat détecté le",
+    "sourceDate": "Date de référence de la source"
+  },
   "common": {
     "brand": "Watch Assistant",
     "back": "Retour",
@@ -103,6 +110,9 @@
       "evening": "Brief du soir"
     },
     "updatedAt": "Mis à jour",
+    "reportPreparing": "Chargement du compte et des Watches…",
+    "reportPreparationFailed": "Rapport indisponible : réessayez le chargement des Watches.",
+    "noReport": "Aucun rapport disponible sur cet appareil.",
     "briefingTimeUnavailable": "Heure indisponible",
     "generateReport": "Générer le rapport",
     "generatingReport": "Génération du rapport…",
@@ -202,6 +212,7 @@
     "breadcrumbLabel": "Emplacement de la Watch",
     "title": "Détails de la Watch",
     "createdTitle": "Votre Watch a été créée.",
+    "savedLocallyCopy": "Votre demande est enregistrée sur cet appareil. Consultez l’état de synchronisation avant de compter sur le suivi automatique.",
     "createdCopy": "La surveillance est active. Je vérifierai automatiquement les prochaines mises à jour.",
     "updatedTitle": "Watch mise à jour",
     "updatedCopy": "Vos modifications ont été enregistrées.",
@@ -278,7 +289,8 @@
       "persistence": "La Watch d’entreprise n’a pas pu être enregistrée. Vos Watches existantes n’ont pas été modifiées. Réessayez.",
       "configuration": "La persistance serveur n’est pas disponible dans cet environnement. Réessayez lorsqu’elle sera configurée.",
       "currency": "Le taux de change n’a pas pu être vérifié. Le cours BCE est absent, invalide, indisponible ou trop ancien.",
-      "edited": "La Watch a changé pendant ce contrôle. Relancez le contrôle."
+      "edited": "La Watch a changé pendant ce contrôle. Relancez le contrôle.",
+      "mediaQuery": "Vérifiez et enregistrez la consigne de recherche média avant de réessayer."
     },
     "monitoringUnavailable": "La source de surveillance est temporairement indisponible. Vous pouvez relancer la vérification.",
     "newItems": "Nouveaux articles",
@@ -443,7 +455,11 @@
     "clarificationDone": "Terminer",
     "examplesTitle": "Par exemple",
     "emptyError": "Indiquez-moi ce que vous souhaitez surveiller.",
-    "meaningfulError": "Ajoutez un peu plus de détails."
+    "meaningfulError": "Ajoutez un peu plus de détails.",
+    "mediaQueryReviewRequired": "Le sujet ou les critères média ne peuvent pas être interprétés avec certitude. Précisez la consigne ; aucune recherche élargie n’a été enregistrée.",
+    "mediaQueryHeading": "Confirmer la veille média",
+    "mediaQuerySummary": "Recherche : {query}. La première vérification réussie établit la référence ; les articles existants ne créent pas d’alertes.",
+    "mediaQueryEditSummary": "Recherche : {query}. La référence et l’historique sont conservés. Les articles correspondants encore jamais vus peuvent apparaître à la prochaine vérification ; les vérifications planifiées conservent la date limite initiale."
   },
   "flow2": {
     "headline": "Dites-nous ce qui compte.",

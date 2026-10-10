@@ -1,10 +1,15 @@
+import { planLocalMediaRecovery } from './local-media-recovery.js';
 import { getAccountOwner } from './account-storage.js';
 import { currencyCriteriaFor } from './currency-watch.js';
 import { getMediaWatchLoadState, getMediaPersistenceState, keepLocalMediaChanges, synchronizeMediaWatches } from './media-watch-server-store.js';
-import { claimLocalMediaWatch, getWatchById } from './watch-storage.js';
+import { claimLocalMediaWatch, recoverLocalMediaWatch, getWatchById } from './watch-storage.js';
 
 const copy = {
   en: {
+    incompatible: 'This Watch is saved on the server, but its configuration requires a different application version. It is read-only here; its data and monitoring settings have not been changed.',
+    unsupported: 'Automatic monitoring is not configured. This request is kept on this device. Edit it to clarify a supported news topic or source.',
+    recover: 'Review automatic monitoring', confirmRecovery: 'Activate this news Watch',
+    recovery: 'Search: {query}. Save this existing Watch to your account? The first server check creates a new baseline without alerts for existing articles. Past local results remain on this device; they are not uploaded as a server baseline.',
     currencyEnabled: 'This Watch is synced. Email is enabled when the daily ECB rate meets the target, once per condition.',
     saved: 'This Watch is synced. Email notifications are disabled.',
     enabled: 'This Watch is synced. Email notifications are enabled for new matching articles after the first automatic check.',
@@ -18,6 +23,10 @@ const copy = {
     keep: 'Keep my local changes', retry: 'Retry sync', claim: 'Sync this Watch',
   },
   fr: {
+    incompatible: 'Cette Watch est enregistrée sur le serveur, mais sa configuration nécessite une autre version de l’application. Elle est en lecture seule ici ; ses données et paramètres de surveillance sont conservés.',
+    unsupported: 'Le suivi automatique n’est pas configuré. Cette demande reste sur cet appareil. Modifiez-la pour préciser un sujet d’actualité ou une source compatible.',
+    recover: 'Vérifier le suivi automatique', confirmRecovery: 'Activer cette Watch d’actualité',
+    recovery: 'Recherche : {query}. Enregistrer cette Watch existante dans votre compte ? Le premier contrôle serveur établira une nouvelle référence sans alerte pour les articles existants. Les anciens résultats restent sur cet appareil ; ils ne deviennent pas une référence serveur.',
     currencyEnabled: 'Cette Watch est synchronisée. Un e-mail sera envoyé lorsque le cours quotidien BCE satisfait le seuil, une fois par condition.',
     saved: 'Cette Watch est synchronisée. Les notifications par e-mail sont désactivées.',
     enabled: 'Cette Watch est synchronisée. Les notifications par e-mail sont activées pour les nouveaux articles correspondants après le premier contrôle automatique.',
@@ -51,7 +60,8 @@ export const renderMediaPersistenceNotice = (watch, title, language) => {
   const sync = getMediaWatchLoadState();
   notice.setAttribute('aria-busy', String(Boolean(state.operation)));
   const message = notice.querySelector('p');
-  const text = state.operation ? labels[state.operation] : sync.syncError && state.status === 'pending' ? labels.failed
+  const reviewingRecovery = state.canRecover && notice.dataset.recoveryRequest === watch.request;
+  const text = state.status === 'incompatible' ? labels.incompatible : reviewingRecovery ? labels.recovery.replace('{query}', planLocalMediaRecovery(watch, { language }).monitoringSource.query) : state.status === 'unsupported' ? labels.unsupported : state.status === 'failed' && !state.operation ? labels.failed : state.operation ? labels[state.operation] : sync.syncError && state.status === 'pending' ? labels.failed
     : state.status === 'conflict' ? `${labels.conflict} ${state.remoteTitle} — ${state.remoteRequest}`
       : state.status === 'saved' ? (state.emailEnabled == null ? labels.unknown : state.emailEnabled ? (currencyCriteriaFor(watch) ? labels.currencyEnabled : labels.enabled) : labels.saved)
         : state.status === 'loading' ? labels.loading
@@ -60,7 +70,7 @@ export const renderMediaPersistenceNotice = (watch, title, language) => {
   // Leave the live region untouched during ordinary background reads.
   if (message.textContent !== text) message.textContent = text;
   let button = notice.querySelector('button');
-  const actionable = state.canClaim || state.status === 'pending'
+  const actionable = state.canRecover || state.canClaim || ['pending','failed'].includes(state.status)
     || (state.status === 'conflict' && Number.isSafeInteger(state.revision));
   if (!actionable) { button?.remove(); return; }
   if (!button) {
@@ -68,17 +78,23 @@ export const renderMediaPersistenceNotice = (watch, title, language) => {
     button.type = 'button'; button.className = 'button button--secondary';
     notice.append(button);
   }
-  button.textContent = state.canClaim ? labels.claim
+  button.textContent = state.canRecover ? (reviewingRecovery ? labels.confirmRecovery : labels.recover) : state.canClaim ? labels.claim
     : state.status === 'conflict' ? labels.keep : labels.retry;
   button.disabled = sync.syncing;
   button.onclick = async () => {
-    if (button.disabled) return;
+    if (button.disabled || !isCurrent()) return;
+    if (state.canRecover && !reviewingRecovery) {
+      notice.dataset.recoveryRequest = watch.request;
+      renderMediaPersistenceNotice(watch, title, language);
+      return;
+    }
     const hadFocus = document.activeElement === button;
     button.disabled = true;
     message.textContent = state.canClaim ? labels.syncing : labels.saving;
     notice.setAttribute('aria-busy', 'true');
     try {
-      if (state.canClaim && !claimLocalMediaWatch(watch.id)) throw new Error('Local claim unavailable');
+      if (state.canRecover && !recoverLocalMediaWatch(watch.id, watch.request, language)) throw new Error('Recovery unavailable');
+      if (!state.canRecover && state.canClaim && !claimLocalMediaWatch(watch.id)) throw new Error('Local claim unavailable');
       const result = state.status === 'conflict'
         ? await keepLocalMediaChanges(watch.id, state.revision) : await synchronizeMediaWatches();
       if (!isCurrent() || result?.code === 'AUTH_SESSION_CHANGED') return;

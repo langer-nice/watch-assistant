@@ -27,7 +27,7 @@ test('Home presents Generate report as a lightweight refresh icon beside the tim
     read('../../index.html'),
     read('../scss/pages/_home.scss'),
   ]);
-  assert.match(home, /briefing-summary__masthead-meta[\s\S]*homeBriefingDate[\s\S]*class="briefing-summary__generate"[\s\S]*data-i18n-aria-label="home\.generateReport"[\s\S]*data-i18n-title="home\.generateReport"[\s\S]*<svg/);
+  assert.match(home, /briefing-summary__masthead-meta[\s\S]*homeBriefingDate[\s\S]*class="briefing-summary__generate"[\s\S]*data-i18n-aria-label="home\.reportPreparing"[\s\S]*data-i18n-title="home\.reportPreparing"[\s\S]*<svg/);
   assert.doesNotMatch(home, /report-controls|button--secondary briefing-summary__generate|data-i18n="home\.generateReport"/);
   assert.match(styles, /\.briefing-summary__generate \{[\s\S]*width: 2\.75rem;[\s\S]*height: 2\.75rem;[\s\S]*background: var\(--color-transparent\);[\s\S]*box-shadow: none;/);
   assert.match(styles, /\.briefing-summary__generate:hover,[\s\S]*\.briefing-summary__generate:focus-visible/);
@@ -48,8 +48,9 @@ test('Home blocks interaction and exposes accessible progress, success, and retr
   assert.match(home, /id="homeReportProgressClose"[\s\S]*data-i18n="home\.reportClose"/);
   assert.doesNotMatch(home, /homeReportAttemptSummary|homeReportHistory|homeReportHistoryList/);
   assert.doesNotMatch(navigation, /reportAttemptCounts|reportHistoryCounts|homeReportAttemptSummary|homeReportHistory/);
-  assert.match(navigation, /toggleAttribute\('aria-busy', generating\)/);
-  assert.match(navigation, /setAttribute\('aria-label', generateLabel\)[\s\S]*setAttribute\('title', generateLabel\)/);
+  assert.match(navigation, /renderReportReadiness\(/);
+  assert.match(await read('./watch-report-presentation.js'), /toggleAttribute\('aria-busy', generating \|\| loading\)/);
+  assert.match(await read('./watch-report-presentation.js'), /\['aria-label', 'title'\]/);
   assert.match(navigation, /if \(isReportGenerationInProgress\(\) \|\| homeReportProgressState === 'loading'/);
   assert.match(navigation, /dialog\.showModal\(\)/);
   assert.match(navigation, /successIcon\?\.toggleAttribute\('hidden', state !== 'success'\)/);

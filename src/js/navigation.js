@@ -1,5 +1,8 @@
+import { getReadOnlyCardPresentation, getHomeReportHeader, renderReportReadiness } from './watch-report-presentation.js';
+import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
+import { planMediaQuery, googleNewsSource, mediaMentionDefinition, validateMediaQuery } from './media-provider-query.js';
 import { renderInitialContext } from './initial-context.js';
-import { canCheckStoredMediaWatch, checkStoredMediaWatch } from './media-watch-server-store.js';
+import { canCheckStoredMediaWatch, checkStoredMediaWatch, ensureMediaWatchSaved } from './media-watch-server-store.js';
 import { currencyUpdateSummary } from './currency-display.js';
 import { currencySummary, currencyOverview, currencyCriteriaFor } from './currency-watch.js';
 import { getWatchListAvailability, renderWatchLoadNotice } from './watch-load-notice.js';
@@ -940,10 +943,7 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     monitoringSource,
     currencyLanguage: getLanguage(),
     ...(mediaMentionRequest?.recognized ? {
-      mediaMention: {
-        subjects: [...mediaMentionRequest.subjects],
-        matchMode: mediaMentionRequest.matchMode,
-      },
+      mediaMention: mediaMentionDefinition(mediaMentionRequest),
     } : {}),
     category,
     categorySource: options.categorySource || 'inferred',
@@ -1065,8 +1065,11 @@ const renderSummaryWatchCard = ({
   const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
   const categoryModifier = watch.category || 'general';
   const statusPresentation = getSummaryCardStatus(status);
+  const readOnly = getReadOnlyCardPresentation(watch, t, getLanguage());
   return renderSummaryCard({
-    title, category, categoryModifier, statusPresentation, supportingText, timestamp,
+    title, category, categoryModifier, statusPresentation,
+    supportingText: readOnly ? readOnly.explanation : supportingText,
+    timestamp: readOnly ? '' : timestamp, historicalResult: readOnly?.result,
     articleId, dataAttribute,
     renderLink: (content) => renderWatchCardLink({
       watchId: watch.id,
@@ -1468,7 +1471,7 @@ const renderWatchDetail = () => {
     openWatchEditSheet(watch.id);
   };
   if (editActionEl) {
-    editActionEl.hidden = false;
+    editActionEl.hidden = Boolean(watch.serverReadOnly);
     editActionEl.href = editWatchHref;
     editActionEl.onclick = openExistingWatchEditor;
   }
@@ -1967,7 +1970,7 @@ const renderWatchDetail = () => {
   }
   if (checkNowEl) {
     checkNowEl.hidden = isPreparing;
-    checkNowEl.disabled = detailCheckInProgress || isPreparing;
+    checkNowEl.disabled = detailCheckInProgress || isPreparing || Boolean(watch.serverReadOnly);
     checkNowEl.setAttribute('aria-busy', String(detailCheckInProgress));
     checkNowEl.onclick = async () => {
       if (detailCheckInProgress || watchCheckController.isChecking(watch.id)) return;
@@ -2104,6 +2107,7 @@ const renderWatchDetail = () => {
 
   const isPaused = watch.status === 'paused';
   const resumeWatch = () => {
+    if (watch.serverReadOnly) return;
     if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
       void updateServerCompanyWatch(watch.id, { monitoringState: 'monitoring' })
         .then(() => renderWatchDetail());
@@ -2116,10 +2120,11 @@ const renderWatchDetail = () => {
     }
   };
   if (pausedResumeEl) {
+    pausedResumeEl.hidden = Boolean(watch.serverReadOnly);
     pausedResumeEl.onclick = resumeWatch;
   }
   if (pauseResumeEl) {
-    pauseResumeEl.hidden = false;
+    pauseResumeEl.hidden = Boolean(watch.serverReadOnly);
     if (pauseResumeLabelEl) {
       pauseResumeLabelEl.textContent = t(isPaused ? 'detail.resumeWatch' : 'detail.pauseWatch');
     }
@@ -2142,6 +2147,7 @@ const renderWatchDetail = () => {
       };
   }
 
+  if (deleteEl) deleteEl.hidden = Boolean(watch.serverReadOnly);
   if (deleteEl && deleteDialogEl) {
     deleteEl.onclick = () => {
       deleteDialogEl.showModal();
@@ -2183,7 +2189,8 @@ const renderWatchDetail = () => {
       const titleKey = confirmationType === 'updated'
         ? 'detail.updatedTitle'
         : 'detail.createdTitle';
-      const copyKey = confirmationType === 'updated'
+      const copyKey = watch.monitoringAvailability && watch.monitoringAvailability !== 'saved'
+        ? 'detail.savedLocallyCopy' : confirmationType === 'updated'
         ? 'detail.updatedCopy'
         : 'detail.createdCopy';
       if (confirmationTitleEl) {
@@ -2441,11 +2448,9 @@ const renderHomeSummary = () => {
 
   if (generateReportButton) {
     const generating = isReportGenerationInProgress();
-    const generateLabel = t(generating ? 'home.generatingReport' : 'home.generateReport');
-    generateReportButton.disabled = uncertain || generating || !hasLocalUserCreatedWatches;
-    generateReportButton.setAttribute('aria-label', generateLabel);
-    generateReportButton.setAttribute('title', generateLabel);
-    generateReportButton.toggleAttribute('aria-busy', generating);
+    renderReportReadiness({ button: generateReportButton,
+      message: document.querySelector('#homeReportReadiness'),
+      availability, generating, hasWatches: hasLocalUserCreatedWatches }, t);
     generateReportButton.onclick = runHomeReportGeneration;
   }
 
@@ -2458,7 +2463,9 @@ const renderHomeSummary = () => {
     }
   }
 
+  const reportHeader = getHomeReportHeader({ hasReport, uncertain, totalChecked: homeReport.totalChecked }, t);
   if (briefingDate) {
+    briefingDate.hidden = reportHeader.hideTimestamp;
     const storedTimestamp = resolveHomeReportTimestamp({
       report: homeReport.report,
       watches: getServerCompanyWatches(),
@@ -2500,10 +2507,8 @@ const renderHomeSummary = () => {
       : t(`home.greetings.${daypart}`);
   }
   if (checkedSummary) {
-    checkedSummary.hidden = uncertain;
-    checkedSummary.textContent = t(pluralKey('home.checkedAway', totalChecked), {
-      count: totalChecked,
-    });
+    checkedSummary.hidden = reportHeader.hideSummary;
+    checkedSummary.textContent = reportHeader.summary;
   }
   if (attentionCount) {
     attentionCount.textContent = uncertain ? '—' : String(attentionWatches.length);
@@ -2563,7 +2568,8 @@ const renderHomeSummary = () => {
             : 'home.confirmationTitle');
         }
         if (confirmationBody) {
-          confirmationBody.textContent = t(homeFirstWatchConfirmation
+          confirmationBody.textContent = createdWatch.monitoringAvailability && createdWatch.monitoringAvailability !== 'saved'
+            ? t('detail.savedLocallyCopy') : t(homeFirstWatchConfirmation
             ? 'home.firstConfirmationCopy'
             : 'home.confirmationCopy');
         }
@@ -3162,8 +3168,15 @@ export function initForm() {
       window.location.href = getCreatedWatchDetailHref(createdWatch.id);
       return;
     }
+    // Local retention and server activation are separate. Never activate a
+    // generic feed object that has no supported account persistence route.
+    if (!isMediaWatch(watch)) throw Object.assign(new Error('Unsupported monitoring'), { code: 'MEDIA_QUERY_REVIEW_REQUIRED' });
+    const definition = mediaWatchDefinition(watch);
+    validateMediaQuery(definition.watch_definition, definition.monitoring_source);
     addWatch(watch);
     try {
+      await ensureMediaWatchSaved(getWatchById(watch.id));
+      if (!editor.isCurrent()) return;
       await activateWatchMonitoring(watch.id, {
         checkController: watchCheckController,
         saveWatch: (id, changes) => editor.isCurrent() ? updateWatch(id, changes) : null,
@@ -3171,8 +3184,10 @@ export function initForm() {
       if (!editor.isCurrent()) return;
     } catch (error) {
       if (!editor.isCurrent()) return;
-      deleteWatch(watch.id);
-      throw error;
+      // Keep the same ID, request and pending mutation for an explicit retry.
+      // A failed retrieval after persistence is also recoverable from detail.
+      updateWatch(watch.id, { monitoringState: 'needs-attention',
+        lastCheckAttempt: { status: 'failed', code: error.code || 'CHECK_FAILED', attemptedAt: new Date().toISOString() } });
     }
     trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, {
       input_type: ['url', 'company'].includes(watch.inputType) ? watch.inputType : 'text',
@@ -3260,9 +3275,21 @@ export function initForm() {
     const previousFeedUrl = normalizeFeedUrl(editingWatch.feedUrl || '');
     const manualFeedChanged = feedInputUrl !== previousFeedUrl;
     const discoveredFeedUrl = normalizeFeedUrl(urlAnalysis?.monitoringSource?.url || '');
-    const feedUrl = manualFeedChanged
-      ? feedInputUrl
-      : discoveredFeedUrl || previousFeedUrl;
+    let feedUrl = manualFeedChanged ? feedInputUrl : discoveredFeedUrl || previousFeedUrl;
+    let mediaQueryPlan = null;
+    const textFeedEdit = editingWatch.inputType === 'text' && editingWatch.mediaMention
+      && googleNewsSource(editingWatch.monitoringSource?.url);
+    if (textFeedEdit && !manualFeedChanged) {
+      try {
+        mediaQueryPlan = planMediaQuery(request, { sourceUrl: editingWatch.monitoringSource.url });
+        feedUrl = mediaQueryPlan.monitoringSource.url;
+      } catch {
+        creationInProgress = false;
+        setCreationControlsDisabled(false);
+        if (watchError) watchError.textContent = t('newWatch.mediaQueryReviewRequired');
+        return;
+      }
+    }
     const feedUrlChanged = !sameCompanyEdit && feedUrl !== previousFeedUrl;
     const monitoringSummary = requestChanged && !urlAnalysis
       ? await generateMonitoringSummary(request)
@@ -3340,6 +3367,7 @@ export function initForm() {
       mediaMention: derivedData.mediaMention || null,
       ...getPreservedCompanyEditChanges(editingWatch, urlAnalysis),
     };
+    if (mediaQueryPlan) Object.assign(changes, mediaQueryPlan);
     if (derivedData.isStory === false) changes.storyProfile = null;
 
     if (typeof createdAsWrittenAfterClarityWarning === 'boolean') {
@@ -3351,7 +3379,7 @@ export function initForm() {
       changes.titleKey = null;
     }
 
-    if (monitoringCriteriaChanged) {
+    if (monitoringCriteriaChanged && !textFeedEdit) {
       const actionRequired = isUserActionRequired(editingWatch);
       Object.assign(changes, {
         monitoringSummary: derivedData.monitoringSummary,
@@ -3400,7 +3428,7 @@ export function initForm() {
       });
     }
 
-    if (feedUrlChanged) {
+    if (feedUrlChanged && !textFeedEdit) {
       const missingMonitoringSource = derivedData.inputType === 'url' && !feedUrl;
       const actionRequired = isUserActionRequired(editingWatch);
       Object.assign(changes, {
@@ -3477,6 +3505,7 @@ export function initForm() {
     request,
     whyFollowing,
     {
+      mediaConfirmed = false,
       preserveOriginalWording = false,
       useRequestAsTitle = false,
       createdAsWrittenAfterClarityWarning,
@@ -3486,6 +3515,26 @@ export function initForm() {
     const selectedRequest = preserveOriginalWording ? request : request.trim();
     if (!selectedRequest.trim() || creationInProgress) return;
 
+    const parsedMedia = parseMediaMentionRequest(selectedRequest);
+    if (parsedMedia.recognized && !mediaConfirmed) {
+      const plan = planMediaQuery(selectedRequest, { language: getLanguage(),
+        ...(isEditMode && googleNewsSource(editingWatch.monitoringSource?.url) ? { sourceUrl: editingWatch.monitoringSource.url } : {}),
+      });
+      pendingRequest = selectedRequest; pendingWhyFollowing = whyFollowing;
+      clarificationInProgress = false;
+      form.classList.remove('is-clarifying');
+      if (clarification) clarification.hidden = true;
+      showReview({ status: 'success', inputType: 'media-query', title: createTitle(selectedRequest),
+        summary: t(isEditMode ? 'newWatch.mediaQueryEditSummary' : 'newWatch.mediaQuerySummary', { query: plan.monitoringSource.query }),
+        source: `Google News · ${new URL(plan.monitoringSource.url).searchParams.get('ceid')}`,
+        monitoringSource: plan.monitoringSource, keywords: parsedMedia.subjects });
+      setCreationControlsDisabled(false);
+      return;
+    }
+    if (!parsedMedia.recognized && !currencyCriteriaFor({ inputType: 'text', request: selectedRequest })) {
+      showClarification(selectedRequest, createCapabilityLimitation(selectedRequest, t('newWatch.mediaQueryReviewRequired')), whyFollowing);
+      return;
+    }
     creationInProgress = true;
     if (input) input.value = selectedRequest;
     synchronizeInferredFields(selectedRequest);
@@ -3498,22 +3547,27 @@ export function initForm() {
       return;
     }
     const createOptions = getCreateOptions();
-    if (!createOptions.feedUrl) {
+    if (parsedMedia.recognized) {
+      createOptions.monitoringSource = planMediaQuery(selectedRequest, { language: getLanguage() }).monitoringSource;
+      createOptions.feedUrl = null;
+    }
+    if (!createOptions.feedUrl && !createOptions.monitoringSource) {
       try {
         createOptions.monitoringSource = await requestMonitoringSource(selectedRequest, {
           language: getLanguage(),
         });
         if (!editor.isCurrent()) return;
-      } catch {
+      } catch (error) {
         if (!editor.isCurrent()) return;
         creationInProgress = false;
         setCreationControlsDisabled(false);
         setSubmitLabel();
+        resetUrlFlow({ clearInput: false });
         showClarification(
           selectedRequest,
           createCapabilityLimitation(
             selectedRequest,
-            t('newWatch.monitoringCapabilityUnavailable'),
+            t(error.code === 'MEDIA_QUERY_REVIEW_REQUIRED' ? 'newWatch.mediaQueryReviewRequired' : 'newWatch.monitoringCapabilityUnavailable'),
           ),
           whyFollowing,
         );
@@ -3540,6 +3594,7 @@ export function initForm() {
       creationInProgress = false;
       setCreationControlsDisabled(false);
       setSubmitLabel();
+      resetUrlFlow({ clearInput: false });
       showClarification(
         selectedRequest,
         createCapabilityLimitation(selectedRequest, t('newWatch.watchCreationUnavailable')),
@@ -3669,7 +3724,7 @@ export function initForm() {
   const setReviewEditing = (editing) => {
     const isCompanyReview = pendingAnalysis?.inputType === 'company';
     const isNonStoryPage = pendingAnalysis?.isStory === false;
-    const effectiveEditing = isCompanyReview || isNonStoryPage ? false : editing;
+    const effectiveEditing = isCompanyReview || isNonStoryPage || pendingAnalysis?.inputType === 'media-query' ? false : editing;
     review?.classList.toggle('is-editing', effectiveEditing);
     if (reviewTitle) {
       reviewTitle.readOnly = !effectiveEditing;
@@ -3793,6 +3848,11 @@ export function initForm() {
         ? ''
         : analysis?.monitoringScope || '';
     }
+    if (analysis?.inputType === 'media-query') {
+      setReviewTranslation(reviewHeading, 'newWatch.mediaQueryHeading');
+      setReviewTranslation(reviewSummaryLabel, 'newWatch.companyReviewWatchingForRequired');
+      if (reviewMonitoringScopeField) reviewMonitoringScopeField.hidden = true;
+    }
     if (!isCompanyReview) return;
     const siren = analysis.company.siren;
     if (reviewTitle) reviewTitle.value = getWatchDisplayTitle(analysis);
@@ -3880,7 +3940,7 @@ export function initForm() {
       keywordsManuallyEdited = false;
       renderKeywords();
       if (categorySource === 'inferred' && categoryInputEl) {
-        categoryInputEl.value = inferWatchCategory([
+        categoryInputEl.value = analysis?.inputType === 'media-query' ? 'news' : inferWatchCategory([
           analysis.title,
           analysis.sourceTitle,
           ...analysis.keywords,
@@ -4720,6 +4780,10 @@ export function initForm() {
       return;
     }
 
+    if (parseMediaMentionRequest(request).recognized) {
+      await savePlainTextWatch(originalRequest, whyFollowing, { preserveOriginalWording: true });
+      return;
+    }
     const storedRequest = isEditMode
       ? (localizeField(editingWatch, 'request') || '')
       : '';
@@ -4868,7 +4932,7 @@ export function initForm() {
   };
 
   editor.listen(reviewEdit, 'click', () => {
-    if (pendingAnalysis?.inputType === 'company') return restoreCompanyRequestForEditing();
+    if (['company','media-query'].includes(pendingAnalysis?.inputType)) return restoreCompanyRequestForEditing();
     setReviewEditing(!review?.classList.contains('is-editing'));
   });
 
@@ -4890,6 +4954,10 @@ export function initForm() {
       return;
     }
 
+    if (pendingAnalysis.inputType === 'media-query') {
+      await savePlainTextWatch(pendingRequest, pendingWhyFollowing, { mediaConfirmed: true, preserveOriginalWording: true });
+      return;
+    }
     const analysis = {
       ...pendingAnalysis,
       status: 'success',

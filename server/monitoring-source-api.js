@@ -1,7 +1,7 @@
 import { parseCurrencyRequest, CURRENCY_SOURCE } from '../src/js/currency-watch.js';
 import { fetchAndNormalizeFeed } from './check-watch-api.js';
 import { parseMediaMentionRequest } from '../src/js/media-mention-request.js';
-import { mediaMentionSearchQuery } from '../src/js/media-subject-aliases.js';
+import { planMediaQuery, mediaQueryError } from '../src/js/media-provider-query.js';
 
 const ENDPOINT = '/api/monitoring-source';
 const MAX_BODY_BYTES = 4_096;
@@ -37,12 +37,15 @@ export const createNewsSearchFeedUrl = (request, language = 'en') => {
 export const discoverTextMonitoringSource = async ({
   request,
   language = 'en',
+  storyDiscovery = false,
 }, options = {}) => {
   if (parseCurrencyRequest(request)) return { monitoringSource: { ...CURRENCY_SOURCE } };
   const mediaMentionRequest = parseMediaMentionRequest(request);
-  const query = mediaMentionRequest.recognized
-    ? mediaMentionSearchQuery(mediaMentionRequest) : String(request || '').trim();
-  const sourceUrl = createNewsSearchFeedUrl(query, language);
+  if (!mediaMentionRequest.recognized && !storyDiscovery) throw mediaQueryError();
+  const planned = mediaMentionRequest.recognized ? planMediaQuery(request, { language }) : null;
+  // Bare article titles remain supported for URL/story discovery.
+  const query = planned?.monitoringSource.query || String(request || '').trim();
+  const sourceUrl = planned?.monitoringSource.url || createNewsSearchFeedUrl(query, language);
   try {
     const feed = await fetchAndNormalizeFeed(sourceUrl, options);
     return {
@@ -108,7 +111,7 @@ export const createMonitoringSourceMiddleware = (options = {}) => (
         language: body.language,
       }, options));
     } catch (error) {
-      const safeError = error instanceof MonitoringSourceDiscoveryError
+      const safeError = error.code === 'MEDIA_QUERY_REVIEW_REQUIRED' ? error : error instanceof MonitoringSourceDiscoveryError
         ? error
         : new MonitoringSourceDiscoveryError(
           'NO_COMPATIBLE_SOURCE',
