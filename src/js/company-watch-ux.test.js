@@ -13,7 +13,7 @@ test('unknown BODACC monitoring status is omitted while the latest official even
     /const renderCompanyReviewStatus[\s\S]*?const renderReviewPresentation/,
   )?.[0] || '';
   const detailRenderer = navigation.match(
-    /const renderWatchDetail = \(\) => \{[\s\S]*?function scheduleFirstMonitoringPass/,
+    /const renderWatchDetail = \(\) => \{[\s\S]*?const waitForHomeReportProgress/,
   )?.[0] || '';
 
   assert.match(reviewRenderer, /hasMeaningfulMonitoringStatus = presentation\.status !== 'unknown'/);

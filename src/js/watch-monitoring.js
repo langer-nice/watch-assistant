@@ -685,7 +685,7 @@ export const createWatchCheckController = ({
     inFlight.set(watchId, operation);
 
     let startedKey;
-    const definitionKey = (watch) => JSON.stringify([watch?.request,
+    const definitionKey = (watch) => JSON.stringify([watch?.mediaPersistence?.ownerId, watch?.request,
       watch?.monitoringSource?.type === 'rss' ? 'feed' : watch?.monitoringSource?.type,
       watch?.monitoringSource?.url || watch?.feedUrl, watch?.monitoringSource?.siren, currencyKey(watch),
       watch?.mediaMention?.subjects || [], watch?.mediaMention?.matchMode,

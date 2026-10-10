@@ -1,3 +1,4 @@
+import { watchCreationState } from './watch-creation-state.js';
 import { WATCH_CLASSIFICATIONS, isRecentlyCreatedWatch, monitoringUnavailable } from './report-status.js';
 import { getWatchCreationDate } from './watch-dates.js';
 
@@ -26,7 +27,7 @@ export const selectHomeReport = ({
   // or pending Watch as successfully monitored. Surface it regardless of age.
   const unavailableIds = new Set();
   for (const watch of watches) {
-    if (!watch?.id || ['paused','completed'].includes(watch.status) || !isDisplayableWatch(watch) || !monitoringUnavailable(watch)) continue;
+    if (!watch?.id || ['paused','completed'].includes(watch.status) || !isDisplayableWatch(watch) || (!monitoringUnavailable(watch) && !['failed','pending'].includes(watchCreationState(watch)))) continue;
     unavailableIds.add(watch.id);
     byId.set(watch.id, watch);
     statusById.set(watch.id, WATCH_CLASSIFICATIONS.ATTENTION);

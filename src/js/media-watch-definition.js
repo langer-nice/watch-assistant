@@ -1,4 +1,4 @@
-import { currencyCriteriaFor, CURRENCY_SOURCE } from './currency-watch.js';
+import { currencyCriteriaFor, CURRENCY_SOURCE, CURRENCY_POLICIES } from './currency-watch.js';
 import { SUPPORTED_WATCH_CATEGORIES } from './watch-category.js';
 // Only the fields used by feed discovery and matching cross the persistence boundary.
 const text = (value, limit) => {
@@ -17,11 +17,12 @@ export const mediaWatchDefinition = (watch) => {
   if (!isMediaWatch(watch) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(watch.id)) throw new Error('INVALID_MEDIA_DEFINITION');
   const criteria = currencyCriteriaFor(watch);
   if (criteria) {
+    if (watch.currencyPolicy !== undefined && !CURRENCY_POLICIES.includes(watch.currencyPolicy)) throw new Error('INVALID_MEDIA_DEFINITION');
     if (!/^[0-9a-f-]{36}$/i.test(watch.currencyRevision || '')) throw new Error('INVALID_MEDIA_DEFINITION');
     return { id: watch.id, title: text(watch.title, 200),
       monitoring_source: { type: 'currency', url: CURRENCY_SOURCE.url, provider: 'ecb' },
       watch_definition: { inputType: 'text', request: text(watch.request, 500), category: 'finance',
-        currencyCriteria: criteria, currencyRevision: watch.currencyRevision, currencyLanguage: watch.currencyLanguage === 'fr' ? 'fr' : 'en' },
+        ...(watch.currencyPolicy ? { currencyPolicy: watch.currencyPolicy } : {}), currencyCriteria: criteria, currencyRevision: watch.currencyRevision, currencyLanguage: watch.currencyLanguage === 'fr' ? 'fr' : 'en' },
       monitoring_state: ['paused', 'completed'].includes(watch.status) ? 'paused' : 'monitoring' };
   }
   const url = new URL(text(watch.monitoringSource?.url, 2048));

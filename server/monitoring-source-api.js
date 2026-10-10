@@ -1,4 +1,4 @@
-import { parseCurrencyRequest, CURRENCY_SOURCE } from '../src/js/currency-watch.js';
+import { parseCurrencyRequest, isCurrencyRequest, CURRENCY_SOURCE } from '../src/js/currency-watch.js';
 import { fetchAndNormalizeFeed } from './check-watch-api.js';
 import { parseMediaMentionRequest } from '../src/js/media-mention-request.js';
 import { planMediaQuery, mediaQueryError } from '../src/js/media-provider-query.js';
@@ -40,6 +40,7 @@ export const discoverTextMonitoringSource = async ({
   storyDiscovery = false,
 }, options = {}) => {
   if (parseCurrencyRequest(request)) return { monitoringSource: { ...CURRENCY_SOURCE } };
+  if (isCurrencyRequest(request)) throw new MonitoringSourceDiscoveryError('CURRENCY_CLARIFICATION_REQUIRED', 422, 'Clarify the currency pair and comparison.');
   const mediaMentionRequest = parseMediaMentionRequest(request);
   if (!mediaMentionRequest.recognized && !storyDiscovery) throw mediaQueryError();
   const planned = mediaMentionRequest.recognized ? planMediaQuery(request, { language }) : null;
@@ -58,6 +59,7 @@ export const discoverTextMonitoringSource = async ({
       },
     };
   } catch (cause) {
+    if (cause?.statusCode >= 500) throw new MonitoringSourceDiscoveryError('SOURCE_UNAVAILABLE', 503, 'The source is temporarily unavailable.', { cause });
     throw new MonitoringSourceDiscoveryError(
       'NO_COMPATIBLE_SOURCE',
       422,

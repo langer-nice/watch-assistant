@@ -103,6 +103,17 @@ export const prepareMediaWatch = (watch, previous, { claimExistingLocal = false 
       definition.monitoring_state = confirmedRow.monitoring_state;
     }
     if (existing?.deleted) return owned;
+    // A hydrated Watch may have no local journal. Reading a result or adding
+    // report provenance changes only device state, not the saved definition.
+    // Compare with the confirmed server definition before creating a mutation;
+    // never clear or replace an existing pending/failed/conflicted job here.
+    const confirmedDefinition = !existing && confirmedRow && !confirmedRow.deleted_at
+      ? mediaWatchDefinition({ ...confirmedRow.watch_definition, id: confirmedRow.id,
+        title: confirmedRow.title, isStory: confirmedRow.watch_definition.inputType === 'url',
+        monitoringSource: confirmedRow.monitoring_source,
+        status: confirmedRow.monitoring_state === 'paused' ? 'paused' : 'watching' })
+      : null;
+    if (!existing && JSON.stringify(confirmedDefinition) === JSON.stringify(definition)) return owned;
     if (JSON.stringify(existing?.definition) !== JSON.stringify(definition)) {
       const remote = rows.find((row) => row.id === watch.id);
       write(user, watch.id, {
@@ -139,9 +150,9 @@ export const queueMediaWatchDeletion = (watch) => {
   queueMicrotask(() => { void synchronizeMediaWatches(); });
 };
 
-// Only explicitly owned, synchronized feed Watches use the authenticated path.
+// Only explicitly owned, synchronized media Watches use the authenticated path.
 export const canCheckStoredMediaWatch = (watch) => Boolean(owner()
-  && watch?.mediaPersistence?.ownerId === owner() && !currencyCriteriaFor(watch));
+  && watch?.mediaPersistence?.ownerId === owner());
 export const ensureMediaWatchSaved = async (watch) => {
   const user = owner(); const epoch = generation;
   if (watch?.serverReadOnly) throw Object.assign(new Error('Read-only Watch definition'), { code: 'UNSUPPORTED_WATCH_VERSION' });
@@ -187,6 +198,7 @@ export const getMediaServerWatches = () => (owner() && owner() === identity ? ro
   id: row.id, title: row.title, ...row.watch_definition, serverReadOnly: Boolean(row.clientReadOnly),
   ...(row.watch_definition.inputType === 'url' ? { isStory: true } : {}),
   monitoringSource: row.monitoring_source, feedUrl: row.monitoring_source.url,
+  monitoringState: row.monitoring_state,
   status: row.monitoring_state === 'paused' ? 'paused' : row.current_status,
   createdAt: row.watch_definition?.localCreatedAt || row.created_at,
   ...(!row.watch_definition.currencyCriteria ? feedState(row) : {}),
@@ -198,7 +210,7 @@ export const getMediaServerWatches = () => (owner() && owner() === identity ? ro
     lastCheckAttempt: row.last_check_error_code ? { status: 'failed', code: row.last_check_error_code, attemptedAt: row.updated_at }
       : row.last_checked_at ? { status: 'succeeded', attemptedAt: row.last_checked_at } : null,
   } : {}),
-  updates: row.last_change_item_id ? [{ id: row.last_change_item_id, timestamp: row.media_last_change_detected_at,
+  updates: row.currency_watch_events?.length ? row.currency_watch_events.map(event => ({ id: event.id, timestamp: event.detected_at, sourceTitle: event.article.title, sourceUrl: event.article.url, summary: event.article.excerpt, publishedAt: event.article.publishedAt, currencyEvaluation: event.evaluation, status: 'new' })) : row.last_change_item_id ? [{ id: row.last_change_item_id, timestamp: row.media_last_change_detected_at,
     sourceTitle: row.last_change_title, sourceUrl: row.last_change_url, summary: row.last_change_summary,
     publishedAt: row.last_change_published_at, status: 'new' }] : [],
   mediaPersistence: { ownerId: owner() },
@@ -218,7 +230,7 @@ export const mergeMediaWatches = (local) => {
       let hydrated = { ...localWatch, ...remote, updates: localWatch?.updates || [] };
       // A scheduled hydration must not erase a more recent manual check on this device.
       const currency = Boolean(currencyCriteriaFor(hydrated));
-      let sameCriteria = localWatch?.currencyRevision === hydrated.currencyRevision;
+      let sameCriteria = localWatch?.currencyRevision === hydrated.currencyRevision && localWatch?.currencyPolicy === hydrated.currencyPolicy;
       if (!currency) {
         try {
           const localDefinition = mediaWatchDefinition(localWatch);
@@ -263,7 +275,8 @@ export const getMediaPersistenceState = (watch) => {
   if (job?.localOnly) return { status: 'local-only' };
   if (job?.conflict) return { status: 'conflict', remoteTitle: remote?.title || '', remoteRequest: remote?.watch_definition?.request || '', revision: Number(remote?.media_revision) };
   if (job?.pending) return { status: job.errorCode ? 'failed' : 'pending', operation: activeWrites.get(watch.id) || null };
-  if (!job && !remote) return { status: loaded ? 'local-only' : 'loading' };
+  // A completed local journal is not a server record (deleted/missing rows too).
+  if (!remote || remote.deleted_at) return { status: loaded ? 'local-only' : 'loading' };
   return { status: 'saved', emailEnabled: user === identity ? emailEnabled : null };
 };
 

@@ -1,3 +1,4 @@
+import { watchCreationState } from './watch-creation-state.js';
 import { planLocalMediaRecovery } from './local-media-recovery.js';
 import { getAccountOwner } from './account-storage.js';
 import { currencyCriteriaFor } from './currency-watch.js';
@@ -10,7 +11,9 @@ const copy = {
     unsupported: 'Automatic monitoring is not configured. This request is kept on this device. Edit it to clarify a supported news topic or source.',
     recover: 'Review automatic monitoring', confirmRecovery: 'Activate this news Watch',
     recovery: 'Search: {query}. Save this existing Watch to your account? The first server check creates a new baseline without alerts for existing articles. Past local results remain on this device; they are not uploaded as a server baseline.',
-    currencyEnabled: 'This Watch is synced. Email is enabled when the daily ECB rate meets the target, once per condition.',
+    currencyEnabled: 'This Watch is synced. Email is enabled for eligible new currency alerts under the selected policy.',
+    activationPending: 'This Watch is saved. Its first check is pending; monitoring has not been confirmed. Use Check now.',
+    activationFailed: 'This Watch is saved, but its check failed. Use Check now to retry.',
     saved: 'This Watch is synced. Email notifications are disabled.',
     enabled: 'This Watch is synced. Email notifications are enabled for new matching articles after the first automatic check.',
     pending: 'Changes are saved on this device and waiting to sync. Automatic monitoring starts after the first sync; until then, only a previously synced version can run.',
@@ -27,7 +30,9 @@ const copy = {
     unsupported: 'Le suivi automatique n’est pas configuré. Cette demande reste sur cet appareil. Modifiez-la pour préciser un sujet d’actualité ou une source compatible.',
     recover: 'Vérifier le suivi automatique', confirmRecovery: 'Activer cette Watch d’actualité',
     recovery: 'Recherche : {query}. Enregistrer cette Watch existante dans votre compte ? Le premier contrôle serveur établira une nouvelle référence sans alerte pour les articles existants. Les anciens résultats restent sur cet appareil ; ils ne deviennent pas une référence serveur.',
-    currencyEnabled: 'Cette Watch est synchronisée. Un e-mail sera envoyé lorsque le cours quotidien BCE satisfait le seuil, une fois par condition.',
+    currencyEnabled: 'Cette Watch est synchronisée. Les e-mails sont activés pour les nouvelles alertes de change éligibles selon la politique choisie.',
+    activationPending: 'Cette Watch est enregistrée. Sa première vérification reste à effectuer ; la surveillance n’est pas confirmée. Utilisez Vérifier maintenant.',
+    activationFailed: 'Cette Watch est enregistrée, mais sa vérification a échoué. Utilisez Vérifier maintenant pour réessayer.',
     saved: 'Cette Watch est synchronisée. Les notifications par e-mail sont désactivées.',
     enabled: 'Cette Watch est synchronisée. Les notifications par e-mail sont activées pour les nouveaux articles correspondants après le premier contrôle automatique.',
     pending: 'Les modifications sont enregistrées sur cet appareil et attendent la synchronisation. Le suivi automatique commence après la première synchronisation ; jusque-là, seule une version déjà synchronisée peut fonctionner.',
@@ -61,9 +66,12 @@ export const renderMediaPersistenceNotice = (watch, title, language) => {
   notice.setAttribute('aria-busy', String(Boolean(state.operation)));
   const message = notice.querySelector('p');
   const reviewingRecovery = state.canRecover && notice.dataset.recoveryRequest === watch.request;
+  const savedText = state.emailEnabled == null ? labels.unknown : state.emailEnabled ? (currencyCriteriaFor(watch) ? labels.currencyEnabled : labels.enabled) : labels.saved;
+  const lifecycle = watchCreationState({ ...watch, monitoringAvailability: 'saved' });
+  const activationText = lifecycle === 'pending' ? labels.activationPending : lifecycle === 'failed' ? labels.activationFailed : '';
   const text = state.status === 'incompatible' ? labels.incompatible : reviewingRecovery ? labels.recovery.replace('{query}', planLocalMediaRecovery(watch, { language }).monitoringSource.query) : state.status === 'unsupported' ? labels.unsupported : state.status === 'failed' && !state.operation ? labels.failed : state.operation ? labels[state.operation] : sync.syncError && state.status === 'pending' ? labels.failed
     : state.status === 'conflict' ? `${labels.conflict} ${state.remoteTitle} — ${state.remoteRequest}`
-      : state.status === 'saved' ? (state.emailEnabled == null ? labels.unknown : state.emailEnabled ? (currencyCriteriaFor(watch) ? labels.currencyEnabled : labels.enabled) : labels.saved)
+      : state.status === 'saved' ? [savedText, activationText].filter(Boolean).join(' ')
         : state.status === 'loading' ? labels.loading
         : state.status === 'pending' ? labels.pending
           : state.canClaim ? labels.claimable : labels.local;

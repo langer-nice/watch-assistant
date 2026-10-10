@@ -225,6 +225,7 @@ export const createCompanyWatchRepository = ({
 
   const create = async (input) => {
     onCompanyWatchStage('create-validate');
+    const requestedId = input.id === undefined ? null : validateWatchId(input.id);
     const siren = normalizeSiren(input.siren);
     const title = cleanText(input.title, 200, { required: true });
     const request = cleanText(input.request, 500) || `Monitor company ${siren}`;
@@ -233,11 +234,17 @@ export const createCompanyWatchRepository = ({
     const category = Object.hasOwn(input, 'category') ? validateCategory(input.category) : 'general';
     onCompanyWatchStage('create-duplicate-check');
     const existingWatch = await findActiveBySiren(siren);
-    if (existingWatch) throwDuplicate(existingWatch);
+    if (existingWatch) {
+      // Same authenticated owner + same stable creation ID: lost-response retry.
+      // A different creation remains an explicit duplicate, never an adoption.
+      if (requestedId && existingWatch.id === requestedId) return { watch: await get(requestedId), result: null };
+      throwDuplicate(existingWatch);
+    }
     onCompanyWatchStage('create-baseline-fetch');
     const response = await fetchCompanyData(siren, options);
     onCompanyWatchStage('create-watch-insert');
     const { data, error } = await client.from('watches').insert({
+      ...(requestedId ? { id: requestedId } : {}),
       user_id: user.id,
       type: 'company_bodacc',
       title,
@@ -253,7 +260,9 @@ export const createCompanyWatchRepository = ({
       check_started_at: new Date().toISOString(),
     }).select(WATCH_SELECT).single();
     if (error?.code === '23505') {
-      throwDuplicate(await findActiveBySiren(siren));
+      const concurrent = await findActiveBySiren(siren);
+      if (requestedId && concurrent?.id === requestedId) return { watch: await get(requestedId), result: null };
+      throwDuplicate(concurrent);
     }
     if (error) throwDatabaseError(error);
     const provisional = mapCompanyWatchRow(data);
@@ -261,16 +270,12 @@ export const createCompanyWatchRepository = ({
       onCompanyWatchStage('create-baseline-persist');
       return await completeCheck(provisional, response);
     } catch (cause) {
-      onCompanyWatchStage('create-rollback');
-      const { data: removed, error: rollbackError } = await client.from('watches').delete()
-        .eq('id', provisional.id).select('id').maybeSingle();
-      if (rollbackError || !removed) {
-        throw new CompanyWatchRepositoryError(
-          'ROLLBACK_FAILED', 500, 'The failed Company Watch could not be rolled back.',
-        );
-      }
-      onCompanyWatchStage('create-rollback-complete');
-      throw cause;
+      // Keep the durable attempt and its ID. Never delete it to hide a failed
+      // initial check. A subsequent explicit Check now can finish activation.
+      await client.rpc('fail_company_watch_check', {
+        p_watch_id: provisional.id, p_error_code: cause?.code || 'CHECK_FAILED',
+      });
+      return { watch: await get(provisional.id), result: null };
     }
   };
 

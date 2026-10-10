@@ -212,6 +212,8 @@
     "breadcrumbLabel": "Emplacement de la Watch",
     "title": "Détails de la Watch",
     "createdTitle": "Votre Watch a été créée.",
+    "activationFailedCopy": "Cette Watch est enregistrée, mais sa première vérification a échoué. Utilisez Vérifier maintenant pour réessayer ; la surveillance n’est pas confirmée.",
+    "activationPendingCopy": "Cette Watch est enregistrée. Sa première vérification reste à effectuer.",
     "savedLocallyCopy": "Votre demande est enregistrée sur cet appareil. Consultez l’état de synchronisation avant de compter sur le suivi automatique.",
     "createdCopy": "La surveillance est active. Je vérifierai automatiquement les prochaines mises à jour.",
     "updatedTitle": "Watch mise à jour",
@@ -553,6 +555,7 @@
     "low": "Faible"
   },
   "watchData": {
+    "draftRetained": "Demande conservée sur cet appareil",
     "created": "Watch créée",
     "genericMonitoringScope": "Cette Watch suivra les prochaines informations pertinentes, notamment les développements majeurs et les informations de suivi importantes.",
     "monitoringSummaries": {
@@ -767,10 +770,11 @@
     "unavailable": "Cet exemple n’est pas disponible."
   },
   "currency": {
+    "evaluated": "Dernière évaluation le {date}",
     "met": "Seuil atteint",
     "notMet": "Seuil non atteint",
-    "result": "{decision} : 1 {base} {relation} {rate} {quote}. Seuil : ≥ {target} {quote}. Taux de référence quotidien de la BCE du {date}.",
-    "overview": "Suivre le cours quotidien BCE : 1 {base} ≥ {target} {quote}. Ce cours de référence n’est pas une cotation en temps réel.",
+    "result": "{decision} : 1 {base} {relation} {rate} {quote}. Seuil : {operator} {target} {quote}. Taux de référence quotidien de la BCE du {date}.",
+    "overview": "Suivre le cours quotidien BCE : 1 {base} {operator} {target} {quote}. Ce cours de référence n’est pas une cotation en temps réel.",
     "detected": "Détecté le {date}",
     "condition": "Condition surveillée",
     "currentRate": "Dernier taux évalué"

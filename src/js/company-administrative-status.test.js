@@ -73,7 +73,7 @@ test('Review and Watch Detail distinguish administrative status from BODACC moni
     /const startCompanyReview[\s\S]*?const startUrlAnalysis/,
   )?.[0] || '';
   const detail = navigation.match(
-    /const renderWatchDetail = \(\) => \{[\s\S]*?function scheduleFirstMonitoringPass/,
+    /const renderWatchDetail = \(\) => \{[\s\S]*?const waitForHomeReportProgress/,
   )?.[0] || '';
   const home = navigation.match(
     /const renderHomeWatchCards[\s\S]*?const renderHomeBriefing/,

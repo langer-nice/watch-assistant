@@ -76,3 +76,19 @@ test('verified authentication builds an RLS client with the same user JWT and pu
   assert.equal(calls[1].key, 'public-key');
   assert.equal(calls[1].options.global.headers.Authorization, 'Bearer verified.jwt.token');
 });
+
+test('HTTP Supabase requires loopback local opt-in and still verifies real Auth', async () => {
+  const local = { SUPABASE_URL: 'http://127.0.0.1:54321', SUPABASE_ANON_KEY: 'local-public', SUPABASE_LOCAL_TEST: 'true', NODE_ENV: 'development' };
+  for (const override of [{ SUPABASE_LOCAL_TEST: 'false' }, { NODE_ENV: 'production' }, { VERCEL_ENV: 'preview' }, { VERCEL_ENV: 'production' }, { SUPABASE_URL: 'http://remote.example' }]) {
+    await assert.rejects(authenticateSupabaseRequest(request('Bearer local.jwt'), {
+      env: { ...local, ...override }, createClientImpl: () => { throw new Error('Must not contact Auth'); },
+    }), { code: 'SERVER_NOT_CONFIGURED' });
+  }
+  let verified = false;
+  const result = await authenticateSupabaseRequest(request('Bearer local.jwt'), {
+    env: local,
+    createClientImpl: () => ({ auth: { getUser: async () => { verified = true; return { data: { user: { id: 'local-owner' } }, error: null }; } } }),
+  });
+  assert.equal(verified, true);
+  assert.equal(result.user.id, 'local-owner');
+});

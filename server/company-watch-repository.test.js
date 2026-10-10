@@ -355,7 +355,7 @@ test('list restores every active owned Watch with nullable fields and preserves 
   assert.deepEqual(restoredB.map(({ title }) => title), ['Other account Company']);
 });
 
-test('failed baseline and persistence leave no active Watch or snapshot and allow retry', async () => {
+test('failed initial persistence retains one recoverable Company Watch and retries the same ID', async () => {
   const database = createMemoryDatabase();
   const userId = '10000000-0000-4000-8000-00000000000a';
   let fetchImpl = async () => { throw new Error('BODACC unavailable'); };
@@ -370,18 +370,18 @@ test('failed baseline and persistence leave no active Watch or snapshot and allo
 
   fetchImpl = async () => emptyBodacc();
   database.completeError = { code: 'PGRST202' };
-  await assert.rejects(
-    repository.create({ siren: '552100554', title: 'Company A' }),
-    ({ code }) => code === 'DATABASE_ERROR',
-  );
-  assert.equal(database.watches.length, 0);
+  const attempt = await repository.create({ siren: '552100554', title: 'Company A' });
+  assert.equal(attempt.result, null);
+  assert.equal(database.watches.length, 1);
   assert.equal(database.snapshots.size, 0);
-
+  assert.equal(attempt.watch.lastCheckAttempt.status, 'failed');
   database.completeError = null;
   repository = createRepository(database, userId, async () => emptyBodacc());
-  const created = await repository.create({ siren: '552100554', title: 'Company A' });
-  assert.equal(created.result.outcome, 'baseline');
+  const retry = await repository.create({ id: attempt.watch.id, siren: '552100554', title: 'Company A' });
+  assert.equal(retry.watch.id, attempt.watch.id);
   assert.equal(database.watches.length, 1);
+  const checked = await repository.check(attempt.watch.id);
+  assert.equal(checked.result.outcome, 'baseline');
   assert.equal(database.snapshots.size, 1);
 });
 

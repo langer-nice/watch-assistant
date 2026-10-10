@@ -1,0 +1,43 @@
+// Explicit staging-only fixture. Uses an existing synthetic test account, never browser credentials.
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import {parseEnv} from 'node:util';
+import {createClient} from '@supabase/supabase-js';
+import {normalizeCurrencyWatch,parseCurrencyRequest} from '../src/js/currency-watch.js';
+import {mediaWatchDefinition} from '../src/js/media-watch-definition.js';
+import {runMediaMonitoring} from '../server/media-monitoring-cron.js';
+const env=parseEnv(await readFile(process.argv[2],'utf8'));
+const ref='tseexvbwhrtofcsrvcqc';
+assert.equal(env.SUPABASE_URL,`https://${ref}.supabase.co`);
+assert.equal(env.VITE_SUPABASE_URL,env.SUPABASE_URL);
+for(const key of ['SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','VITE_SUPABASE_ANON_KEY']) assert.equal(JSON.parse(Buffer.from(env[key].split('.')[1],'base64url')).ref,ref);
+for(const key of ['MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED','WATCH_EMAIL_NOTIFICATIONS_ENABLED']) assert.equal(env[key],'false');
+const options={auth:{persistSession:false,autoRefreshToken:false}};
+const service=createClient(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,options);
+const client=createClient(env.SUPABASE_URL,env.SUPABASE_ANON_KEY,options);
+const ok=({data,error})=>{if(error)throw Error(error.code || 'STAGING_FIXTURE_FAILED');return data;};
+const fixture=JSON.parse(await readFile(process.argv[3],'utf8')).users[0];
+const user=ok(await service.auth.admin.getUserById(fixture.id)).user;
+assert.match(user.email,/^recurring-.*@example\.test$/);
+await client.auth.setSession(fixture.session);
+assert.equal(ok(await client.auth.getUser()).user.id,fixture.id);
+const id='b9e7e9f3-fab4-4f3c-af86-e0dd03e4fc17';
+const request='Préviens-moi chaque fois que le taux de la livre sterling change et qu’une livre vaut plus de 1,17 euro.';
+const prior=ok(await client.from('watches').select('id').eq('id',id));
+if(prior.length) throw Error('Fixture already exists; inspect existing evidence instead of creating duplicates');
+const watch=normalizeCurrencyWatch({id,title:'TEST STAGING — strict daily currency fixture',inputType:'text',request,currencyPolicy:'daily',status:'watching',currencyLanguage:'fr'});
+const d=mediaWatchDefinition(watch);
+ok(await client.rpc('persist_media_watch',{p_id:id,p_title:d.title,p_source:d.monitoring_source,p_definition:d.watch_definition,p_state:'monitoring',p_revision:0,p_mutation:crypto.randomUUID(),p_deleted:false}));
+const scoped={from:table=>({select:fields=>service.from(table).select(fields).eq(table==='watches'?'id':'watch_id',id)}),rpc:(name,params)=>name==='maintain_media_watch_notifications'?Promise.resolve({data:null,error:null}):service.rpc(name,params)};
+const one=(date,rate)=>runMediaMonitoring({client:scoped,env:{...env,VERCEL_ENV:'preview'},fetchCurrency:async text=>({criteria:parseCurrencyRequest(text),checkedAt:`${date}T17:00:00Z`,observation:{base:'GBP',quote:'EUR',rate,date}})});
+const observed=[];
+for(const [i,rate]of ['1.17','1.18','1.18','1.16','1.19'].entries()){
+ const date=`2026-09-${21+i}`;const r=await one(date,rate);assert.equal(r.failedCount,0);observed.push(r.changedCount);assert.equal((await one(date,rate)).changedCount,0);
+}
+assert.deepEqual(observed,[0,1,0,0,1]);
+const row=ok(await client.from('watches').select('*,currency_watch_events(*)').eq('id',id).single());
+assert.equal(row.watch_definition.request,request);assert.equal(row.watch_definition.currencyCriteria.operator,'gt');assert.equal(row.watch_definition.currencyPolicy,'daily');assert.equal(row.currency_watch_events.length,2);
+assert.equal(ok(await service.from('media_watch_notifications').select('id').eq('watch_id',id)).length,0);
+ok(await client.rpc('persist_media_watch',{p_id:id,p_title:row.title,p_source:row.monitoring_source,p_definition:row.watch_definition,p_state:'paused',p_revision:row.media_revision,p_mutation:crypto.randomUUID(),p_deleted:false}));
+const evidence={project:ref,watchId:id,kind:'Controlled provider fixtures on real staging, not live rates',operator:'gt',policy:'daily',observed,repeats:'silent',eventCount:2,outboxCount:0,finalState:'paused'};
+await writeFile('/tmp/watch-recurring-staging/strict-creation-evidence.json',JSON.stringify(evidence,null,2));console.log(JSON.stringify(evidence));

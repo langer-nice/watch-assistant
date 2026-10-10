@@ -1,4 +1,4 @@
-import { parseCurrencyRequest } from './currency-watch.js';
+import { parseCurrencyRequest, isCurrencyRequest } from './currency-watch.js';
 import { parseMediaMentionRequest } from './media-mention-request.js';
 
 const MAX_REQUEST_LENGTH = 500;
@@ -168,6 +168,7 @@ const createLocalClarification = (request, { language = 'en' } = {}) => {
 
 const validateClarification = (result, original, { language = 'en' } = {}) => {
   const request = normalize(original);
+  if (parseCurrencyRequest(request)) return clearResult(request);
   if (parseMediaMentionRequest(request).recognized) return clearResult(request);
   if (isExplicitTopicUpdateRequest(request)) return clearResult(request);
   const deterministicResult = createLocalClarification(request, { language });
@@ -193,6 +194,7 @@ export const clarifyWatchRequest = async (request, { language = 'en' } = {}) => 
   const original = normalize(request).slice(0, MAX_REQUEST_LENGTH);
   if (!original) return clearResult('');
   if (parseCurrencyRequest(original)) return clearResult(original);
+  if (isCurrencyRequest(original)) return clarificationRequiredResult(original, language, language === 'fr' ? 'Quelle devise vaut combien dans quelle autre devise, et faut-il dépasser strictement ce seuil ou l’atteindre ?' : 'Which currency should be worth how much of the other currency, and should it strictly exceed or reach that threshold?');
   if (parseMediaMentionRequest(original).recognized) return clearResult(original);
   if (isExplicitTopicUpdateRequest(original)) return clearResult(original);
 

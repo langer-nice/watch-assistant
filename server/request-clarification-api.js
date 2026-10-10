@@ -1,3 +1,4 @@
+import { parseCurrencyRequest } from '../src/js/currency-watch.js';
 const ENDPOINT = '/api/request-clarification';
 const MAX_BODY_BYTES = 4_096;
 const MAX_REQUEST_LENGTH = 500;
@@ -47,6 +48,7 @@ export const generateRequestClarification = async ({
   model = 'gpt-5.6-luna',
   fetchImpl = fetch,
 }) => {
+  if (parseCurrencyRequest(request)) return { resultType: 'clear', suggestedRequest: request, clarificationMessage: '' };
   if (!apiKey) {
     const error = new Error('OPENAI_API_KEY is not configured.');
     error.statusCode = 503;

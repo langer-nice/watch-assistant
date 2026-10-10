@@ -1,3 +1,7 @@
+import { creationConfirmationKey, watchCreationState } from './watch-creation-state.js';
+import { showCurrencyCreationReview } from './currency-creation-review.js';
+import { parseCurrencyRequest, normalizeCurrencyWatch, CURRENCY_SOURCE } from './currency-watch.js';
+import { renderCurrencyPolicyControl } from './currency-policy-control.js';
 import { getReadOnlyCardPresentation, getHomeReportHeader, renderReportReadiness } from './watch-report-presentation.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
 import { planMediaQuery, googleNewsSource, mediaMentionDefinition, validateMediaQuery } from './media-provider-query.js';
@@ -220,14 +224,11 @@ let detailConfirmationHideTimer = null;
 let detailCheckInProgress = false;
 let detailCheckErrorWatchId = null;
 let detailRevealedUpdateRoute = null;
-let firstMonitoringTimer = null;
-let firstMonitoringTransitionTimer = null;
 let editSheetCloseTimer = null;
 let editSheetBackgroundScrollY = 0;
 let homeReportProgressState = 'closed';
 let homeReportProgressScrollY = 0;
 
-const FIRST_MONITORING_DELAY = 3200;
 const HOME_REPORT_READY_DURATION_MS = 700;
 const HOME_REPORT_FADE_DURATION_MS = 180;
 let checkControllerEpoch = -1;
@@ -942,6 +943,7 @@ export const deriveWatchData = (request, urlAnalysis = null, options = {}) => {
     feedUrl: monitoringUrl,
     monitoringSource,
     currencyLanguage: getLanguage(),
+    ...(options.currencyPolicy ? { currencyPolicy: options.currencyPolicy } : {}),
     ...(mediaMentionRequest?.recognized ? {
       mediaMention: mediaMentionDefinition(mediaMentionRequest),
     } : {}),
@@ -1002,7 +1004,6 @@ export const createWatchObject = (request, whyFollowing = '', urlAnalysis = null
     actionRequired: false,
     attentionReason: null,
     monitoringState: 'preparing',
-    firstCheckCompletesAt: new Date(Date.now() + FIRST_MONITORING_DELAY).toISOString(),
     createdAt: now,
     lastChecked: null,
     lastUpdated: null,
@@ -1325,17 +1326,9 @@ const renderWatchDetail = () => {
       }
     }
   }
-  if (
-    watch?.monitoringState === 'preparing'
-    && Date.parse(watch.firstCheckCompletesAt) <= Date.now()
-  ) {
-    watch = updateWatch(watch.id, {
-      monitoringState: 'monitoring',
-      firstCheckCompletedAt: new Date().toISOString(),
-      firstCheckCompletesAt: null,
-    });
-  }
-  const isPreparing = watch?.monitoringState === 'preparing';
+  // A persisted pending/failed first check needs an explicit, available retry.
+  // Elapsed browser time must never turn it into a successful check.
+  const isPreparing = detailCheckInProgress && watch?.monitoringState === 'preparing';
   const detailPageEl = document.querySelector('.page--detail');
   detailPageEl?.classList.toggle('is-paused', watch?.status === 'paused');
 
@@ -1414,6 +1407,7 @@ const renderWatchDetail = () => {
   const deleteConfirmEl = document.querySelector('#watchDeleteConfirm');
 
   renderMediaPersistenceNotice(watch, titleEl, getLanguage());
+  renderCurrencyPolicyControl(watch, titleEl, getLanguage());
   renderInitialContext(document.querySelector('#watchInitialContext'), watch, { t, formatTimestamp: formatMonitoringTimestamp });
 
   const hideDetailContent = () => {
@@ -1616,9 +1610,10 @@ const renderWatchDetail = () => {
     currentUpdateTitleEl.hidden = Boolean(eventCurrencySummary) || !currentUpdate.title;
   }
   if (currentUpdateMetadataEl) {
-    currentUpdateMetadataEl.textContent = eventCurrencySummary
-      ? t('currency.detected', { date: formatMonitoringTimestamp(currentUpdate.update.timestamp) }) : currentUpdate.metadata;
-    currentUpdateMetadataEl.hidden = !currentUpdate.metadata;
+    currentUpdateMetadataEl.textContent = watch.currencyEvaluation && currencyCriteriaFor(watch)
+      ? t('currency.evaluated', { date: formatMonitoringTimestamp(watch.currencyEvaluation.checkedAt) })
+      : eventCurrencySummary ? t('currency.detected', { date: formatMonitoringTimestamp(currentUpdate.update.timestamp) }) : currentUpdate.metadata;
+    currentUpdateMetadataEl.hidden = !currentUpdateMetadataEl.textContent;
   }
   if (currentUpdateLinkEl) {
     if (currentUpdate.articleUrl) {
@@ -1851,7 +1846,7 @@ const renderWatchDetail = () => {
   })
     .map((item) => {
       const label = item.type === 'created'
-        ? t('watchData.created')
+        ? t(watchCreationState(watch) === 'local' ? 'watchData.draftRetained' : 'watchData.created')
         : item.type === 'update'
           ? currencyUpdateSummary(watch, item.source, getLanguage())
             || getBodaccBusinessEventLabel(item.source, t)
@@ -1957,12 +1952,6 @@ const renderWatchDetail = () => {
   if (preparingEl) {
     preparingEl.hidden = !isPreparing;
     preparingEl.classList.remove('is-leaving');
-  }
-  if (isPreparing) {
-    scheduleFirstMonitoringPass(watch, preparingEl);
-  } else {
-    window.clearTimeout(firstMonitoringTimer);
-    firstMonitoringTimer = null;
   }
 
   if (managementEl) {
@@ -2189,10 +2178,8 @@ const renderWatchDetail = () => {
       const titleKey = confirmationType === 'updated'
         ? 'detail.updatedTitle'
         : 'detail.createdTitle';
-      const copyKey = watch.monitoringAvailability && watch.monitoringAvailability !== 'saved'
-        ? 'detail.savedLocallyCopy' : confirmationType === 'updated'
-        ? 'detail.updatedCopy'
-        : 'detail.createdCopy';
+      const copyKey = confirmationType === 'updated' && watchCreationState(watch) === 'active'
+        ? 'detail.updatedCopy' : creationConfirmationKey(watch);
       if (confirmationTitleEl) {
         confirmationTitleEl.dataset.i18n = titleKey;
         confirmationTitleEl.textContent = t(titleKey);
@@ -2207,40 +2194,6 @@ const renderWatchDetail = () => {
     }
   }
 };
-
-function scheduleFirstMonitoringPass(watch, preparingEl) {
-  window.clearTimeout(firstMonitoringTimer);
-  const completesAt = Date.parse(watch.firstCheckCompletesAt);
-  const remaining = Number.isNaN(completesAt)
-    ? FIRST_MONITORING_DELAY
-    : Math.max(0, completesAt - Date.now());
-
-  firstMonitoringTimer = window.setTimeout(() => {
-    const currentWatch = getWatchById(watch.id);
-    if (currentWatch?.monitoringState !== 'preparing') {
-      return;
-    }
-
-    preparingEl?.classList.add('is-leaving');
-    window.clearTimeout(firstMonitoringTransitionTimer);
-    firstMonitoringTransitionTimer = window.setTimeout(() => {
-      const checkedAt = new Date().toISOString();
-      updateWatch(watch.id, {
-        monitoringState: 'monitoring',
-        firstCheckCompletedAt: checkedAt,
-        firstCheckCompletesAt: null,
-      });
-      renderWatchDetail();
-
-      const refreshedMonitoringControlsEl = document.querySelector('#watchMonitoringControls');
-      if (refreshedMonitoringControlsEl && !refreshedMonitoringControlsEl.hidden) {
-        refreshedMonitoringControlsEl.classList.add('is-revealing');
-        window.setTimeout(() => refreshedMonitoringControlsEl.classList.remove('is-revealing'), 420);
-      }
-      firstMonitoringTransitionTimer = null;
-    }, 240);
-  }, remaining);
-}
 
 const waitForHomeReportProgress = (duration) => new Promise((resolve) => {
   window.setTimeout(resolve, duration);
@@ -2568,8 +2521,8 @@ const renderHomeSummary = () => {
             : 'home.confirmationTitle');
         }
         if (confirmationBody) {
-          confirmationBody.textContent = createdWatch.monitoringAvailability && createdWatch.monitoringAvailability !== 'saved'
-            ? t('detail.savedLocallyCopy') : t(homeFirstWatchConfirmation
+          confirmationBody.textContent = watchCreationState(createdWatch) !== 'active'
+            ? t(creationConfirmationKey(createdWatch)) : t(homeFirstWatchConfirmation
             ? 'home.firstConfirmationCopy'
             : 'home.confirmationCopy');
         }
@@ -3152,11 +3105,20 @@ export function initForm() {
     refreshEditSaveState();
   };
 
+  let pendingCompanyCreation = null;
   const completeWatchCreation = async (watch) => {
     if (!editor.isCurrent()) return;
     if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
+      const key = JSON.stringify([watch.request, watch.title, watch.company?.siren]);
+      if (pendingCompanyCreation?.key === key) watch.id = pendingCompanyCreation.id;
+      else pendingCompanyCreation = { key, id: watch.id };
       const createdWatch = await createServerCompanyWatch(watch);
+      pendingCompanyCreation = null;
       if (!editor.isCurrent()) return;
+      if (watchCreationState(createdWatch) !== 'active') {
+        window.location.href = `watch-detail.html?id=${encodeURIComponent(createdWatch.id)}`;
+        return;
+      }
       trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, { input_type: 'company' });
       sessionStorage.removeItem('watchAssistant.newWatchId');
       if (isOnboardingFirstWatch()) {
@@ -3170,6 +3132,9 @@ export function initForm() {
     }
     // Local retention and server activation are separate. Never activate a
     // generic feed object that has no supported account persistence route.
+    // Allocate currency criteria/revision once, before the persistence boundary.
+    // The same normalized object is validated, retained locally and activated.
+    watch = normalizeCurrencyWatch(watch);
     if (!isMediaWatch(watch)) throw Object.assign(new Error('Unsupported monitoring'), { code: 'MEDIA_QUERY_REVIEW_REQUIRED' });
     const definition = mediaWatchDefinition(watch);
     validateMediaQuery(definition.watch_definition, definition.monitoring_source);
@@ -3188,6 +3153,11 @@ export function initForm() {
       // A failed retrieval after persistence is also recoverable from detail.
       updateWatch(watch.id, { monitoringState: 'needs-attention',
         lastCheckAttempt: { status: 'failed', code: error.code || 'CHECK_FAILED', attemptedAt: new Date().toISOString() } });
+    }
+    const retained = getWatchById(watch.id);
+    if (watchCreationState(retained) !== 'active') {
+      window.location.href = `watch-detail.html?id=${encodeURIComponent(watch.id)}`;
+      return;
     }
     trackProductEvent(PRODUCT_EVENTS.WATCH_CREATED, {
       input_type: ['url', 'company'].includes(watch.inputType) ? watch.inputType : 'text',
@@ -3424,7 +3394,6 @@ export function initForm() {
           : null,
         monitoringState: 'preparing',
         firstCheckCompletedAt: null,
-        firstCheckCompletesAt: new Date(Date.now() + FIRST_MONITORING_DELAY).toISOString(),
       });
     }
 
@@ -3509,12 +3478,20 @@ export function initForm() {
       preserveOriginalWording = false,
       useRequestAsTitle = false,
       createdAsWrittenAfterClarityWarning,
+      currencyConfirmedPolicy,
     } = {},
   ) => {
     if (!editor.isCurrent()) return;
     const selectedRequest = preserveOriginalWording ? request : request.trim();
     if (!selectedRequest.trim() || creationInProgress) return;
 
+    if (!isEditMode && parseCurrencyRequest(selectedRequest) && !currencyConfirmedPolicy) {
+      showCurrencyCreationReview({ form, request: selectedRequest, language: getLanguage(),
+        listen: (target, event, handler) => editor.listen(target, event, handler),
+        confirm: policy => savePlainTextWatch(selectedRequest, whyFollowing, { preserveOriginalWording: true, currencyConfirmedPolicy: policy }),
+      });
+      return;
+    }
     const parsedMedia = parseMediaMentionRequest(selectedRequest);
     if (parsedMedia.recognized && !mediaConfirmed) {
       const plan = planMediaQuery(selectedRequest, { language: getLanguage(),
@@ -3547,7 +3524,11 @@ export function initForm() {
       return;
     }
     const createOptions = getCreateOptions();
-    if (parsedMedia.recognized) {
+    if (currencyConfirmedPolicy) {
+      createOptions.currencyPolicy = currencyConfirmedPolicy;
+      createOptions.monitoringSource = { ...CURRENCY_SOURCE };
+      createOptions.feedUrl = null;
+    } else if (parsedMedia.recognized) {
       createOptions.monitoringSource = planMediaQuery(selectedRequest, { language: getLanguage() }).monitoringSource;
       createOptions.feedUrl = null;
     }
@@ -3562,6 +3543,12 @@ export function initForm() {
         creationInProgress = false;
         setCreationControlsDisabled(false);
         setSubmitLabel();
+        if (error.code === 'DISCOVERY_UNAVAILABLE' || error.code === 'SOURCE_UNAVAILABLE') {
+          if (watchError) watchError.textContent = getLanguage() === 'fr'
+            ? 'La source est temporairement indisponible. Votre demande est conservée ; réessayez.'
+            : 'The source is temporarily unavailable. Your request is preserved; please retry.';
+          return;
+        }
         resetUrlFlow({ clearInput: false });
         showClarification(
           selectedRequest,
@@ -4687,6 +4674,10 @@ export function initForm() {
     }
 
     synchronizeInferredFields(request);
+    if (!isEditMode && parseCurrencyRequest(request)) {
+      await savePlainTextWatch(request, whyFollowing, { preserveOriginalWording: true });
+      return;
+    }
 
     let watchPlan = null;
     planningInProgress = true;

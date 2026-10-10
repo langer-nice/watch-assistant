@@ -1,3 +1,4 @@
+import { watchCreationState } from './watch-creation-state.js';
 import { HOME_NEW_WATCH_WINDOW_MS, isUserActionRequired } from './watch-grouping.js';
 import { getWatchCreationDate } from './watch-dates.js';
 import { getUnreadUpdates } from './watch-updates.js';
@@ -73,7 +74,7 @@ export const getUserFacingWatchClassification = (watch, { now = new Date() } = {
   if (!watch || typeof watch !== 'object' || watch.status === 'completed') {
     return WATCH_CLASSIFICATIONS.WATCHING;
   }
-  if (monitoringUnavailable(watch) || watch.lastCheckAttempt?.status === 'failed' || isUserActionRequired(watch)) {
+  if (monitoringUnavailable(watch) || ['failed', 'pending'].includes(watchCreationState(watch)) || isUserActionRequired(watch)) {
     return WATCH_CLASSIFICATIONS.ATTENTION;
   }
   const meaningful = getMeaningfulWatchUpdate(watch);
