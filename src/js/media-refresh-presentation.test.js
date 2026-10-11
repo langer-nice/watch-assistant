@@ -5,11 +5,80 @@ import * as store from './media-watch-server-store.js';
 import { renderMediaPersistenceNotice } from './media-watch-persistence-notice.js';
 import { renderWatchLoadNotice } from './watch-load-notice.js';
 import { configureAccountStorage } from './account-storage.js';
+import { writeWatchCache } from './watch-server-resilience.js';
 
 const row = {id:'00000000-0000-4000-8000-000000000091', title:'Fixture news',media_revision:1,
  monitoring_state:'monitoring',current_status:'watching',watch_definition:{inputType:'text',category:'news',request:'Fixture news',mediaMention:{subjects:['Fixture'],matchMode:'all'}},monitoring_source:{type:'feed',url:'https://fixture.example/rss'}};
 const flush=async()=>{for(let i=0;i<50;i++)await Promise.resolve();};
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
+
+test('cached active Watch hides loading email status and preserves genuine failures', async t => {
+ const originals=Object.fromEntries(['localStorage','window','document','fetch'].map(k=>[k,globalThis[k]]));
+ const memory={};
+ Object.defineProperties(memory,{getItem:{value:k=>memory[k]??null},setItem:{value:(k,v)=>{memory[k]=String(v);}},removeItem:{value:k=>delete memory[k]}});
+ globalThis.localStorage=memory;globalThis.window=new EventTarget();
+ globalThis.document=parseHTML('<main class="page--detail"><h1>Fixture</h1></main>').document;
+ let state={status:'authenticated',session:{user:{id:'email-presentation-a'},access_token:'fixture-token'}};
+ const listeners=new Set();
+ const auth={getState:()=>state,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn);}};
+ configureAccountStorage(auth);
+ const checkedRow={...row,last_checked_at:'2026-10-08T14:05:00Z',last_check_outcome:'baseline'};
+ writeWatchCache('media',state.session.user.id,[checkedRow]);
+ let wait=deferred();let response=()=>wait.promise;
+ const calls=[];
+ globalThis.fetch=async(path,options)=>{calls.push({path,method:options.method||'GET'});return response();};
+ t.after(async()=>{await store.configureMediaWatchServerStore(null);for(const[k,v]of Object.entries(originals)){if(v===undefined)delete globalThis[k];else globalThis[k]=v;}});
+ const watch=()=>({...checkedRow.watch_definition,id:row.id,title:row.title,monitoringSource:row.monitoring_source,
+  status:'watching',monitoringState:'monitoring',lastChecked:checkedRow.last_checked_at,lastCheckAttempt:{status:'succeeded'},
+  mediaPersistence:{ownerId:state.session.user.id}});
+ const render=(lang='en',w=watch())=>{renderMediaPersistenceNotice(w,document.querySelector('h1'),lang);return document.getElementById('watchMediaPersistenceNotice');};
+ const initial=store.configureMediaWatchServerStore(auth);await flush();
+ assert.equal(store.getMediaPersistenceState(watch()).status,'saved');
+ assert.equal(store.getMediaPersistenceState(watch()).emailEnabled,null);
+ for(const lang of ['en','fr']){
+  assert.equal(render(lang).hidden,true);
+  assert.equal(render(lang).textContent,'');
+  assert.equal(render(lang).getAttribute('aria-busy'),'true');
+ }
+ // A completed response without the field is genuinely unavailable, not disabled.
+ wait.resolve(Response.json({watches:[checkedRow]}));await initial;
+ assert.equal(render('en').textContent,'Monitoring active. Email notification status unavailable.');
+ assert.equal(render('fr').textContent,'Surveillance active. Statut des notifications par e-mail indisponible.');
+ assert.equal(render().hidden,false);
+ for(const enabled of [true,false]){
+  response=()=>Response.json({watches:[checkedRow],emailEnabled:enabled});
+  await store.synchronizeMediaWatches({readOnly:true});
+  for(const lang of ['en','fr']){
+   const notice=render(lang);
+   assert.equal(notice.hidden,enabled);
+   assert.equal(notice.textContent,enabled?'':lang==='fr'
+    ?'Surveillance active. Notifications par e-mail désactivées.'
+    :'Monitoring active. Email notifications disabled.');
+  }
+  if(enabled){
+   assert.match(render('en',{...watch(),lastCheckAttempt:{status:'failed'}}).textContent,/check failed/);
+   assert.equal(render().hidden,true);
+  }else{
+   assert.doesNotMatch(render('en',{...watch(),status:'paused'}).textContent,/Monitoring active/);
+  }
+ }
+ // Unknown status after a failed cached read must remain visible alongside the load error.
+ state={status:'authenticated',session:{user:{id:'email-presentation-failure'},access_token:'failure-token'}};
+ configureAccountStorage(auth);writeWatchCache('media',state.session.user.id,[checkedRow]);
+ response=()=>Response.json({code:'DATABASE_ERROR'},{status:503});
+ await store.configureMediaWatchServerStore(auth);
+ assert.equal(store.getMediaPersistenceState(watch()).emailEnabled,null);
+ assert.equal(render('en').textContent,'Monitoring active. Email notification status unavailable.');
+ assert.equal(render('fr').textContent,'Surveillance active. Statut des notifications par e-mail indisponible.');
+ renderWatchLoadNotice('en',1);
+ assert.equal(document.getElementById('watchLoadNotice').hidden,false);
+ assert.match(document.getElementById('watchLoadNotice').textContent,/couldn’t load/);
+ localStorage.setItem('watchAssistant.mediaSync.'+state.session.user.id+'.'+row.id,JSON.stringify({pending:true,errorCode:'DATABASE_ERROR',revision:1}));
+ assert.match(render('en').textContent,/Sync failed/);
+ assert.match(render('fr').textContent,/La synchronisation a échoué/);
+ assert.equal(render().hidden,false);
+ assert.ok(calls.every(c=>c.method==='GET'&&!c.path.includes('action=check')));
+});
 
 test('confirmed presentation, unknown notification state, writes, errors and account isolation',async t=>{
  const originals=Object.fromEntries(['localStorage','window','document','fetch'].map(k=>[k,globalThis[k]]));
@@ -66,7 +135,7 @@ test('confirmed presentation, unknown notification state, writes, errors and acc
   const save=store.synchronizeMediaWatches();await flush();
   assert.match(render('en',owned).textContent,operation==='saving'?/Saving changes/:/Syncing/);
   assert.match(render('fr',owned).textContent,operation==='saving'?/Enregistrement/:/Synchronisation en cours/);
-  wait.resolve(Response.json({watch:row}));await save;assert.equal(store.getMediaPersistenceState(owned).status,'saved');assert.match(render('en',owned).textContent,/This Watch is synced/);
+  wait.resolve(Response.json({watch:row}));await save;assert.equal(store.getMediaPersistenceState(owned).status,'saved');assert.match(render('en',owned).textContent,/first check is pending/);
  }
  const conflictKey='watchAssistant.mediaSync.presentation-c.'+row.id;
  localStorage.setItem(conflictKey,JSON.stringify({pending:true,conflict:true,revision:1}));
