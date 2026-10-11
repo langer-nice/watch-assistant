@@ -429,7 +429,8 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
         const {document}=parseHTML('<html><body><h1>Watch</h1></body></html>');globalThis.document=document;
         const {renderMediaPersistenceNotice}=await import('../src/js/media-watch-persistence-notice.js');
         renderMediaPersistenceNotice(watches.getWatchById(current.id),document.querySelector('h1'),'en');
-        assert.match(document.body.textContent,/enabled for new matching articles after the first automatic check/);
+        assert.match(document.body.textContent,/first check is pending/);
+        assert.doesNotMatch(document.body.textContent,/Email notifications are enabled/);
         const body=await (await fetch('/api/media-watches',{headers:{Authorization:`Bearer ${USER_A}`}})).json();
         assert.equal(body.emailEnabled,true);assert.equal(JSON.stringify(body).includes('RESEND_API_KEY'),false);
       }finally{for(const key of Object.keys(apiEnv))delete apiEnv[key];if(originalDocument===undefined)delete globalThis.document;else globalThis.document=originalDocument;await flush();}
