@@ -62,7 +62,10 @@ export const createPlanWatchMiddleware = (options = {}) => (
       if (mode !== null) {
         const codes = new Set(['INVALID_INTERPRETATION_REQUEST', 'INTERPRETATION_FAILED', 'AI_SERVICE_UNAVAILABLE', 'AI_TIMEOUT']);
         const code = codes.has(error.code) ? error.code : 'INVALID_INTERPRETATION_REQUEST';
-        sendJson(response, codes.has(error.code) ? error.statusCode : 400, { mode: 'interpretation.v1', executable: false, code });
+        const reasons = new Set(['DOMAIN_PREDICATE_CONFLICT', 'CONDITION_EVIDENCE_MISMATCH', 'OFFICIAL_SOURCE_UNGROUNDED']);
+        sendJson(response, codes.has(error.code) ? error.statusCode : 400, { mode: 'interpretation.v1', executable: false, code,
+          ...(code === 'INTERPRETATION_FAILED' && reasons.has(error.reason) ? { reason: error.reason } : {}),
+        });
         return;
       }
       sendJson(response, 400, createPlannerDecision({

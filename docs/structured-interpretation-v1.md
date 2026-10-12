@@ -59,6 +59,21 @@ an explicit crossing-versus-observation ambiguity rather than choosing a policy.
 News predicates use null values; currency predicates use `exchange_rate`, so
 localized descriptive labels cannot change those predicate identities.
 
+Shared clauses use multiple evidence entries with the same condition path:
+quote the shared phrase separately from each entity name. Separate fragments
+are never concatenated into a fabricated quote. Shared spans may be reused, but
+each news/co-occurrence/relationship predicate needs evidence for its own
+referenced subjects. Existing uniqueness and context rules remain enforced.
+
+News intent and news predicates require `media_news`, regardless of entity type.
+`official_company` requires event/change intent and a canonical source-qualified
+event (`official_company_announcement`, `official_registry_filing`, or
+`official_registration_change`) grounded in an explicit official-source clause.
+Other source requirements remain unresolved; this does not add capabilities.
+Contradictions fail with safe reasons `DOMAIN_PREDICATE_CONFLICT`,
+`CONDITION_EVIDENCE_MISMATCH`, or `OFFICIAL_SOURCE_UNGROUNDED`; the opt-in HTTP
+response exposes those reasons without raw model payloads or source text.
+
 `MonitoringPlanV1` defines only a future boundary: `not_assessed` and
 `executable:false`. There is no compiler or executable plan contract yet.
 
@@ -79,7 +94,7 @@ version-aware persistence work.
 
 ## Focused verification
 
-Run `NODE_ENV=test node --no-maglev --test server/watch-interpreter-corrections.test.js server/watch-interpreter.test.js
+Run `NODE_ENV=test node --no-maglev --test server/watch-interpreter-shared-clause.test.js server/watch-interpreter-corrections.test.js server/watch-interpreter.test.js
 server/watch-planner.test.js server/plan-watch-api.test.js
 server/request-clarification-api.test.js` (one shell command).
 Fixtures cover the four consumer requests, bilingual/mixed language, groups,

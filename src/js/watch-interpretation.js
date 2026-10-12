@@ -56,8 +56,8 @@ export const monitoringPlanSchema = object({ schemaVersion: enumeration('monitor
   interpretationVersion: enumeration('interpretation.v1'), originalRequest: str(500),
   status: enumeration('not_assessed'), executable: { type: 'boolean', enum: [false] } });
 
-const fail = () => { throw Object.assign(new Error('Structured interpretation failed validation.'),
-  { code: 'INTERPRETATION_FAILED', statusCode: 502 }); };
+const fail = reason => { throw Object.assign(new Error('Structured interpretation failed validation.'),
+  { code: 'INTERPRETATION_FAILED', statusCode: 502, ...(reason ? { reason } : {}) }); };
 const conforms = (value, schema) => {
   if (schema.anyOf) return schema.anyOf.some(candidate => conforms(value, candidate));
   if (schema.enum && !schema.enum.includes(value)) return false;
@@ -125,6 +125,16 @@ export const validateInterpretation = (value, request = value?.originalRequest) 
   const nodes = new Map(value.conditions.map(n => [n.id, n]));
   if (subjects.size !== value.subjects.length || nodes.size !== value.conditions.length
     || [...subjects.keys()].some(key => nodes.has(key))) fail();
+  // Meaning consistency only, never capability approval or domain rewriting.
+  const predicates = value.conditions.filter(n => n.op === 'predicate');
+  const news = predicates.some(n => ['news_about', 'mentions_together'].includes(n.kind));
+  const officialEvents = new Set(['official_company_announcement', 'official_registry_filing', 'official_registration_change']);
+  const official = predicates.some(n => n.kind === 'event' && officialEvents.has(n.value));
+  if ((value.intent === 'ongoing_news' && value.domain !== 'media_news')
+    || (news && value.domain !== 'media_news')
+    || (value.domain === 'official_company' && (!['event', 'change'].includes(value.intent) || !official))
+    || (value.domain === 'currency' && (value.intent !== 'numeric_condition' || !predicates.some(n => n.kind === 'numeric')))
+    || (value.domain === 'ticket_availability' && value.intent !== 'event')) fail('DOMAIN_PREDICATE_CONFLICT');
   for (const evidence of value.evidence) {
     pointer(value, evidence.path);
     if (evidence.end <= evidence.start || request.slice(evidence.start, evidence.end) !== evidence.text) fail();
@@ -194,6 +204,15 @@ export const validateInterpretation = (value, request = value?.originalRequest) 
     if (!n.subjects.length || !unique(n.subjects) || n.subjects.some(key => !subjects.has(key))) fail();
     if (n.kind === 'news_about' && n.subjects.length !== 1) fail();
     if (n.kind === 'news_about' && n.value !== null) fail();
+    if (['news_about', 'mentions_together', 'relationship'].includes(n.kind)
+      && n.subjects.some(key => !value.evidence.some(e => e.path === `/conditions/${index}`
+        && fold(e.text).includes(fold(subjects.get(key).label))))) fail('CONDITION_EVIDENCE_MISMATCH');
+    if (n.kind === 'event' && officialEvents.has(n.value)) {
+      // An organization name alone never establishes an official-source request.
+      const spans = value.evidence.filter(e => e.path === `/conditions/${index}`).map(e => e.text).join(' ');
+      if (!/\b(?:official|officiels?|officielles?|issuer|emetteur|registry|registre|bodacc)\b/u.test(fold(spans))) fail('OFFICIAL_SOURCE_UNGROUNDED');
+      if (n.subjects.some(key => subjects.get(key).type !== 'organization')) fail('DOMAIN_PREDICATE_CONFLICT');
+    }
     if (n.kind === 'numeric') {
       if (!n.operator || !n.amount || !n.unit || (value.domain === 'currency' && Number(n.amount) <= 0)) fail();
       const span = value.evidence.filter(e => e.path === `/conditions/${index}`).map(e => e.text).join(' ');
