@@ -121,6 +121,7 @@ export const runCompanyMonitoring = async ({
   let skipped = 0;
   for (const row of rows) {
     try {
+      if (Object.hasOwn(row.watch_definition || {}, 'definitionVersion')) { skipped += 1; continue; }
       const siren = normalizeSiren(row.siren);
       const group = groups.get(siren) || [];
       group.push(row);

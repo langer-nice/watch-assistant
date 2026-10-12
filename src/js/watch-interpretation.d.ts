@@ -46,6 +46,7 @@ export type MonitoringPlanV1 = PendingMonitoringPlanV1 | CompiledMonitoringPlanV
 export const interpretationSchema: object;
 export const interpretationOutputSchema: object;
 export const monitoringPlanSchema: object;
+export function matchesStructuredSchema(value: unknown, schema: object): boolean;
 export function validateInterpretation(value: unknown, request?: string): InterpretationV1;
 export type InterpretationOutputV1 = Omit<InterpretationV1, 'originalRequest' | 'evidence'> & {
   evidence: { path: string; quote: string; context: string | null }[];

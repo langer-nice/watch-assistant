@@ -44,7 +44,7 @@ export const parseCurrencyRequest = (request) => {
     return { base, quote, operator, target: normalizeDecimal(match[3]) };
   } catch { return null; }
 };
-export const currencyCriteriaFor = (watch) => watch?.inputType === 'text' ? parseCurrencyRequest(watch.request) : null;
+export const currencyCriteriaFor = (watch) => !Object.hasOwn(watch || {}, 'definitionVersion') && watch?.inputType === 'text' ? parseCurrencyRequest(watch.request) : null;
 export const sameCurrencyCriteria = (left, right) => left == null || right == null
   ? left == null && right == null
   : ['base', 'quote', 'operator', 'target'].every(key => left[key] === right[key]);
@@ -54,6 +54,7 @@ export const currencyKey = (watch) => JSON.stringify([currencyCriteriaFor(watch)
 
 // Request text is authoritative; stored/LLM-generated criteria never override an edit.
 export const normalizeCurrencyWatch = (watch) => {
+  if (Object.hasOwn(watch || {}, 'definitionVersion')) return watch;
   const criteria = currencyCriteriaFor(watch);
   if (!criteria && !watch.currencyCriteria) return watch;
   const changed = !sameCurrencyCriteria(criteria, watch.currencyCriteria);

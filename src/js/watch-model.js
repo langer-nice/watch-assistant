@@ -25,6 +25,7 @@ import {
 } from './page-classification.js';
 import { mediaMentionDefinition } from './media-provider-query.js';
 import { parseMediaMentionRequest } from './media-mention-request.js';
+import { hasDefinitionVersion, definitionFromWatch, validateWatchDefinition } from './watch-definition.js';
 
 export const WATCH_MODEL_VERSION = 10;
 
@@ -86,6 +87,16 @@ const normalizeLastCheckAttempt = (attempt) => {
 
 export const migrateWatchModel = (watch) => {
   if (!watch || typeof watch !== 'object') return { watch, migrated: false };
+  if (hasDefinitionVersion(watch)) {
+    let code = null;
+    try { validateWatchDefinition(definitionFromWatch(watch), watch.monitoringSource); }
+    catch (error) { code = error.code || 'INVALID_WATCH_DEFINITION'; }
+    // Foundations are readable, but creation/editing/execution are not enabled.
+    // Never run legacy normalization, including for malformed or future versions.
+    const retained = { ...watch, serverReadOnly: true, structuredExecutionDisabled: true,
+      ...(code ? { structuredDefinitionError: code } : {}) };
+    return { watch: retained, migrated: JSON.stringify(retained) !== JSON.stringify(watch) };
+  }
   const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
   const bodaccMonitoringSource = normalizeBodaccMonitoringSource(watch.monitoringSource);
   const storedPageType = normalizePageType(watch.pageType);

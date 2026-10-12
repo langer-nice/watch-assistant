@@ -93,6 +93,8 @@ const conforms = (value, schema) => {
     default: return false;
   }
 };
+// Shared strict schema checking; interpretation-specific evidence checks remain below.
+export { conforms as matchesStructuredSchema };
 const unique = values => new Set(values).size === values.length;
 const fold = text => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/gu, ' ').trim();
 const countryWords = { IT: ['italian', 'italians', 'italien', 'italiens', 'italienne', 'italiennes'],

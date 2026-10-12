@@ -699,6 +699,7 @@ export const createWatchCheckController = ({
         if (!watch) {
           throw new MonitoringCheckError('WATCH_NOT_FOUND', 'The Watch could not be found.');
         }
+        if (Object.hasOwn(watch, 'definitionVersion')) throw new MonitoringCheckError('STRUCTURED_EXECUTION_DISABLED', 'Structured monitoring is not enabled.');
         startedKey = definitionKey(watch);
         if (checkStoredWatch) {
           const stored = await checkStoredWatch(watch);

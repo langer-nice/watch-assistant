@@ -1,6 +1,7 @@
 import { createWatchRequestGate, readWatchCache, writeWatchCache, watchRequest } from './watch-server-resilience.js';
 import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
 import { SUPPORTED_WATCH_CATEGORIES } from './watch-category.js';
+import { hasDefinitionVersion, definitionFromWatch, validateWatchDefinition } from './watch-definition.js';
 
 let accessToken = null;
 let authStateSource = null;
@@ -77,6 +78,12 @@ const replaceWatch = (watch) => {
 };
 
 const normalizePersistedWatch = (watch) => {
+  if (hasDefinitionVersion(watch)) {
+    let code = null;
+    try { validateWatchDefinition(definitionFromWatch(watch), watch.monitoringSource); }
+    catch (error) { code = error.code || 'INVALID_WATCH_DEFINITION'; }
+    return { ...watch, serverReadOnly: true, structuredExecutionDisabled: true, ...(code ? { structuredDefinitionError: code } : {}) };
+  }
   if (
     !watch
     || typeof watch.id !== 'string'
@@ -208,6 +215,7 @@ export const configureCompanyWatchServerStore = async (auth) => {
 };
 
 export const createServerCompanyWatch = async (watch) => {
+  if (hasDefinitionVersion(watch)) throw Object.assign(new Error('Structured persistence is not enabled.'), { code: 'STRUCTURED_PERSISTENCE_DISABLED' });
   const body = await request('/api/company-watches', {
     method: 'POST',
     body: JSON.stringify({

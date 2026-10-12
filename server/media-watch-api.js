@@ -3,6 +3,7 @@ import { createMediaWatchCheckMiddleware } from './media-watch-check-api.js';
 import { getMediaWatchEmailConfig } from './media-watch-email.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
 import { mediaWatchDefinition } from '../src/js/media-watch-definition.js';
+import { hasDefinitionVersion } from '../src/js/watch-definition.js';
 
 export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabaseRequest, ...options } = {}) => async (request, response, next) => {
   const url = new URL(request.url || '/', 'http://localhost');
@@ -46,6 +47,8 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
     if (!raw || Buffer.byteLength(JSON.stringify(raw)) > 12000 || !Number.isSafeInteger(raw.revision) || raw.revision < 0
       || typeof raw.deleted !== 'boolean' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw.mutation)) return send(400, { code: 'INVALID_BODY' });
     const input = raw.definition;
+    // No structured authorization/write path exists in this increment.
+    if (hasDefinitionVersion(input?.watch_definition)) return send(409, { code: 'STRUCTURED_PERSISTENCE_DISABLED' });
     if (!['monitoring', 'paused'].includes(input?.monitoring_state)) return send(400, { code: 'INVALID_MEDIA_DEFINITION' });
     let definition;
     try {

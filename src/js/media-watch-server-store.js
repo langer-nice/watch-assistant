@@ -5,6 +5,7 @@ import { getAccountOwner, localWatchStorageKey, safeStorage } from './account-st
 import { addUpdateToWatch } from './watch-updates.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
 import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
+import { hasDefinitionVersion } from './watch-definition.js';
 
 const PREFIX = 'watchAssistant.mediaSync.';
 let authSource;
@@ -34,7 +35,7 @@ const validateRow = (row) => {
     // A newer persisted definition is readable but cannot be edited by this client.
     return { ...row, clientReadOnly: true };
   }
-  return { ...row, clientReadOnly: false };
+  return { ...row, clientReadOnly: hasDefinitionVersion(row.watch_definition) };
 };
 export const getMediaWatchLoadState = () => ({
   status: !owner() ? 'idle' : loadError ? (loaded ? 'stale' : 'unavailable') : loaded ? 'ready' : 'loading',
@@ -183,6 +184,7 @@ export const checkStoredMediaWatch = async (watch) => {
   return result;
 };
 const feedSnapshot = row => Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
+const storedCurrency = row => Boolean(row.watch_definition.currencyCriteria || row.watch_definition.plan?.criteria?.kind === 'ecb_threshold');
 const feedState = row => {
   const snapshot = feedSnapshot(row);
   return {
@@ -195,15 +197,15 @@ const feedState = row => {
 };
 
 export const getMediaServerWatches = () => (owner() && owner() === identity ? rows : []).filter((row) => !row.deleted_at).map((row) => ({
-  id: row.id, title: row.title, ...row.watch_definition, serverReadOnly: Boolean(row.clientReadOnly),
+  ...row.watch_definition, id: row.id, title: row.title, serverReadOnly: Boolean(row.clientReadOnly),
   ...(row.watch_definition.inputType === 'url' ? { isStory: true } : {}),
   monitoringSource: row.monitoring_source, feedUrl: row.monitoring_source.url,
   monitoringState: row.monitoring_state,
   status: row.monitoring_state === 'paused' ? 'paused' : row.current_status,
   createdAt: row.watch_definition?.localCreatedAt || row.created_at,
-  ...(!row.watch_definition.currencyCriteria ? feedState(row) : {}),
+  ...(!storedCurrency(row) ? feedState(row) : {}),
   lastChecked: row.last_checked_at || null,
-  ...(row.watch_definition.currencyCriteria ? {
+  ...(storedCurrency(row) ? {
     currencyEvaluation: row.currency_evaluation || null,
     currencySatisfied: Boolean(row.last_change_item_id?.startsWith(`currency:${row.watch_definition.currencyRevision}:`)),
     lastCheckOutcome: row.last_check_outcome ? { type: row.last_check_outcome } : null,
@@ -213,7 +215,9 @@ export const getMediaServerWatches = () => (owner() && owner() === identity ? ro
   updates: row.currency_watch_events?.length ? row.currency_watch_events.map(event => ({ id: event.id, timestamp: event.detected_at, sourceTitle: event.article.title, sourceUrl: event.article.url, summary: event.article.excerpt, publishedAt: event.article.publishedAt, currencyEvaluation: event.evaluation, status: 'new' })) : row.last_change_item_id ? [{ id: row.last_change_item_id, timestamp: row.media_last_change_detected_at,
     sourceTitle: row.last_change_title, sourceUrl: row.last_change_url, summary: row.last_change_summary,
     publishedAt: row.last_change_published_at, status: 'new' }] : [],
-  mediaPersistence: { ownerId: owner() },
+  mediaPersistence: { ownerId: owner(), ...(hasDefinitionVersion(row.watch_definition)
+    ? { revision: Number(row.media_revision), mutation: row.media_mutation_id } : {}) },
+  ...(hasDefinitionVersion(row.watch_definition) ? { structuredExecutionDisabled: true } : {}),
 }));
 export const mergeMediaWatches = (local) => {
   const user = owner();

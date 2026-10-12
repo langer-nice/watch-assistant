@@ -2,8 +2,11 @@
 
 `server/watch-capabilities.js` exports the immutable `capabilityRegistry`, pure
 `assessCapabilities`, `compileMonitoringPlan`, and `validateCompiledMonitoringPlan`.
-No endpoint, UI, Watch persistence or execution calls them automatically. They
-do not call AI, providers, source discovery, databases, schedules or notifications.
+The implementation is shared in `src/js/watch-capabilities.js`; the server path
+retains its exports. [Definition foundations](structured-watch-definitions-v1.md)
+reuse compilation for strict verification of explicit versions. Structured creation
+and execution remain disabled. These functions do not call AI, providers, source
+discovery, databases, schedules or notifications.
 
 Assessment validates InterpretationV1 first and returns `supported`,
 `unsupported`, `clarification_required`, or `invalid_interpretation`, plus stable

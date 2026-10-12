@@ -34,6 +34,7 @@ export const runMediaMonitoring = async ({ client, env = process.env, fetchFeed 
   if (maintenance.error) throw Object.assign(new Error('Media notification maintenance failed.'), { code: 'DATABASE_ERROR' });
   await bounded(rows, concurrency, async (row) => { try {
     if (Date.now() >= deadline) { skippedCount += 1; return; }
+    if (Object.hasOwn(row.watch_definition || {}, 'definitionVersion')) { skippedCount += 1; return; }
     const sourceUrl = normalizeFeedUrl(row.monitoring_source?.url); if (!sourceUrl) { skippedCount += 1; return; }
     const watch = asWatch(row); const isCurrency = Boolean(currencyCriteriaFor(watch));
     if (row.monitoring_source?.type === 'currency' && !isCurrency) throw new Error('INVALID_CURRENCY_CRITERIA');

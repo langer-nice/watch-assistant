@@ -37,6 +37,7 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     if (error) throw Object.assign(new Error('Database unavailable'), { code: 'PERSISTENCE_UNAVAILABLE' });
     row = data?.[0];
     if (!row) return send(404, { code: 'WATCH_NOT_FOUND' });
+    if (Object.hasOwn(row.watch_definition || {}, 'definitionVersion')) return send(409, { code: 'STRUCTURED_EXECUTION_DISABLED' });
     if (!['feed','currency'].includes(row.monitoring_source?.type)) return send(400, { code: 'INVALID_MONITORING_SOURCE' });
     if (Number(row.media_revision) !== body.revision) return send(409, { code: 'MEDIA_CONFLICT' });
     prior = Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;

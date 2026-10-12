@@ -4,6 +4,7 @@ import { normalizeAdministrativeStatus } from '../src/js/company-administrative-
 import { fetchBodaccAnnouncements, normalizeSiren } from './bodacc-api.js';
 import { fetchCompanyIdentity } from './company-directory-api.js';
 import { SUPPORTED_WATCH_CATEGORIES } from '../src/js/watch-category.js';
+import { hasDefinitionVersion } from '../src/js/watch-definition.js';
 
 const WATCH_SELECT = '*, company_watch_snapshots(*)';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -125,6 +126,9 @@ export const mapCompanyWatchRow = (row) => {
     unreadUpdateCount: lastChange && hasUnreadLastChange ? 1 : 0,
     lastUpdated: lastChange?.timestamp || null,
     latestUpdateAt: lastChange ? row.last_checked_at : null,
+    ...(hasDefinitionVersion(row.watch_definition) ? { ...structuredClone(row.watch_definition),
+      id: row.id, title: row.title, definitionRevision: row.media_revision, definitionMutationId: row.media_mutation_id,
+      monitoringSource: structuredClone(row.monitoring_source), serverReadOnly: true, structuredExecutionDisabled: true } : {}),
   };
 };
 
@@ -224,6 +228,7 @@ export const createCompanyWatchRepository = ({
   };
 
   const create = async (input) => {
+    if (hasDefinitionVersion(input) || hasDefinitionVersion(input?.watch_definition)) throw new CompanyWatchRepositoryError('STRUCTURED_PERSISTENCE_DISABLED', 409, 'Structured persistence is not enabled.');
     onCompanyWatchStage('create-validate');
     const requestedId = input.id === undefined ? null : validateWatchId(input.id);
     const siren = normalizeSiren(input.siren);
@@ -323,6 +328,7 @@ export const createCompanyWatchRepository = ({
 
   const check = async (watchId) => {
     const watch = await get(watchId);
+    if (hasDefinitionVersion(watch)) throw new CompanyWatchRepositoryError('STRUCTURED_EXECUTION_DISABLED', 409, 'Structured monitoring is not enabled.');
     const { data: claimed, error: claimError } = await client.rpc('claim_company_watch_check', {
       p_watch_id: watch.id,
     });
