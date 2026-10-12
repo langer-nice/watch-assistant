@@ -31,8 +31,13 @@ export const createPlanWatchMiddleware = (options = {}) => (
       next?.();
       return;
     }
+    const mode = new URL(request.url || '/', 'http://localhost').searchParams.get('mode');
     if (request.method !== 'POST') {
       response.setHeader('Allow', 'POST');
+      if (mode !== null) {
+        sendJson(response, 405, { mode: 'interpretation.v1', executable: false, code: 'METHOD_NOT_ALLOWED' });
+        return;
+      }
       sendJson(response, 405, createPlannerDecision({
         clarificationQuestion: 'Send a POST request describing what to monitor.',
       }));
@@ -40,6 +45,11 @@ export const createPlanWatchMiddleware = (options = {}) => (
     }
     try {
       const body = await readJsonBody(request);
+      if (mode !== null) {
+        if (mode !== 'interpretation.v1') throw Object.assign(new Error('Invalid interpretation mode.'), { code: 'INVALID_INTERPRETATION_REQUEST', statusCode: 400 });
+        sendJson(response, 200, await planWatch(body.request, { ...options, mode, language: body.language ?? 'und' }));
+        return;
+      }
       const scope = new URL(request.url || '/', 'http://localhost').searchParams.get('scope');
       const companyOnly = ['official_company', 'migrated_routes'].includes(scope);
       const includeMediaStory = scope !== 'official_company';
@@ -48,7 +58,13 @@ export const createPlanWatchMiddleware = (options = {}) => (
         companyOnly,
         includeMediaStory,
       }));
-    } catch {
+    } catch (error) {
+      if (mode !== null) {
+        const codes = new Set(['INVALID_INTERPRETATION_REQUEST', 'INTERPRETATION_FAILED', 'AI_SERVICE_UNAVAILABLE', 'AI_TIMEOUT']);
+        const code = codes.has(error.code) ? error.code : 'INVALID_INTERPRETATION_REQUEST';
+        sendJson(response, codes.has(error.code) ? error.statusCode : 400, { mode: 'interpretation.v1', executable: false, code });
+        return;
+      }
       sendJson(response, 400, createPlannerDecision({
         clarificationQuestion: 'Provide a valid JSON request describing what to monitor.',
       }));
