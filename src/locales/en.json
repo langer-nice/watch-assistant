@@ -215,6 +215,7 @@
     "activationFailedCopy": "This Watch is saved, but its initial check failed. Use Check now to retry; monitoring has not been confirmed.",
     "activationPendingCopy": "This Watch is saved. Its first check is still pending.",
     "savedLocallyCopy": "Your request is saved on this device. Review the synchronization notice before relying on automatic monitoring.",
+    "structuredSavedPausedCopy": "This Watch is saved paused. Monitoring is not active and no automatic notifications are being sent.",
     "createdCopy": "Monitoring is active. I’ll check automatically for future updates.",
     "updatedTitle": "Watch updated",
     "updatedCopy": "Your changes have been saved.",

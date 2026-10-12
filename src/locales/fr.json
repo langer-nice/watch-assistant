@@ -215,6 +215,7 @@
     "activationFailedCopy": "Cette Watch est enregistrée, mais sa première vérification a échoué. Utilisez Vérifier maintenant pour réessayer ; la surveillance n’est pas confirmée.",
     "activationPendingCopy": "Cette Watch est enregistrée. Sa première vérification reste à effectuer.",
     "savedLocallyCopy": "Votre demande est enregistrée sur cet appareil. Consultez l’état de synchronisation avant de compter sur le suivi automatique.",
+    "structuredSavedPausedCopy": "Cette Watch est enregistrée en pause. La surveillance est inactive et aucune notification automatique n’est envoyée.",
     "createdCopy": "La surveillance est active. Je vérifierai automatiquement les prochaines mises à jour.",
     "updatedTitle": "Watch mise à jour",
     "updatedCopy": "Vos modifications ont été enregistrées.",

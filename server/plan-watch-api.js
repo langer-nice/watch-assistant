@@ -1,3 +1,5 @@
+import { structuredCreationEnabled, requireStructuredCreationAccess } from './structured-creation-access.js';
+import { authenticateSupabaseRequest } from './supabase-user.js';
 import { createPlannerDecision, planWatch } from './watch-planner.js';
 
 const ENDPOINT = '/api/plan-watch';
@@ -47,6 +49,10 @@ export const createPlanWatchMiddleware = (options = {}) => (
       const body = await readJsonBody(request);
       if (mode !== null) {
         if (mode !== 'interpretation.v1') throw Object.assign(new Error('Invalid interpretation mode.'), { code: 'INVALID_INTERPRETATION_REQUEST', statusCode: 400 });
+        const env = options.env || process.env;
+        if (!structuredCreationEnabled(env)) throw Object.assign(new Error('Unavailable'),{code:'STRUCTURED_FEATURE_UNAVAILABLE',statusCode:404});
+        const { user } = await (options.authenticate || authenticateSupabaseRequest)(request,{...options,env});
+        requireStructuredCreationAccess(user,env);
         sendJson(response, 200, await planWatch(body.request, { ...options, mode, language: body.language ?? 'und' }));
         return;
       }
@@ -60,7 +66,7 @@ export const createPlanWatchMiddleware = (options = {}) => (
       }));
     } catch (error) {
       if (mode !== null) {
-        const codes = new Set(['INVALID_INTERPRETATION_REQUEST', 'INTERPRETATION_FAILED', 'AI_SERVICE_UNAVAILABLE', 'AI_TIMEOUT']);
+        const codes = new Set(['STRUCTURED_FEATURE_UNAVAILABLE','AUTH_REQUIRED','INVALID_SESSION','AUTH_UNAVAILABLE','INVALID_INTERPRETATION_REQUEST', 'INTERPRETATION_FAILED', 'AI_SERVICE_UNAVAILABLE', 'AI_TIMEOUT']);
         const code = codes.has(error.code) ? error.code : 'INVALID_INTERPRETATION_REQUEST';
         const reasons = new Set(['DOMAIN_PREDICATE_CONFLICT', 'CONDITION_EVIDENCE_MISMATCH', 'OFFICIAL_SOURCE_UNGROUNDED']);
         sendJson(response, codes.has(error.code) ? error.statusCode : 400, { mode: 'interpretation.v1', executable: false, code,

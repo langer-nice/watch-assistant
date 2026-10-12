@@ -1,4 +1,5 @@
-// Backend-only endpoint implementation. Intentionally NOT mounted in api/ or Vite.
+import { structuredCreationEnabled, requireStructuredCreationAccess } from './structured-creation-access.js';
+// Disabled-by-default endpoint; every operation requires server-authorized test access.
 import { authenticateSupabaseRequest } from './supabase-user.js';
 import { createSupabaseServiceClient } from './supabase-service.js';
 import { validateInterpretation } from '../src/js/watch-interpretation.js';
@@ -8,7 +9,7 @@ import { authorizationError, authorizationConfiguration, authorizationBindings, 
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MAX_BODY_BYTES = 98304;
-const safeCodes = new Set(['AUTH_REQUIRED','INVALID_SESSION','AUTH_UNAVAILABLE','SERVER_NOT_CONFIGURED','INVALID_BODY',
+const safeCodes = new Set(['STRUCTURED_FEATURE_UNAVAILABLE','AUTH_REQUIRED','INVALID_SESSION','AUTH_UNAVAILABLE','SERVER_NOT_CONFIGURED','INVALID_BODY',
   'INVALID_PLAN_AUTHORIZATION','UNSUPPORTED_AUTHORIZATION_VERSION','PLAN_AUDIENCE_MISMATCH','EXPIRED_PLAN_AUTHORIZATION',
   'PLAN_OWNER_MISMATCH','PLAN_WATCH_MISMATCH','PLAN_OPERATION_MISMATCH','PLAN_MUTATION_MISMATCH','PLAN_REVISION_MISMATCH',
   'PLAN_DEFINITION_MISMATCH','PLAN_VERSION_MISMATCH','UNSUPPORTED_WATCH_VERSION','INVALID_WATCH_DEFINITION','WATCH_SOURCE_MISMATCH',
@@ -37,7 +38,7 @@ const readBody = async request => {
   return value;
 };
 export const createStructuredWatchMiddleware = ({ env = process.env, authenticate = authenticateSupabaseRequest,
-  serviceClient, now = Date.now, ...options } = {}) => async (request,response,next) => {
+  serviceClient, now = Date.now, creationOnly = false, ...options } = {}) => async (request,response,next) => {
   const url = new URL(request.url || '/', 'http://localhost');
   if (url.pathname !== '/api/structured-watches') return next?.();
   const send = (status,body) => {
@@ -46,12 +47,16 @@ export const createStructuredWatchMiddleware = ({ env = process.env, authenticat
     response.end(JSON.stringify(body));
   };
   if (env.STRUCTURED_WATCH_BACKEND_ENABLED !== 'true') return send(404,{code:'STRUCTURED_BACKEND_DISABLED'});
-  if (request.method !== 'POST') return send(405,{code:'METHOD_NOT_ALLOWED'});
+  if (!structuredCreationEnabled(env)) return send(404,{code:'STRUCTURED_FEATURE_UNAVAILABLE'});
+  if (!['GET','POST'].includes(request.method)) return send(405,{code:'METHOD_NOT_ALLOWED'});
   if (url.search) return send(400,{code:'INVALID_BODY'});
   try {
     const { user, client } = await authenticate(request,{env,...options});
+    requireStructuredCreationAccess(user,env);
+    if (request.method === 'GET') return send(200,{enabled:true});
     const config = authorizationConfiguration(env);
     const body = await readBody(request);
+    if (creationOnly && body.operation !== 'create') throw authorizationError('INVALID_BODY',400);
     let definition;
     if (body.action === 'issue') {
       let interpretation;
@@ -71,6 +76,7 @@ export const createStructuredWatchMiddleware = ({ env = process.env, authenticat
           && previous.plan.criteria.siren !== definition.plan.criteria.siren)) throw authorizationError('STRUCTURED_ADAPTER_CONFLICT',409);
       }
     } else definition = validateWatchDefinition(body.definition);
+    if (creationOnly && definition.plan.adapter !== 'google_news_literal_v1') throw authorizationError('STRUCTURED_ADAPTER_CONFLICT',422);
     const source = structuredMonitoringSource(definition.plan.criteria);
     const bindings = authorizationBindings({ownerId:user.id,watchId:body.watchId,operation:body.operation,
       mutationId:body.mutationId,expectedRevision:body.expectedRevision,title:body.title,definition,source});

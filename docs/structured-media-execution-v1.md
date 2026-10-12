@@ -129,3 +129,7 @@ legacy parsing. No conversion or legacy parser expansion is part of Step 3.
 Verification: 68 focused tests pass plus one native independent-session completion
 concurrency test. The final result/read-cache change also passes its 16 affected
 focused tests. The full suite was not run.
+
+Step 4 adds disabled-by-default, server-authorized creation review and paused
+confirmation; see [structured-watch-creation-v1.md](structured-watch-creation-v1.md).
+Structured scheduling/activation remains unchanged and disabled.

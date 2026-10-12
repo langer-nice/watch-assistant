@@ -1,3 +1,4 @@
+import { configureStructuredWatchCreation } from './structured-watch-creation.js';
 import { applyExampleToEditor } from './example-watches.js';
 import { getAccountEpoch, getAccountOwner } from './account-storage.js';
 import { configureMediaWatchServerStore } from './media-watch-server-store.js';
@@ -29,6 +30,7 @@ const authUi = initAuthUi({ onResume: async (request, owner) => {
   document.querySelector('#newWatchForm').requestSubmit();
 } });
 configureHomeGreeting(authUi?.auth);
+configureStructuredWatchCreation(authUi?.auth);
 // Drop sensitive DOM before a page can enter the back/forward cache. Restoration
 // must resolve the session again rather than reuse a frozen account snapshot.
 window.addEventListener('pagehide', () => {

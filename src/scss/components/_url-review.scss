@@ -1,4 +1,4 @@
-.watch-form.is-reviewing > :not(.url-analysis):not([data-currency-review]) {
+.watch-form.is-reviewing > :not(.url-analysis):not([data-currency-review]):not([data-structured-review]) {
   display: none;
 }
 
@@ -304,10 +304,15 @@
   }
 }
 
-[data-currency-review] {
+[data-currency-review],
+[data-structured-review] {
   display: grid;
   gap: var(--space-md);
   padding: var(--space-lg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
+
+.structured-watch-opt-in { display: flex; align-items: start; gap: var(--space-sm); }
+[data-structured-review] { overflow-wrap: anywhere; }
+[data-structured-review] .structured-review-error:empty { display: none; }

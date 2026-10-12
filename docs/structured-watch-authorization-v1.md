@@ -1,5 +1,9 @@
 # Step 2: signed confirmation and inactive persistence
 
+Step 4 now mounts this endpoint behind a disabled server flag and verified test-user
+allowlist. The unmounted scope below describes Step 2 historically; see
+[structured-watch-creation-v1.md](structured-watch-creation-v1.md) for current access.
+
 Backend implementation only. `server/structured-watch-api.js` is intentionally
 **unmounted** in Vercel API and Vite routes, and also requires an explicit server
 enable flag. No public creation UI, activation, execution, migration of existing

@@ -1,3 +1,4 @@
+import { initStructuredWatchCreation } from './structured-watch-creation.js';
 import { creationConfirmationKey, watchCreationState } from './watch-creation-state.js';
 import { showCurrencyCreationReview } from './currency-creation-review.js';
 import { parseCurrencyRequest, normalizeCurrencyWatch, CURRENCY_SOURCE } from './currency-watch.js';
@@ -2721,9 +2722,11 @@ export function initForm() {
     return;
   }
 
+  let structuredCreation;
   const editor = createEditorSession({
     form,
     onInvalidate: () => {
+      structuredCreation?.invalidate();
       editNavigationAllowed = true;
       form.voiceDictationCleanup?.();
       urlAnalysisController?.abort();
@@ -2976,7 +2979,9 @@ export function initForm() {
 
   const scheduleKeywordRegeneration = () => {
     window.clearTimeout(keywordRegenerationTimer);
+    if (structuredCreation?.isSelected()) return;
     keywordRegenerationTimer = window.setTimeout(() => {
+      if (structuredCreation?.isSelected()) return;
       const request = input?.value.trim() || '';
       const requestChanged = normalizeComparableText(keywordSourceRequest)
         !== normalizeComparableText(request);
@@ -4638,6 +4643,8 @@ export function initForm() {
     }, 200);
   });
 
+  if (!isEditMode) structuredCreation = initStructuredWatchCreation({form,input,error:watchError,getLanguage,listen:editor.listen,isCurrent:editor.isCurrent});
+
   editor.listen(form, 'submit', async (event) => {
     event.preventDefault();
     voiceDictation?.stop({ focus: false });
@@ -4673,6 +4680,10 @@ export function initForm() {
       watchError.textContent = '';
     }
 
+    if (!isEditMode && structuredCreation?.isSelected()) {
+      await structuredCreation.run(originalRequest,getLanguage());
+      return;
+    }
     synchronizeInferredFields(request);
     if (!isEditMode && parseCurrencyRequest(request)) {
       await savePlainTextWatch(request, whyFollowing, { preserveOriginalWording: true });
