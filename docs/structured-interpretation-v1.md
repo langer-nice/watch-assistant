@@ -74,8 +74,10 @@ Contradictions fail with safe reasons `DOMAIN_PREDICATE_CONFLICT`,
 `CONDITION_EVIDENCE_MISMATCH`, or `OFFICIAL_SOURCE_UNGROUNDED`; the opt-in HTTP
 response exposes those reasons without raw model payloads or source text.
 
-`MonitoringPlanV1` defines only a future boundary: `not_assessed` and
-`executable:false`. There is no compiler or executable plan contract yet.
+`MonitoringPlanV1` retains the `not_assessed` placeholder and now also defines a
+non-executing supported plan. Phase 3's isolated assessor/compiler is documented
+in [structured-capabilities-v1.md](structured-capabilities-v1.md); no creation or
+execution integration exists.
 
 ## Failures and compatibility
 
@@ -89,7 +91,7 @@ legacy prompt, schema, model fallback, response contract and currency shortcut
 are retained. No existing Watch is reinterpreted. No changes are made to parser,
 currency evaluation, aliases, saved definitions/queries, databases, auth,
 baselines, ledgers or notifications. Opt-in output cannot be used directly by
-current persistence. Phases 3 onward require separately approved capability and
+current persistence. Phase 4 requires separately approved creation and
 version-aware persistence work.
 
 ## Focused verification

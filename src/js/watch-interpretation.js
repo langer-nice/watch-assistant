@@ -52,9 +52,27 @@ export const interpretationOutputSchema = object(Object.fromEntries(
 interpretationOutputSchema.properties.evidence = array(object({ path: evidencePath,
   quote: str(500), context: nullable(str(500)) }), 96);
 // Future boundary only; no adapter, source, approval or compiler exists in this phase.
-export const monitoringPlanSchema = object({ schemaVersion: enumeration('monitoring-plan.v1'),
+const pendingPlanSchema = object({ schemaVersion: enumeration('monitoring-plan.v1'),
   interpretationVersion: enumeration('interpretation.v1'), originalRequest: str(500),
   status: enumeration('not_assessed'), executable: { type: 'boolean', enum: [false] } });
+const mediaCriteria = object({ kind: enumeration('media_literal'), subjects: array(str(), 8, 1),
+  matchMode: enumeration('all'), topics: array(str(), 8), exclusions: array(str(), 8), query: str(500),
+  edition: enumeration('GB:en') });
+const currencyCriteria = object({ kind: enumeration('ecb_threshold'), base: enumeration('GBP', 'EUR'), quote: enumeration('GBP', 'EUR'),
+  operator: enumeration('gt', 'gte'), target: { ...str(25), pattern: '^\\d{1,12}(?:\\.\\d{1,12})?$' }, policy: enumeration('once', 'crossing', 'daily') });
+const companyCriteria = object({ kind: enumeration('bodacc_siren'), siren: { ...str(9), pattern: '^\\d{9}$' }, country: enumeration('FR') });
+const compiledPlanSchema = object({ schemaVersion: enumeration('monitoring-plan.v1'), interpretationVersion: enumeration('interpretation.v1'),
+  registryVersion: enumeration('capabilities.v1'), originalRequest: str(500),
+  interpretationRef: { ...str(64), pattern: '^[a-f0-9]{64}$' }, status: enumeration('supported'), executable: { type: 'boolean', enum: [false] },
+  domain: enumeration('media_news', 'currency', 'official_company'),
+  adapter: enumeration('google_news_literal_v1', 'ecb_reference_v1', 'bodacc_siren_v1'),
+  subjects: array(subject), conditions: array(condition, 32), condition: id,
+  topics: interpretationSchema.properties.topics, exclusions: references,
+  geographic: interpretationSchema.properties.geographic,
+  recurrence: interpretationSchema.properties.recurrence,
+  criteria: { anyOf: [mediaCriteria, currencyCriteria, companyCriteria] }, limitations: array(str(100), 16, 1),
+});
+export const monitoringPlanSchema = { anyOf: [pendingPlanSchema, compiledPlanSchema] };
 
 const fail = reason => { throw Object.assign(new Error('Structured interpretation failed validation.'),
   { code: 'INTERPRETATION_FAILED', statusCode: 502, ...(reason ? { reason } : {}) }); };
@@ -275,5 +293,11 @@ export const validateInterpretation = (value, request = value?.originalRequest) 
 
 export const validateMonitoringPlan = value => {
   if (!conforms(value, monitoringPlanSchema)) fail();
+  if (value.status === 'supported') {
+    const expected = { google_news_literal_v1: ['media_news', 'media_literal'], ecb_reference_v1: ['currency', 'ecb_threshold'],
+      bodacc_siren_v1: ['official_company', 'bodacc_siren'] }[value.adapter];
+    if (value.domain !== expected[0] || value.criteria.kind !== expected[1]) fail();
+    if (value.criteria.kind === 'ecb_threshold' && (value.criteria.base === value.criteria.quote || Number(value.criteria.target) <= 0)) fail();
+  }
   return structuredClone(value);
 };

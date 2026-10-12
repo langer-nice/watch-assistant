@@ -27,10 +27,22 @@ export interface InterpretationV1 {
   unresolvedRequirements: { text: string; reason: string }[];
   evidence: { path: string; start: number; end: number; text: string }[];
 }
-export interface MonitoringPlanV1 {
+export interface PendingMonitoringPlanV1 {
   schemaVersion: 'monitoring-plan.v1'; interpretationVersion: 'interpretation.v1';
   originalRequest: string; status: 'not_assessed'; executable: false;
 }
+export interface CompiledMonitoringPlanV1 extends Omit<PendingMonitoringPlanV1, 'status'> {
+  status: 'supported'; registryVersion: 'capabilities.v1'; interpretationRef: string;
+  domain: 'media_news' | 'currency' | 'official_company';
+  adapter: 'google_news_literal_v1' | 'ecb_reference_v1' | 'bodacc_siren_v1';
+  subjects: Subject[]; conditions: Condition[]; condition: string;
+  topics: InterpretationV1['topics']; exclusions: string[]; geographic: InterpretationV1['geographic'];
+  recurrence: InterpretationV1['recurrence']; limitations: string[];
+  criteria: { kind: 'media_literal'; subjects: string[]; matchMode: 'all'; topics: string[]; exclusions: string[]; query: string; edition: 'GB:en' }
+    | { kind: 'ecb_threshold'; base: 'GBP' | 'EUR'; quote: 'GBP' | 'EUR'; operator: 'gt' | 'gte'; target: string; policy: 'once' | 'crossing' | 'daily' }
+    | { kind: 'bodacc_siren'; siren: string; country: 'FR' };
+}
+export type MonitoringPlanV1 = PendingMonitoringPlanV1 | CompiledMonitoringPlanV1;
 export const interpretationSchema: object;
 export const interpretationOutputSchema: object;
 export const monitoringPlanSchema: object;
