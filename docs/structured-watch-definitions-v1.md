@@ -92,8 +92,9 @@ never remove validation/read support required by already-persisted versions.
 
 ## Next increment and eventual legacy retirement
 
-Next: authenticated owner-bound signed confirmation, service-only atomic persistence,
-payload equality for idempotent operations, revision/replay checks, then version-aware
+The [Step 2 backend](structured-watch-authorization-v1.md) now implements owner-bound
+signed confirmation, service-only atomic persistence, durable idempotency receipts
+and revision/replay checks. It remains unmounted and disabled. Next: version-aware
 execution and explicit opt-in review. Remove the activation block only after all
 creation/reload/manual/scheduled/notification paths consume stored criteria safely.
 Keep validator/compiler versions immutable; behavior changes require a new version
