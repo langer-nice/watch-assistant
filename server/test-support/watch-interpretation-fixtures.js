@@ -7,7 +7,7 @@ export const predicate = (id, kind, subjects, value = null) => ({ id, op: 'predi
 export const fixture = (request, subjects, conditions, extra = {}) => {
   const value = { schemaVersion: 'interpretation.v1', originalRequest: request, language: 'en',
     intent: 'ongoing_news', domain: 'media_news', subjects, conditions, condition: conditions[0]?.id || null,
-    topics: [], temporal: [], geographic: [], exclusions: [], recurrence: 'per_new_item',
+    topics: [], temporal: [], geographic: [], exclusions: [], recurrence: 'unspecified',
     ambiguities: [], unresolvedRequirements: [], evidence: [], ...extra };
   const add = (path, text) => {
     const start = request.indexOf(text);
@@ -39,7 +39,7 @@ export const consumerFixtures = [
     membership: [{ attribute: 'country_association', operator: 'eq', values: ['IT'] },
       { attribute: 'industry', operator: 'eq', values: ['fashion'] }], members: ['gucci', 'prada', 'dolce', 'miumiu'] },
     ...['Gucci', 'Prada', 'Dolce & Gabbana', 'Miu Miu'].map((label, i) => individual(['gucci', 'prada', 'dolce', 'miumiu'][i], label))],
-  [predicate('news', 'news_about', ['brands'])], { topics: topics(['news', 'collections', 'fashion shows', 'announcements']) }),
+  [predicate('news', 'news_about', ['brands'])], { topics: topics(['collections', 'fashion shows', 'announcements']) }),
   fixture(request(3), ['Sephora', 'KIKO Milano', 'Charlotte Tilbury'].map((label, i) => individual(`brand${i}`, label)),
     [{ id: 'root', op: 'and', args: ['anybrand', 'beauty'] }, { id: 'anybrand', op: 'or', args: ['n0', 'n1', 'n2'] },
       ...[0, 1, 2].map(i => predicate(`n${i}`, 'news_about', [`brand${i}`])),
@@ -51,5 +51,7 @@ export const currencyFixture = request => {
     { ...individual('base', french ? 'livre sterling' : 'pound', 'currency'), canonicalCode: 'GBP' },
     { ...individual('quote', french ? 'euro' : 'euros', 'currency'), canonicalCode: 'EUR' },
   ], [{ ...predicate('rate', 'numeric', ['base', 'quote'], 'exchange_rate'), operator: 'gt', amount: '1.18', unit: 'EUR' }],
-  { language: french ? 'fr' : 'en', domain: 'currency', intent: 'numeric_condition', recurrence: 'unspecified' });
+  { language: french ? 'fr' : 'en', domain: 'currency', intent: 'numeric_condition', recurrence: 'unspecified',
+    ambiguities: /whenever|chaque fois/iu.test(request) ? [{ field: 'recurrence', alternatives: ['crossing', 'per_observation'],
+      question: french ? 'À chaque franchissement ou à chaque observation satisfaite ?' : 'On each crossing or each satisfied observation?' }] : [] });
 };

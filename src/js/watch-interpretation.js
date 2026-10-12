@@ -6,11 +6,18 @@ const array = (items, maxItems = 16, minItems = 0) => ({ type: 'array', items, m
 const object = properties => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
 const id = { ...str(32), pattern: '^[a-z][a-z0-9_]*$' };
 const references = array(id);
-const membership = object({ attribute: str(80), operator: enumeration('eq', 'in'), values: array(str(), 8, 1) });
-const subject = object({ id, kind: enumeration('individual', 'open_group', 'closed_group'),
+const membership = object({ attribute: enumeration('nationality', 'sport', 'tour', 'country_association', 'industry', 'other'), operator: enumeration('eq', 'in'), values: array(str(), 8, 1) });
+const subjectFields = { id,
   type: enumeration('person', 'organization', 'product', 'event', 'topic', 'currency', 'place', 'unknown'),
-  label: str(), canonicalCode: nullable(enumeration('GBP', 'EUR')),
-  membership: array(membership, 8), members: references, quantifier: nullable(enumeration('any', 'all')) });
+  label: str(), canonicalCode: nullable(enumeration('GBP', 'EUR')) };
+const groupFields = { ...subjectFields, canonicalCode: { type: 'null' },
+  type: enumeration('person', 'organization', 'product', 'event', 'topic', 'place', 'unknown') };
+const subject = { anyOf: [
+  object({ ...subjectFields, kind: enumeration('individual'), membership: array(membership, 0), members: array(id, 0), quantifier: { type: 'null' } }),
+  object({ ...groupFields, kind: enumeration('open_group'), membership: array(membership, 8, 1), members: references, quantifier: enumeration('any', 'all') }),
+  object({ ...groupFields, kind: enumeration('closed_group'), membership: array(membership, 0), members: array(id, 16, 2), quantifier: enumeration('any', 'all') }),
+] };
+const evidencePath = { ...str(160), pattern: '^/(?:subjects/[0-9]+/(?:label|membership/[0-9]+)|conditions/[0-9]+|topics/[0-9]+|temporal/[0-9]+|geographic/[0-9]+|unresolvedRequirements/[0-9]+|recurrence)$' };
 const predicate = object({ id, op: enumeration('predicate'),
   kind: enumeration('news_about', 'mentions_together', 'event', 'relationship', 'numeric', 'topic', 'temporal', 'geographic'),
   subjects: references, value: nullable(str()), operator: nullable(enumeration('gt', 'gte', 'lt', 'lte', 'eq')),
@@ -33,13 +40,17 @@ export const interpretationSchema = object({
   recurrence: enumeration('once', 'crossing', 'per_observation', 'per_new_item', 'unspecified'),
   ambiguities: array(object({ field: str(), alternatives: array(str(), 8, 2), question: str(300) }), 8),
   unresolvedRequirements: array(object({ text: str(), reason: str() }), 16),
-  evidence: array(object({ path: str(160), start: { type: 'integer', minimum: 0, maximum: 499 },
+  evidence: array(object({ path: evidencePath, start: { type: 'integer', minimum: 0, maximum: 499 },
     end: { type: 'integer', minimum: 1, maximum: 500 }, text: str(500) }), 96),
 });
 // Original wording is server-owned, never copied or rewritten by the model.
 export const interpretationOutputSchema = object(Object.fromEntries(
   Object.entries(interpretationSchema.properties).filter(([key]) => key !== 'originalRequest'),
 ));
+// Models quote source text; only application code computes offsets. A unique
+// exact context may disambiguate a repeated quote; otherwise fail closed.
+interpretationOutputSchema.properties.evidence = array(object({ path: evidencePath,
+  quote: str(500), context: nullable(str(500)) }), 96);
 // Future boundary only; no adapter, source, approval or compiler exists in this phase.
 export const monitoringPlanSchema = object({ schemaVersion: enumeration('monitoring-plan.v1'),
   interpretationVersion: enumeration('interpretation.v1'), originalRequest: str(500),
@@ -66,6 +77,9 @@ const conforms = (value, schema) => {
 };
 const unique = values => new Set(values).size === values.length;
 const fold = text => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/gu, ' ').trim();
+const countryWords = { IT: ['italian', 'italians', 'italien', 'italiens', 'italienne', 'italiennes'],
+  FR: ['french', 'francais', 'francaise', 'francaises'], GB: ['british', 'britannique', 'britanniques'],
+  US: ['american', 'americain', 'americaine', 'americains', 'americaines'] };
 const pointer = (value, path) => {
   if (!/^\/(?:[a-zA-Z]+|\d+)(?:\/(?:[a-zA-Z]+|\d+))*$/u.test(path)) fail();
   for (const key of path.slice(1).split('/')) {
@@ -73,6 +87,36 @@ const pointer = (value, path) => {
     value = value[key];
   }
   return value;
+};
+
+export const reconstructInterpretation = (output, request) => {
+  if (typeof request !== 'string' || !conforms(output, interpretationOutputSchema)) fail();
+  const locate = (text, source) => {
+    const start = source.indexOf(text);
+    if (start < 0 || source.indexOf(text, start + 1) >= 0) fail();
+    return start;
+  };
+  const value = { ...structuredClone(output), originalRequest: request };
+  value.evidence = output.evidence.map(({ path, quote, context }) => {
+    pointer(value, path);
+    const start = context === null ? locate(quote, request) : locate(context, request) + locate(quote, context);
+    return { path, text: quote, start, end: start + quote.length };
+  });
+  // Only lexical/canonical equivalents are normalized, never semantic shapes.
+  for (const s of value.subjects) for (const m of s.membership) {
+    m.values = m.values.map(raw => {
+      const word = fold(raw);
+      if (['nationality', 'country_association'].includes(m.attribute)) {
+        return Object.keys(countryWords).find(code => countryWords[code].includes(word))
+          || (/^[a-z]{2}$/u.test(word) ? word.toUpperCase() : raw);
+      }
+      if (m.attribute === 'tour' && ['atp', 'wta'].includes(word)) return word.toUpperCase();
+      if (m.attribute === 'sport' && word === 'tennis') return 'tennis';
+      if (m.attribute === 'industry' && ['fashion', 'mode'].includes(word)) return 'fashion';
+      return raw;
+    }).sort();
+  }
+  return validateInterpretation(value, request);
 };
 
 export const validateInterpretation = (value, request = value?.originalRequest) => {
@@ -96,9 +140,19 @@ export const validateInterpretation = (value, request = value?.originalRequest) 
     if (s.canonicalCode && (s.type !== 'currency' || !new RegExp(s.canonicalCode === 'GBP'
       ? '^(?:gbp|pounds?(?: sterling)?|sterling|livres?(?: sterling)?|£)$'
       : '^(?:eur|euros?|€)$', 'u').test(fold(s.label)))) fail();
-    s.membership.forEach((m, i) => { if (!grounded(`/subjects/${index}/membership/${i}`)
-      || !unique(m.values) || (m.operator === 'eq' && m.values.length !== 1)) fail(); });
+    s.membership.forEach((m, i) => {
+      const path = `/subjects/${index}/membership/${i}`;
+      if (!grounded(path) || !unique(m.values) || (m.operator === 'eq' && m.values.length !== 1)) fail();
+      const spans = value.evidence.filter(e => e.path === path).map(e => e.text).join(' ');
+      const words = fold(spans).match(/[\p{L}\p{N}]+/gu) || [];
+      if (['nationality', 'country_association'].includes(m.attribute) && m.values.some(code =>
+        !/^[A-Z]{2}$/u.test(code) || (!new RegExp(`(?:^|[^\\p{L}\\p{N}])${code}(?:$|[^\\p{L}\\p{N}])`, 'u').test(spans)
+          && !(countryWords[code] || []).some(word => words.includes(word))))) fail();
+      if (['sport', 'tour', 'industry'].includes(m.attribute) && m.values.some(v =>
+        !words.includes(fold(v)) && !(m.attribute === 'industry' && v === 'fashion' && words.includes('mode')))) fail();
+    });
     if (!unique(s.membership.map(m => m.attribute))) fail();
+    if (s.membership.some(m => m.attribute === 'other') && !value.unresolvedRequirements.length) fail();
   });
   const visiting = new Set(), reached = new Set();
   const walk = (key, depth = 0) => {
@@ -119,6 +173,17 @@ export const validateInterpretation = (value, request = value?.originalRequest) 
   value.exclusions.forEach(key => walk(key));
   if (!unique(value.exclusions) || (value.condition && value.exclusions.includes(value.condition)) || reached.size !== nodes.size) fail();
   if ((!value.condition || !value.subjects.length) && !value.ambiguities.length && !value.unresolvedRequirements.length) fail();
+  if (value.recurrence !== 'unspecified') {
+    const cues = {
+      once: /\b(?:once|one time|une seule fois)\b/iu,
+      crossing: /\b(?:cross(?:es|ing)?|franchit|franchissement)\b/iu,
+      per_observation: /\b(?:each observation|every observation|every published rate|chaque observation|chaque publication)\b/iu,
+      per_new_item: /\b(?:each new article|every new article|each new item|chaque nouvel article|chaque nouvelle publication)\b/iu,
+    };
+    if (!value.evidence.some(e => e.path === '/recurrence' && cues[value.recurrence].test(e.text))) fail();
+  }
+  if (value.domain === 'currency' && /\b(?:whenever|each time|every time|chaque fois)\b/iu.test(request)
+    && value.recurrence === 'unspecified' && !value.ambiguities.some(a => a.field === 'recurrence')) fail();
   // Obvious negative qualifiers cannot disappear even when an AI returns valid JSON.
   if (/\b(?:excluding|except|without|sauf|sans|hors)\b/iu.test(request)
     && !value.exclusions.length && !value.conditions.some(n => n.op === 'not')
@@ -128,6 +193,7 @@ export const validateInterpretation = (value, request = value?.originalRequest) 
     if (n.op !== 'predicate') return;
     if (!n.subjects.length || !unique(n.subjects) || n.subjects.some(key => !subjects.has(key))) fail();
     if (n.kind === 'news_about' && n.subjects.length !== 1) fail();
+    if (n.kind === 'news_about' && n.value !== null) fail();
     if (n.kind === 'numeric') {
       if (!n.operator || !n.amount || !n.unit || (value.domain === 'currency' && Number(n.amount) <= 0)) fail();
       const span = value.evidence.filter(e => e.path === `/conditions/${index}`).map(e => e.text).join(' ');
@@ -141,7 +207,7 @@ export const validateInterpretation = (value, request = value?.originalRequest) 
         || (strictBelow && n.operator !== 'lt')) fail();
       if (value.domain === 'currency' && (n.subjects.length !== 2 || n.unit !== subjects.get(n.subjects[1]).canonicalCode
         || n.subjects.some(key => !subjects.get(key).canonicalCode)
-        || subjects.get(n.subjects[0]).canonicalCode === subjects.get(n.subjects[1]).canonicalCode)) fail();
+        || subjects.get(n.subjects[0]).canonicalCode === subjects.get(n.subjects[1]).canonicalCode || n.value !== 'exchange_rate')) fail();
       if (value.domain === 'currency') {
         const amountAt = comparisonText.search(/\d/u);
         const baseAt = comparisonText.indexOf(fold(subjects.get(n.subjects[0]).label));
@@ -156,6 +222,9 @@ export const validateInterpretation = (value, request = value?.originalRequest) 
   for (const key of ['topics', 'temporal', 'geographic', 'unresolvedRequirements']) {
     value[key].forEach((_, index) => { if (!grounded(`/${key}/${index}`)) fail(); });
   }
+  if (value.topics.some(t => /^(?:news|updates|actualites?|informations?)$/u.test(fold(t.label)))) fail();
+  if (value.topics.some(t => t.role === 'required' && value.subjects.some(s => s.membership.some(m =>
+    m.values.some(v => fold(v) === fold(t.label)))))) fail();
   for (const [key, field] of [['geographic', 'label'], ['temporal', 'text'], ['unresolvedRequirements', 'text']]) {
     value[key].forEach((entry, i) => {
       if (!value.evidence.some(e => e.path === `/${key}/${i}` && fold(e.text).includes(fold(entry[field])))) fail();

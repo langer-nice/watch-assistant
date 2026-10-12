@@ -9,6 +9,7 @@ import { consumerFixtures, fixture, individual, predicate, currencyFixture } fro
 
 const provider = value => {
   const { originalRequest, ...output } = value;
+  output.evidence = output.evidence.map(({ path, text }) => ({ path, quote: text, context: null }));
   return async () => new Response(JSON.stringify({ output_text: JSON.stringify(output) }));
 };
 const interpret = value => interpretWatchRequest(value.originalRequest, { apiKey: 'synthetic-key', fetchImpl: provider(value) });

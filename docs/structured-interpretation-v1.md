@@ -5,7 +5,7 @@ Opt in explicitly with `POST /api/plan-watch?mode=interpretation.v1` and JSON
 Language may be `en`, `fr`, `mixed`, or `und`; omitted means `und`. It is a hint,
 never a source-language or geographic constraint. The original request is kept
 unchanged, including whitespace. Limits: 500 UTF-16 code units, one AI request,
-15-second deadline, bounded response/schema. The endpoint uses the existing
+15-second deadline, 3,000 output-token cap and bounded response/schema. The endpoint uses the existing
 `OPENAI_API_KEY` and `OPENAI_MODEL` configuration. No UI calls this mode.
 
 Successful responses have `mode`, `status` (`interpreted`, `ambiguous`, or
@@ -30,14 +30,34 @@ numeric subjects are ordered base/quote; decimal amounts are strings, with
 French commas normalized to dots. Only GBP/EUR canonical codes are represented
 in this first version; other identification remains unresolved.
 
-Evidence uses JSON-pointer paths and exact original-text slices, indexed in
-JavaScript UTF-16 code units with an exclusive end. Labels must be grounded;
+The provider returns evidence as `path`, `quote`, and nullable `context`; it never
+calculates offsets. Quotes are exact copies of source text. Application code
+requires exactly one occurrence, or an explicitly supplied exact unique context
+containing the quote once. Missing or ambiguous spans are rejected, never guessed
+or fuzzy-matched. Provider paths are restricted to subject labels, membership
+objects, condition/topic/temporal/geographic/unresolved objects, and recurrence.
+The returned interpretation still contains validated UTF-16 start/end offsets
+with an exclusive end, calculated only by application code. Labels must be grounded;
 membership, condition, topic, temporal/geographic and unresolved fields need
 evidence. Validation rejects missing references, cycles, excessive depth,
 unreachable conditions, obvious logical/numeric contradictions, unsupported
 fields, changed numeric amounts, known comparison mismatches, and explicit
 negative qualifiers that disappear. These checks do not prove complete semantic
 fidelity or factual group membership. Model output remains untrusted.
+
+Subject schema branches now distinguish individual, open-group and closed-group
+shapes before decoding. A currency cannot be a group. Membership attributes are
+language-neutral and separate nationality, sport and tour; bounded known lexical
+equivalents normalize country codes, tennis, ATP/WTA and fashion/mode. Other
+membership requirements remain explicit and unresolved. No named-person/brand
+special cases or fabricated rosters are introduced.
+
+General news wording is a domain, not a mandatory topic. A required topic cannot
+duplicate a group membership value. Recurrence is unspecified unless explicitly
+grounded in supported recurrence wording. Numeric "whenever/chaque fois" retains
+an explicit crossing-versus-observation ambiguity rather than choosing a policy.
+News predicates use null values; currency predicates use `exchange_rate`, so
+localized descriptive labels cannot change those predicate identities.
 
 `MonitoringPlanV1` defines only a future boundary: `not_assessed` and
 `executable:false`. There is no compiler or executable plan contract yet.
@@ -59,7 +79,7 @@ version-aware persistence work.
 
 ## Focused verification
 
-Run `NODE_ENV=test node --no-maglev --test server/watch-interpreter.test.js
+Run `NODE_ENV=test node --no-maglev --test server/watch-interpreter-corrections.test.js server/watch-interpreter.test.js
 server/watch-planner.test.js server/plan-watch-api.test.js
 server/request-clarification-api.test.js` (one shell command).
 Fixtures cover the four consumer requests, bilingual/mixed language, groups,

@@ -2,7 +2,7 @@ export type Subject = {
   id: string; kind: 'individual' | 'open_group' | 'closed_group';
   type: 'person' | 'organization' | 'product' | 'event' | 'topic' | 'currency' | 'place' | 'unknown';
   label: string; canonicalCode: 'GBP' | 'EUR' | null;
-  membership: { attribute: string; operator: 'eq' | 'in'; values: string[] }[];
+  membership: { attribute: 'nationality' | 'sport' | 'tour' | 'country_association' | 'industry' | 'other'; operator: 'eq' | 'in'; values: string[] }[];
   members: string[]; quantifier: 'any' | 'all' | null;
 };
 export type Condition = { id: string; op: 'and' | 'or' | 'not'; args: string[] } | {
@@ -35,4 +35,8 @@ export const interpretationSchema: object;
 export const interpretationOutputSchema: object;
 export const monitoringPlanSchema: object;
 export function validateInterpretation(value: unknown, request?: string): InterpretationV1;
+export type InterpretationOutputV1 = Omit<InterpretationV1, 'originalRequest' | 'evidence'> & {
+  evidence: { path: string; quote: string; context: string | null }[];
+};
+export function reconstructInterpretation(output: unknown, request: string): InterpretationV1;
 export function validateMonitoringPlan(value: unknown): MonitoringPlanV1;
