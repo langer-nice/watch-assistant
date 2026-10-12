@@ -36,17 +36,17 @@ test('existing persistence endpoint rejects structured definitions before any da
   assert.equal(result.status,409);
   assert.equal(result.payload.code,'STRUCTURED_PERSISTENCE_DISABLED');
 });
-test('manual browser and server checks reject explicit versions before providers or completion RPCs', async () => {
-  for (const definition of [definitions()[0], {...definitions()[0],definitionVersion:'future'}]) {
+test('manual browser and server checks reject unsupported explicit adapters/versions before providers or completion RPCs', async () => {
+  for (const definition of [definitions()[4], {...definitions()[0],definitionVersion:'future'}]) {
     const row = rowFor(definition);
     const forbidden = () => { throw Error('unexpected monitoring'); };
-    const controller = createWatchCheckController({ getWatch: () => ({...definition,id}), saveWatch: () => ({}),
+    const controller = createWatchCheckController({ getWatch: () => ({...definition,id,monitoringSource:row.monitoring_source}), saveWatch: () => ({}),
       requestCheck: forbidden, requestCurrency: forbidden, requestCompany: forbidden, checkStoredWatch: forbidden });
-    await assert.rejects(controller.check(id), { code:'STRUCTURED_EXECUTION_DISABLED' });
+    await assert.rejects(controller.check(id), { code:definition.definitionVersion === 'future' ? 'UNSUPPORTED_WATCH_VERSION' : 'STRUCTURED_EXECUTION_DISABLED' });
     const middleware = createMediaWatchCheckMiddleware({ authenticate: async () => ({ user:{id:'owner'},client:clientFor(row) }),
       fetchFeed:forbidden,fetchCurrency:forbidden,serviceClient:{rpc:forbidden} });
     const result = await invoke(middleware,{method:'POST',url:'/api/media-watches?action=check',body:{id,revision:1}});
-    assert.equal(result.payload.code,'STRUCTURED_EXECUTION_DISABLED');
+    assert.equal(result.payload.code,definition.definitionVersion === 'future' ? 'UNSUPPORTED_WATCH_VERSION' : 'STRUCTURED_EXECUTION_DISABLED');
   }
 });
 test('mock scheduled paths skip structured rows without fetching or completing checks', async () => {

@@ -1,3 +1,4 @@
+import { hasDefinitionVersion } from '../src/js/watch-definition.js';
 import { currencyCriteriaFor, applyCurrencyCheckResult } from '../src/js/currency-watch.js';
 import { fetchCurrencyRate } from './currency-rate.js';
 import { validateMediaQuery } from '../src/js/media-provider-query.js';
@@ -37,9 +38,10 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     if (error) throw Object.assign(new Error('Database unavailable'), { code: 'PERSISTENCE_UNAVAILABLE' });
     row = data?.[0];
     if (!row) return send(404, { code: 'WATCH_NOT_FOUND' });
-    if (Object.hasOwn(row.watch_definition || {}, 'definitionVersion')) return send(409, { code: 'STRUCTURED_EXECUTION_DISABLED' });
     if (!['feed','currency'].includes(row.monitoring_source?.type)) return send(400, { code: 'INVALID_MONITORING_SOURCE' });
     if (Number(row.media_revision) !== body.revision) return send(409, { code: 'MEDIA_CONFLICT' });
+    // Structured dispatch precedes providers; legacy validation keeps its order.
+    if (hasDefinitionVersion(row.watch_definition)) validateMediaQuery(row.watch_definition, row.monitoring_source);
     prior = Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
     service = serviceClient || createSupabaseServiceClient(options);
     if (row.monitoring_source.type === 'currency') {
@@ -64,7 +66,7 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     }
     validateMediaQuery(row.watch_definition, row.monitoring_source);
     const feed = await fetchFeed(row.monitoring_source.url);
-    const watch = { ...row.watch_definition, id: row.id, status: row.current_status };
+    const watch = { ...row.watch_definition, id: row.id, monitoringSource: row.monitoring_source, status: row.current_status };
     const normalized = applyFeedCheckResult(watch, feed).changes.monitoringSnapshot;
     const items = normalized.items.map(item => ({ ...item, identityKeys: mediaArticleIdentityKeys(item) }));
     const completion = await service.rpc('complete_manual_media_watch_check', {
@@ -95,6 +97,7 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     result.changes.initialContext = prior
       ? (prior.initial_items === null || prior.initial_items === undefined ? null : { checkedAt: prior.baseline_at, items: prior.initial_items })
       : { checkedAt: normalized.checkedAt, items };
+    if (hasDefinitionVersion(row.watch_definition) && row.monitoring_state === 'paused') result.changes.status = 'paused';
     return send(200, result);
   } catch (error) {
     // CAS prevents a failed/stale request from damaging a newer successful check.

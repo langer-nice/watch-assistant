@@ -1,3 +1,4 @@
+import { canExecuteStructuredMedia, structuredMediaCriteria } from './structured-media-execution.js';
 import { planLocalMediaRecovery } from './local-media-recovery.js';
 import { currencyCriteriaFor } from './currency-watch.js';
 import { createWatchRequestGate, readWatchCache, writeWatchCache, watchRequest } from './watch-server-resilience.js';
@@ -39,7 +40,7 @@ const validateRow = (row) => {
 };
 export const getMediaWatchLoadState = () => ({
   status: !owner() ? 'idle' : loadError ? (loaded ? 'stale' : 'unavailable') : loaded ? 'ready' : 'loading',
-  hasSnapshot: loaded, incompatible: rows.filter(row => !row.deleted_at && row.clientReadOnly).length, error: loadError, waiting, refreshing: loading, syncing: Boolean(running), syncError,
+  hasSnapshot: loaded, incompatible: rows.filter(row => !row.deleted_at && row.clientReadOnly && !canExecuteStructuredMedia({ ...row.watch_definition, monitoringSource: row.monitoring_source })).length, error: loadError, waiting, refreshing: loading, syncing: Boolean(running), syncError,
 });
 const session = () => {
   const state = authSource?.getState?.();
@@ -173,7 +174,14 @@ export const ensureMediaWatchSaved = async (watch) => {
 };
 export const checkStoredMediaWatch = async (watch) => {
   const user = owner(); const epoch = generation;
-  const remote = await ensureMediaWatchSaved(watch);
+  let remote;
+  if (hasDefinitionVersion(watch)) {
+    if (!canCheckStoredMediaWatch(watch)) throw Object.assign(new Error('Not owned'), { code: 'AUTH_REQUIRED' });
+    structuredMediaCriteria(watch);
+    remote = user === identity ? rows.find(row => row.id === watch.id && !row.deleted_at && row.user_id === user) : null;
+    if (!remote || Number(remote.media_revision) !== watch.mediaPersistence.revision) throw Object.assign(new Error('Watch changed'), { code: 'MEDIA_CONFLICT' });
+    structuredMediaCriteria(remote.watch_definition, remote.monitoring_source);
+  } else remote = await ensureMediaWatchSaved(watch);
   const response = await watchRequest('/api/media-watches?action=check', {
     method: 'POST', headers: { Authorization: `Bearer ${session().access_token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: watch.id, revision: Number(remote.media_revision) }),
@@ -217,7 +225,7 @@ export const getMediaServerWatches = () => (owner() && owner() === identity ? ro
     publishedAt: row.last_change_published_at, status: 'new' }] : [],
   mediaPersistence: { ownerId: owner(), ...(hasDefinitionVersion(row.watch_definition)
     ? { revision: Number(row.media_revision), mutation: row.media_mutation_id } : {}) },
-  ...(hasDefinitionVersion(row.watch_definition) ? { structuredExecutionDisabled: true } : {}),
+  ...(hasDefinitionVersion(row.watch_definition) ? { structuredExecutionDisabled: !canExecuteStructuredMedia({ ...row.watch_definition, monitoringSource: row.monitoring_source }) } : {}),
 }));
 export const mergeMediaWatches = (local) => {
   const user = owner();
@@ -243,6 +251,7 @@ export const mergeMediaWatches = (local) => {
             && localDefinition.monitoring_source.url === remoteDefinition.monitoring_source.url;
         } catch { sameCriteria = false; }
       }
+      if (hasDefinitionVersion(hydrated) && localWatch?.mediaPersistence?.revision !== hydrated.mediaPersistence?.revision) sameCriteria = false;
       if (sameCriteria && Date.parse(localWatch?.lastChecked) > (Date.parse(remote.lastChecked) || 0)) {
         hydrated.lastChecked = localWatch.lastChecked;
         if (!currency) for (const key of ['initialContext','monitoringSnapshot','lastCheckOutcome','lastCheckAttempt']) {
@@ -266,7 +275,7 @@ export const mergeMediaWatches = (local) => {
 };
 
 export const getMediaPersistenceState = (watch) => {
-  if (watch?.serverReadOnly) return { status: 'incompatible' };
+  if (watch?.serverReadOnly && !canExecuteStructuredMedia(watch)) return { status: 'incompatible' };
   if (!isMediaWatch(watch) && !watch?.mediaPersistence?.ownerId) {
     return ['text', 'url'].includes(watch?.inputType) ? { status: 'unsupported', canRecover: canRecoverLocalMediaWatch(watch) } : null;
   }

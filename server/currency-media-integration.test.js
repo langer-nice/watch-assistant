@@ -18,7 +18,10 @@ const catalog=async db=>(await db.query(`select jsonb_build_object(
  'grants',(select jsonb_agg(to_jsonb(g)-'table_catalog' order by table_name,grantee,privilege_type) from information_schema.role_table_grants g where table_schema='public')) as catalog`)).rows[0].catalog;
 
 test('currency migrations after media recovery preserve the final catalog and remove inherited destructive history grants',async()=>{
- const files=(await readdir(directory)).filter(f=>f.endsWith('.sql')).sort();const late=[...files.filter(f=>!currencyFiles.includes(f)),...currencyFiles];let expected;
+ const files=(await readdir(directory)).filter(f=>f.endsWith('.sql')).sort();
+ // Late PR #52 application is supported after PR #53, before dependent V1 migrations.
+ const legacy=files.filter(f=>f<'20261012120000_structured_watch_definitions.sql');
+ const late=[...legacy.filter(f=>!currencyFiles.includes(f)),...currencyFiles,...files.filter(f=>f>='20261012120000_structured_watch_definitions.sql')];let expected;
  for(const order of [files,late]){
   const db=new PGlite();try{
    await db.exec(bootstrap);

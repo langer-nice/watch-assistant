@@ -1,3 +1,5 @@
+import { hasDefinitionVersion } from './watch-definition.js';
+import { structuredMediaCriteria } from './structured-media-execution.js';
 import { currencyCriteriaFor, currencyKey, applyCurrencyCheckResult } from './currency-watch.js';
 import { mediaSubjectAliases } from './media-subject-aliases.js';
 import { getStoryProfileIdentifiers } from './story-profile.js';
@@ -333,6 +335,7 @@ const getValidatedBodaccSiren = (source) => (
 );
 
 export const matchFeedItemToWatch = (item, watch, { trustedSourceType = null } = {}) => {
+  if (hasDefinitionVersion(watch)) return matchFeedItemToMediaMention(item, structuredMediaCriteria(watch));
   const bodaccSiren = getValidatedBodaccSiren(watch?.monitoringSource);
   if (trustedSourceType === 'bodacc' && bodaccSiren) {
     return {
@@ -364,6 +367,7 @@ export const applyFeedCheckResult = (watch, response, {
   if (!watch || typeof watch !== 'object') {
     throw new MonitoringCheckError('WATCH_NOT_FOUND', 'The Watch could not be found.');
   }
+  if (hasDefinitionVersion(watch)) structuredMediaCriteria(watch);
   if (!response || typeof response !== 'object' || !Array.isArray(response.items)) {
     throw new MonitoringCheckError('INVALID_RESPONSE', 'The monitoring response is invalid.');
   }
@@ -687,6 +691,7 @@ export const createWatchCheckController = ({
     let startedKey;
     const definitionKey = (watch) => JSON.stringify([watch?.mediaPersistence?.ownerId, watch?.request,
       watch?.monitoringSource?.type === 'rss' ? 'feed' : watch?.monitoringSource?.type,
+      watch?.definitionVersion, watch?.metadata?.planFingerprint, watch?.mediaPersistence?.revision,
       watch?.monitoringSource?.url || watch?.feedUrl, watch?.monitoringSource?.siren, currencyKey(watch),
       watch?.mediaMention?.subjects || [], watch?.mediaMention?.matchMode,
       watch?.mediaMention?.topics, watch?.mediaMention?.exclusions, watch?.mediaMention?.locale,
@@ -699,7 +704,8 @@ export const createWatchCheckController = ({
         if (!watch) {
           throw new MonitoringCheckError('WATCH_NOT_FOUND', 'The Watch could not be found.');
         }
-        if (Object.hasOwn(watch, 'definitionVersion')) throw new MonitoringCheckError('STRUCTURED_EXECUTION_DISABLED', 'Structured monitoring is not enabled.');
+        const structured = hasDefinitionVersion(watch);
+        if (structured) structuredMediaCriteria(watch);
         startedKey = definitionKey(watch);
         if (checkStoredWatch) {
           const stored = await checkStoredWatch(watch);
@@ -711,6 +717,7 @@ export const createWatchCheckController = ({
             return { ...stored, changes, watch: saveWatch(watchId, changes) };
           }
         }
+        if (structured) throw new MonitoringCheckError('AUTH_REQUIRED', 'Structured checks require the authenticated stored Watch.');
         let response;
         let trustedSourceType = null;
         if (watch.monitoringSource?.type === 'currency' && !currencyCriteriaFor(watch)) throw new MonitoringCheckError('INVALID_CURRENCY_CRITERIA', 'Unsupported currency condition.');

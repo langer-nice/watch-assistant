@@ -58,7 +58,7 @@ test('serialization/hydration preserve criteria, evidence, identity, revisions a
     assert.deepEqual(hydrated.initialContext, watch.initialContext);
     assert.deepEqual(hydrated.updates, watch.updates);
     assert.equal(hydrated.serverReadOnly, true);
-    assert.equal(hydrated.structuredExecutionDisabled, true);
+    assert.equal(hydrated.structuredExecutionDisabled, value.plan.domain !== 'media_news');
     assert.deepEqual(normalizeCurrencyWatch(hydrated), hydrated);
     assert.equal(currencyCriteriaFor(hydrated), null);
   }

@@ -1,3 +1,5 @@
+import { hasDefinitionVersion } from './watch-definition.js';
+import { canExecuteStructuredMedia } from './structured-media-execution.js';
 import { planLocalMediaRecovery } from './local-media-recovery.js';
 import { localWatchStorageKey, getAccountOwner, safeStorage } from './account-storage.js';
 import { canClaimLocalMediaWatch, canRecoverLocalMediaWatch, prepareMediaWatch, queueMediaWatchDeletion, mergeMediaWatches } from './media-watch-server-store.js';
@@ -270,6 +272,18 @@ export function updateWatch(id, changes) {
     return null;
   }
 
+  if (hasDefinitionVersion(currentWatch)) {
+    // Cache result/read state locally, without queuing any definition write.
+    if (!canExecuteStructuredMedia(currentWatch)) return currentWatch;
+    const resultKeys = ['lastChecked', 'monitoringSnapshot', 'seenMonitoringItemIds', 'seenMonitoringItemKeys',
+      'lastCheckOutcome', 'lastCheckResult', 'lastCheckAttempt', 'initialContext', 'updates', 'candidateUpdates', 'monitoringUpdates'];
+    const cached = { ...currentWatch, ...Object.fromEntries(resultKeys.filter(key => Object.hasOwn(changes, key)).map(key => [key, changes[key]])) };
+    const stored = getStoredWatches().filter(watch => watch.id !== id);
+    saveWatches([...stored, cached]);
+    notifyWatchStorageChanged();
+    return getWatchById(id);
+  }
+
   const updatedWatch = {
     ...currentWatch,
     ...changes,
@@ -282,23 +296,26 @@ export function updateWatch(id, changes) {
   return getWatchById(id);
 }
 
+const persistReadState = watch => hasDefinitionVersion(watch)
+  ? updateWatch(watch.id, { updates: watch.updates }) : addWatch(watch);
+
 export function markUpdateAsRead(watchId, updateId) {
   const watch = getWatchById(watchId);
   if (!watch) return null;
-  return markStoredUpdateAsRead(watch, updateId, { persist: addWatch });
+  return markStoredUpdateAsRead(watch, updateId, { persist: persistReadState });
 }
 
 export function acknowledgeLatestWatchUpdate(watchId) {
   const watch = getWatchById(watchId);
   const latestUpdate = getMeaningfulWatchUpdate(watch)?.update;
   if (!watch || latestUpdate?.status !== 'new') return watch;
-  return markStoredUpdateAsRead(watch, latestUpdate.id, { persist: addWatch });
+  return markStoredUpdateAsRead(watch, latestUpdate.id, { persist: persistReadState });
 }
 
 export function markUpdatesAsRead(watchId, updateIds) {
   const watch = getWatchById(watchId);
   if (!watch) return null;
-  return markStoredUpdatesAsRead(watch, updateIds, { persist: addWatch });
+  return markStoredUpdatesAsRead(watch, updateIds, { persist: persistReadState });
 }
 
 export function deleteWatch(id) {

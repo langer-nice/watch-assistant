@@ -112,3 +112,6 @@ baseline/function preservation. The opt-in native PostgreSQL test starts a fresh
 private temporary cluster with TCP disabled and no inherited credentials, exercises
 independent concurrent sessions, then stops and removes it. No hosted connections,
 AI calls, real monitoring or notification delivery are used.
+
+Step 3 preserves confirmation authority while adding a separate result-only
+monitoring boundary; see [structured-media-execution-v1.md](structured-media-execution-v1.md).

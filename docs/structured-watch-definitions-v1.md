@@ -113,3 +113,7 @@ domain adapters. Retirement requires:
 7. A rollback strategy preserving already-persisted structured Watches.
 
 No inventory, conversion or legacy removal is implemented in Step 1.
+
+Step 3 adds authenticated structured Media checks and result-only completion; see
+[structured-media-execution-v1.md](structured-media-execution-v1.md). Creation and
+activation remain disabled; structured currency/company execution remains gated.

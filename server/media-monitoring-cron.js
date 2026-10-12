@@ -1,3 +1,4 @@
+import { hasDefinitionVersion } from '../src/js/watch-definition.js';
 import { googleNewsSource, validateMediaQuery } from '../src/js/media-provider-query.js';
 import { currencyCriteriaFor, applyCurrencyCheckResult } from '../src/js/currency-watch.js';
 import { fetchCurrencyRate } from './currency-rate.js';
@@ -34,7 +35,12 @@ export const runMediaMonitoring = async ({ client, env = process.env, fetchFeed 
   if (maintenance.error) throw Object.assign(new Error('Media notification maintenance failed.'), { code: 'DATABASE_ERROR' });
   await bounded(rows, concurrency, async (row) => { try {
     if (Date.now() >= deadline) { skippedCount += 1; return; }
-    if (Object.hasOwn(row.watch_definition || {}, 'definitionVersion')) { skippedCount += 1; return; }
+    if (hasDefinitionVersion(row.watch_definition)) {
+      // The production activation gate stays closed. Injected local fixtures may
+      // exercise the same pipeline only with the separately approved flag.
+      if (env.STRUCTURED_MEDIA_SCHEDULED_ENABLED !== 'true' || row.monitoring_state !== 'monitoring' || row.deleted_at) { skippedCount += 1; return; }
+      validateMediaQuery(row.watch_definition, row.monitoring_source);
+    }
     const sourceUrl = normalizeFeedUrl(row.monitoring_source?.url); if (!sourceUrl) { skippedCount += 1; return; }
     const watch = asWatch(row); const isCurrency = Boolean(currencyCriteriaFor(watch));
     if (row.monitoring_source?.type === 'currency' && !isCurrency) throw new Error('INVALID_CURRENCY_CRITERIA');

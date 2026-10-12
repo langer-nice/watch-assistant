@@ -1,3 +1,4 @@
+import { canExecuteStructuredMedia } from './structured-media-execution.js';
 import { normalizeCurrencyWatch } from './currency-watch.js';
 import { normalizeFeedUrl } from './watch-monitoring.js';
 import { createStoryProfile } from './story-profile.js';
@@ -91,9 +92,9 @@ export const migrateWatchModel = (watch) => {
     let code = null;
     try { validateWatchDefinition(definitionFromWatch(watch), watch.monitoringSource); }
     catch (error) { code = error.code || 'INVALID_WATCH_DEFINITION'; }
-    // Foundations are readable, but creation/editing/execution are not enabled.
+    // Definitions remain read-only; validated Media supports authenticated checks.
     // Never run legacy normalization, including for malformed or future versions.
-    const retained = { ...watch, serverReadOnly: true, structuredExecutionDisabled: true,
+    const retained = { ...watch, serverReadOnly: true, structuredExecutionDisabled: Boolean(code) || !canExecuteStructuredMedia(watch),
       ...(code ? { structuredDefinitionError: code } : {}) };
     return { watch: retained, migrated: JSON.stringify(retained) !== JSON.stringify(watch) };
   }
