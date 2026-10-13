@@ -1,5 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "codex/structured-interpretation-v1": false
+    }
+  },
   "functions": {
     "api/watch-suggestion.js": {
       "maxDuration": 60
