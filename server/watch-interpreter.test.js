@@ -229,7 +229,7 @@ test('opt-in HTTP boundary is non-executing; legacy scope never calls AI', async
   const call = async (url, body, options) => {
     const req = Readable.from([JSON.stringify(body)]); req.url = url; req.method = 'POST';
     const res = { setHeader() {}, end(body) { this.body = JSON.parse(body); } };
-    await createPlanWatchMiddleware({env:{STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},authenticate:async()=>({user:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}}),...options})(req, res); return res;
+    await createPlanWatchMiddleware({env:{SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},authenticate:async()=>({user:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}}),...options})(req, res); return res;
   };
   const result = await call('/api/plan-watch?mode=interpretation.v1', { request: value.originalRequest, language: 'en' },
     { apiKey: 'synthetic', fetchImpl: provider(value), discoverSource: () => assert.fail('No discovery') });

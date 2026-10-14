@@ -9,7 +9,7 @@ import { authorizationError } from './structured-watch-authorization.js';
 const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',watchId='cccccccc-cccc-4ccc-8ccc-cccccccccccc',mutationId='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const issueBody = (index=0) => ({action:'issue',watchId,mutationId,operation:'create',expectedRevision:0,title:'Fixture',
   interpretation:examples()[index],plan:compileMonitoringPlan(examples()[index],{structured:true})});
-const env={STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner+',bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',STRUCTURED_WATCH_SIGNING_SECRET:'fixture-only-'.repeat(4)};
+const env={SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner+',bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',STRUCTURED_WATCH_SIGNING_SECRET:'fixture-only-'.repeat(4)};
 const invoke = async (handler,body,url='/api/structured-watches') => {
   let output; const headers={}; const response={setHeader(k,v){headers[k]=v;},end(value){output=JSON.parse(value);}};
   await handler({method:'POST',url,body,headers:{}},response);
@@ -42,7 +42,7 @@ test('missing authentication/configuration and the disabled backend cannot persi
   assert.equal((await invoke(handler,issueBody())).body.code,'AUTH_REQUIRED');assert.equal(state.rpcCalls.length,0);
   const disabled=createStructuredWatchMiddleware({env:{},authenticate:()=>{throw Error('unexpected auth');}});
   assert.equal((await invoke(disabled,issueBody())).body.code,'STRUCTURED_BACKEND_DISABLED');
-  const missing=createStructuredWatchMiddleware({env:{STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner},authenticate:async()=>({user:{id:owner}})});
+  const missing=createStructuredWatchMiddleware({env:{SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner},authenticate:async()=>({user:{id:owner}})});
   assert.equal((await invoke(missing,issueBody())).body.code,'SERVER_NOT_CONFIGURED');
 });
 test('missing authorization, cross-user confirmation, expired tokens and altered bindings cause no writes',async()=>{

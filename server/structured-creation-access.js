@@ -1,7 +1,12 @@
 import { authorizationError } from './structured-watch-authorization.js';
 
+// Controlled structured rollout only: no trimming, URL normalization, public
+// configuration fallback, or global restriction on legacy Supabase clients.
+export const structuredStagingUrlMatches = env => env?.SUPABASE_URL === 'https://tseexvbwhrtofcsrvcqc.supabase.co';
+
 export const structuredCreationEnabled = env => env.STRUCTURED_WATCH_CREATION_ENABLED === 'true'
-  && env.STRUCTURED_WATCH_BACKEND_ENABLED === 'true' && env.VERCEL_ENV !== 'production';
+  && env.STRUCTURED_WATCH_BACKEND_ENABLED === 'true' && env.VERCEL_ENV !== 'production'
+  && structuredStagingUrlMatches(env);
 export const requireStructuredCreationAccess = (user, env) => {
   if (!structuredCreationEnabled(env)) throw authorizationError('STRUCTURED_FEATURE_UNAVAILABLE',404);
   if (!user?.id) throw authorizationError('AUTH_REQUIRED',401);

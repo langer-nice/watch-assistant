@@ -4,7 +4,7 @@ import { createStructuredWatchMiddleware } from './structured-watch-api.js';
 import { createPlanWatchMiddleware } from './plan-watch-api.js';
 import { examples } from './test-support/watch-definition-fixtures.js';
 const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const env={STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner};
+const env={SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner};
 const invoke=async(handler,url,method='POST',body={request:'Keep me updated on Jannik Sinner.',language:'en'})=>{let payload;const response={setHeader(){},end(raw){payload=JSON.parse(raw);}};await handler({url,method,body},response);return {status:response.statusCode,payload};};
 test('public URL/body/local flag guesses cannot bypass default gate or production block',async()=>{
  for(const config of [{},{STRUCTURED_WATCH_BACKEND_ENABLED:'true'},{...env,STRUCTURED_WATCH_CREATION_ENABLED:'false'},{...env,VERCEL_ENV:'production'}]){
