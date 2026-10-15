@@ -1,3 +1,4 @@
+import { canManuallyCheckWatch } from './watch-manual-check.js';
 import { initStructuredWatchCreation } from './structured-watch-creation.js';
 import { creationConfirmationKey, watchCreationState } from './watch-creation-state.js';
 import { showCurrencyCreationReview } from './currency-creation-review.js';
@@ -1960,10 +1961,13 @@ const renderWatchDetail = () => {
   }
   if (checkNowEl) {
     checkNowEl.hidden = isPreparing;
-    checkNowEl.disabled = detailCheckInProgress || isPreparing || Boolean(watch.serverReadOnly);
+    checkNowEl.disabled = !canManuallyCheckWatch(watch, {
+      inProgress: detailCheckInProgress, preparing: isPreparing, canCheckStoredWatch: canCheckStoredMediaWatch,
+    });
     checkNowEl.setAttribute('aria-busy', String(detailCheckInProgress));
     checkNowEl.onclick = async () => {
       if (detailCheckInProgress || watchCheckController.isChecking(watch.id)) return;
+      if (!canManuallyCheckWatch(watch, { preparing: isPreparing, canCheckStoredWatch: canCheckStoredMediaWatch })) return;
 
       detailCheckInProgress = true;
       detailCheckErrorWatchId = null;
