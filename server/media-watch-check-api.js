@@ -1,3 +1,4 @@
+import { requireStructuredCreationAccess } from './structured-creation-access.js';
 import { hasDefinitionVersion } from '../src/js/watch-definition.js';
 import { currencyCriteriaFor, applyCurrencyCheckResult } from '../src/js/currency-watch.js';
 import { fetchCurrencyRate } from './currency-rate.js';
@@ -40,8 +41,13 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     if (!row) return send(404, { code: 'WATCH_NOT_FOUND' });
     if (!['feed','currency'].includes(row.monitoring_source?.type)) return send(400, { code: 'INVALID_MONITORING_SOURCE' });
     if (Number(row.media_revision) !== body.revision) return send(409, { code: 'MEDIA_CONFLICT' });
-    // Structured dispatch precedes providers; legacy validation keeps its order.
-    if (hasDefinitionVersion(row.watch_definition)) validateMediaQuery(row.watch_definition, row.monitoring_source);
+    // Only the owner-filtered persisted definition selects structured dispatch.
+    // The authenticated read is needed to distinguish legacy Watches; reject
+    // structured execution before service-client initialization or side effects.
+    if (hasDefinitionVersion(row.watch_definition)) {
+      requireStructuredCreationAccess(user, options.env || process.env);
+      validateMediaQuery(row.watch_definition, row.monitoring_source);
+    }
     prior = Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
     service = serviceClient || createSupabaseServiceClient(options);
     if (row.monitoring_source.type === 'currency') {

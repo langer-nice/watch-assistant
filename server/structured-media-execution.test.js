@@ -16,6 +16,7 @@ const make = (request,label,language='en',extra={}) => {
  const definition=createWatchDefinition(interpretation,compileMonitoringPlan(interpretation,{structured:true}));
  return {...definition,id,monitoringSource:structuredMonitoringSource(definition.plan.criteria),monitoringState:'paused',status:'paused',mediaPersistence:{ownerId:owner,revision:1}};
 };
+const manualEnv={SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',VERCEL_ENV:'preview',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner};
 const sinner=()=>make('Keep me updated on Jannik Sinner.','Jannik Sinner');
 const rowFor=watch=>({id,user_id:owner,type:'media_news',watch_definition:definitionFromWatch(watch),monitoring_source:watch.monitoringSource,monitoring_state:'paused',media_revision:1,deleted_at:null});
 const clientFor=row=>({from(){const filters=[];const b={select(){return b;},eq(k,v){filters.push([k,v]);return b;},is(k,v){filters.push([k,v]);return b;},order(){return b;},async range(){return {data:row&&filters.every(([k,v])=>row[k]===v)?[row]:[],error:null};}};return b;}});
@@ -48,12 +49,12 @@ test('independent OR, groups and semantic event plans cannot become executable d
 });
 test('manual path authenticates, isolates ownership and ignores submitted criteria',async()=>{
  const watch=sinner(),row=rowFor(watch);let fetched=0,rpc=0;
- const handler=createMediaWatchCheckMiddleware({authenticate:async()=>({user:{id:owner},client:clientFor(row)}),fetchFeed:async url=>{fetched++;assert.equal(url,watch.monitoringSource.url);return feed;},serviceClient:{async rpc(name,p){rpc++;assert.equal(name,'complete_manual_media_watch_check');assert.equal(p.p_user_id,owner);assert.equal(p.p_expected_revision,1);return {data:{status:'completed',outcome:'baseline',matchedItems:[],unseenItems:[]},error:null};}}});
+ const handler=createMediaWatchCheckMiddleware({env:manualEnv,authenticate:async()=>({user:{id:owner},client:clientFor(row)}),fetchFeed:async url=>{fetched++;assert.equal(url,watch.monitoringSource.url);return feed;},serviceClient:{async rpc(name,p){rpc++;assert.equal(name,'complete_manual_media_watch_check');assert.equal(p.p_user_id,owner);assert.equal(p.p_expected_revision,1);return {data:{status:'completed',outcome:'baseline',matchedItems:[],unseenItems:[]},error:null};}}});
  const result=await invoke(handler,{id,revision:1,criteria:{query:'evil'}});assert.equal(result.status,200);assert.equal(result.result.outcome,'baseline');assert.equal(result.result.changes.status,'paused');assert.equal(row.monitoring_state,'paused');assert.equal(fetched,1);assert.equal(rpc,1);
  assert.equal((await invoke(handler,{id,revision:2})).status,409);assert.equal(fetched,1);
- const denied=createMediaWatchCheckMiddleware({authenticate:async()=>({user:{id:'other'},client:clientFor(row)}),fetchFeed:()=>assert.fail('foreign provider')});assert.equal((await invoke(denied)).status,404);
- const unauth=createMediaWatchCheckMiddleware({authenticate:async()=>{throw Object.assign(Error('auth'),{code:'AUTH_REQUIRED',statusCode:401});}});assert.equal((await invoke(unauth)).status,401);
- for(const bad of [{...watch,definitionVersion:'future'},{...watch,monitoringSource:{type:'feed',url:'https://evil.test'}}]){const h=createMediaWatchCheckMiddleware({authenticate:async()=>({user:{id:owner},client:clientFor(rowFor(bad))}),fetchFeed:()=>assert.fail('invalid provider')});assert.notEqual((await invoke(h)).status,200);}
+ const denied=createMediaWatchCheckMiddleware({env:manualEnv,authenticate:async()=>({user:{id:'other'},client:clientFor(row)}),fetchFeed:()=>assert.fail('foreign provider')});assert.equal((await invoke(denied)).status,404);
+ const unauth=createMediaWatchCheckMiddleware({env:manualEnv,authenticate:async()=>{throw Object.assign(Error('auth'),{code:'AUTH_REQUIRED',statusCode:401});}});assert.equal((await invoke(unauth)).status,401);
+ for(const bad of [{...watch,definitionVersion:'future'},{...watch,monitoringSource:{type:'feed',url:'https://evil.test'}}]){const h=createMediaWatchCheckMiddleware({env:manualEnv,authenticate:async()=>({user:{id:owner},client:clientFor(rowFor(bad))}),fetchFeed:()=>assert.fail('invalid provider')});assert.notEqual((await invoke(h)).status,200);}
 });
 test('browser structured check requires stored authenticated execution and never local fallback',async()=>{
  const w=sinner();let providers=0;
