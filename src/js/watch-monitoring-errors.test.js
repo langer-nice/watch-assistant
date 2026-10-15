@@ -35,6 +35,8 @@ const expectedCategories = {
   ACTIVE_WATCH_EXISTS: 'duplicate',
   INVALID_SIREN: 'invalidIdentifier',
   DATABASE_ERROR: 'persistence',
+  PERSISTENCE_UNAVAILABLE: 'persistence', MEDIA_CONFLICT: 'edited', INVALID_WATCH_DEFINITION: 'mediaQuery',
+  STRUCTURED_FEATURE_UNAVAILABLE: 'generic', UNSUPPORTED_WATCH_VERSION: 'generic',
   ROLLBACK_FAILED: 'persistence',
   SERVER_NOT_CONFIGURED: 'configuration',
 };
@@ -43,7 +45,7 @@ test('every supported monitoring failure code maps to its reliable category', ()
   assert.deepEqual([...MONITORING_FAILURE_CODES].sort(), Object.keys(expectedCategories).sort());
   for (const [code, category] of Object.entries(expectedCategories)) {
     assert.equal(getMonitoringFailureCategory(code), category);
-    assert.equal(getMonitoringFailureMessageKey(code), `detail.checkFailure.${category}`);
+    assert.equal(getMonitoringFailureMessageKey(code), category === 'generic' ? 'detail.checkFailed' : `detail.checkFailure.${category}`);
   }
 });
 
@@ -66,7 +68,7 @@ test('English and French failure explanations are complete, actionable and non-t
     assert.ok(detail.checkFailedStatus);
     assert.ok(detail.checkFailed);
     for (const category of categories) {
-      const message = detail.checkFailure[category];
+      const message = category === 'generic' ? detail.checkFailed : detail.checkFailure[category];
       assert.ok(message?.length > 25, `${category} should have a useful explanation`);
       assert.doesNotMatch(message, /\b(?:RSS|Atom|feed|flux|HTTP|stack|exception|status code)\b/i);
     }

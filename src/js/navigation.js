@@ -1,4 +1,4 @@
-import { canManuallyCheckWatch } from './watch-manual-check.js';
+import { canManuallyCheckWatch, manualCheckIssue } from './watch-manual-check.js';
 import { initStructuredWatchCreation } from './structured-watch-creation.js';
 import { creationConfirmationKey, watchCreationState } from './watch-creation-state.js';
 import { showCurrencyCreationReview } from './currency-creation-review.js';
@@ -1961,13 +1961,27 @@ const renderWatchDetail = () => {
   }
   if (checkNowEl) {
     checkNowEl.hidden = isPreparing;
+    const checkInProgress = detailCheckInProgress || watchCheckController.isChecking(watch.id);
     checkNowEl.disabled = !canManuallyCheckWatch(watch, {
-      inProgress: detailCheckInProgress, preparing: isPreparing, canCheckStoredWatch: canCheckStoredMediaWatch,
+      inProgress: checkInProgress, preparing: isPreparing, canCheckStoredWatch: canCheckStoredMediaWatch,
     });
-    checkNowEl.setAttribute('aria-busy', String(detailCheckInProgress));
+    checkNowEl.setAttribute('aria-busy', String(checkInProgress));
     checkNowEl.onclick = async () => {
-      if (detailCheckInProgress || watchCheckController.isChecking(watch.id)) return;
-      if (!canManuallyCheckWatch(watch, { preparing: isPreparing, canCheckStoredWatch: canCheckStoredMediaWatch })) return;
+      const issue = manualCheckIssue(getWatchById(watch.id), {
+        inProgress: detailCheckInProgress || watchCheckController.isChecking(watch.id),
+        preparing: isPreparing, canCheckStoredWatch: canCheckStoredMediaWatch,
+      });
+      if (issue) {
+        const checking = issue === 'CHECK_IN_PROGRESS';
+        checkNowEl.disabled = true;
+        checkNowEl.setAttribute('aria-busy', String(checking));
+        if (checkFeedbackEl) {
+          checkFeedbackEl.textContent = t(checking ? 'detail.checkingForUpdates' : issue === 'WATCH_NOT_FOUND' ? 'detail.notFoundCopy' : getMonitoringFailureMessageKey(issue));
+          checkFeedbackEl.dataset.state = checking ? 'info' : 'error';
+          checkFeedbackEl.hidden = false;
+        }
+        return;
+      }
 
       detailCheckInProgress = true;
       detailCheckErrorWatchId = null;

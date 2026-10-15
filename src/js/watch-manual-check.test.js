@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { canManuallyCheckWatch } from './watch-manual-check.js';
+import { canManuallyCheckWatch, manualCheckIssue } from './watch-manual-check.js';
+import { getMonitoringFailureMessageKey } from './watch-monitoring-errors.js';
+import { parseHTML } from 'linkedom';
 import { migrateWatchModel } from './watch-model.js';
 import { createWatchDefinition, structuredMonitoringSource, definitionFromWatch } from './watch-definition.js';
 import { compileMonitoringPlan } from './watch-capabilities.js';
@@ -35,16 +37,16 @@ for(const readOnly of [false,true])for(const inProgress of [false,true])for(cons
 const navigation=await readFile(new URL('./navigation.js',import.meta.url),'utf8');
 const start=navigation.indexOf('  if (checkNowEl) {'),end=navigation.indexOf('  if (checkNowLabelEl) {',start);
 assert(start>=0&&end>start);const block=navigation.slice(start,end).replaceAll('import.meta.env.DEV','false');
-const install=new Function('d','canManuallyCheckWatch',`const {watch,checkNowEl,watchCheckController,canCheckStoredMediaWatch}=d;
+const install=new Function('d','canManuallyCheckWatch','manualCheckIssue','getMonitoringFailureMessageKey',`const {watch,checkNowEl,watchCheckController,canCheckStoredMediaWatch}=d;const getWatchById=()=>d.current?d.current():watch;
  let detailCheckInProgress=false,detailCheckErrorWatchId=null;const isPreparing=false;
  const checkNowLabelEl=null,checkSpinnerEl=null,lastCheckedEl=null;
- const checkFeedbackEl={textContent:'',dataset:{},hidden:true};
+ const checkFeedbackEl=d.feedback||{textContent:'',dataset:{},hidden:true};
  const t=k=>k,waitForVisiblePaint=async()=>{},isCompanyWatch=()=>false,isCompanyWatchServerMode=()=>false;
  const markUpdatesAsRead=()=>{},refreshLatestReport=()=>{},getWatches=()=>[],MonitoringCheckError=d.MonitoringCheckError;
- const renderWatchDetail=()=>{checkNowEl.disabled=!canManuallyCheckWatch(watch,{inProgress:detailCheckInProgress,canCheckStoredWatch:canCheckStoredMediaWatch});};
+ const renderWatchDetail=()=>{checkNowEl.disabled=!canManuallyCheckWatch(watch,{inProgress:detailCheckInProgress||watchCheckController.isChecking(watch.id),canCheckStoredWatch:canCheckStoredMediaWatch});};
  ${block}
  return {failed:()=>detailCheckErrorWatchId,feedback:checkFeedbackEl};`);
-const setup=async(t,{deny=false}={})=>{
+const setup=async(t,{deny=false,networkFailure=false}={})=>{
  const originals=Object.fromEntries(['fetch','localStorage','window'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));const data=new Map();
  globalThis.window=new EventTarget();globalThis.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,String(v)),removeItem:k=>data.delete(k)};
  const w=make();const row={id,user_id:owner,title:'Jannik Sinner',watch_definition:definitionFromWatch(w),monitoring_source:w.monitoringSource,monitoring_state:'paused',current_status:'paused',media_revision:1,deleted_at:null};
@@ -52,13 +54,15 @@ const setup=async(t,{deny=false}={})=>{
  globalThis.fetch=async(path,options)=>{
   calls.push({path,options});if(path==='/api/media-watches'&&(!options.method||options.method==='GET'))return Response.json({watches:[row],emailEnabled:false});
   assert.equal(path,'/api/media-watches?action=check');assert.equal(options.method,'POST');assert.equal(options.headers.Authorization,'Bearer synthetic-only');assert.deepEqual(JSON.parse(options.body),{id,revision:1});
-  await new Promise(r=>release=r);return deny?Response.json({code:'STRUCTURED_FEATURE_UNAVAILABLE'},{status:403}):Response.json({outcome:'baseline',matchedItems:[],newItems:[],changes:{status:'paused'}});
+  await new Promise(r=>release=r);if(networkFailure)throw new TypeError('synthetic fetch failure');return deny?Response.json({code:'STRUCTURED_FEATURE_UNAVAILABLE'},{status:403}):Response.json({outcome:'baseline',matchedItems:[],newItems:[],changes:{status:'paused'}});
  };
  t.after(async()=>{await configureMediaWatchServerStore(null);for(const[k,v]of Object.entries(originals))if(v)Object.defineProperty(globalThis,k,v);else delete globalThis[k];});
  await configureMediaWatchServerStore(auth);let current=migrateWatchModel(getMediaServerWatches()[0]).watch;assert(current);const before=structuredClone(current);
  const controller=createWatchCheckController({getWatch:()=>current,saveWatch:(_id,changes)=>current={...current,...changes},checkStoredWatch:watch=>canCheckStoredMediaWatch(watch)?checkStoredMediaWatch(watch):null,requestCheck:()=>assert.fail('No legacy fallback')});
- const button={disabled:true,setAttribute(){}};const ui=install({watch:current,checkNowEl:button,watchCheckController:controller,canCheckStoredMediaWatch,MonitoringCheckError},canManuallyCheckWatch);
- return {button,ui,calls,before,signOutLocally:()=>{authenticated=false;},current:()=>current,release:async()=>{for(let n=0;n<50&&!release;n++)await new Promise(r=>setImmediate(r));assert(release);release();}};
+ const {document}=parseHTML('<button type="button">Check now</button><p role="status" hidden></p>');
+ const button=document.querySelector('button'),feedback=document.querySelector('p');
+ const ui=install({watch:current,current:()=>current,feedback,checkNowEl:button,watchCheckController:controller,canCheckStoredMediaWatch,MonitoringCheckError},canManuallyCheckWatch,manualCheckIssue,getMonitoringFailureMessageKey);
+ return {button,ui,calls,before,signOutLocally:()=>{authenticated=false;},replaceWatch:value=>{current=value;},current:()=>current,release:async()=>{for(let n=0;n<50&&!release;n++)await new Promise(r=>setImmediate(r));assert(release);release();}};
 };
 test('real detail click reaches authenticated stored endpoint once, keeps paused definition and blocks double click',async t=>{
  const h=await setup(t);assert.equal(h.button.disabled,false);const first=h.button.onclick();assert.equal(h.button.disabled,true);await h.button.onclick();await h.release();await first;
@@ -74,5 +78,34 @@ test('detail edit, activation and delete locks remain independent of manual avai
 
 test('session loss blocks the actual click handler before any check request',async t=>{
  const h=await setup(t);h.signOutLocally();await h.button.onclick();
- assert.equal(h.calls.filter(c=>c.path.includes('action=check')).length,0);assert.deepEqual(h.current(),h.before);
+ assert.equal(h.calls.filter(c=>c.path.includes('action=check')).length,0);assert.deepEqual(h.current(),h.before);assert.equal(h.ui.feedback.hidden,false);assert.equal(h.ui.feedback.textContent,'detail.checkFailure.authentication');
+});
+
+test('controller-only in-flight check disables render and produces progress feedback without dispatch',async()=>{
+ const w=make(),{document}=parseHTML('<button type="button">Check now</button><p hidden></p>');const button=document.querySelector('button'),feedback=document.querySelector('p');let checks=0;
+ install({watch:w,feedback,checkNowEl:button,watchCheckController:{isChecking:()=>true,check:()=>{checks++;}},canCheckStoredMediaWatch:()=>true,MonitoringCheckError},canManuallyCheckWatch,manualCheckIssue,getMonitoringFailureMessageKey);
+ assert.equal(button.disabled,true);await button.onclick();assert.equal(checks,0);assert.equal(feedback.hidden,false);assert.equal(feedback.textContent,'detail.checkingForUpdates');
+});
+for(const [name,value,key]of[
+ ['Watch disappeared',null,'detail.notFoundCopy'],
+ ['invalid revision',{...make(),mediaPersistence:{ownerId:owner,revision:0}},'detail.checkFailure.edited'],
+ ['missing id',{...make(),id:''},'detail.notFoundCopy'],
+])test(`${name} after render gives feedback instead of silently returning`,async t=>{
+ const h=await setup(t);assert.equal(h.button.disabled,false);h.replaceWatch(value);await h.button.onclick();assert.equal(h.calls.filter(c=>c.path.includes('action=check')).length,0);assert.equal(h.ui.feedback.hidden,false);assert.equal(h.ui.feedback.textContent,key);
+});
+test('DOM click on enabled Jannik control sends exactly one authenticated check',async t=>{
+ const h=await setup(t);assert.equal(h.button.disabled,false);h.button.click();h.button.click();await h.release();
+ for(let n=0;n<50&&h.button.disabled;n++)await new Promise(r=>setImmediate(r));
+ assert.equal(h.calls.filter(c=>c.path.includes('action=check')).length,1);assert.equal(h.ui.failed(),null);assert.equal(h.button.disabled,false);assert.equal(h.current().status,'paused');assert.equal(h.current().serverReadOnly,true);
+});
+test('network failure is caught without duplicate dispatch or legacy fallback',async t=>{
+ const h=await setup(t,{networkFailure:true});const promise=h.button.onclick();await h.release();await promise;assert.equal(h.ui.failed(),id);assert.equal(h.button.disabled,false);assert.equal(h.calls.filter(c=>c.path.includes('action=check')).length,1);
+});
+test('stale revision and persistence errors retain useful categories instead of temporary-network copy',()=>{
+ assert.equal(getMonitoringFailureMessageKey('MEDIA_CONFLICT'),'detail.checkFailure.edited');assert.equal(getMonitoringFailureMessageKey('PERSISTENCE_UNAVAILABLE'),'detail.checkFailure.persistence');
+});
+
+test('revision changed relative to synchronized row fails visibly categorized without a POST',async t=>{
+ const h=await setup(t);h.replaceWatch({...h.current(),mediaPersistence:{ownerId:owner,revision:2}});await h.button.onclick();
+ assert.equal(h.calls.filter(c=>c.path.includes('action=check')).length,0);assert.equal(h.ui.failed(),id);assert.equal(h.current().lastCheckAttempt.code,'MEDIA_CONFLICT');assert.equal(getMonitoringFailureMessageKey(h.current().lastCheckAttempt.code),'detail.checkFailure.edited');
 });

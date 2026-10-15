@@ -49,6 +49,11 @@ const FAILURE_CATEGORY_BY_CODE = new Map([
   ['ACTIVE_WATCH_EXISTS', 'duplicate'],
   ['INVALID_SIREN', 'invalidIdentifier'],
   ['DATABASE_ERROR', 'persistence'],
+  ['PERSISTENCE_UNAVAILABLE', 'persistence'],
+  ['MEDIA_CONFLICT', 'edited'],
+  ['INVALID_WATCH_DEFINITION', 'mediaQuery'],
+  ['STRUCTURED_FEATURE_UNAVAILABLE', 'generic'],
+  ['UNSUPPORTED_WATCH_VERSION', 'generic'],
   ['ROLLBACK_FAILED', 'persistence'],
   ['SERVER_NOT_CONFIGURED', 'configuration'],
 ]);
