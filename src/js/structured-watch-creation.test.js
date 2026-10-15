@@ -15,7 +15,7 @@ const harness=async(t,interpretation,options={})=>{
  const state={owner,language:interpretation.language,clock:Date.UTC(2026,9,12),interpretation,calls:[],records:new Map(),rpcCount:0,aiError:null,confirmFailure:null,hold:null,lose:false};
  configureStructuredWatchCreation({getState:()=>({status:'authenticated',session:{user:{id:state.owner},access_token:'fixture-only'}})});
  t.after(()=>{globalThis.document=previous;configureStructuredWatchCreation(null);});
- const env={STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner+','+other,STRUCTURED_WATCH_SIGNING_SECRET:'fixture-only-'.repeat(4)};
+ const env={SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner+','+other,STRUCTURED_WATCH_SIGNING_SECRET:'fixture-only-'.repeat(4)};
  const middleware=createStructuredWatchMiddleware({creationOnly:true,env,now:()=>state.clock,authenticate:async()=>({user:{id:state.owner}}),serviceClient:{async rpc(_name,p){
   state.rpcCount++;if(state.hold)await state.hold;if(state.confirmFailure)return {error:state.confirmFailure};
   const receipt=state.records.get(p.p_id)||{id:p.p_id,ownerId:p.p_owner,mutationId:p.p_mutation,operation:p.p_operation,expectedRevision:p.p_revision,revision:1,definitionFingerprint:p.p_definition_fingerprint,payloadFingerprint:p.p_payload_fingerprint,monitoringState:'paused'};
@@ -78,4 +78,19 @@ test('editing during interpretation invalidates the response even if the text is
 });
 test('French review preserves Dolce & Gabbana without translating or changing its identity',async t=>{
  const h=await harness(t,news('Surveille les actualités concernant Dolce & Gabbana.','Dolce & Gabbana','fr'));await h.run();assert.match(h.review().textContent,/Dolce & Gabbana/);assert.equal(h.state.calls.find(c=>c.body?.action==='issue').body.plan.criteria.subjects[0],'Dolce & Gabbana');assert.equal(h.state.rpcCount,0);
+});
+
+for(const language of ['en','fr'])test(`${language}: compact review groups preserve limits and action semantics without persistence`,async t=>{
+ const request=language==='fr'?'Tiens-moi informé des actualités de Jannik Sinner.':'Keep me updated on Jannik Sinner.';
+ const h=await harness(t,news(request,'Jannik Sinner',language));await h.run();const panel=h.review();
+ assert.ok(panel.classList.contains('structured-review-confirmation'));
+ const groups=[...panel.querySelectorAll('.structured-review-field')];assert.equal(groups.length,3);
+ assert.equal(groups[0].querySelector('p').textContent,request);assert.equal(groups[1].querySelector('.structured-review-subject').textContent,'Jannik Sinner');
+ assert.match(groups[1].textContent,/Google/);assert.match(groups[1].textContent,/20/);
+ assert.match(groups[1].textContent,language==='fr'?/autres noms approuvés/:/approved alternative names/);
+ assert.match(panel.querySelector('.structured-review-paused').textContent,language==='fr'?/en pause/:/paused/);
+ const actions=panel.querySelector('[data-structured-actions]');assert.equal(actions.querySelectorAll('button').length,3);
+ for(const b of actions.querySelectorAll('button'))assert.equal(b.type,'button');
+ assert.equal(h.state.rpcCount,0);assert.equal(h.state.calls.filter(c=>c.path.startsWith('/api/plan-watch')).length,1);
+ h.buttons()[1].click();assert.equal(h.review(),null);assert.equal(h.input.value,request);assert.equal(h.state.rpcCount,0);
 });

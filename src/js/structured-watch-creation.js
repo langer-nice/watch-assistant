@@ -56,11 +56,18 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
  const show=(title,paragraphs)=>{
   panel?.remove();panel=document.createElement('section');panel.dataset.structuredReview='';panel.className='structured-watch-review';panel.setAttribute('aria-live','polite');
   const h=document.createElement('h2');h.textContent=title;h.tabIndex=-1;panel.append(h);
-  for(const text of paragraphs){const p=document.createElement('p');p.textContent=text;panel.append(p);}
+  for(const text of paragraphs){
+   if(typeof text==='string'){const p=document.createElement('p');p.textContent=text;panel.append(p);continue;}
+   const group=document.createElement('section');group.className='structured-review-field';
+   const label=document.createElement('h3');label.className='structured-review-label';label.textContent=text.label;group.append(label);
+   const value=document.createElement('p');value.className=text.prominent?'structured-review-subject':'structured-review-value';value.textContent=text.value;group.append(value);
+   for(const detail of text.details||[]){const p=document.createElement('p');p.className='structured-review-detail';p.textContent=detail;group.append(p);}
+   panel.append(group);
+  }
   const inline=document.createElement('p');inline.className='form-error structured-review-error';inline.setAttribute('role','alert');panel.append(inline);
   form.classList.add('is-reviewing');form.append(panel);h.focus();return panel;
  };
- const button=(text,callback,primary=false)=>{const b=document.createElement('button');b.type='button';b.textContent=text;b.className=primary?'button button--primary':'button button--secondary';listen(b,'click',()=>{if(!b.disabled)callback();});panel.append(b);return b;};
+ const button=(text,callback,primary=false)=>{const b=document.createElement('button');b.type='button';b.textContent=text;b.className=primary?'button button--primary':'button button--secondary';listen(b,'click',()=>{if(!b.disabled)callback();});(panel.querySelector('[data-structured-actions]')||panel).append(b);return b;};
  const edit=()=>{clear();input.focus();};
  const access=async()=>{
   if(!activeSession())return;
@@ -96,14 +103,20 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
    if(canonicalJSON(definition)!==canonicalJSON(createWatchDefinition(interpretation,assessed.plan))||typeof issued.token!=='string')throw Object.assign(Error('review'),{code:'INVALID_WATCH_DEFINITION'});
    pending={...identity,definition,token:issued.token};
    const criteria=definition.plan.criteria;
-   const messages=[`${c.original}: ${original}`,`${c.subjects}: ${criteria.subjects.join(', ')}`];
+   const messages=[];
    if(criteria.subjects.length>1)messages.push(c.all);
    if(criteria.topics.length)messages.push(`${c.topics}: ${criteria.topics.join(', ')}`);
    const focus=definition.interpretation.topics.filter(t=>t.role==='coverage_focus').map(t=>t.label);if(focus.length)messages.push(`${c.focus}: ${focus.join(', ')}`);
    if(criteria.exclusions.length)messages.push(`${c.exclusions}: ${criteria.exclusions.join(', ')}`);
    messages.push(c.coverage);if(definition.interpretation.recurrence==='per_new_item')messages.push(c.recurrence);
-   messages.push(`${c.language}: ${c[definition.interpretation.language]}`,c.before);
-   show(c.review,messages);message('');
+   show(c.review,[
+    {label:c.original,value:original},
+    {label:c.subjects,value:criteria.subjects.join(', '),prominent:true,details:messages},
+    {label:c.language,value:c[definition.interpretation.language]},
+    c.before,
+   ]);panel.classList.add('structured-review-confirmation');
+   panel.querySelector(':scope > p').classList.add('structured-review-paused');
+   const actions=document.createElement('div');actions.dataset.structuredActions='';actions.className='structured-review-actions';panel.append(actions);message('');
    let confirming=false,saved=false;
    const confirm=button(c.confirm,async()=>{
     if(confirming||saved)return;
