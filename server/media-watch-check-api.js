@@ -20,7 +20,13 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     response.end(JSON.stringify(body));
   };
   if (request.method !== 'POST') return send(405, { code: 'METHOD_NOT_ALLOWED' });
-  let row; let prior; let service;
+  let row; let prior; let service; let lease;
+  const leasedParams = (params = {}) => ({ p_watch_id: row.id, p_owner: row.user_id,
+    p_revision: row.media_revision, p_token: lease, p_manual: true,
+    p_checked_at: params.p_checked_at || null, p_source_title: params.p_source_title || null,
+    p_source_url: params.p_source_url || null, p_items: params.p_items || [],
+    p_expected_checked_at: prior?.checked_at || null, p_expected_items: prior?.items || null,
+    p_matching: params.p_notification_items || [], p_error: params.p_error || null });
   try {
     const { client, user } = await authenticate(request, options);
     let body = request.body;
@@ -50,6 +56,16 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     }
     prior = Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
     service = serviceClient || createSupabaseServiceClient(options);
+    if (hasDefinitionVersion(row.watch_definition) && (options.env || process.env).STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true') {
+      const claim = await service.rpc('claim_structured_media_manual_check', {
+        p_watch_id: row.id, p_owner: user.id, p_revision: row.media_revision,
+      });
+      if (claim.error) throw Object.assign(new Error('Manual claim unavailable'), { code: 'PERSISTENCE_UNAVAILABLE' });
+      if (!claim.data?.lease_token) return send(409, { code: 'MEDIA_CONFLICT' });
+      lease = claim.data.lease_token;
+      row = claim.data;
+      prior = Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
+    }
     if (row.monitoring_source.type === 'currency') {
       if (row.monitoring_state !== 'monitoring') return send(409, { code: 'MEDIA_CONFLICT' });
       const watch = { ...row.watch_definition, id: row.id, status: row.current_status,
@@ -75,13 +91,16 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     const watch = { ...row.watch_definition, id: row.id, monitoringSource: row.monitoring_source, status: row.current_status };
     const normalized = applyFeedCheckResult(watch, feed).changes.monitoringSnapshot;
     const items = normalized.items.map(item => ({ ...item, identityKeys: mediaArticleIdentityKeys(item) }));
-    const completion = await service.rpc('complete_manual_media_watch_check', {
+    const completionParams = {
       p_watch_id: row.id, p_user_id: user.id, p_expected_revision: body.revision,
       p_checked_at: normalized.checkedAt, p_source_title: normalized.source?.title, p_source_url: normalized.source?.url,
       p_item_ids: items.map(item => item.id), p_items: items,
       p_expected_checked_at: prior?.checked_at || null, p_expected_items: prior?.items || null,
       p_notification_items: items.filter(item => matchFeedItemToWatch(item, watch).matched),
-    });
+    };
+    const completion = lease
+      ? await service.rpc('finish_structured_media_check', leasedParams(completionParams))
+      : await service.rpc('complete_manual_media_watch_check', completionParams);
     if (completion.error) throw Object.assign(new Error('Check not saved'), { code: 'PERSISTENCE_UNAVAILABLE' });
     if (completion.data?.status !== 'completed') return send(409, { code: 'MEDIA_CONFLICT' });
     const accepted = new Set(completion.data.matchedItems.map(item => item.id));
@@ -108,7 +127,8 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
   } catch (error) {
     // CAS prevents a failed/stale request from damaging a newer successful check.
     if (row && service) {
-      try { await service.rpc(row.monitoring_source.type === 'currency' ? 'fail_scheduled_media_watch_check' : 'fail_manual_media_watch_check', {
+      try { if (lease) await service.rpc('finish_structured_media_check', leasedParams({p_error:error.code || 'CHECK_FAILED'}));
+      else await service.rpc(row.monitoring_source.type === 'currency' ? 'fail_scheduled_media_watch_check' : 'fail_manual_media_watch_check', {
         p_watch_id: row.id, p_revision: row.media_revision, p_expected_checked_at: prior?.checked_at || null, ...(row.monitoring_source.type === 'currency' ? {} : { p_user_id: row.user_id, p_code: error.code || 'CHECK_FAILED' }),
       }); } catch { /* Do not replace the original failure. */ }
     }

@@ -7,6 +7,8 @@ import { fetchBodaccAnnouncements, normalizeSiren } from './bodacc-api.js';
 import { mapCompanyWatchRow } from './company-watch-repository.js';
 import { processCompanyWatchEmailNotifications } from './company-watch-notifications.js';
 import { runMediaMonitoring } from './media-monitoring-cron.js';
+import { runStructuredMediaMonitoring } from './structured-media-scheduler.js';
+import { structuredCreationEnabled } from './structured-creation-access.js';
 import { createSupabaseServiceClient, requireCronSecret } from './supabase-service.js';
 
 export const COMPANY_MONITORING_CRON_ENDPOINT = '/api/cron/company-monitoring';
@@ -180,6 +182,7 @@ export const createCompanyMonitoringCronHandler = ({
   now = () => Date.now(),
   createRunId = randomUUID,
   mediaRunner = runMediaMonitoring,
+  structuredRunner = runStructuredMediaMonitoring,
   ...options
 } = {}) => async (request, response) => {
   const runId = createRunId();
@@ -199,10 +202,19 @@ export const createCompanyMonitoringCronHandler = ({
     return;
   }
   try {
+    const scope = new URL(request.url || '/', 'http://localhost').searchParams.get('scope');
+    if (scope && scope !== 'structured-media') return sendJson(response, 400, { runId, status: 'invalid-scope' });
+    // Controlled Staging execution on the existing authenticated endpoint only;
+    // keep Company/legacy fetches and delivery processors out of this mode.
+    if (scope === 'structured-media') {
+      if (!structuredCreationEnabled(env) || env.STRUCTURED_MEDIA_SCHEDULED_ENABLED !== 'true') return sendJson(response, 404, { runId, status: 'disabled' });
+      const structured = await structuredRunner({ ...options, client: clientFactory({ env }), env, schedulerAuthorized: true });
+      return sendJson(response, 200, { runId, structured });
+    }
     const client = clientFactory({ env });
     const summary = await runner({ client, env, ...options });
     let media;
-    try { media = await mediaRunner({ client, env, ...options }); } catch { media = { status: 'unavailable' }; }
+    try { media = await mediaRunner({ client, env, ...options, schedulerAuthorized: true }); } catch { media = { status: 'unavailable' }; }
     const result = { runId, ...summary, media, durationMs: Math.max(0, now() - startedAt) };
     logger.info?.('[Company monitoring cron] Run completed.', result);
     sendJson(response, 200, result);

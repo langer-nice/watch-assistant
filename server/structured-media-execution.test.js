@@ -62,12 +62,12 @@ test('browser structured check requires stored authenticated execution and never
  await assert.rejects(controller.check(id),{code:'AUTH_REQUIRED'});assert.equal(providers,0);
  const stored=createWatchCheckController({getWatch:()=>w,saveWatch:()=>w,checkStoredWatch:async()=>({outcome:'baseline',changes:{}}),requestCheck:()=>assert.fail()});assert.equal((await stored.check(id)).outcome,'baseline');
 });
-test('scheduled infrastructure defaults off, excludes paused and validates opt-in local fixtures',async()=>{
- for(const [state,enabled,expected] of [['monitoring',false,0],['paused',true,0],['monitoring',true,1]]){
+test('unleased structured rows never execute through the legacy scheduled path',async()=>{
+ for(const [state,enabled,expected] of [['monitoring',false,0],['paused',true,0],['monitoring',true,0]]){
   const row={...rowFor(sinner()),monitoring_state:state};let fetches=0;const calls=[];const client={...clientFor(row),async rpc(name,args){calls.push([name,args]);return {data:name.startsWith('complete')?'unchanged':false,error:null};}};
   await runMediaMonitoring({client,env:enabled?{STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true'}:{},fetchFeed:async()=>{fetches++;return feed;},notificationProcessor:async()=>({status:'disabled'})});assert.equal(fetches,expected);
   const completed=calls.find(([name])=>name==='complete_scheduled_media_watch_check');if(expected){assert.equal(completed[1].p_enqueue_notifications,false);assert.deepEqual(completed[1].p_notification_items,[]);}
  }
  const row={...rowFor(sinner()),monitoring_state:'monitoring',watch_definition:{...definitionFromWatch(sinner()),definitionVersion:'future'}};let completed=0;
- const result=await runMediaMonitoring({client:{...clientFor(row),async rpc(name){if(name.startsWith('complete'))completed++;return {data:false,error:null};}},env:{STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true'},fetchFeed:()=>assert.fail('invalid version'),notificationProcessor:async()=>({status:'disabled'})});assert.equal(result.failedCount,1);assert.equal(completed,0);
+ const result=await runMediaMonitoring({client:{...clientFor(row),async rpc(name){if(name.startsWith('complete'))completed++;return {data:false,error:null};}},env:{STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true'},fetchFeed:()=>assert.fail('invalid version'),notificationProcessor:async()=>({status:'disabled'})});assert.equal(result.failedCount,0);assert.equal(result.skippedCount,1);assert.equal(completed,0);
 });
