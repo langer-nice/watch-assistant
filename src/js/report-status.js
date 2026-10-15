@@ -1,3 +1,4 @@
+import { hasDefinitionVersion } from './watch-definition.js';
 import { watchCreationState } from './watch-creation-state.js';
 import { HOME_NEW_WATCH_WINDOW_MS, isUserActionRequired } from './watch-grouping.js';
 import { getWatchCreationDate } from './watch-dates.js';
@@ -8,6 +9,7 @@ export const WATCH_CLASSIFICATIONS = Object.freeze({
   NEW: 'new',
   UPDATED: 'updated',
   WATCHING: 'watching',
+  PAUSED: 'paused',
 });
 
 const PLACEHOLDER_TEXT = new Set([
@@ -76,6 +78,10 @@ export const getUserFacingWatchClassification = (watch, { now = new Date() } = {
   }
   if (monitoringUnavailable(watch) || ['failed', 'pending'].includes(watchCreationState(watch)) || isUserActionRequired(watch)) {
     return WATCH_CLASSIFICATIONS.ATTENTION;
+  }
+  // A synchronized Structured definition is not proof of active monitoring.
+  if (hasDefinitionVersion(watch) && (watch.monitoringState === 'paused' || watch.status === 'paused')) {
+    return WATCH_CLASSIFICATIONS.PAUSED;
   }
   const meaningful = getMeaningfulWatchUpdate(watch);
   // Persisted Update status is the acknowledgement record. Legacy Watches that

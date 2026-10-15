@@ -10,6 +10,9 @@ export const getWatchStatusPresentation = (classification, translate) => {
   if (classification === WATCH_CLASSIFICATIONS.NEW) {
     return { label: translate('home.newBadge'), modifier: 'stable' };
   }
+  if (classification === WATCH_CLASSIFICATIONS.PAUSED) {
+    return { label: translate('statuses.paused'), modifier: 'stable' };
+  }
   if (classification === WATCH_CLASSIFICATIONS.WATCHING) {
     return { label: translate('statuses.watching'), modifier: 'watching' };
   }
