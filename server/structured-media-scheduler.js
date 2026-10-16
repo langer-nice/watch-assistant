@@ -4,6 +4,7 @@ import { applyFeedCheckResult, matchFeedItemToWatch } from '../src/js/watch-moni
 import { mediaArticleIdentityKeys } from './media-article-identity.js';
 import { withinMediaDeadline } from './media-deadline.js';
 import { fetchAndNormalizeFeed } from './check-watch-api.js';
+import { structuredMediaNotificationIntentsEnabled } from './structured-media-notification-gates.js';
 
 // Called only behind the existing authenticated cron handler. No browser tokens,
 // delivery processor, new endpoint, or provider query construction here.
@@ -13,6 +14,7 @@ export const runStructuredMediaMonitoring = async ({client,env=process.env,sched
  if(env.STRUCTURED_MEDIA_SCHEDULED_ENABLED!=='true')return summary;
  if(!schedulerAuthorized || typeof env.CRON_SECRET!=='string' || !env.CRON_SECRET.trim())return {...summary,status:'unauthorized'};
  if(!structuredCreationEnabled(env))return {...summary,status:'environment-blocked'};
+ const enqueue = structuredMediaNotificationIntentsEnabled(env);
  const owners=String(env.STRUCTURED_WATCH_TEST_USER_IDS||'').split(',').map(x=>x.trim()).filter(x=>/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(x));
  if(!owners.length)return {...summary,status:'unauthorized'};
  if(!Number.isInteger(batchSize)||batchSize<1||batchSize>3)throw Error('Invalid structured batch');
@@ -32,7 +34,8 @@ export const runStructuredMediaMonitoring = async ({client,env=process.env,sched
    const snapshot=applyFeedCheckResult(watch,feed).changes.monitoringSnapshot;
    const items=snapshot.items.map(item=>({...item,identityKeys:mediaArticleIdentityKeys(item)}));
    Object.assign(finish,{p_checked_at:snapshot.checkedAt,p_source_title:snapshot.source?.title,p_source_url:snapshot.source?.url,p_items:items,p_matching:items.filter(item=>matchFeedItemToWatch(item,watch).matched)});
-   const completed=await withinMediaDeadline(()=>client.rpc('finish_structured_media_check',finish),deadline);
+   const completed=await withinMediaDeadline(()=>client.rpc(enqueue ? 'finish_structured_media_check_with_notifications' : 'finish_structured_media_check',
+    enqueue ? {...finish,p_enqueue_notifications:true} : finish),deadline);
    if(completed.error)throw Object.assign(Error('Structured completion failed'),{code:'PERSISTENCE_UNAVAILABLE'});
    if(completed.data?.status==='skipped')summary.skipped++;
    else if(completed.data?.status!=='completed')throw Error('Invalid structured completion');

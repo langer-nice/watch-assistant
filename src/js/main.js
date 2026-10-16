@@ -3,7 +3,8 @@ import { applyExampleToEditor } from './example-watches.js';
 import { getAccountEpoch, getAccountOwner } from './account-storage.js';
 import { configureMediaWatchServerStore } from './media-watch-server-store.js';
 import { configureHomeGreeting, initApp } from './navigation.js';
-import { initializeLanguage, setLanguage } from './i18n.js';
+import { initializeLanguage, setLanguage, t } from './i18n.js';
+import { initStructuredEmailPreference } from './structured-email-preference.js';
 import { initTopNavigation } from './top-navigation.js';
 import { initializeAnalytics } from './analytics.js';
 import { initAuthUi } from './auth-ui.js';
@@ -31,6 +32,8 @@ const authUi = initAuthUi({ onResume: async (request, owner) => {
 } });
 configureHomeGreeting(authUi?.auth);
 configureStructuredWatchCreation(authUi?.auth);
+const emailPreference = initStructuredEmailPreference({root:document.querySelector('#email-notifications'),client:authUi?.client,auth:authUi?.auth,location:window.location,t});
+document.addEventListener('i18n:languageChanged', () => emailPreference?.render());
 // Drop sensitive DOM before a page can enter the back/forward cache. Restoration
 // must resolve the session again rather than reuse a frozen account snapshot.
 window.addEventListener('pagehide', () => {

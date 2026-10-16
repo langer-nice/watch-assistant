@@ -9,6 +9,8 @@ import { processCompanyWatchEmailNotifications } from './company-watch-notificat
 import { runMediaMonitoring } from './media-monitoring-cron.js';
 import { runStructuredMediaMonitoring } from './structured-media-scheduler.js';
 import { structuredCreationEnabled } from './structured-creation-access.js';
+import { getStructuredMediaStagingEmailConfig } from './structured-media-notification-gates.js';
+import { processMediaWatchEmailNotifications } from './media-watch-notifications.js';
 import { createSupabaseServiceClient, requireCronSecret } from './supabase-service.js';
 
 export const COMPANY_MONITORING_CRON_ENDPOINT = '/api/cron/company-monitoring';
@@ -183,6 +185,7 @@ export const createCompanyMonitoringCronHandler = ({
   createRunId = randomUUID,
   mediaRunner = runMediaMonitoring,
   structuredRunner = runStructuredMediaMonitoring,
+  structuredNotificationProcessor = processMediaWatchEmailNotifications,
   ...options
 } = {}) => async (request, response) => {
   const runId = createRunId();
@@ -203,7 +206,12 @@ export const createCompanyMonitoringCronHandler = ({
   }
   try {
     const scope = new URL(request.url || '/', 'http://localhost').searchParams.get('scope');
-    if (scope && scope !== 'structured-media') return sendJson(response, 400, { runId, status: 'invalid-scope' });
+    if (scope && !['structured-media', 'structured-media-email-test'].includes(scope)) return sendJson(response, 400, { runId, status: 'invalid-scope' });
+    if (scope === 'structured-media-email-test') {
+      if (!getStructuredMediaStagingEmailConfig(env)) return sendJson(response, 404, {runId,status:'disabled'});
+      const notifications = await structuredNotificationProcessor({client:clientFactory({env}),env});
+      return sendJson(response, 200, {runId,notifications});
+    }
     // Controlled Staging execution on the existing authenticated endpoint only;
     // keep Company/legacy fetches and delivery processors out of this mode.
     if (scope === 'structured-media') {

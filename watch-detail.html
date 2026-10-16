@@ -256,6 +256,11 @@
 
         <section class="watch-management" id="watchManagement" aria-labelledby="manageWatchTitle">
           <h2 class="section-heading" id="manageWatchTitle" data-i18n="detail.manageWatch"></h2>
+          <div id="email-notifications" hidden>
+            <label><input type="checkbox" disabled> <span data-email-label></span></label>
+            <p data-email-hint></p>
+            <p role="status" aria-live="polite"></p>
+          </div>
           <div class="watch-management__controls">
             <button class="button button--secondary watch-management__pause" id="watchPauseResume" type="button">
               <svg id="watchPauseIcon" viewBox="0 0 24 24" aria-hidden="true">

@@ -207,6 +207,11 @@
     "empty": "Tout est sous contrôle. Aucune Watch active pour le moment."
   },
   "detail": {
+    "emailNotifications": "Notifications par email",
+    "emailIndependent": "Recevoir des emails pour cette Watch. La surveillance reste indépendante ; désactivez les emails ici à tout moment.",
+    "emailOn": "Notifications par email : activées",
+    "emailOff": "Notifications par email : désactivées",
+    "emailSaveFailed": "Impossible d’enregistrer ce réglage. Veuillez réessayer.",
     "allWatches": "Toutes les Watches",
     "backToAllWatches": "Retour à toutes les Watches",
     "breadcrumbLabel": "Emplacement de la Watch",

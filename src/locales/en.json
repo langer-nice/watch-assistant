@@ -207,6 +207,11 @@
     "empty": "Everything is under control. No active watches right now."
   },
   "detail": {
+    "emailNotifications": "Email notifications",
+    "emailIndependent": "Receive emails for this Watch. Monitoring stays independent; turn emails off here at any time.",
+    "emailOn": "Email notifications: On",
+    "emailOff": "Email notifications: Off",
+    "emailSaveFailed": "Email preference could not be saved. Please try again.",
     "allWatches": "All Watches",
     "backToAllWatches": "Back to All Watches",
     "breadcrumbLabel": "Watch location",

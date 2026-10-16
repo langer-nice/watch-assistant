@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {parseHTML,Event} from 'linkedom';
+import {initStructuredEmailPreference} from './structured-email-preference.js';
+const id='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
+const fixture=async(locale='en',rpc)=>{
+ const copy=JSON.parse(await readFile(new URL('../locales/'+locale+'.json',import.meta.url),'utf8'));
+ const {document}=parseHTML('<div id="email-notifications" hidden><label><input type="checkbox"><span data-email-label></span></label><p data-email-hint></p><p role="status"></p></div>');
+ const root=document.querySelector('div'),calls=[],listeners=new Set();let state={status:'authenticated',session:{user:{id:'synthetic-owner'}}};let saved=false;
+ const client={rpc:async(name,p)=>{calls.push([name,p]);return rpc?rpc(name,p):{data:name.startsWith('get_')?saved:(saved=p.p_enabled)};}};
+ const auth={getState:()=>state,subscribe:fn=>(listeners.add(fn),()=>listeners.delete(fn))};
+ const control=initStructuredEmailPreference({root,client,auth,location:{search:'?id='+id},t:key=>key.split('.').reduce((v,k)=>v[k],copy)});
+ await tick();return{root,input:root.querySelector('input'),calls,control,changeOwner(){state={status:'anonymous'};listeners.forEach(fn=>fn());}};
+};
+for(const locale of ['en','fr'])test('affirmative preference and independent monitoring labels '+locale,async()=>{const f=await fixture(locale);assert.equal(f.input.checked,false);assert.equal(f.root.hidden,false);assert(f.root.textContent.includes(locale==='fr'?'surveillance reste indépendante':'Monitoring stays independent'));f.input.checked=true;f.input.dispatchEvent(new Event('change'));await tick();assert.equal(f.calls.at(-1)[0],'set_structured_media_email_preference');assert.deepEqual(f.calls.at(-1)[1],{p_watch_id:id,p_enabled:true});f.input.checked=false;f.input.dispatchEvent(new Event('change'));await tick();assert.equal(f.calls.at(-1)[1].p_enabled,false);assert(!f.calls.some(([name])=>name.includes('monitoring')));f.control.destroy();});
+test('sign-out scrubs consent and disables cross-account UI',async()=>{const f=await fixture();f.input.checked=true;f.changeOwner();await tick();assert.equal(f.root.hidden,true);assert.equal(f.input.checked,false);assert.equal(f.input.disabled,true);});
+test('missing/ambiguous preference stays hidden and disabled',async()=>{for(const data of [null,'true',{}]){const f=await fixture('en',async()=>({data}));assert(f.root.hidden);assert(f.input.disabled);}});
+test('failed save restores confirmed value and displays safe translated error',async()=>{const f=await fixture('fr',async name=>name.startsWith('get_')?{data:false}:{error:{message:'PRIVATE'}});f.input.checked=true;f.input.dispatchEvent(new Event('change'));await tick();assert.equal(f.input.checked,false);assert(f.root.textContent.includes('Impossible'));assert(!f.root.textContent.includes('PRIVATE'));});
