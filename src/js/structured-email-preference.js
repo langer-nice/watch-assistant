@@ -6,19 +6,23 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t})
   const id = new URLSearchParams(location.search).get('id');
   if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id || '')) return;
   let generation = 0, saved = false, owner = null;
+  // Supabase RPC builders implement PromiseLike.then, not Promise.catch.
+  const rpc = async (name, parameters) => {
+    try { return await client.rpc(name, parameters); } catch { return {error:true}; }
+  };
   const render = () => { label.textContent = t('detail.emailNotifications'); hint.textContent = t('detail.emailIndependent'); input.setAttribute('aria-label', t('detail.emailNotifications')); };
   const refresh = async () => {
     const current = ++generation; owner = auth.getState().status === 'authenticated' ? auth.getState().session?.user?.id : null;
     root.hidden = true; input.checked = false; input.disabled = true; status.textContent = '';
     if (!owner) return;
-    const result = await client.rpc('get_structured_media_email_preference', {p_watch_id:id}).catch(() => ({error:true}));
+    const result = await rpc('get_structured_media_email_preference', {p_watch_id:id});
     if (current !== generation || result.error || typeof result.data !== 'boolean') return;
     saved = result.data; input.checked = saved; input.disabled = false; root.hidden = false; render();
   };
   const change = async () => {
     const current = generation, expectedOwner = owner, enabled = input.checked;
     input.disabled = true; status.textContent = '';
-    const result = await client.rpc('set_structured_media_email_preference', {p_watch_id:id,p_enabled:enabled}).catch(() => ({error:true}));
+    const result = await rpc('set_structured_media_email_preference', {p_watch_id:id,p_enabled:enabled});
     if (current !== generation || expectedOwner !== owner) return;
     if (result.error || result.data !== enabled) { input.checked = saved; status.textContent = t('detail.emailSaveFailed'); }
     else { saved = enabled; status.textContent = t(enabled ? 'detail.emailOn' : 'detail.emailOff'); }
