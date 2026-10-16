@@ -13,7 +13,7 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t, 
   const modes = ['off','daily_digest','immediate'];
   const validPolicy = data => data && modes.includes(data.mode) && typeof data.enabled === 'boolean'
     && ['legacy','daily-digest.v1'].includes(data.version) && !(data.mode === 'off' && data.enabled);
-  let generation = 0, saved = null, owner = null, busy = false;
+  let generation = 0, saved = null, owner = null, busy = false, feedbackKey = null;
   const currentOwner = () => auth.getState().status === 'authenticated' ? auth.getState().session?.user?.id : null;
   const current = (epoch, expected) => generation === epoch && owner === expected && currentOwner() === expected;
   const rpc = async (name, parameters) => {
@@ -33,6 +33,7 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t, 
     if (consentState) consentState.textContent = digestEnabled && saved ? t(saved.enabled ? 'detail.emailOn' : 'detail.emailOff') : '';
   };
   const render = () => {
+    status.textContent = feedbackKey ? t(feedbackKey) : '';
     label.textContent = t(digestEnabled ? 'detail.emailConsent' : 'detail.emailNotifications');
     input.setAttribute('aria-label', label.textContent);
     hint.textContent = t(digestEnabled ? 'detail.emailDigestIndependent' : 'detail.emailIndependent');
@@ -46,7 +47,7 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t, 
     if (consentState && digestEnabled && saved) consentState.textContent = t(saved.enabled ? 'detail.emailOn' : 'detail.emailOff');
   };
   const scrub = () => {
-    saved = null; busy = false; root.hidden = true; disable(true); restore(); status.textContent = '';
+    saved = null; busy = false; feedbackKey = null; root.hidden = true; disable(true); restore(); status.textContent = '';
     if (frequencyControl) frequencyControl.hidden = true;
   };
   const refresh = async () => {
@@ -71,13 +72,14 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t, 
       if (fromFrequency && mode === 'off') enabled = false;
       else if (!fromFrequency && enabled && mode === 'off') mode = 'daily_digest';
     }
-    busy = true; disable(true); status.textContent = '';
+    busy = true; disable(true); feedbackKey = null; status.textContent = '';
     const result = await rpc(digestEnabled ? 'set_media_watch_email_policy' : 'set_structured_media_email_preference',
       digestEnabled ? {p_watch_id:id,p_mode:mode,p_enabled:enabled} : {p_watch_id:id,p_enabled:enabled});
     if (!current(epoch, expected)) return;
     const ok = !result.error && (digestEnabled ? validPolicy(result.data) && result.data.mode === mode && result.data.enabled === enabled : result.data === enabled);
     if (ok) saved = digestEnabled ? {...result.data} : {enabled};
-    restore(); status.textContent = t(ok ? enabled ? 'detail.emailOn' : 'detail.emailOff' : 'detail.emailSaveFailed');
+    restore(); feedbackKey = ok ? enabled ? 'detail.emailOn' : 'detail.emailOff' : 'detail.emailSaveFailed';
+    render();
     busy = false; disable(false);
   };
   const changeConsent = () => { void save(false); };

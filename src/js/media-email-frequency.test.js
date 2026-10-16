@@ -84,3 +84,44 @@ test('shared UI persists against actual owner-bound SQL for legacy and Structure
   assert.equal((await db.query('select count(*)::int n from public.media_watch_notifications')).rows[0].n,0);
  }finally{globalThis.fetch=fetch;await db.close();}
 });
+
+// Feedback keeps semantic state so a language change never reuses old display text.
+for (const locale of ['fr','en']) test('saved feedback retranslates immediately from '+locale,async()=>{
+ const otherLocale=locale==='fr'?'en':'fr', f=await fixture({locale});
+ const status=()=>f.root.querySelector('[role="status"]').textContent;
+ assert.equal(status(),'');
+ await f.changeFrequency('immediate');assert.equal(status(),copies[locale].detail.emailOff);
+ const calls=f.calls.length;f.translate(otherLocale);
+ assert.equal(status(),copies[otherLocale].detail.emailOff);assert.equal(f.calls.length,calls);
+ assert.equal(f.input.checked,false);assert.equal(f.frequency.value,'immediate');
+ await f.consent(true);assert.equal(status(),copies[otherLocale].detail.emailOn);
+ f.translate(locale);assert.equal(status(),copies[locale].detail.emailOn);
+ f.control.destroy();assert.equal(status(),'');
+});
+for (const locale of ['fr','en']) test('failed feedback retranslates safely from '+locale,async()=>{
+ const otherLocale=locale==='fr'?'en':'fr';
+ const f=await fixture({locale,rpc:n=>n.startsWith('get_')?{data:{mode:'daily_digest',enabled:false,version:'daily-digest.v1'}}:{error:{message:'PRIVATE'}}});
+ await f.changeFrequency('immediate');const status=f.root.querySelector('[role="status"]');
+ assert.equal(status.textContent,copies[locale].detail.emailSaveFailed);f.translate(otherLocale);
+ assert.equal(status.textContent,copies[otherLocale].detail.emailSaveFailed);
+ assert.equal(f.input.checked,false);assert.equal(f.frequency.value,'daily_digest');assert(!f.root.textContent.includes('PRIVATE'));f.control.destroy();
+});
+test('pending feedback stays empty across language changes until confirmed persistence',async()=>{
+ let finish;const f=await fixture({locale:'fr',rpc:n=>n.startsWith('get_')?{data:{mode:'daily_digest',enabled:false,version:'daily-digest.v1'}}:new Promise(r=>finish=r)});
+ const status=f.root.querySelector('[role="status"]');await f.changeFrequency('immediate');
+ assert(f.frequency.disabled);assert.equal(status.textContent,'');f.translate('en');assert.equal(status.textContent,'');
+ finish({data:{mode:'immediate',enabled:false,version:'daily-digest.v1'}});await tick();
+ assert.equal(status.textContent,copies.en.detail.emailOff);assert(!f.frequency.disabled);f.control.destroy();
+});
+test('refresh, owner switch and new Watch clear semantic feedback, including late saves',async()=>{
+ const f=await fixture();const status=f.root.querySelector('[role="status"]');await f.changeFrequency('off');assert(status.textContent);
+ await f.control.refresh();f.translate('fr');assert.equal(status.textContent,'');
+ await f.changeFrequency('immediate');f.switchOwner();await tick();f.translate('en');assert.equal(status.textContent,'');
+ f.control.destroy();const next=await fixture({watchId:'dddddddd-dddd-4ddd-8ddd-dddddddddddd'});assert.equal(next.root.querySelector('[role="status"]').textContent,'');next.control.destroy();
+ let finish;const pending=await fixture({rpc:n=>n.startsWith('get_')?{data:{mode:'daily_digest',enabled:false,version:'daily-digest.v1'}}:new Promise(r=>finish=r)});
+ await pending.changeFrequency('off');pending.switchOwner();await tick();finish({data:{mode:'off',enabled:false,version:'daily-digest.v1'}});await tick();pending.translate('fr');assert.equal(pending.root.querySelector('[role="status"]').textContent,'');pending.control.destroy();
+});
+test('disabled frequency gate retranslates boolean save feedback without changing its contract',async()=>{
+ const f=await fixture({gate:false,locale:'fr',rpc:(n,p)=>({data:n.startsWith('get_')?false:p.p_enabled})});await f.consent(true);
+ f.translate('en');assert.equal(f.root.querySelector('[role="status"]').textContent,copies.en.detail.emailOn);assert.equal(f.calls.at(-1)[0],'set_structured_media_email_preference');f.control.destroy();
+});
