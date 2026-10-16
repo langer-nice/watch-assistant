@@ -328,7 +328,16 @@
     "initialContextEmpty": "No matching articles were returned at this first check.",
     "initialContextPending": "Initial context will appear after the first successful check.",
     "initialContextUnavailable": "Initial context was not retained for this Watch. Later results are not shown as its starting point.",
-    "noUnseenArticles": "No unseen articles were returned by the source."
+    "noUnseenArticles": "No unseen articles were returned by the source.",
+    "emailConsent": "Allow emails for this Watch",
+    "emailDigestIndependent": "Choosing a frequency does not grant email consent. Check the box to allow emails. Monitoring stays independent. Daily digests follow UTC days; delivery time depends on the service schedule. Turning emails back on does not send an old backlog.",
+    "emailFrequency": "Email frequency",
+    "emailFrequencyOff": "Off",
+    "emailFrequencyDaily": "Daily digest",
+    "emailFrequencyImmediate": "Immediately",
+    "emailOn": "Email notifications: On",
+    "emailOff": "Email notifications: Off",
+    "emailSaveFailed": "Email preference could not be saved. Please try again."
   },
   "newWatch": {
     "back": "Home",

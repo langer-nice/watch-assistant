@@ -256,6 +256,20 @@
 
         <section class="watch-management" id="watchManagement" aria-labelledby="manageWatchTitle">
           <h2 class="section-heading" id="manageWatchTitle" data-i18n="detail.manageWatch"></h2>
+          <div id="email-notifications" role="group" aria-labelledby="email-preference-label" hidden>
+            <label><input type="checkbox" disabled> <span id="email-preference-label" data-email-label></span></label>
+            <label data-email-frequency-control hidden>
+              <span data-email-frequency-label></span>
+              <select data-email-frequency disabled aria-describedby="email-frequency-hint">
+                <option value="off"></option>
+                <option value="daily_digest"></option>
+                <option value="immediate"></option>
+              </select>
+            </label>
+            <p data-email-consent-state></p>
+            <p data-email-hint id="email-frequency-hint"></p>
+            <p role="status" aria-live="polite" aria-atomic="true"></p>
+          </div>
           <div class="watch-management__controls">
             <button class="button button--secondary watch-management__pause" id="watchPauseResume" type="button">
               <svg id="watchPauseIcon" viewBox="0 0 24 24" aria-hidden="true">

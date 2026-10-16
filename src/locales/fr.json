@@ -328,7 +328,16 @@
     "initialContextEmpty": "Aucun article correspondant n’a été renvoyé lors de cette première vérification.",
     "initialContextPending": "Le contexte initial apparaîtra après la première vérification réussie.",
     "initialContextUnavailable": "Le contexte initial de cette Watch n’a pas été conservé. Les résultats ultérieurs ne sont pas présentés comme son point de départ.",
-    "noUnseenArticles": "La source n’a renvoyé aucun article encore jamais vu."
+    "noUnseenArticles": "La source n’a renvoyé aucun article encore jamais vu.",
+    "emailConsent": "Autoriser les emails pour cette Watch",
+    "emailDigestIndependent": "Choisir une fréquence ne donne pas votre accord pour recevoir des emails. Cochez la case pour les autoriser. La surveillance reste indépendante. Les récapitulatifs suivent les jours UTC ; l’heure d’envoi dépend de la planification du service. Réactiver les emails ne déclenche pas l’envoi des anciens résultats.",
+    "emailFrequency": "Fréquence des emails",
+    "emailFrequencyOff": "Désactivés",
+    "emailFrequencyDaily": "Récapitulatif quotidien",
+    "emailFrequencyImmediate": "Immédiatement",
+    "emailOn": "Notifications par email : activées",
+    "emailOff": "Notifications par email : désactivées",
+    "emailSaveFailed": "Impossible d’enregistrer ce réglage. Veuillez réessayer."
   },
   "newWatch": {
     "back": "Accueil",
