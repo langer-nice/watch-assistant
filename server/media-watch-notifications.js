@@ -1,3 +1,4 @@
+import {mediaDailyDigestEnabled,processMediaWatchDigests} from './media-watch-digest.js';
 import { safeEmailCode, definiteProviderFailure, emailFailureCounts, countEmailFailure, unavailableEmailResult } from './watch-email-config.js';
 import { withinMediaDeadline } from './media-deadline.js';
 import { randomUUID } from 'node:crypto';
@@ -7,11 +8,13 @@ const LIMIT = 25; const CONCURRENCY = 3;
 const mapBounded = async (rows, worker) => { let cursor = 0; await Promise.all(Array.from({ length: Math.min(CONCURRENCY, rows.length) }, async () => { while (cursor < rows.length) await worker(rows[cursor++]); })); };
 export const processMediaWatchEmailNotifications = async ({ client, env = process.env, sender = sendWithResend, createClaimToken = randomUUID, deadline = Date.now() + 30000 } = {}) => {
   const config = getMediaWatchEmailConfig(env); if (!config) return unavailableEmailResult(env, 'MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED');
+  const digests = mediaDailyDigestEnabled(env) ? await processMediaWatchDigests({client,env,sender,deadline}) : undefined;
   const counts = emailFailureCounts();
   const request = (operation) => withinMediaDeadline(operation, deadline);
   const expired = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-  const { data: pending, error } = await request(() => client.from('media_watch_notifications').select('id').eq('status', 'pending')
-    .or(`claim_token.is.null,claimed_at.lt.${expired}`).order('created_at').order('watch_id').order('article_position').order('id').range(0, LIMIT - 1));
+  let query = client.from('media_watch_notifications').select('id').eq('status','pending');
+  if (mediaDailyDigestEnabled(env)) query = query.eq('delivery_mode','immediate');
+  const {data:pending,error} = await request(() => query.or(`claim_token.is.null,claimed_at.lt.${expired}`).order('created_at').order('watch_id').order('article_position').order('id').range(0,LIMIT-1));
   if (error) throw Object.assign(new Error('Media notification outbox unavailable.'), { code: 'DATABASE_ERROR' });
   let sentCount = 0; let failedCount = 0; let skippedCount = 0;
   await mapBounded(pending || [], async ({ id }) => { const token = createClaimToken(); let claimed; let boundaryAttempted = false; let deliveredSuccessfully = false;
@@ -46,5 +49,5 @@ export const processMediaWatchEmailNotifications = async ({ client, env = proces
       }
     }
   });
-  return { ...counts, status: failedCount ? 'partial-success' : 'success', pendingCount: (pending || []).length, sentCount, failedCount, skippedCount };
+  return { ...(digests ? {digests} : {}), ...counts, status: failedCount ? 'partial-success' : 'success', pendingCount: (pending || []).length, sentCount, failedCount, skippedCount };
 };
