@@ -5,28 +5,45 @@ import { createMediaNotificationIdempotencyKey, getMediaWatchEmailConfig, render
 import { structuredMediaEmailDeliveryAllowed, getStructuredMediaStagingEmailConfig, structuredEmailTestOwners } from './structured-media-notification-gates.js';
 
 const LIMIT = 25; const CONCURRENCY = 3;
+const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
+export const validStructuredMediaEmailSelection = (selection, env) => Boolean(selection
+  && typeof selection === 'object' && !Array.isArray(selection)
+  && Object.keys(selection).length === 3
+  && ['notificationId', 'watchId', 'ownerId'].every(key => uuid(selection[key]))
+  && structuredEmailTestOwners(env).includes(selection.ownerId.toLowerCase()));
 const mapBounded = async (rows, worker) => { let cursor = 0; await Promise.all(Array.from({ length: Math.min(CONCURRENCY, rows.length) }, async () => { while (cursor < rows.length) await worker(rows[cursor++]); })); };
-export const processMediaWatchEmailNotifications = async ({ client, env = process.env, sender = sendWithResend, createClaimToken = randomUUID, deadline = Date.now() + 30000 } = {}) => {
+export const processMediaWatchEmailNotifications = async ({ client, env = process.env, sender = sendWithResend, createClaimToken = randomUUID, deadline = Date.now() + 30000, notificationSelection } = {}) => {
   const productionConfig = getMediaWatchEmailConfig(env);
   const config = productionConfig || getStructuredMediaStagingEmailConfig(env);
   const stagingTest = !productionConfig && Boolean(config);
+  if (notificationSelection !== undefined && (!stagingTest || !validStructuredMediaEmailSelection(notificationSelection, env))) {
+    return { ...emailFailureCounts(), status: 'invalid-selection', pendingCount: 0, sentCount: 0, failedCount: 0, skippedCount: 0 };
+  }
   if (!config) return unavailableEmailResult(env, 'MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED');
+  const selection = notificationSelection === undefined ? null : Object.fromEntries(Object.entries(notificationSelection).map(([key, value]) => [key, value.toLowerCase()]));
   const counts = emailFailureCounts();
   const request = (operation) => withinMediaDeadline(operation, deadline);
   const expired = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   let query = client.from('media_watch_notifications').select(stagingTest ? 'id,watches!inner(watch_definition,user_id)' : 'id').eq('status', 'pending');
   if (stagingTest) query = query.eq('watches.watch_definition->>definitionVersion', 'watch-definition.v1').in('watches.user_id', structuredEmailTestOwners(env));
+  if (selection) query = query.eq('id', selection.notificationId).eq('watch_id', selection.watchId)
+    .eq('user_id', selection.ownerId).eq('watches.user_id', selection.ownerId)
+    .eq('watches.type', 'media_news').is('submission_started_at', null);
   const { data: pending, error } = await request(() => query
     .or(`claim_token.is.null,claimed_at.lt.${expired}`).order('created_at').order('watch_id').order('article_position').order('id').range(0, (stagingTest ? 1 : LIMIT) - 1));
   if (error) throw Object.assign(new Error('Media notification outbox unavailable.'), { code: 'DATABASE_ERROR' });
+  if (selection && (!Array.isArray(pending) || pending.length > 1 || pending.some(row => row.id !== selection.notificationId))) {
+    throw Object.assign(new Error('Exact notification selection unavailable.'), { code: 'DATABASE_ERROR' });
+  }
   let sentCount = 0; let failedCount = 0; let skippedCount = 0;
   await mapBounded(pending || [], async ({ id }) => { const token = createClaimToken(); let claimed; let boundaryAttempted = false; let deliveredSuccessfully = false;
     try {
       if (Date.now() >= deadline) { skippedCount += 1; return; }
-      const claim = await request(() => client.rpc(stagingTest ? 'claim_structured_media_test_email_notification' : 'claim_media_watch_email_notification', { p_notification_id: id, p_claim_token: token, ...(stagingTest ? {p_owners: structuredEmailTestOwners(env)} : {}) })); if (claim.error) throw Object.assign(new Error('Claim failed.'), { code: 'DATABASE_ERROR' });
+      const claim = await request(() => client.rpc(stagingTest ? 'claim_structured_media_test_email_notification' : 'claim_media_watch_email_notification', { p_notification_id: id, p_claim_token: token, ...(stagingTest ? {p_owners: selection ? [selection.ownerId] : structuredEmailTestOwners(env)} : {}) })); if (claim.error) throw Object.assign(new Error('Claim failed.'), { code: 'DATABASE_ERROR' });
       claimed = claim.data; if (!claimed) { skippedCount += 1; return; }
       counts.claimedCount += 1;
-      if ((claimed.is_structured && !stagingTest) || (stagingTest && !claimed.is_structured)) {
+      if ((claimed.is_structured && !stagingTest) || (stagingTest && !claimed.is_structured)
+        || (selection && (claimed.id !== selection.notificationId || claimed.watch_id !== selection.watchId || claimed.user_id !== selection.ownerId))) {
         throw Object.assign(new Error('Structured email delivery is disabled.'), { code: 'STRUCTURED_EMAIL_DISABLED' });
       }
       const [auth, locale] = await Promise.all([request(() => client.auth.admin.getUserById(claimed.user_id)), request(() => client.rpc('get_media_watch_notification_locale', { p_user_id: claimed.user_id }))]);

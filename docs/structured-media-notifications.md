@@ -127,3 +127,55 @@ requires an eligible hosted notification, confirmed Auth owner, current consent,
 exact recipient allowlist, and sole eligible intended record. On cleanup, route
 the alias to the final disabled Preview before deleting enabled deployments.
 No publication, hosted configuration, deployment or delivery is part of this fix.
+
+## Exact-record Staging email test (local extension; not published)
+
+The existing service-only `claim_structured_media_test_email_notification` already
+claims an exact notification UUID atomically. No new SQL migration or privilege
+is required. Its owner/Structured/domain checks, Watch lock, current consent,
+claim expiry, submission boundary and terminal uncertain-result policy remain.
+
+The authenticated existing `scope=structured-media-email-test` route now accepts
+an optional group of three query parameters: `notificationId`, `watchId`, and
+`ownerId`. All must be single UUID values; the owner must be in the server-side
+test-owner allowlist. Missing/duplicate/malformed fields return no delivery.
+The group is rejected on other cron scopes. Existing cron Bearer authentication
+and every independent Staging gate remain mandatory; browser Auth is not enough.
+No new endpoint is added.
+
+The worker's corresponding `notificationSelection` object filters the exact
+pending row, expected Watch, notification owner, joined Watch owner, Structured
+version and Media type, with no prior submission. It restricts the existing
+atomic claim to the expected owner and verifies claimed identity before delivery.
+Unknown, cancelled, sent, currently claimed or uncertain-submission IDs cannot
+fall back to a different row. Expired claims before submission retain existing
+safe recovery semantics. A selector in Production is explicitly rejected before
+outbox access; execution without a selector preserves normal legacy/Production
+and Staging behavior. Only fabricated local records/providers are used in tests.
+
+Future hosted procedure requires separate approval:
+
+1. Publish only this worker/route/test/documentation changeset and deploy a disabled
+   Git-pinned Preview. No hosted migration is needed.
+2. Reverify permanent branch Resend/sender/origin settings and confirmed recipient,
+   genuine consent, protected access and the exact Staging project/branch.
+3. Obtain a **new legitimate** eligible intent through normal monitoring. Existing
+   cancelled intents stay terminal; do not reset history, fabricate news, insert
+   a hosted outbox row or resurrect an old intent. Waiting may be necessary.
+4. Record the intended notification/Watch/owner UUIDs privately. Recheck pending
+   state, consent, recipient allowlist and absence of prior/uncertain submission.
+5. Under an explicit deployment/call budget, temporarily enable only branch-scoped
+   Staging delivery gates and independent cron authorization. Keep monitoring
+   disabled during delivery. Preserve capacity for final disabled cleanup.
+6. Deploy one temporary email-enabled Preview and invoke the existing route **once**
+   with all three selection parameters. Never put credentials in URL parameters.
+   The real worker validates the trusted origin before querying/claiming the row.
+7. Verify the intended row, one provider submission and provider acceptance; inbox
+   receipt needs independent confirmation. Never retry an unknown outcome.
+8. Disable temporary gates, remove only task-owned temporary credentials, pause the
+   fixture according to approved cleanup, retain baseline/consent/audit, deploy a
+   final disabled Preview and contain enabled deployments. Verify stable alias
+   routing, no outstanding claims, other Watches and Production remain unchanged.
+
+This procedure is a plan only. No real cancelled notification was changed and no
+hosted operation, publication, deployment, monitoring or email was performed here.

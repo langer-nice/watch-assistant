@@ -10,7 +10,7 @@ import { runMediaMonitoring } from './media-monitoring-cron.js';
 import { runStructuredMediaMonitoring } from './structured-media-scheduler.js';
 import { structuredCreationEnabled } from './structured-creation-access.js';
 import { getStructuredMediaStagingEmailConfig } from './structured-media-notification-gates.js';
-import { processMediaWatchEmailNotifications } from './media-watch-notifications.js';
+import { processMediaWatchEmailNotifications, validStructuredMediaEmailSelection } from './media-watch-notifications.js';
 import { createSupabaseServiceClient, requireCronSecret } from './supabase-service.js';
 
 export const COMPANY_MONITORING_CRON_ENDPOINT = '/api/cron/company-monitoring';
@@ -205,11 +205,17 @@ export const createCompanyMonitoringCronHandler = ({
     return;
   }
   try {
-    const scope = new URL(request.url || '/', 'http://localhost').searchParams.get('scope');
+    const params = new URL(request.url || '/', 'http://localhost').searchParams;
+    const scope = params.get('scope');
+    const selectionKeys = ['notificationId', 'watchId', 'ownerId'];
+    const hasSelection = selectionKeys.some(key => params.has(key));
+    if (hasSelection && scope !== 'structured-media-email-test') return sendJson(response, 400, {runId,status:'invalid-selection'});
     if (scope && !['structured-media', 'structured-media-email-test'].includes(scope)) return sendJson(response, 400, { runId, status: 'invalid-scope' });
     if (scope === 'structured-media-email-test') {
       if (!getStructuredMediaStagingEmailConfig(env)) return sendJson(response, 404, {runId,status:'disabled'});
-      const notifications = await structuredNotificationProcessor({client:clientFactory({env}),env});
+      const notificationSelection = hasSelection ? Object.fromEntries(selectionKeys.map(key => [key, params.get(key)])) : undefined;
+      if (hasSelection && (selectionKeys.some(key => params.getAll(key).length !== 1) || !validStructuredMediaEmailSelection(notificationSelection, env))) return sendJson(response, 400, {runId,status:'invalid-selection'});
+      const notifications = await structuredNotificationProcessor({client:clientFactory({env}),env,...(hasSelection ? {notificationSelection} : {})});
       return sendJson(response, 200, {runId,notifications});
     }
     // Controlled Staging execution on the existing authenticated endpoint only;
