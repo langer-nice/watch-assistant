@@ -1,3 +1,4 @@
+import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { structuredCreationEnabled } from './structured-creation-access.js';
 import { validateMediaQuery } from '../src/js/media-provider-query.js';
 import { applyFeedCheckResult, matchFeedItemToWatch } from '../src/js/watch-monitoring.js';
@@ -34,8 +35,8 @@ export const runStructuredMediaMonitoring = async ({client,env=process.env,sched
    const snapshot=applyFeedCheckResult(watch,feed).changes.monitoringSnapshot;
    const items=snapshot.items.map(item=>({...item,identityKeys:mediaArticleIdentityKeys(item)}));
    Object.assign(finish,{p_checked_at:snapshot.checkedAt,p_source_title:snapshot.source?.title,p_source_url:snapshot.source?.url,p_items:items,p_matching:items.filter(item=>matchFeedItemToWatch(item,watch).matched)});
-   const completed=await withinMediaDeadline(()=>client.rpc(enqueue ? 'finish_structured_media_check_with_notifications' : 'finish_structured_media_check',
-    enqueue ? {...finish,p_enqueue_notifications:true} : finish),deadline);
+   const completed=await withinMediaDeadline(()=>client.rpc(mediaDailyDigestEnabled(env) ? 'finish_structured_check_with_digest' : enqueue ? 'finish_structured_media_check_with_notifications' : 'finish_structured_media_check',
+    enqueue || mediaDailyDigestEnabled(env) ? {...finish,p_enqueue_notifications:enqueue} : finish),deadline);
    if(completed.error)throw Object.assign(Error('Structured completion failed'),{code:'PERSISTENCE_UNAVAILABLE'});
    if(completed.data?.status==='skipped')summary.skipped++;
    else if(completed.data?.status!=='completed')throw Error('Invalid structured completion');

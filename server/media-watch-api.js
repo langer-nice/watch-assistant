@@ -1,3 +1,4 @@
+import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { validateMediaQuery } from '../src/js/media-provider-query.js';
 import { createMediaWatchCheckMiddleware } from './media-watch-check-api.js';
 import { getMediaWatchEmailConfig } from './media-watch-email.js';
@@ -76,7 +77,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
       if (!old || config(old.watch_definition, old.monitoring_source)
         !== config(definition.watch_definition, definition.monitoring_source)) throw error;
     }
-    const { data, error } = await client.rpc('persist_media_watch', {
+    const { data, error } = await client.rpc(mediaDailyDigestEnabled(options.env || process.env) ? 'persist_media_watch_with_digest' : 'persist_media_watch', {
       p_id: definition.id, p_title: definition.title, p_source: definition.monitoring_source,
       p_definition: definition.watch_definition, p_state: definition.monitoring_state,
       p_revision: raw.revision, p_mutation: raw.mutation, p_deleted: raw.deleted,

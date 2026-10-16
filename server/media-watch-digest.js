@@ -1,0 +1,86 @@
+import {createHash, randomUUID} from 'node:crypto';
+import {getMediaWatchEmailConfig, sendWithResend} from './media-watch-email.js';
+import {getStructuredMediaStagingEmailConfig, structuredEmailTestOwners, structuredMediaEmailDeliveryAllowed} from './structured-media-notification-gates.js';
+import {safeEmailCode, definiteProviderFailure} from './watch-email-config.js';
+import {withinMediaDeadline} from './media-deadline.js';
+
+export const mediaDailyDigestEnabled = env => env?.MEDIA_WATCH_DAILY_DIGEST_ENABLED === 'true';
+export const mediaDigestSendHour = env => {
+  const value = env?.MEDIA_WATCH_DIGEST_SEND_HOUR_UTC ?? '8';
+  return /^(?:[0-9]|1[0-9]|2[0-3])$/.test(value) ? Number(value) : null;
+};
+const clean = (s, max=300) => typeof s === 'string' ? s.replace(/\s+/gu,' ').trim().slice(0,max) : '';
+const escape = s => String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+const https = value => {try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u:null;}catch{return null;}};
+// Conservative grouping: exact normalized titles only, always keep every link.
+// No fuzzy/AI clustering or claim that differently worded stories are equivalent.
+export const groupDigestArticles = items => {
+  const seen = new Set(), groups = new Map();
+  for(const item of items || []){
+    if(typeof item?.id!=='string'||seen.has(item.id))continue;
+    seen.add(item.id);
+    const a=item.article,url=https(a?.url);if(!url)throw Object.assign(Error('Unsafe article URL'),{code:'INVALID_ARTICLE_URL'});
+    const title=clean(a.title)||'Untitled article';
+    const key=title.normalize('NFKC').toLowerCase();
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push({...a,title,url:url.href});
+  }
+  return [...groups.values()].sort((a,b)=>(Date.parse(b[0].publishedAt)||0)-(Date.parse(a[0].publishedAt)||0));
+};
+export const renderMediaWatchDigest = ({locale,watchId,watchTitle,period,articles,baseUrl}) => {
+  const fr=locale==='fr',lang=fr?'fr':'en',app=https(baseUrl);
+  if(!app)throw Object.assign(Error('Unsafe app URL'),{code:'INVALID_APP_URL'});
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(period||''))throw Error('Invalid digest period');
+  const groups=groupDigestArticles(articles),count=groups.reduce((n,g)=>n+g.length,0),shown=[];
+  let available=5;for(const group of groups){if(!available)break;const part=group.slice(0,available);shown.push(part);available-=part.length;}
+  const watch=clean(watchTitle,200)||'Media Watch';
+  const subject=`${watch} — ${fr?'Votre récapitulatif du jour':'Your daily update'}`;
+  const detail=new URL('/watch-detail.html',app);detail.searchParams.set('id',watchId);
+  const preferences=new URL(detail);preferences.hash='email-notifications';
+  const intro=fr?`${count} nouveaux articles pertinents — ${period} (UTC)`:`${count} new relevant articles — ${period} (UTC)`;
+  const all=fr?'Voir tous les résultats de la Watch':'View all Watch results';
+  const off=fr?'Désactiver les emails dans les réglages de cette Watch (connexion requise).':'Turn off emails in this Watch’s settings (sign-in required).';
+  const line=a=>[a.title,clean(a.source),/^\d{4}-\d{2}-\d{2}/.exec(a.publishedAt||'')?.[0]||'',a.url].filter(Boolean).join(' — ');
+  const text=[subject,intro,'',...shown.flatMap(g=>g.map(line)),...(count>5?[fr?'Plus de résultats disponibles dans Watch Assistant.':'More results available in Watch Assistant.']:[]),'',`${all}: ${detail.href}`,off,preferences.href].join('\n');
+  const html=`<!doctype html><html lang="${lang}"><body style="font-family:Arial,sans-serif;color:#18181b"><h1>${escape(subject)}</h1><p>${escape(intro)}</p>${shown.map(g=>`<section><h2>${escape(g[0].title)}</h2>${g.map(a=>`<p><a href="${escape(a.url)}">${escape(clean(a.source)||a.title)}</a> ${escape(/^\d{4}-\d{2}-\d{2}/.exec(a.publishedAt||'')?.[0]||'')}</p>`).join('')}</section>`).join('')}<p><a href="${escape(detail.href)}">${escape(all)} (${count})</a></p><p><a href="${escape(preferences.href)}">${escape(off)}</a></p></body></html>`;
+  return {subject,text,html};
+};
+export const processMediaWatchDigests = async ({client,env=process.env,sender=sendWithResend,deadline=Date.now()+30000}={}) => {
+  const summary={status:'disabled',claimedCount:0,sentCount:0,failedCount:0};
+  if(!mediaDailyDigestEnabled(env))return summary;
+  const production=getMediaWatchEmailConfig(env),config=production||getStructuredMediaStagingEmailConfig(env),hour=mediaDigestSendHour(env);
+  if(!config||hour===null)return summary;
+  const structured=!production,owners=structured?structuredEmailTestOwners(env):[];
+  const rpc=async(name,args)=>{const r=await withinMediaDeadline(()=>client.rpc(name,args),deadline);if(r.error)throw Object.assign(Error('Digest SQL unavailable'),{code:'DATABASE_ERROR'});return r.data;};
+  await rpc('prepare_media_watch_digests',{p_send_hour:hour,p_owners:owners,p_structured:structured});
+  const ids=await rpc('pending_media_watch_digests',{p_owners:owners,p_structured:structured});
+  if(!Array.isArray(ids)||ids.length>10)throw Error('Invalid digest batch');
+  summary.status='success';
+  for(const id of ids){
+    if(Date.now()>=deadline)break;
+    const token=randomUUID();let claimed=null,boundary=false;
+    try{
+      claimed=await rpc('claim_media_watch_digest',{p_id:id,p_token:token,p_owners:owners,p_structured:structured});
+      if(!claimed)continue;
+      summary.claimedCount++;
+      if(claimed.id!==id||claimed.is_structured!==structured||!Array.isArray(claimed.articles)||!claimed.articles.length)throw Error('Invalid digest claim');
+      const auth=await withinMediaDeadline(()=>client.auth.admin.getUserById(claimed.user_id),deadline);
+      const user=auth.data?.user;
+      if(auth.error||!user?.email||!user.email_confirmed_at||(structured&&!structuredMediaEmailDeliveryAllowed(env,claimed.user_id,user.email)))throw Object.assign(Error('Recipient unavailable'),{code:'RECIPIENT_UNVERIFIED'});
+      const locale=await rpc('get_media_watch_notification_locale',{p_user_id:claimed.user_id});
+      const content=renderMediaWatchDigest({locale,watchId:claimed.watch_id,watchTitle:claimed.watch_title,period:claimed.period,articles:claimed.articles,baseUrl:config.baseUrl});
+      boundary=true;
+      if(await rpc('begin_media_watch_digest',{p_id:id,p_token:token})!==true){boundary=false;throw Object.assign(Error('Digest no longer eligible'),{code:'DATABASE_ERROR'});}
+      const key='watch-digest-'+createHash('sha256').update(`${claimed.watch_id}\0${claimed.period}`).digest('hex');
+      const sent=await withinMediaDeadline(()=>sender({...config,to:user.email,...content,idempotencyKey:key}),deadline);
+      if(await rpc('finish_media_watch_digest',{p_id:id,p_token:token,p_provider:sent.id,p_error:null})!==true)throw Object.assign(Error('Completion unknown'),{code:'DATABASE_ERROR'});
+      summary.sentCount++;
+    }catch(error){
+      summary.failedCount++;
+      const code=boundary&&!definiteProviderFailure(error.code)?'EMAIL_DELIVERY_OUTCOME_UNKNOWN':safeEmailCode(error);
+      if(claimed)try{await rpc('finish_media_watch_digest',{p_id:id,p_token:token,p_provider:null,p_error:code});}catch{ /* Submission boundary remains durable: never retry an uncertain submission. */ }
+    }
+  }
+  if(summary.failedCount)summary.status='partial-success';
+  return summary;
+};

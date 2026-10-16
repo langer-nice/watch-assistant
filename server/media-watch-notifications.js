@@ -1,3 +1,4 @@
+import {mediaDailyDigestEnabled, processMediaWatchDigests} from './media-watch-digest.js';
 import { safeEmailCode, definiteProviderFailure, emailFailureCounts, countEmailFailure, unavailableEmailResult } from './watch-email-config.js';
 import { withinMediaDeadline } from './media-deadline.js';
 import { randomUUID } from 'node:crypto';
@@ -21,10 +22,13 @@ export const processMediaWatchEmailNotifications = async ({ client, env = proces
   }
   if (!config) return unavailableEmailResult(env, 'MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED');
   const selection = notificationSelection === undefined ? null : Object.fromEntries(Object.entries(notificationSelection).map(([key, value]) => [key, value.toLowerCase()]));
+  const digests = notificationSelection === undefined && mediaDailyDigestEnabled(env)
+    ? await processMediaWatchDigests({client,env,sender,deadline}) : undefined;
   const counts = emailFailureCounts();
   const request = (operation) => withinMediaDeadline(operation, deadline);
   const expired = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   let query = client.from('media_watch_notifications').select(stagingTest ? 'id,watches!inner(watch_definition,user_id)' : 'id').eq('status', 'pending');
+  if (mediaDailyDigestEnabled(env)) query = query.eq('delivery_mode', 'immediate');
   if (stagingTest) query = query.eq('watches.watch_definition->>definitionVersion', 'watch-definition.v1').in('watches.user_id', structuredEmailTestOwners(env));
   if (selection) query = query.eq('id', selection.notificationId).eq('watch_id', selection.watchId)
     .eq('user_id', selection.ownerId).eq('watches.user_id', selection.ownerId)
@@ -73,5 +77,5 @@ export const processMediaWatchEmailNotifications = async ({ client, env = proces
       }
     }
   });
-  return { ...counts, status: failedCount ? 'partial-success' : 'success', pendingCount: (pending || []).length, sentCount, failedCount, skippedCount };
+  return { ...(digests ? {digests} : {}), ...counts, status: failedCount ? 'partial-success' : 'success', pendingCount: (pending || []).length, sentCount, failedCount, skippedCount };
 };

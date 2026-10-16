@@ -32,7 +32,7 @@ const authUi = initAuthUi({ onResume: async (request, owner) => {
 } });
 configureHomeGreeting(authUi?.auth);
 configureStructuredWatchCreation(authUi?.auth);
-const emailPreference = initStructuredEmailPreference({root:document.querySelector('#email-notifications'),client:authUi?.client,auth:authUi?.auth,location:window.location,t});
+const emailPreference = initStructuredEmailPreference({root:document.querySelector('#email-notifications'),client:authUi?.client,auth:authUi?.auth,location:window.location,t,digestEnabled:import.meta.env.VITE_MEDIA_WATCH_DAILY_DIGEST_ENABLED === 'true'});
 document.addEventListener('i18n:languageChanged', () => emailPreference?.render());
 // Drop sensitive DOM before a page can enter the back/forward cache. Restoration
 // must resolve the session again rather than reuse a frozen account snapshot.

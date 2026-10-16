@@ -208,6 +208,12 @@
   },
   "detail": {
     "emailNotifications": "Email notifications",
+    "emailConsent": "Allow emails for this Watch",
+    "emailFrequency": "Email frequency",
+    "emailFrequencyOff": "Off",
+    "emailFrequencyDaily": "Daily digest",
+    "emailFrequencyImmediate": "Immediately",
+    "emailDigestIndependent": "Choosing a frequency does not grant email consent. Check the box to allow emails. Monitoring stays independent. Daily digests follow UTC days; delivery time depends on the service schedule. Turning emails back on does not send an old backlog.",
     "emailIndependent": "Receive emails for this Watch. Monitoring stays independent; turn emails off here at any time.",
     "emailOn": "Email notifications: On",
     "emailOff": "Email notifications: Off",

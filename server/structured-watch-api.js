@@ -1,3 +1,4 @@
+import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { structuredCreationEnabled, requireStructuredCreationAccess } from './structured-creation-access.js';
 // Disabled-by-default endpoint; every operation requires server-authorized test access.
 import { authenticateSupabaseRequest } from './supabase-user.js';
@@ -83,7 +84,7 @@ export const createStructuredWatchMiddleware = ({ env = process.env, authenticat
     if (body.action === 'issue') return send(200,{...issuePlanAuthorization(bindings,config,now()),definition,source,executable:false});
     verifyPlanAuthorization(body.token,bindings,config,now());
     const service = serviceClient || createSupabaseServiceClient({env,...options});
-    const {data,error} = await service.rpc('persist_structured_watch_v1',{
+    const {data,error} = await service.rpc(mediaDailyDigestEnabled(env) ? 'persist_structured_watch_with_digest' : 'persist_structured_watch_v1',{
       p_owner:user.id,p_id:body.watchId,p_operation:body.operation,p_mutation:body.mutationId,p_revision:body.expectedRevision,
       p_title:body.title,p_source:source,p_definition:definition,p_definition_fingerprint:bindings.definitionFingerprint,p_payload_fingerprint:bindings.payloadFingerprint,
     });
