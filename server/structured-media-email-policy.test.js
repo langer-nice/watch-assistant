@@ -19,3 +19,70 @@ for(const [name,changes,authorization,status] of [['authorized',{},'Bearer synth
  let deliveries=0,body;const handler=createCompanyMonitoringCronHandler({env:{...env,...changes,CRON_SECRET:'synthetic'},clientFactory:()=>({}),runner:()=>assert.fail('No legacy Company'),mediaRunner:()=>assert.fail('No legacy Media/Currency'),structuredRunner:()=>assert.fail('No monitoring'),structuredNotificationProcessor:async()=>{deliveries++;return{status:'success',sentCount:1};}});
  const response={setHeader(){},end(raw){body=JSON.parse(raw);}};await handler({method:'GET',url:'/api/cron/company-monitoring?scope=structured-media-email-test',headers:{authorization}},response);assert.equal(response.statusCode,status);assert.equal(deliveries,status===200?1:0);if(status===200)assert.equal(body.notifications.sentCount,1);
 });
+
+// Exact alias independently recorded by the 2026-10-16 Vercel metadata audit.
+const branchHost='watch-assistant-git-codex-structured-interpre-7598f2-david-lang.vercel.app';
+const branchOrigin=`https://${branchHost}`;
+const branchEnv={...env,VERCEL_BRANCH_URL:branchHost,WATCH_APP_BASE_URL:branchOrigin};
+test('deployment-specific origin remains accepted without branch-alias configuration',()=>{
+ assert(getStructuredMediaStagingEmailConfig(env));
+ assert(getStructuredMediaStagingEmailConfig({...env,WATCH_APP_BASE_URL:env.WATCH_APP_BASE_URL+'/'}));
+});
+test('pinned Staging branch origin accepted with matching system branch identity',()=>{
+ assert.equal(getStructuredMediaStagingEmailConfig(branchEnv).baseUrl,branchOrigin+'/');
+ assert.equal(getStructuredMediaStagingEmailConfig({...branchEnv,WATCH_APP_BASE_URL:branchOrigin+'/'}).baseUrl,branchOrigin+'/');
+});
+for(const [label,changes] of [
+ ['wrong project',{VERCEL_PROJECT_ID:'prj_wrong'}],
+ ['wrong branch',{VERCEL_GIT_COMMIT_REF:'other'}],
+ ['Production',{VERCEL_ENV:'production'}],
+ ['shared Preview origin',{WATCH_APP_BASE_URL:'https://shared-preview.vercel.app'}],
+ ['another branch',{WATCH_APP_BASE_URL:'https://another-git-branch.vercel.app',VERCEL_BRANCH_URL:'another-git-branch.vercel.app'}],
+ ['unknown Vercel origin',{WATCH_APP_BASE_URL:'https://untrusted.vercel.app',VERCEL_BRANCH_URL:'untrusted.vercel.app'}],
+ ['wildcard',{WATCH_APP_BASE_URL:'https://*.vercel.app'}],
+ ['HTTP',{WATCH_APP_BASE_URL:'http://'+branchHost}],
+ ['credentials',{WATCH_APP_BASE_URL:'https://user:password@'+branchHost}],
+ ['query',{WATCH_APP_BASE_URL:branchOrigin+'?source=email'}],
+ ['fragment',{WATCH_APP_BASE_URL:branchOrigin+'#settings'}],
+ ['path',{WATCH_APP_BASE_URL:branchOrigin+'/unexpected'}],
+ ['normalized path',{WATCH_APP_BASE_URL:branchOrigin+'/%2e/'}],
+ ['malformed host',{WATCH_APP_BASE_URL:'https://bad_host.vercel.app'}],
+ ['missing branch alias',{VERCEL_BRANCH_URL:undefined}],
+ ['empty branch alias',{VERCEL_BRANCH_URL:''}],
+ ['ambiguous branch alias',{VERCEL_BRANCH_URL:branchHost+',other.vercel.app'}],
+ ['alias array',{VERCEL_BRANCH_URL:[branchHost]}],
+ ['missing project',{VERCEL_PROJECT_ID:undefined}],
+ ['missing branch identity',{VERCEL_GIT_COMMIT_REF:undefined}],
+ ['missing deployment identity',{VERCEL_URL:undefined}],
+ ['wrong Supabase',{SUPABASE_URL:'https://other.example.test'}],
+ ['port',{WATCH_APP_BASE_URL:branchOrigin+':8443'}],
+ ['explicit default port',{WATCH_APP_BASE_URL:branchOrigin+':443'}],
+ ['redirect-like path',{WATCH_APP_BASE_URL:branchOrigin+'//evil.example.test'}],
+ ['lookalike suffix',{WATCH_APP_BASE_URL:branchOrigin+'.evil.example.test'}],
+ ['whitespace',{WATCH_APP_BASE_URL:' '+branchOrigin}],
+ ['missing configured origin',{WATCH_APP_BASE_URL:undefined}],
+ ['missing explicit test gate',{STRUCTURED_MEDIA_STAGING_EMAIL_TEST_ENABLED:undefined}],
+])test('branch-origin default-deny: '+label,()=>assert.equal(getStructuredMediaStagingEmailConfig({...branchEnv,...changes}),null));
+for(const suffix of ['?x=1','#fragment','/unexpected',':8443'])test('deployment origin also rejects unexpected URL components '+suffix,()=>assert.equal(getStructuredMediaStagingEmailConfig({...env,WATCH_APP_BASE_URL:env.WATCH_APP_BASE_URL+suffix}),null));
+test('Production and legacy origin configuration retain their original behavior',()=>{
+ const production={...env,VERCEL_ENV:'production',WATCH_APP_BASE_URL:'https://legacy.example.test/prefix/?x=1#fragment'};
+ assert.equal(getMediaWatchEmailConfig(production).baseUrl,'https://legacy.example.test/prefix');
+ assert.equal(getStructuredMediaStagingEmailConfig(production),null);
+});
+test('branch-origin worker generates stable EN/FR links without network trust lookups',async()=>{
+ const original=globalThis.fetch;globalThis.fetch=()=>assert.fail('Network and real Resend forbidden');
+ try{
+  for(const locale of ['en','fr']){
+   const c=client(),rpc=c.rpc;c.rpc=async(name,p)=>name==='get_media_watch_notification_locale'?{data:locale}:rpc(name,p);
+   let sent=0;const result=await processMediaWatchEmailNotifications({client:c,env:branchEnv,sender:async message=>{
+    sent++;assert.equal(message.to,'owner@example.test');assert(message.text.includes(branchOrigin+'/watch-detail.html?id=watch'));
+    assert(message.html.includes(branchOrigin+'/watch-detail.html?id=watch#email-notifications'));assert(message.html.includes('lang="'+locale+'"'));
+    return{id:'synthetic-provider'};
+   }});assert.equal(result.sentCount,1);assert.equal(sent,1);assert(!c.calls.includes('claim_media_watch_email_notification'));
+  }
+  for(const scenario of [{email:'other@example.test'},{confirmed:false},{structured:false},{begun:false}]){
+   const result=await processMediaWatchEmailNotifications({client:client(scenario),env:branchEnv,sender:()=>assert.fail('Provider forbidden')});
+   assert.equal(result.sentCount,0);assert.equal(result.failedCount,1);
+  }
+ }finally{globalThis.fetch=original;}
+});

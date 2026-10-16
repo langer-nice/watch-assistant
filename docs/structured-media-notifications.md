@@ -45,8 +45,9 @@ rows are excluded from Production delivery. Staging delivery has a separate poli
 - `STRUCTURED_MEDIA_STAGING_EMAIL_RECIPIENTS`: 1–3 exact, individually approved
   addresses, no wildcard/domain grants; confirmed recipient resolved from Auth,
   never client input, checked again before submission;
-- existing authorized sender/credential validation; trusted `WATCH_APP_BASE_URL`
-  origin must equal the exact deployment's `https://${VERCEL_URL}`.
+- existing authorized sender/credential validation; clean `WATCH_APP_BASE_URL`
+  origin must equal the deployment origin or the pinned, independently verified
+  branch origin with matching system branch identity (see the correction below).
 
 The existing media worker is reused. A dedicated service-only claim prevents legacy
 or non-allowlisted owner rows from entering this test path. At most one pending
@@ -85,3 +86,44 @@ exactly-once external email delivery.
 
 No hosted migration, request, flag change or email has been performed by this task.
 Actual protected access and hosted end-to-end delivery remain unverified.
+
+## Stable Staging email origin (2026-10-16 correction; local only)
+
+The Structured Staging email config accepts a clean HTTPS origin (optionally a
+trailing slash), with no credentials, explicit port, path, query or fragment.
+This is checked on the original `WATCH_APP_BASE_URL` before credential parsing.
+The current deployment origin `https://${VERCEL_URL}` remains supported.
+
+The only additional permitted origin is:
+
+`https://watch-assistant-git-codex-structured-interpre-7598f2-david-lang.vercel.app`
+
+This host is pinned in server code, not supplied by a client or an unrestricted
+alias environment variable. The official Vercel alias metadata on 2026-10-16
+resolved it to `dpl_5KHKhPeYeYWBNqQemZWmi5Yth28N`, whose project was
+`prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF`, branch
+`codex/structured-interpretation-v1`, commit `059ee9a`, target Preview, READY.
+The project's Deployment Protection remained enabled. The private evidence report
+is `structured-staging-trusted-origin-20261016T105648Z.json`.
+
+The alias exception additionally requires the Vercel system `VERCEL_BRANCH_URL`
+to equal that exact pinned host. Missing, different or multiple alias values fail
+closed. The existing exact project, branch, Preview, Staging Supabase URL, owner,
+recipient and delivery gates all remain required. Neither a hostname suffix nor
+`VERCEL_URL` alone establishes alias trust. No per-email API lookup or redirect
+resolution occurs. Production and legacy origin validation are unchanged.
+
+Before future publication/configuration, reverify alias ownership and routing
+through official Vercel metadata and ensure system environment variables are
+available. An alias reassignment or missing runtime branch identity must block
+activation; changing the pin requires a reviewed code change and new evidence.
+
+Next steps require separate approval: commit only this correction, tests and
+this documentation; push the existing feature branch; deploy one disabled
+Git-pinned Preview; verify its branch alias and `VERCEL_BRANCH_URL`; configure
+`WATCH_APP_BASE_URL` to the origin above; retain branch-only Resend key/sender and
+all scheduling/email gates disabled. A later bounded single-email test still
+requires an eligible hosted notification, confirmed Auth owner, current consent,
+exact recipient allowlist, and sole eligible intended record. On cleanup, route
+the alias to the final disabled Preview before deleting enabled deployments.
+No publication, hosted configuration, deployment or delivery is part of this fix.

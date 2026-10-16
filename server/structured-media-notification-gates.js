@@ -21,11 +21,27 @@ export const structuredMediaStagingEmailTestEnabled = env =>
   && env?.WATCH_EMAIL_NOTIFICATIONS_ENABLED === 'true' && env?.MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED === 'true'
   && structuredEmailTestOwners(env).length > 0 && recipients(env).length > 0;
 
+// Server-side pin: Vercel alias metadata verified on 2026-10-16 against the
+// exact project/branch above. See docs/structured-media-notifications.md.
+// An environment-variable string alone cannot add another trusted alias.
+const stagingBranchHost = 'watch-assistant-git-codex-structured-interpre-7598f2-david-lang.vercel.app';
+const structuredMediaAppOriginAllowed = env => {
+  const raw = env?.WATCH_APP_BASE_URL;
+  if (typeof raw !== 'string') return false;
+  let url;
+  try { url = new URL(raw); } catch { return false; }
+  // Inspect the original setting before credential parsing strips components.
+  if (url.protocol !== 'https:' || url.username || url.password || url.port
+    || (raw !== url.origin && raw !== `${url.origin}/`)) return false;
+  if (!/^[a-z0-9-]+\.vercel\.app$/.test(env?.VERCEL_URL || '')) return false;
+  if (url.origin === `https://${env.VERCEL_URL}`) return true;
+  return url.hostname === stagingBranchHost && env.VERCEL_BRANCH_URL === stagingBranchHost;
+};
+
 export const getStructuredMediaStagingEmailConfig = env => {
-  if (!structuredMediaStagingEmailTestEnabled(env)) return null;
+  if (!structuredMediaStagingEmailTestEnabled(env) || !structuredMediaAppOriginAllowed(env)) return null;
   const config = getWatchEmailCredentials(env);
-  if (!config || !/^[a-z0-9-]+\.vercel\.app$/.test(env?.VERCEL_URL || '')) return null;
-  return new URL(config.baseUrl).origin === `https://${env.VERCEL_URL}` ? config : null;
+  return config;
 };
 export const structuredMediaEmailDeliveryAllowed = (env, owner, recipient) =>
   Boolean(getStructuredMediaStagingEmailConfig(env)) && structuredEmailTestOwners(env).includes(owner)
