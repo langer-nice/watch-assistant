@@ -47,7 +47,7 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t, 
     if (consentState && digestEnabled && saved) consentState.textContent = t(saved.enabled ? 'detail.emailOn' : 'detail.emailOff');
   };
   const scrub = () => {
-    saved = null; busy = false; feedbackKey = null; root.hidden = true; disable(true); restore(); status.textContent = '';
+    saved = null; busy = false; feedbackKey = null; root.setAttribute('aria-busy', 'false'); root.hidden = true; disable(true); restore(); status.textContent = '';
     if (frequencyControl) frequencyControl.hidden = true;
   };
   const refresh = async () => {
@@ -72,7 +72,9 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t, 
       if (fromFrequency && mode === 'off') enabled = false;
       else if (!fromFrequency && enabled && mode === 'off') mode = 'daily_digest';
     }
-    busy = true; disable(true); feedbackKey = null; status.textContent = '';
+    const document = root.ownerDocument;
+    const focusedControl = [input, frequency].includes(document.activeElement) ? document.activeElement : null;
+    busy = true; root.setAttribute('aria-busy', 'true'); disable(true); feedbackKey = null; status.textContent = '';
     const result = await rpc(digestEnabled ? 'set_media_watch_email_policy' : 'set_structured_media_email_preference',
       digestEnabled ? {p_watch_id:id,p_mode:mode,p_enabled:enabled} : {p_watch_id:id,p_enabled:enabled});
     if (!current(epoch, expected)) return;
@@ -80,7 +82,9 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t, 
     if (ok) saved = digestEnabled ? {...result.data} : {enabled};
     restore(); feedbackKey = ok ? enabled ? 'detail.emailOn' : 'detail.emailOff' : 'detail.emailSaveFailed';
     render();
-    busy = false; disable(false);
+    busy = false; root.setAttribute('aria-busy', 'false'); disable(false);
+    // Disabling a native select blurs it. Restore only if focus did not move elsewhere.
+    if (focusedControl && document.activeElement === document.body) focusedControl.focus({preventScroll:true});
   };
   const changeConsent = () => { void save(false); };
   const changeFrequency = () => { void save(true); };

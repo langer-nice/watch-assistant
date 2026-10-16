@@ -128,3 +128,47 @@ frequency UI and paired feature gates; then separately approve an isolated Stagi
 migration and gate-off compatibility verification. Any hosted activation or real
 email test remains separate. Existing users require explicit preference changes
 or a separately authorized migration, never a global conversion.
+
+### Local mobile and keyboard finish (2026-10-16)
+
+The shared preference keeps its native select and existing Off/daily/immediate
+RPC values. Labels/selects provide at least 44px touch targets and wrap within the
+page. On detail pages with visible Media/News preferences, the mobile New Watch
+action is in normal flow, retaining its existing safe-area padding. Other pages,
+hidden controls and desktop action visibility keep their existing rules.
+The group is named; feedback stays polite/atomic. Saving marks the group busy;
+when disabling a native control blurs it, completion restores its focus only if
+focus remains on the document body. Owner changes and later user focus win.
+
+Local Chrome geometry uses actual compiled SCSS and markup at 320/375/430/1280px,
+FR/EN, with synthetic legacy/Structured RPC policies. Native macOS keyboard input
+verifies Space, arrows, Enter, Tab, focus restoration and the owner-RPC parameter
+contract. This is not a hosted persistence or physical-device test. iPhone safe
+areas, production fonts and the complete hosted page still require confirmation.
+
+Next, with separate authorization: commit/push only these UX files, deploy a
+Git-pinned disabled Staging Preview, enable only the branch UI gate, reuse the two
+existing paused/consent-OFF fixtures, check full-page mobile/keyboard behavior,
+restore preferences and gate, deploy disabled and contain the enabled Preview.
+Backend digest, scheduler and email gates stay disabled throughout. No part of
+that publication plan is executed by this local task.
+
+### Structured Staging integration finish
+
+The existing `/api/structured-watches` endpoint now exposes authenticated,
+owner/revision-bound activation and pause through the existing service-only SQL RPC.
+Activation requires the scoped scheduler gate; pausing remains possible when it is
+off. The detail UI uses a separate owner-bound control and refreshes server state
+without changing definitions, consent, frequency or legacy controls. Interval: daily.
+The authenticated `scope=structured-media` cron path now also calls the existing
+notification processor when the digest gate is on; delivery retains every existing
+owner/recipient/environment/email gate. No new endpoint, cron or migration is added.
+A deterministic full-SQL test connects activation, baseline, 19 new matched articles,
+one durable digest, one mock submission, deduplication and independent pause/opt-out.
+
+Operational limit: Vercel native cron only runs on Production deployments. The
+existing Hobby project supports daily native cron, not hourly. The Staging Preview
+therefore needs a separately provisioned authenticated recurring caller of the
+existing scoped endpoint. No external scheduler, account, secret or security bypass
+is created speculatively; Production cron is untouched. Keep live execution and
+email gates off until that operational configuration is explicitly established.

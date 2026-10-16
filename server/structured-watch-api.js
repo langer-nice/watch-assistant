@@ -28,6 +28,12 @@ const readBody = async request => {
     try { value = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw authorizationError('INVALID_BODY',400); }
   }
   if (!value || typeof value !== 'object' || Array.isArray(value) || Buffer.byteLength(JSON.stringify(value)) > MAX_BODY_BYTES) throw authorizationError('INVALID_BODY',400);
+  if (value.action === 'monitoring') {
+    if (Object.keys(value).sort().join(',') !== 'action,active,expectedRevision,watchId'
+      || !uuid.test(value.watchId) || typeof value.active !== 'boolean'
+      || !Number.isSafeInteger(value.expectedRevision) || value.expectedRevision < 1) throw authorizationError('INVALID_BODY',400);
+    return value;
+  }
   const required = ['action','watchId','operation','mutationId','expectedRevision','title'];
   const payload = value.action === 'issue' ? ['interpretation','plan'] : value.action === 'confirm' ? ['token','definition'] : [];
   const allowed = [...required,...payload,...(value.action === 'issue' ? ['category'] : [])];
@@ -54,9 +60,28 @@ export const createStructuredWatchMiddleware = ({ env = process.env, authenticat
   try {
     const { user, client } = await authenticate(request,{env,...options});
     requireStructuredCreationAccess(user,env);
-    if (request.method === 'GET') return send(200,{enabled:true});
-    const config = authorizationConfiguration(env);
+    if (request.method === 'GET') return send(200,{enabled:true,monitoringEnabled:env.STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true'});
     const body = await readBody(request);
+    if (body.action === 'monitoring') {
+      // Authenticated owner and the exact Staging rollout gates are authoritative.
+      // Pausing remains available even when scheduled execution is disabled.
+      if (body.active && env.STRUCTURED_MEDIA_SCHEDULED_ENABLED !== 'true') throw authorizationError('STRUCTURED_FEATURE_UNAVAILABLE',409);
+      const {data:rows,error:readError} = await client.from('watches').select('id,watch_definition,monitoring_source,media_revision')
+        .eq('id',body.watchId).eq('user_id',user.id).is('deleted_at',null).range(0,0);
+      if (readError) throw authorizationError('STRUCTURED_PERSISTENCE_UNAVAILABLE',503);
+      const row = rows?.[0];
+      if (!row || row.media_revision !== body.expectedRevision) throw authorizationError('WATCH_CONFLICT',409);
+      const definition = validateWatchDefinition(row.watch_definition,row.monitoring_source);
+      if (definition.plan.domain !== 'media_news' || definition.plan.adapter !== 'google_news_literal_v1') throw authorizationError('STRUCTURED_ADAPTER_CONFLICT',422);
+      const service = serviceClient || createSupabaseServiceClient({env,...options});
+      const {data,error} = await service.rpc('set_structured_media_monitoring',{
+        p_watch_id:body.watchId,p_owner:user.id,p_revision:body.expectedRevision,p_active:body.active,p_interval_seconds:86400,
+      });
+      if (error) throw authorizationError('STRUCTURED_PERSISTENCE_UNAVAILABLE',503);
+      if (data !== true) throw authorizationError('WATCH_CONFLICT',409);
+      return send(200,{id:body.watchId,ownerId:user.id,revision:body.expectedRevision+1,monitoringState:body.active?'monitoring':'paused'});
+    }
+    const config = authorizationConfiguration(env);
     if (creationOnly && body.operation !== 'create') throw authorizationError('INVALID_BODY',400);
     let definition;
     if (body.action === 'issue') {

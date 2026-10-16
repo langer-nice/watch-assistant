@@ -340,7 +340,12 @@
     "initialContextEmpty": "No matching articles were returned at this first check.",
     "initialContextPending": "Initial context will appear after the first successful check.",
     "initialContextUnavailable": "Initial context was not retained for this Watch. Later results are not shown as its starting point.",
-    "noUnseenArticles": "No unseen articles were returned by the source."
+    "noUnseenArticles": "No unseen articles were returned by the source.",
+    "structuredMonitoringDaily": "Monitoring runs daily when the Staging scheduler is configured. Email frequency remains independent.",
+    "structuredMonitoringUnavailable": "Automatic Staging scheduling is disabled. You can still pause an active Watch.",
+    "structuredMonitoringActive": "Monitoring activated.",
+    "structuredMonitoringPaused": "Monitoring paused.",
+    "structuredMonitoringFailed": "We could not confirm this change. Reload before trying again."
   },
   "newWatch": {
     "back": "Home",

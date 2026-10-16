@@ -256,8 +256,13 @@
 
         <section class="watch-management" id="watchManagement" aria-labelledby="manageWatchTitle">
           <h2 class="section-heading" id="manageWatchTitle" data-i18n="detail.manageWatch"></h2>
-          <div id="email-notifications" hidden>
-            <label><input type="checkbox" disabled> <span data-email-label></span></label>
+          <div id="structured-monitoring" hidden>
+            <button type="button" class="button button--secondary" data-monitoring-toggle disabled></button>
+            <p data-monitoring-hint></p>
+            <p role="status" aria-live="polite" aria-atomic="true"></p>
+          </div>
+          <div id="email-notifications" role="group" aria-labelledby="email-preference-label" hidden>
+            <label><input type="checkbox" disabled> <span id="email-preference-label" data-email-label></span></label>
             <label data-email-frequency-control hidden>
               <span data-email-frequency-label></span>
               <select data-email-frequency disabled aria-describedby="email-frequency-hint">
@@ -268,7 +273,7 @@
             </label>
             <p data-email-consent-state></p>
             <p data-email-hint id="email-frequency-hint"></p>
-            <p role="status" aria-live="polite"></p>
+            <p role="status" aria-live="polite" aria-atomic="true"></p>
           </div>
           <div class="watch-management__controls">
             <button class="button button--secondary watch-management__pause" id="watchPauseResume" type="button">

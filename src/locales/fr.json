@@ -340,7 +340,12 @@
     "initialContextEmpty": "Aucun article correspondant n’a été renvoyé lors de cette première vérification.",
     "initialContextPending": "Le contexte initial apparaîtra après la première vérification réussie.",
     "initialContextUnavailable": "Le contexte initial de cette Watch n’a pas été conservé. Les résultats ultérieurs ne sont pas présentés comme son point de départ.",
-    "noUnseenArticles": "La source n’a renvoyé aucun article encore jamais vu."
+    "noUnseenArticles": "La source n’a renvoyé aucun article encore jamais vu.",
+    "structuredMonitoringDaily": "La surveillance est quotidienne lorsque le déclenchement Staging est configuré. La fréquence des emails reste indépendante.",
+    "structuredMonitoringUnavailable": "Le déclenchement automatique Staging est désactivé. Vous pouvez toujours mettre une Watch active en pause.",
+    "structuredMonitoringActive": "Surveillance activée.",
+    "structuredMonitoringPaused": "Surveillance en pause.",
+    "structuredMonitoringFailed": "Ce changement n’a pas pu être confirmé. Rechargez avant de réessayer."
   },
   "newWatch": {
     "back": "Accueil",

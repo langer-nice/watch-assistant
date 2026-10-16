@@ -1,3 +1,4 @@
+import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { randomUUID } from 'node:crypto';
 
 import { applyFeedCheckResult } from '../src/js/watch-monitoring.js';
@@ -223,7 +224,10 @@ export const createCompanyMonitoringCronHandler = ({
     if (scope === 'structured-media') {
       if (!structuredCreationEnabled(env) || env.STRUCTURED_MEDIA_SCHEDULED_ENABLED !== 'true') return sendJson(response, 404, { runId, status: 'disabled' });
       const structured = await structuredRunner({ ...options, client: clientFactory({ env }), env, schedulerAuthorized: true });
-      return sendJson(response, 200, { runId, structured });
+      // Same controlled owner/recipient scope, no Company or legacy source work.
+      // The existing processor independently enforces every delivery gate.
+      const notifications = mediaDailyDigestEnabled(env) ? await structuredNotificationProcessor({client:clientFactory({env}),env}) : null;
+      return sendJson(response, 200, { runId, structured, ...(notifications ? {notifications} : {}) });
     }
     const client = clientFactory({ env });
     const summary = await runner({ client, env, ...options });

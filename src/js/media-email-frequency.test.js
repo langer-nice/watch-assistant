@@ -125,3 +125,29 @@ test('disabled frequency gate retranslates boolean save feedback without changin
  const f=await fixture({gate:false,locale:'fr',rpc:(n,p)=>({data:n.startsWith('get_')?false:p.p_enabled})});await f.consent(true);
  f.translate('en');assert.equal(f.root.querySelector('[role="status"]').textContent,copies.en.detail.emailOn);assert.equal(f.calls.at(-1)[0],'set_structured_media_email_preference');f.control.destroy();
 });
+
+test('shared native select has a named group, clickable labels and atomic save feedback',async()=>{
+ const f=await fixture();assert.equal(f.root.getAttribute('role'),'group');
+ assert.equal(f.root.ownerDocument.getElementById(f.root.getAttribute('aria-labelledby')).textContent,copies.en.detail.emailConsent);
+ assert.equal(f.frequency.closest('label').querySelector('[data-email-frequency-label]').textContent,copies.en.detail.emailFrequency);
+ assert.equal(f.root.querySelector('[role="status"]').getAttribute('aria-live'),'polite');
+ assert.equal(f.root.querySelector('[role="status"]').getAttribute('aria-atomic'),'true');
+ assert.equal(f.frequency.tagName,'SELECT');assert.deepEqual([...f.frequency.options].map(o=>o.value),['off','daily_digest','immediate']);f.control.destroy();
+});
+for(const moveAway of [false,true]) test('save restores disabled-control focus without stealing another focus '+moveAway,async()=>{
+ let finish;const f=await fixture({rpc:n=>n.startsWith('get_')?{data:{mode:'daily_digest',enabled:false,version:'daily-digest.v1'}}:new Promise(r=>finish=r)});
+ const doc=f.root.ownerDocument;let active=f.frequency,focusCalls=0;
+ Object.defineProperty(doc,'activeElement',{get:()=>active,configurable:true});
+ f.frequency.focus=()=>{focusCalls++;active=f.frequency;};
+ await f.changeFrequency('immediate');assert.equal(f.root.getAttribute('aria-busy'),'true');assert(f.frequency.disabled);
+ // Linkedom has no native focus/blur. Model only the browser's disabled blur;
+ // actual select keyboard and geometry are separately verified in Chrome.
+ active=moveAway?doc.createElement('button'):doc.body;
+ finish({data:{mode:'immediate',enabled:false,version:'daily-digest.v1'}});await tick();
+ assert.equal(focusCalls,moveAway?0:1);assert.equal(f.root.getAttribute('aria-busy'),'false');assert(!f.frequency.disabled);assert(!f.input.checked);f.control.destroy();
+});
+test('save failure restores keyboard focus and announces a translated error',async()=>{
+ let finish;const f=await fixture({rpc:n=>n.startsWith('get_')?{data:{mode:'daily_digest',enabled:false,version:'daily-digest.v1'}}:new Promise(r=>finish=r)});
+ const doc=f.root.ownerDocument;let active=f.frequency;Object.defineProperty(doc,'activeElement',{get:()=>active,configurable:true});f.frequency.focus=()=>{active=f.frequency;};
+ await f.changeFrequency('immediate');active=doc.body;finish({error:{message:'PRIVATE'}});await tick();assert.equal(active,f.frequency);assert.equal(f.frequency.value,'daily_digest');assert.equal(f.root.querySelector('[role="status"]').textContent,copies.en.detail.emailSaveFailed);f.control.destroy();
+});

@@ -15,14 +15,15 @@ const invoke = async (handler,body,url='/api/structured-watches') => {
   await handler({method:'POST',url,body,headers:{}},response);
   return {status:response.statusCode,body:output,headers};
 };
-const harness = () => {
+const harness = (extraEnv={}) => {
   const state={owner,clock:Date.UTC(2026,9,12),authCalls:0,rpcCalls:[],failure:null,prior:null};
-  const handler=createStructuredWatchMiddleware({env,now:()=>state.clock,authenticate:async()=>{
+  const handler=createStructuredWatchMiddleware({env:{...env,...extraEnv},now:()=>state.clock,authenticate:async()=>{
     state.authCalls++; if (!state.owner) throw authorizationError('AUTH_REQUIRED',401);
     const query={select(){return query;},eq(){return query;},is(){return query;},async range(){return {data:state.prior?[state.prior]:[],error:null};}};
     return {user:{id:state.owner},client:{from:()=>query}};
   },serviceClient:{async rpc(name,p){
     state.rpcCalls.push([name,p]); if(state.failure)return{error:state.failure};
+    if(name==='set_structured_media_monitoring')return{data:state.activationResult??true};
     return{data:{id:p.p_id,ownerId:p.p_owner,mutationId:p.p_mutation,operation:p.p_operation,expectedRevision:p.p_revision,revision:p.p_revision+1,
       definitionFingerprint:p.p_definition_fingerprint,payloadFingerprint:p.p_payload_fingerprint,monitoringState:'paused'},error:null};
   }}});
@@ -90,4 +91,21 @@ test('tokens are body-only and mounted endpoints retain server-only configuratio
   const {handler}=harness();assert.equal((await invoke(handler,issueBody(),'/api/structured-watches?token=bad')).body.code,'INVALID_BODY');
   for(const file of ['../api/media-watches.js'])assert.doesNotMatch(await readFile(new URL(file,import.meta.url),'utf8'),/createStructuredWatchMiddleware/);
   assert.match(await readFile(new URL('../vite.config.js',import.meta.url),'utf8'),/VITE_STRUCTURED_WATCH_SIGNING_SECRET is forbidden/);
+});
+
+test('monitoring activation binds owner/revision and does not touch definitions or consent',async()=>{
+ const {state,handler}=harness({STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true'});const issued=await invoke(handler,issueBody());
+ state.prior={id:watchId,watch_definition:issued.body.definition,monitoring_source:issued.body.source,media_revision:1};
+ const body={action:'monitoring',watchId,expectedRevision:1,active:true};
+ const result=await invoke(handler,body);assert.equal(result.status,200);assert.equal(result.body.monitoringState,'monitoring');
+ assert.deepEqual(state.rpcCalls,[['set_structured_media_monitoring',{p_watch_id:watchId,p_owner:owner,p_revision:1,p_active:true,p_interval_seconds:86400}]]);
+ assert.equal((await invoke(handler,{...body,ownerId:owner})).status,400);
+ assert.equal((await invoke(handler,{...body,expectedRevision:2})).status,409);
+ state.activationResult=false;assert.equal((await invoke(handler,body)).status,409);
+});
+test('disabled scheduling refuses activation but authenticated owner can still pause',async()=>{
+ const {state,handler}=harness();const issued=await invoke(handler,issueBody());state.prior={id:watchId,watch_definition:issued.body.definition,monitoring_source:issued.body.source,media_revision:1};
+ assert.equal((await invoke(handler,{action:'monitoring',watchId,expectedRevision:1,active:true})).status,409);assert.equal(state.rpcCalls.length,0);
+ assert.equal((await invoke(handler,{action:'monitoring',watchId,expectedRevision:1,active:false})).body.monitoringState,'paused');
+ state.owner=null;assert.equal((await invoke(handler,{action:'monitoring',watchId,expectedRevision:1,active:false})).status,401);
 });
