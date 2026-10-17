@@ -51,7 +51,11 @@ export const assessCapabilities = (input, { structured = false } = {}) => {
   const capability = capabilityRegistry.capabilities.find(c => c.domain === v.domain);
   v.ambiguities.forEach(a => ask(a.field === 'recurrence' ? 'ambiguous_recurrence' : 'ambiguous_requirement', a.field,
     a.field === 'recurrence' ? ['once', 'crossing', 'per_observation'] : []));
-  v.unresolvedRequirements.forEach((_, i) => add('unresolved_requirement', `/unresolvedRequirements/${i}`));
+  // Grounded officeholder references are understood, but literal matching has
+  // no verified role-holder resolver or historical/current-holder discriminator.
+  const unresolvedRoles = new Set(['CURRENT_ROLE_HOLDER_UNVERIFIED', 'RELATIVE_ROLE_HOLDER_UNVERIFIED']);
+  v.unresolvedRequirements.forEach((r, i) => add(unresolvedRoles.has(r.reason)
+    ? 'unsupported_role_resolution' : 'unresolved_requirement', `/unresolvedRequirements/${i}`));
   v.temporal.forEach((_, i) => add('unsupported_temporal_constraint', `/temporal/${i}`));
   v.subjects.forEach((s, i) => {
     if (s.kind !== 'individual') add('unsupported_group_membership', `/subjects/${i}`);

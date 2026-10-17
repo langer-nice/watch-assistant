@@ -94,3 +94,18 @@ for(const language of ['en','fr'])test(`${language}: compact review groups prese
  assert.equal(h.state.rpcCount,0);assert.equal(h.state.calls.filter(c=>c.path.startsWith('/api/plan-watch')).length,1);
  h.buttons()[1].click();assert.equal(h.review(),null);assert.equal(h.input.value,request);assert.equal(h.state.rpcCount,0);
 });
+
+for(const [request,label,topic,language,expected] of [
+ ["Keep me informed on the pope's health.",'the pope','health','en',/Your role reference is understood/],
+ ['Tiens-moi informé de la santé du pape.','pape','santé','fr',/Votre référence à une fonction est comprise/],
+])test('role reference shows precise limitation and required topic without clarification: '+language,async t=>{
+ const value=fixture(request,[individual('s',label,'person')],[predicate('n','news_about',['s'])],{language,topics:[{label:topic,role:'required'}],unresolvedRequirements:[{text:label,reason:'CURRENT_ROLE_HOLDER_UNVERIFIED'}]});
+ const h=await harness(t,value);assert.equal(h.state.calls.filter(c=>c.path.includes('plan-watch')).length,0);await h.run();
+ const text=h.review().textContent;assert.match(text,expected);assert(text.includes(request));assert(text.includes(topic));assert.match(text,language==='fr'?/Sujets obligatoires/:/Required topics/);
+ assert.doesNotMatch(text,/Which pope|Quel pape|Please clarify your request|Précisez votre demande/);assert.equal(h.buttons().length,2);assert.equal(h.state.rpcCount,0);assert.equal(h.state.calls.filter(c=>c.path.includes('plan-watch')).length,1);assert.equal(h.state.calls.some(c=>c.body?.action==='issue'),false);
+});
+
+test('role ambiguity with missing scope still asks the actual targeted question',async t=>{
+ const value=fixture('News about the reigning monarch.',[individual('s','the reigning monarch','person')],[predicate('n','news_about',['s'])],{ambiguities:[{field:'subject',alternatives:['one country','another country'],question:'Which country or royal house?'}]});
+ const h=await harness(t,value);await h.run();assert.match(h.review().textContent,/Which country or royal house/);assert.equal(h.state.rpcCount,0);
+});
