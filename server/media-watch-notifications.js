@@ -1,4 +1,4 @@
-import {mediaDailyDigestEnabled, processMediaWatchDigests} from './media-watch-digest.js';
+import {mediaDailyDigestEnabled, processMediaWatchDigests, validStructuredMediaDigestSelection} from './media-watch-digest.js';
 import { safeEmailCode, definiteProviderFailure, emailFailureCounts, countEmailFailure, unavailableEmailResult } from './watch-email-config.js';
 import { withinMediaDeadline } from './media-deadline.js';
 import { randomUUID } from 'node:crypto';
@@ -13,10 +13,18 @@ export const validStructuredMediaEmailSelection = (selection, env) => Boolean(se
   && ['notificationId', 'watchId', 'ownerId'].every(key => uuid(selection[key]))
   && structuredEmailTestOwners(env).includes(selection.ownerId.toLowerCase()));
 const mapBounded = async (rows, worker) => { let cursor = 0; await Promise.all(Array.from({ length: Math.min(CONCURRENCY, rows.length) }, async () => { while (cursor < rows.length) await worker(rows[cursor++]); })); };
-export const processMediaWatchEmailNotifications = async ({ client, env = process.env, sender = sendWithResend, createClaimToken = randomUUID, deadline = Date.now() + 30000, notificationSelection } = {}) => {
+export const processMediaWatchEmailNotifications = async ({ client, env = process.env, sender = sendWithResend, createClaimToken = randomUUID, deadline = Date.now() + 30000, notificationSelection, digestSelection } = {}) => {
   const productionConfig = getMediaWatchEmailConfig(env);
   const config = productionConfig || getStructuredMediaStagingEmailConfig(env);
   const stagingTest = !productionConfig && Boolean(config);
+  if (digestSelection !== undefined) {
+    const empty = { ...emailFailureCounts(), pendingCount: 0, sentCount: 0, failedCount: 0, skippedCount: 0 };
+    if (notificationSelection !== undefined || !stagingTest || !validStructuredMediaDigestSelection(digestSelection, env)) {
+      return { ...empty, status: 'invalid-selection' };
+    }
+    const digests = await processMediaWatchDigests({client,env,sender,deadline,digestSelection});
+    return { ...empty, status: digests.status, digests };
+  }
   if (notificationSelection !== undefined && (!stagingTest || !validStructuredMediaEmailSelection(notificationSelection, env))) {
     return { ...emailFailureCounts(), status: 'invalid-selection', pendingCount: 0, sentCount: 0, failedCount: 0, skippedCount: 0 };
   }

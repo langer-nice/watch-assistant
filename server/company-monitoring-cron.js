@@ -1,4 +1,4 @@
-import {mediaDailyDigestEnabled} from './media-watch-digest.js';
+import {mediaDailyDigestEnabled, validStructuredMediaDigestSelection} from './media-watch-digest.js';
 import { randomUUID } from 'node:crypto';
 
 import { applyFeedCheckResult } from '../src/js/watch-monitoring.js';
@@ -208,15 +208,18 @@ export const createCompanyMonitoringCronHandler = ({
   try {
     const params = new URL(request.url || '/', 'http://localhost').searchParams;
     const scope = params.get('scope');
-    const selectionKeys = ['notificationId', 'watchId', 'ownerId'];
+    const selectionKeys = ['notificationId', 'digestId', 'watchId', 'ownerId'];
     const hasSelection = selectionKeys.some(key => params.has(key));
     if (hasSelection && scope !== 'structured-media-email-test') return sendJson(response, 400, {runId,status:'invalid-selection'});
     if (scope && !['structured-media', 'structured-media-email-test'].includes(scope)) return sendJson(response, 400, { runId, status: 'invalid-scope' });
     if (scope === 'structured-media-email-test') {
       if (!getStructuredMediaStagingEmailConfig(env)) return sendJson(response, 404, {runId,status:'disabled'});
-      const notificationSelection = hasSelection ? Object.fromEntries(selectionKeys.map(key => [key, params.get(key)])) : undefined;
-      if (hasSelection && (selectionKeys.some(key => params.getAll(key).length !== 1) || !validStructuredMediaEmailSelection(notificationSelection, env))) return sendJson(response, 400, {runId,status:'invalid-selection'});
-      const notifications = await structuredNotificationProcessor({client:clientFactory({env}),env,...(hasSelection ? {notificationSelection} : {})});
+      const digest = params.has('digestId');
+      const keys = [digest ? 'digestId' : 'notificationId', 'watchId', 'ownerId'];
+      const selection = hasSelection ? Object.fromEntries(keys.map(key => [key, params.get(key)])) : undefined;
+      if (hasSelection && ((digest && params.has('notificationId')) || keys.some(key => params.getAll(key).length !== 1)
+        || !(digest ? validStructuredMediaDigestSelection(selection, env) : validStructuredMediaEmailSelection(selection, env)))) return sendJson(response, 400, {runId,status:'invalid-selection'});
+      const notifications = await structuredNotificationProcessor({client:clientFactory({env}),env,...(hasSelection ? {[digest ? 'digestSelection' : 'notificationSelection']:selection} : {})});
       return sendJson(response, 200, {runId,notifications});
     }
     // Controlled Staging execution on the existing authenticated endpoint only;

@@ -11,6 +11,17 @@ worker remains available; its SQL claim refuses daily/off records. The exact
 Structured Staging selector still works for eligible immediate records and cannot
 claim a digest member or fall back to another notification.
 
+The same authenticated Staging email-test scope also accepts the exact tuple
+`digestId`, `watchId`, `ownerId`, mutually exclusive with `notificationId`.
+This path requires all existing delivery gates and the daily-digest gate. It never
+prepares/enumerates a batch or processes immediate notifications. The service-only
+`claim_structured_media_test_digest` RPC checks the tuple, Structured ownership,
+consent, daily frequency, send hour and eligibility before reusing the atomic claim.
+Only a prepared, never-submitted digest is eligible; even expired claims are refused.
+Apply `20261017160000_structured_digest_exact_selection.sql` after the daily-digest
+migration before using this selector. The migration adds only this service-only adapter;
+scheduler and no-selector delivery behavior are unchanged.
+
 New eligible Media/News creations default to `daily_digest` **with consent OFF**.
 Setting a default frequency is not email permission. Existing Structured boolean
 consent is still mandatory; its setter synchronizes an enrolled policy. New legacy

@@ -5,6 +5,12 @@ import {safeEmailCode, definiteProviderFailure} from './watch-email-config.js';
 import {withinMediaDeadline} from './media-deadline.js';
 
 export const mediaDailyDigestEnabled = env => env?.MEDIA_WATCH_DAILY_DIGEST_ENABLED === 'true';
+export const validStructuredMediaDigestSelection = (selection, env) => Boolean(selection
+  && typeof selection === 'object' && !Array.isArray(selection)
+  && Object.keys(selection).sort().join(',') === 'digestId,ownerId,watchId'
+  && ['digestId','watchId','ownerId'].every(key => typeof selection[key] === 'string'
+    && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(selection[key]))
+  && structuredEmailTestOwners(env).includes(selection.ownerId.toLowerCase()));
 export const mediaDigestSendHour = env => {
   const value = env?.MEDIA_WATCH_DIGEST_SEND_HOUR_UTC ?? '8';
   return /^(?:[0-9]|1[0-9]|2[0-3])$/.test(value) ? Number(value) : null;
@@ -45,25 +51,33 @@ export const renderMediaWatchDigest = ({locale,watchId,watchTitle,period,article
   const html=`<!doctype html><html lang="${lang}"><body style="font-family:Arial,sans-serif;color:#18181b"><h1>${escape(subject)}</h1><p>${escape(intro)}</p>${shown.map(g=>`<section><h2>${escape(g[0].title)}</h2>${g.map(a=>`<p><a href="${escape(a.url)}">${escape(clean(a.source)||a.title)}</a> ${escape(/^\d{4}-\d{2}-\d{2}/.exec(a.publishedAt||'')?.[0]||'')}</p>`).join('')}</section>`).join('')}<p><a href="${escape(detail.href)}">${escape(all)} (${count})</a></p><p><a href="${escape(preferences.href)}">${escape(off)}</a></p></body></html>`;
   return {subject,text,html};
 };
-export const processMediaWatchDigests = async ({client,env=process.env,sender=sendWithResend,deadline=Date.now()+30000}={}) => {
+export const processMediaWatchDigests = async ({client,env=process.env,sender=sendWithResend,deadline=Date.now()+30000,digestSelection}={}) => {
   const summary={status:'disabled',claimedCount:0,sentCount:0,failedCount:0};
+  const exact=digestSelection!==undefined;
+  if(exact && (getMediaWatchEmailConfig(env) || !getStructuredMediaStagingEmailConfig(env)
+    || !validStructuredMediaDigestSelection(digestSelection,env)))return {...summary,status:'invalid-selection'};
   if(!mediaDailyDigestEnabled(env))return summary;
   const production=getMediaWatchEmailConfig(env),config=production||getStructuredMediaStagingEmailConfig(env),hour=mediaDigestSendHour(env);
   if(!config||hour===null)return summary;
   const structured=!production,owners=structured?structuredEmailTestOwners(env):[];
   const rpc=async(name,args)=>{const r=await withinMediaDeadline(()=>client.rpc(name,args),deadline);if(r.error)throw Object.assign(Error('Digest SQL unavailable'),{code:'DATABASE_ERROR'});return r.data;};
-  await rpc('prepare_media_watch_digests',{p_send_hour:hour,p_owners:owners,p_structured:structured});
-  const ids=await rpc('pending_media_watch_digests',{p_owners:owners,p_structured:structured});
+  const selection=exact?Object.fromEntries(Object.entries(digestSelection).map(([k,v])=>[k,v.toLowerCase()])):null;
+  // Exact delivery never prepares or enumerates any other digest or article.
+  if(!selection)await rpc('prepare_media_watch_digests',{p_send_hour:hour,p_owners:owners,p_structured:structured});
+  const ids=selection?[selection.digestId]:await rpc('pending_media_watch_digests',{p_owners:owners,p_structured:structured});
   if(!Array.isArray(ids)||ids.length>10)throw Error('Invalid digest batch');
   summary.status='success';
   for(const id of ids){
     if(Date.now()>=deadline)break;
     const token=randomUUID();let claimed=null,boundary=false;
     try{
-      claimed=await rpc('claim_media_watch_digest',{p_id:id,p_token:token,p_owners:owners,p_structured:structured});
+      claimed=await rpc(selection?'claim_structured_media_test_digest':'claim_media_watch_digest',selection
+        ?{p_digest_id:id,p_watch_id:selection.watchId,p_owner:selection.ownerId,p_claim_token:token,p_owners:[selection.ownerId],p_send_hour:hour}
+        :{p_id:id,p_token:token,p_owners:owners,p_structured:structured});
       if(!claimed)continue;
       summary.claimedCount++;
-      if(claimed.id!==id||claimed.is_structured!==structured||!Array.isArray(claimed.articles)||!claimed.articles.length)throw Error('Invalid digest claim');
+      if(claimed.id!==id||claimed.is_structured!==structured||!Array.isArray(claimed.articles)||!claimed.articles.length
+        ||(selection&&(claimed.watch_id!==selection.watchId||claimed.user_id!==selection.ownerId)))throw Error('Invalid digest claim');
       const auth=await withinMediaDeadline(()=>client.auth.admin.getUserById(claimed.user_id),deadline);
       const user=auth.data?.user;
       if(auth.error||!user?.email||!user.email_confirmed_at||(structured&&!structuredMediaEmailDeliveryAllowed(env,claimed.user_id,user.email)))throw Object.assign(Error('Recipient unavailable'),{code:'RECIPIENT_UNVERIFIED'});
