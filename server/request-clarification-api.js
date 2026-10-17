@@ -52,7 +52,7 @@ export const requestStructuredOutput = async ({ apiKey, model = 'gpt-5.6-luna',
     ...(signal ? { signal } : {}),
     body: JSON.stringify({ model, store: false, instructions, input, reasoning, max_output_tokens, text }),
   });
-  if (!response.ok) throw Object.assign(new Error(`OpenAI request failed with status ${response.status}.`), { statusCode: 502 });
+  if (!response.ok) throw Object.assign(new Error(`OpenAI request failed with status ${response.status}.`), { statusCode: 502, providerStatus: response.status });
   const output = extractOutputText(await response.json()) || '';
   if (typeof output !== 'string' || Buffer.byteLength(output) > maxOutputBytes) throw new SyntaxError('Invalid structured response.');
   return JSON.parse(output);

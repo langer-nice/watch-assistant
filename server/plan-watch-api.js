@@ -1,4 +1,5 @@
 import { structuredCreationEnabled, requireStructuredCreationAccess } from './structured-creation-access.js';
+import { safeInterpretationFailureCategory } from './watch-interpreter.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
 import { createPlannerDecision, planWatch } from './watch-planner.js';
 
@@ -69,7 +70,16 @@ export const createPlanWatchMiddleware = (options = {}) => (
         const codes = new Set(['STRUCTURED_FEATURE_UNAVAILABLE','AUTH_REQUIRED','INVALID_SESSION','AUTH_UNAVAILABLE','INVALID_INTERPRETATION_REQUEST', 'INTERPRETATION_FAILED', 'AI_SERVICE_UNAVAILABLE', 'AI_TIMEOUT']);
         const code = codes.has(error.code) ? error.code : 'INVALID_INTERPRETATION_REQUEST';
         const reasons = new Set(['DOMAIN_PREDICATE_CONFLICT', 'CONDITION_EVIDENCE_MISMATCH', 'OFFICIAL_SOURCE_UNGROUNDED']);
-        sendJson(response, codes.has(error.code) ? error.statusCode : 400, { mode: 'interpretation.v1', executable: false, code,
+        const env = options.env || process.env;
+        // Existing Staging boundary only. Never log prompts, provider bodies,
+        // credentials, arbitrary exception text or user/account identifiers.
+        const diagnostic = env.VERCEL_ENV === 'preview' && structuredCreationEnabled(env)
+          ? {failureCategory:safeInterpretationFailureCategory(error)} : {};
+        if (diagnostic.failureCategory) {
+          try { (options.logger || console).warn('structured_interpretation_failed', {code,...diagnostic}); }
+          catch { /* Diagnostics must never change the response contract. */ }
+        }
+        sendJson(response, codes.has(error.code) ? error.statusCode : 400, { mode: 'interpretation.v1', executable: false, code, ...diagnostic,
           ...(code === 'INTERPRETATION_FAILED' && reasons.has(error.reason) ? { reason: error.reason } : {}),
         });
         return;
