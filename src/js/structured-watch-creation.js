@@ -45,7 +45,7 @@ export const structuredCreationError = (code,language) => {
 };
 
 export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen,isCurrent=()=>true,fetchImpl=(...args)=>fetch(...args),uuid=()=>crypto.randomUUID()}) => {
- let enabled=false, selected, label, generation=0, pending=null, busy=false, panel;
+ let enabled=false, monitoringEnabled=false, selected, label, generation=0, pending=null, busy=false, panel;
  const message=text=>{if(error)error.textContent=text;const inline=panel?.querySelector('.structured-review-error');if(inline)inline.textContent=text;};
  const labels=()=>copy[getLanguage()==='fr'?'fr':'en'];
  const clear=()=>{generation++;pending=null;panel?.remove();panel=null;form.classList.remove('is-reviewing');};
@@ -74,20 +74,23 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
  const access=async()=>{
   if(!activeSession())return;
   const accessOwner=activeSession()?.user?.id;
-  try {const result=await request('/api/structured-watches');if(!isCurrent()||activeSession()?.user?.id!==accessOwner||result.enabled!==true)return;enabled=true;
+  try {const result=await request('/api/structured-watches');if(!isCurrent()||activeSession()?.user?.id!==accessOwner||result.enabled!==true)return;enabled=true;monitoringEnabled=result.monitoringEnabled===true;
    label=document.createElement('label');label.className='structured-watch-opt-in';selected=document.createElement('input');selected.type='checkbox';selected.dataset.structuredOptIn='';const text=document.createElement('span');text.textContent=labels().opt;label.append(selected,text);input.insertAdjacentElement('afterend',label);
    listen(selected,'change',clear);
   }catch{/* Default/public flow stays unchanged. No AI or persistence request. */}
  };
  listen(input,'input',()=>{if(busy||pending||panel){clear();message(labels().stale);}});
  listen(document,'i18n:languageChanged',()=>{clear();if(label)label.querySelector('span').textContent=labels().opt;});
- const run=async(original,language)=>{
+ const run=async(original,language,revalidation)=>{
   if(!enabled||!selected?.checked)return false;
   if(busy)return true;
   clear();busy=true;const epoch=generation,owner=activeSession()?.user?.id,c=labels();
   message(c.busy);
   try{
-   const interpreted=await request('/api/plan-watch?mode=interpretation.v1',{request:original,language});
+   // Refresh a rejected, expired review without another AI call when its role evidence is still current.
+   const reusable=revalidation?.interpreted;
+   const interpreted=reusable&&(!reusable.roleResolution||Date.now()-Date.parse(reusable.roleResolution.verifiedAt)<3600000)
+    ? reusable : await request('/api/plan-watch?mode=interpretation.v1',{request:original,language});
    if(!ready(epoch,owner,original,language))return true;
    const interpretation=validateInterpretation(interpreted.interpretation);
    if(interpretation.originalRequest!==original)throw Object.assign(Error('request'),{code:'INVALID_WATCH_DEFINITION'});
@@ -105,7 +108,7 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
     show(assessed.clarifications.length?c.clarify:c.unsupported,details);button(c.edit,edit);button(c.cancel,clear);message('');return true;
    }
    if(assessed.plan.adapter!=='google_news_literal_v1'){show(c.unsupported,[c.otherAdapter]);button(c.edit,edit);button(c.cancel,clear);message('');return true;}
-   const identity={watchId:uuid(),mutationId:uuid(),operation:'create',expectedRevision:0,title:assessed.plan.criteria.subjects.join(' + ').slice(0,200)};
+   const identity=revalidation?.identity||{watchId:uuid(),mutationId:uuid(),operation:'create',expectedRevision:0,title:assessed.plan.criteria.subjects.join(' + ').slice(0,200)};
    const issued=await request('/api/structured-watches',{action:'issue',...identity,interpretation,plan:assessed.plan});
    if(!ready(epoch,owner,original,language))return true;
    const definition=validateWatchDefinition(issued.definition,issued.source);
@@ -130,22 +133,43 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
    ]);panel.classList.add('structured-review-confirmation');
    panel.querySelector(':scope > p').classList.add('structured-review-paused');
    const actions=document.createElement('div');actions.dataset.structuredActions='';actions.className='structured-review-actions';panel.append(actions);message('');
-   let confirming=false,saved=false;
+   let confirming=false,saved=false,activation,renderActivation;
+   if(monitoringEnabled){
+    const label=document.createElement('label');label.className='structured-watch-opt-in';
+    activation=document.createElement('input');activation.type='checkbox';activation.dataset.structuredActivate='';activation.checked=revalidation?.activate===true;
+    const text=document.createElement('span');text.textContent=language==='fr'?'Activer la surveillance quotidienne après confirmation (emails désactivés)':'Activate daily monitoring after confirmation (emails off)';label.append(activation,text);actions.before(label);
+    renderActivation=()=>{confirm.textContent=activation.checked?(language==='fr'?'Confirmer et activer la surveillance quotidienne':'Confirm and activate daily monitoring'):c.confirm;panel.querySelector('.structured-review-paused').textContent=activation.checked?(language==='fr'?'Après votre confirmation, la Watch sera enregistrée puis activée pour un contrôle quotidien. Le premier contrôle établira une référence, sans email.':'After your confirmation, the Watch will be saved and activated for daily checks. The first check establishes a baseline, without email.'):c.before;};listen(activation,'change',renderActivation);
+   }
    const confirm=button(c.confirm,async()=>{
     if(confirming||saved)return;
     if(!pending||!ready(epoch,owner,original,language)){clear();message(c.stale);return;}
-    confirming=true;confirm.disabled=true;editButton.disabled=true;cancelButton.disabled=true;confirm.textContent=c.saving;
+    confirming=true;const activate=activation?.checked===true;if(activation)activation.disabled=true;confirm.disabled=true;editButton.disabled=true;cancelButton.disabled=true;confirm.textContent=c.saving;
     try{
      const payload={action:'confirm',...pending};const result=await request('/api/structured-watches',payload);
      if(!ready(epoch,owner,original,language))return;
      if(result.receipt?.id!==pending.watchId||result.receipt?.ownerId!==owner||result.receipt?.mutationId!==pending.mutationId||result.receipt?.monitoringState!=='paused')throw Object.assign(Error('save'),{code:'STRUCTURED_PERSISTENCE_UNAVAILABLE'});
-     saved=true;const id=pending.watchId;pending=null;show(c.saved,[c.paused]);
+     saved=true;const id=pending.watchId;pending=null;let summary=c.paused;
+     if(activate){
+      try{
+       const active=await request('/api/structured-watches',{action:'monitoring',watchId:id,expectedRevision:result.receipt.revision,active:true});
+       if(!ready(epoch,owner,original,language))return;
+       if(active.id!==id||active.ownerId!==owner||active.revision!==result.receipt.revision+1||active.monitoringState!=='monitoring')throw Error('activation');
+       summary=language==='fr'?'Surveillance quotidienne activée. Le premier contrôle établira une référence. Emails désactivés.':'Daily monitoring activated. The first check will establish a baseline. Emails off.';
+      }catch{summary=language==='fr'?'Watch enregistrée ; activation non confirmée. Ouvrez la Watch pour vérifier son état avant de réessayer. Aucun nouvel enregistrement nécessaire.':'Watch saved; activation could not be confirmed. Open the Watch to check its state before retrying. Do not create it again.';}
+     }
+     if(!ready(epoch,owner,original,language))return;show(c.saved,[summary]);
      const link=document.createElement('a');link.className='button button--secondary';link.href=`watch-detail.html?id=${encodeURIComponent(id)}`;link.textContent=c.open;panel.append(link);
      message('');
-    }catch(e){if(ready(epoch,owner,original,language))message(structuredCreationError(e.code,language));}
-    finally{confirming=false;if(!saved&&pending){confirm.disabled=false;editButton.disabled=false;cancelButton.disabled=false;confirm.textContent=c.retry;}}
+    }catch(e){if(ready(epoch,owner,original,language)){
+      if(e.code==='EXPIRED_PLAN_AUTHORIZATION'){
+       // The server rejected before persistence. Revalidate, keep the mutation identity, and require a new personal confirmation.
+       await run(original,language,{interpreted,identity,activate});
+       if(pending)message(language==='fr'?'Vérification renouvelée. Relisez le plan et confirmez à nouveau.':'Review renewed. Read the plan and confirm again.');
+      }else message(structuredCreationError(e.code,language));
+     }}
+    finally{confirming=false;if(!saved&&pending&&generation===epoch){if(activation)activation.disabled=false;confirm.disabled=false;editButton.disabled=false;cancelButton.disabled=false;confirm.textContent=c.retry;}}
    },true);
-   const editButton=button(c.edit,edit);const cancelButton=button(c.cancel,clear);
+   const editButton=button(c.edit,edit);const cancelButton=button(c.cancel,clear);renderActivation?.();
   }catch(e){if(ready(epoch,owner,original,language))message(structuredCreationError(e.code,language));}
   finally{busy=false;}
   return true;

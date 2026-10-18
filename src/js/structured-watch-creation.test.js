@@ -16,8 +16,10 @@ const harness=async(t,interpretation,options={})=>{
  configureStructuredWatchCreation({getState:()=>({status:'authenticated',session:{user:{id:state.owner},access_token:'fixture-only'}})});
  t.after(()=>{globalThis.document=previous;configureStructuredWatchCreation(null);});
  const env={SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner+','+other,STRUCTURED_WATCH_SIGNING_SECRET:'fixture-only-'.repeat(4)};
- const middleware=createStructuredWatchMiddleware({creationOnly:true,env,now:()=>state.clock,authenticate:async()=>({user:{id:state.owner}}),serviceClient:{async rpc(_name,p){
-  state.rpcCount++;if(state.hold)await state.hold;if(state.confirmFailure)return {error:state.confirmFailure};
+ if(options.monitoring)env.STRUCTURED_MEDIA_SCHEDULED_ENABLED='true';
+ const client={from(){const q={select(){return q;},eq(){return q;},is(){return q;},async range(){const saved=state.calls.find(c=>c.body?.action==='confirm')?.body;return{data:saved?[{id:saved.watchId,media_revision:1,watch_definition:saved.definition,monitoring_source:(await import('./watch-definition.js')).structuredMonitoringSource(saved.definition.plan.criteria)}]:[]};}};return q;}};
+ const middleware=createStructuredWatchMiddleware({creationOnly:true,env,now:()=>state.clock,authenticate:async()=>({user:{id:state.owner},client}),serviceClient:{async rpc(_name,p){
+  state.rpcCount++;if(_name==='set_structured_media_monitoring')return options.activationFailure?{error:{code:'XX000'}}:{data:true};if(state.hold)await state.hold;if(state.confirmFailure)return {error:state.confirmFailure};
   const receipt=state.records.get(p.p_id)||{id:p.p_id,ownerId:p.p_owner,mutationId:p.p_mutation,operation:p.p_operation,expectedRevision:p.p_revision,revision:1,definitionFingerprint:p.p_definition_fingerprint,payloadFingerprint:p.p_payload_fingerprint,monitoringState:'paused'};
   state.records.set(p.p_id,receipt);return {data:receipt,error:null};
  }}});
@@ -61,7 +63,7 @@ test('AI failure retains request and does not fall back, issue or persist',async
  const h=await harness(t,news('Keep me updated on Jannik Sinner.'));h.state.aiError='AI_SERVICE_UNAVAILABLE';await h.run();assert.match(h.error.textContent,/temporarily unavailable/);assert.equal(h.input.value,h.state.interpretation.originalRequest);assert.equal(h.state.calls.length,2);assert.equal(h.state.rpcCount,0);
 });
 test('expiry, changed owner and persistence failures leave no partial Watch',async t=>{
- const h=await harness(t,news('Keep me updated on Jannik Sinner.'));await h.run();h.state.clock+=300000;h.buttons()[0].click();await until(()=>/expired/.test(h.error.textContent));assert.match(h.review().textContent,/expired/);assert.equal(h.state.records.size,0);
+ const h=await harness(t,news('Keep me updated on Jannik Sinner.'));await h.run();h.state.clock+=300000;h.buttons()[0].click();await until(()=>/renewed/.test(h.error.textContent));assert.match(h.review().textContent,/renewed/);assert.equal(h.state.calls.filter(c=>c.path.startsWith('/api/plan-watch')).length,1);assert.equal(h.state.calls.filter(c=>c.body?.action==='issue').length,2);assert.equal(h.state.records.size,0);
  h.buttons()[1].click();await h.run();h.state.owner=other;h.buttons()[0].click();assert.equal(h.state.records.size,0);assert.match(h.error.textContent,/changed/);
  h.state.owner=owner;await h.run();h.state.confirmFailure={code:'XX000',message:'secret SQL details'};h.buttons()[0].click();await until(()=>/could not be confirmed/.test(h.error.textContent));assert.equal(h.state.records.size,0);assert.doesNotMatch(h.error.textContent,/SQL details/);
 });
@@ -108,4 +110,37 @@ for(const [request,label,topic,language,expected] of [
 test('role ambiguity with missing scope still asks the actual targeted question',async t=>{
  const value=fixture('News about the reigning monarch.',[individual('s','the reigning monarch','person')],[predicate('n','news_about',['s'])],{ambiguities:[{field:'subject',alternatives:['one country','another country'],question:'Which country or royal house?'}]});
  const h=await harness(t,value);await h.run();assert.match(h.review().textContent,/Which country or royal house/);assert.equal(h.state.rpcCount,0);
+});
+
+for(const language of ['en','fr'])test(`${language}: expired review renews safely with the same identity and requires another confirmation`,async t=>{
+ const request=language==='fr'?'Surveille les actualités concernant Gucci.':'Monitor news about Gucci.';
+ const h=await harness(t,news(request,'Gucci',language));await h.run();const first=h.state.calls.find(c=>c.body?.action==='issue').body;
+ h.state.clock+=300000;h.buttons()[0].click();await until(()=>/renewed|renouvelée/.test(h.error.textContent));
+ assert.equal(h.state.records.size,0);assert.equal(h.state.rpcCount,0);assert.equal(h.state.calls.filter(c=>c.path.startsWith('/api/plan-watch')).length,1);
+ const issued=h.state.calls.filter(c=>c.body?.action==='issue');assert.deepEqual(issued[1].body,first);
+ h.buttons()[0].click();await until(()=>h.review().querySelector('a'));assert.equal(h.state.records.size,1);assert.equal(h.state.rpcCount,1);
+});
+for(const language of ['en','fr'])test(`${language}: daily activation requires explicit choice and follows successful signed persistence`,async t=>{
+ const h=await harness(t,news(language==='fr'?'Surveille les actualités concernant Gucci.':'Monitor news about Gucci.','Gucci',language),{monitoring:true});await h.run();
+ const choice=h.review().querySelector('[data-structured-activate]');assert.equal(choice.checked,false);assert.equal(h.state.records.size,0);
+ choice.checked=true;choice.dispatchEvent(new h.input.ownerDocument.defaultView.Event('change'));assert.match(h.buttons()[0].textContent,/daily|quotidienne/);
+ h.buttons()[0].click();await until(()=>h.review().querySelector('a'));assert.equal(h.state.records.size,1);assert.equal(h.state.rpcCount,2);
+ const writes=h.state.calls.filter(c=>['confirm','monitoring'].includes(c.body?.action));assert.equal(writes[0].body.action,'confirm');assert.deepEqual(writes[1].body,{action:'monitoring',watchId:writes[0].body.watchId,expectedRevision:1,active:true});
+ assert.match(h.review().textContent,language==='fr'?/quotidienne activée/:/Daily monitoring activated/);assert.ok(h.state.calls.every(c=>!c.path.includes('check')&&!c.path.includes('cron')&&!c.path.includes('email')));
+});
+test('activation failure preserves the saved Watch and directs to its state without recreating',async t=>{
+ const h=await harness(t,news('Monitor news about Gucci.','Gucci'),{monitoring:true,activationFailure:true});await h.run();h.review().querySelector('[data-structured-activate]').checked=true;
+ h.buttons()[0].click();await until(()=>h.review().querySelector('a'));assert.equal(h.state.records.size,1);assert.match(h.review().textContent,/activation could not be confirmed/);assert.equal(h.state.calls.filter(c=>c.body?.action==='confirm').length,1);
+});
+test('scheduler gate off offers no activation choice',async t=>{
+ const h=await harness(t,news('Monitor news about Gucci.','Gucci'));await h.run();assert.equal(h.review().querySelector('[data-structured-activate]'),null);
+});
+
+test('expiry preserves explicit daily choice but never activates or saves until reconfirmed',async t=>{
+ const h=await harness(t,news('Monitor news about Gucci.','Gucci'),{monitoring:true});await h.run();h.review().querySelector('[data-structured-activate]').checked=true;h.state.clock+=300000;
+ h.buttons()[0].click();await until(()=>/renewed/.test(h.error.textContent));assert.equal(h.state.rpcCount,0);assert.equal(h.review().querySelector('[data-structured-activate]').checked,true);assert.match(h.buttons()[0].textContent,/activate daily/);
+ h.buttons()[0].click();await until(()=>h.review().querySelector('a'));assert.equal(h.state.records.size,1);assert.equal(h.state.rpcCount,2);
+});
+test('enabled scheduling still saves paused unless the user explicitly chooses activation',async t=>{
+ const h=await harness(t,news('Monitor news about Gucci.','Gucci'),{monitoring:true});await h.run();h.buttons()[0].click();await until(()=>h.review().querySelector('a'));assert.equal(h.state.rpcCount,1);assert.equal(h.state.calls.some(c=>c.body?.action==='monitoring'),false);assert.match(h.review().textContent,/Saved paused/);
 });

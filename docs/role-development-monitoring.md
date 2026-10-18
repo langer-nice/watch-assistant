@@ -56,3 +56,9 @@ source evidence remain intact. Only execution criteria canonicalize the head
 (`santé`/`health`). Every required topic must contain exactly that head plus the
 referenced role and relation words; additional constraints cannot be discarded.
 The corresponding source quotation must actually contain the health head.
+
+## Creation confirmation lifecycle
+
+A rejected expired confirmation revalidates the original interpretation and signed plan with the same Watch/mutation identity, then requires personal confirmation again. It never retries the expired token or saves automatically. Current role evidence is checked again server-side; evidence older than one hour requires a fresh interpretation/resolution. Uncertain persistence responses retain the original idempotent save retry. The authorization TTL remains unchanged.
+
+When the existing backend reports scheduled monitoring available, the creation review offers an unchecked daily activation choice in EN/FR. Personal confirmation first saves through signed persistence, then invokes the existing owner/revision-bound monitoring action (86400 seconds). Email consent remains OFF. Activation failure preserves the saved Watch and links to its state; it does not create another Watch or claim successful activation. No scheduler, delivery gate or schema changes.
