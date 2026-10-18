@@ -13,12 +13,18 @@ const at='2026-10-20T12:00:00.000Z',baseline='2026-10-18T16:00:00Z';
 const resolution=(role='the Pope',name='Example IX')=>({officeId:'papacy',originalRole:role,personId:'https://www.vatican.va/content/vatican/en/holy-father/'+name.toLowerCase().replaceAll(' ','-')+'.html',name,names:[name],sourceUrl:ROLE_SOURCE,verifiedAt:at});
 const interpretation=(request,role,topic,language)=>fixture(request,[individual('person',role,'person')],[predicate('news','news_about',['person'])],{language,topics:[{label:topic,role:'required'}],unresolvedRequirements:[{text:role,reason:'CURRENT_ROLE_HOLDER_UNVERIFIED'}]});
 const approved=[];
-for(const [request,role,topic,language]of [["Keep me informed about the Pope's health.",'the Pope','health','en'],['Surveille la santé du pape.','pape','santé','fr']])test('original '+language+' request compiles to source-bound role Watch, without rewriting or clarification',async()=>{
+for(const [request,role,topic,language]of [["Keep me informed about the Pope's health.",'the Pope','health','en'],['Surveille la santé du pape.','pape','santé','fr'],['Surveille la santé du pape.','pape','santé du pape','fr'],["Keep me informed about the Pope's health.",'the Pope','health of the Pope','en'],["Keep me informed about the Pope's health.",'the Pope',"the Pope's health",'en']])test('original '+language+' request compiles to source-bound role Watch, without rewriting or clarification',async()=>{
  const v=interpretation(request,role,topic,language),{originalRequest,...output}=v;output.evidence=output.evidence.map(({path,text})=>({path,quote:text,context:null}));let calls=0;
  const result=await interpretWatchRequest(request,{apiKey:'synthetic',language,fetchImpl:async()=>{calls++;return Response.json({output_text:JSON.stringify(output)});},roleResolver:async intent=>resolution(intent.originalRole)});
  assert.equal(calls,1);assert.deepEqual(result.interpretation.ambiguities,[]);assert.deepEqual(result.interpretation.unresolvedRequirements,[]);assert.equal(result.interpretation.originalRequest,request);
  const a=assessCapabilities(result.interpretation,{structured:true,roleResolution:result.roleResolution});assert.equal(a.status,'supported');
  const d=createWatchDefinition(result.interpretation,a.plan);assert.equal(d.request,request);assert.equal(d.plan.criteria.roleResolution.originalRole,role);assert.match(d.plan.criteria.query,/Example IX.*health.*santé/);approved.push(d);
+});
+test('bound-topic normalization cannot invent health evidence or drop additional constraints',()=>{
+ const request="Keep me informed about the Pope's health.",v=interpretation(request,'the Pope','health of the Pope','en');v.unresolvedRequirements=[];v.evidence=v.evidence.filter(e=>!e.path.startsWith('/unresolvedRequirements/'));
+ const valid=compileMonitoringPlan(v,{structured:true,roleResolution:resolution()});assert.deepEqual(valid.criteria.topics,['health']);
+ for(const label of ['health and finance of the Pope','health of the former Pope']){const changed=structuredClone(v);changed.topics[0].label=label;assert.throws(()=>compileMonitoringPlan(changed,{structured:true,roleResolution:resolution()}));}
+ const missing=structuredClone(v);missing.evidence=missing.evidence.map(e=>e.path==='/topics/0'?{...e,start:request.indexOf('the Pope'),end:request.indexOf('the Pope')+'the Pope'.length,text:'the Pope'}:e);assert.throws(()=>compileMonitoringPlan(missing,{structured:true,roleResolution:resolution()}));
 });
 test('unavailable resolution stays blocked even if the model omits the unresolved marker',async()=>{
  const request="Keep me informed about the Pope's health.",v=interpretation(request,'the Pope','health','en');v.unresolvedRequirements=[];v.evidence=v.evidence.filter(e=>!e.path.startsWith('/unresolvedRequirements/'));

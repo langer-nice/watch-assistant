@@ -1,4 +1,4 @@
-import {roleDevelopmentIntent,validRoleResolution,roleDevelopmentQuery} from './role-development.js';
+import {roleDevelopmentIntent,roleHealthEvidence,validRoleResolution,roleDevelopmentQuery} from './role-development.js';
 import { canonicalJSON as canonical, contentFingerprint } from './structured-fingerprint.js';
 import { validateInterpretation, validateMonitoringPlan } from './watch-interpretation.js';
 import { parseMediaMentionRequest } from './media-mention-request.js';
@@ -87,6 +87,7 @@ export const assessCapabilities = (input, { structured = false, roleResolution }
       if (n.kind === 'news_about' || (!negative && n.kind === 'mentions_together')) {
         n.subjects.forEach(id => { const s = subjects.get(id); if (s.kind === 'individual') literal(s.label, negative ? excluded : positive, field); });
       } else if (n.kind === 'topic') {
+        if(resolvedRole&&!negative&&v.evidence.some(e=>e.path===field&&roleHealthEvidence(n.value,roleIntent.originalRole,e.text))) {literal(roleIntent.topicLabel,topics,field);return;}
         if (!v.evidence.some(e => e.path === field && e.text.includes(n.value))) add('unsupported_constraint', field);
         else literal(n.value, negative ? excluded : topics, field);
       } else add(['event', 'relationship'].includes(n.kind) ? 'unsupported_event_detection' : 'unsupported_constraint', field);
@@ -94,6 +95,7 @@ export const assessCapabilities = (input, { structured = false, roleResolution }
     if (v.condition) read(v.condition);
     v.exclusions.forEach(key => read(key, true));
     v.topics.forEach((t, i) => { if (t.role === 'required') {
+      if(resolvedRole&&v.evidence.some(e=>e.path===`/topics/${i}`&&roleHealthEvidence(t.label,roleIntent.originalRole,e.text))){literal(roleIntent.topicLabel,topics,`/topics/${i}`);return;}
       if (!v.evidence.some(e => e.path === `/topics/${i}` && e.text.includes(t.label))) add('unsupported_constraint', `/topics/${i}`);
       else literal(t.label, topics, `/topics/${i}`);
     } });
@@ -111,7 +113,7 @@ export const assessCapabilities = (input, { structured = false, roleResolution }
       query: mediaMentionSearchQuery({ subjects: positive, topics, exclusions: excluded }), edition: 'GB:en' };
     if (roleResolution !== undefined) {
       if (!resolvedRole) add('unsupported_role_resolution','criteria.roleResolution');
-      else criteria={...criteria,roleResolution:structuredClone(roleResolution),query:roleDevelopmentQuery(roleResolution)};
+      else criteria={...criteria,topics:[roleIntent.topicLabel],roleResolution:structuredClone(roleResolution),query:roleDevelopmentQuery(roleResolution)};
     }
     if (criteria?.query.length > 500) add('unsupported_constraint', 'criteria.query');
   } else if (v.domain === 'currency') {

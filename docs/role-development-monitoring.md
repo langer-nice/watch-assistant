@@ -48,3 +48,11 @@ and runtime identity provenance remain in snapshots. No new event queue exists.
 Staging delivery restrictions remain Royal Caribbean/Sinner only. This extension
 does not enroll a papal Watch in email delivery, grant consent, activate a Watch,
 or create a permanent live Watch without the user's confirmation.
+
+Role-bound topic wording is not required to be a literal standalone query term.
+For example `santé du pape`, `the Pope's health` and `health of the Pope` denote
+the health focus bound to the same role. The original interpretation and exact
+source evidence remain intact. Only execution criteria canonicalize the head
+(`santé`/`health`). Every required topic must contain exactly that head plus the
+referenced role and relation words; additional constraints cannot be discarded.
+The corresponding source quotation must actually contain the health head.

@@ -1,14 +1,25 @@
 // Role intent stays in the user's language; external identity is separate evidence.
 export const ROLE_SOURCE = 'https://www.vatican.va/content/vatican/en.html';
+// Bind the topic's head to its referenced subject without rewriting grounded text.
+export const roleHealthTopic = (topic,role) => {
+ const words=text=>String(text||'').toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
+ const tokens=words(topic),allowed=new Set([...words(role),'health','santé','of','the','du','de','le','la','des','s','current','actuel']);
+ const heads=tokens.filter(word=>word==='health'||word==='santé');
+ return heads.length===1&&tokens.every(word=>allowed.has(word))?heads[0]:null;
+};
+export const roleHealthEvidence = (topic,role,quote) => {
+ const head=roleHealthTopic(topic,role);
+ return Boolean(head&&String(quote||'').toLowerCase().split(/[^\p{L}]+/u).includes(head));
+};
 export const roleDevelopmentIntent = interpretation => {
  const v=interpretation,s=v?.subjects?.[0];
  const topics=[...(v?.topics||[]).filter(t=>t.role==='required').map(t=>t.label),...(v?.conditions||[]).filter(n=>n.op==='predicate'&&n.kind==='topic').map(n=>n.value)];
  return v?.domain==='media_news' && v.intent==='ongoing_news' && v.subjects.length===1
   && s.kind==='individual' && s.type==='person'
   && /^(?:the\s+)?(?:current\s+)?pope$|^(?:(?:le|du)\s+)?pape(?:\s+actuel)?$/iu.test(s.label.trim())
-  && topics.length>0 && topics.every(topic=>/^(?:health|santé)$/iu.test(topic))
+  && topics.length>0 && topics.every(topic=>roleHealthTopic(topic,s.label))
   && !v.ambiguities.length && !v.exclusions.length && !v.temporal.length && !v.geographic.length
-  ? {officeId:'papacy',originalRole:s.label,topic:'health'} : null;
+  ? {officeId:'papacy',originalRole:s.label,topic:'health',topicLabel:roleHealthTopic(topics[0],s.label)} : null;
 };
 export const validRoleResolution = (r,role) => Boolean(r && r.officeId==='papacy' && r.originalRole===role
  && r.sourceUrl===ROLE_SOURCE && /^https:\/\/www\.vatican\.va\/content\/vatican\/en\/holy-father\/[a-z0-9-]+\.html$/.test(r.personId)
