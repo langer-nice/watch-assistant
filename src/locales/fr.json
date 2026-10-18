@@ -573,6 +573,7 @@
     "low": "Faible"
   },
   "watchData": {
+    "generatedEvents": {"cityHallFire": "Incendie de l’hôtel de ville", "townHallFire": "Incendie de la mairie"},
     "draftRetained": "Demande conservée sur cet appareil",
     "created": "Watch créée",
     "genericMonitoringScope": "Cette Watch suivra les prochaines informations pertinentes, notamment les développements majeurs et les informations de suivi importantes.",

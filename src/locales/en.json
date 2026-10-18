@@ -573,6 +573,7 @@
     "low": "Low"
   },
   "watchData": {
+    "generatedEvents": {"cityHallFire": "City hall fire", "townHallFire": "Town hall fire"},
     "draftRetained": "Request saved on this device",
     "created": "Watch created",
     "genericMonitoringScope": "This Watch will follow relevant future reporting, including major developments and significant follow-up reporting.",

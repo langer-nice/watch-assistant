@@ -1,3 +1,4 @@
+import { articleWatchDisplayCategory, localizedGeneratedArticleScope } from './article-watch-presentation.js';
 import { canManuallyCheckWatch, manualCheckIssue } from './watch-manual-check.js';
 import { initStructuredWatchCreation } from './structured-watch-creation.js';
 import { creationConfirmationKey, watchCreationState } from './watch-creation-state.js';
@@ -534,7 +535,7 @@ const isDistinctMeaningfulText = (value, comparison = '') => (
 );
 
 const getWatchDisplayTitle = (watch) => getCompanyWatchTitle(watch, {
-  storedTitle: localizedGeneratedMediaTitle(watch, getLanguage())
+  storedTitle: watch.inputType==='url'?watch.title:localizedGeneratedMediaTitle(watch, getLanguage())
     || getLocalizedWatchCopy(watch, getLanguage(), 'title')
     || localizeField(watch, 'title'),
   formatFallback: (siren) => t('newWatch.companyReviewTitleValue', { siren }),
@@ -582,7 +583,8 @@ const getMonitoringSummary = (watch, title) => {
       .filter(hasMeaningfulText)
       .map(normalizeComparableText),
   );
-  const monitoringSummary = getLocalizedWatchCopy(watch, getLanguage(), 'summary')
+  const monitoringSummary = localizedGeneratedArticleScope(watch,getLanguage(),t)
+    || getLocalizedWatchCopy(watch, getLanguage(), 'summary')
     || localizeField(watch, 'monitoringSummary');
   if (
     hasMeaningfulText(monitoringSummary)
@@ -1065,8 +1067,8 @@ const renderSummaryWatchCard = ({
 } = {}) => {
   const title = hasMeaningfulText(titleOverride) ? titleOverride : getWatchDisplayTitle(watch);
   if (!hasMeaningfulText(title)) return '';
-  const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
-  const categoryModifier = watch.category || 'general';
+  const categoryModifier = articleWatchDisplayCategory(watch);
+  const category = t(`categories.${categoryModifier}`);
   const statusPresentation = getSummaryCardStatus(status);
   const readOnly = getReadOnlyCardPresentation(watch, t, getLanguage());
   return renderSummaryCard({
@@ -1483,10 +1485,11 @@ const renderWatchDetail = () => {
   }
 
   if (categoryEl) {
-    const category = watch.category && t(`categories.${watch.category}`);
+    const displayedCategory=articleWatchDisplayCategory(watch);
+    const category = watch.category && t(`categories.${displayedCategory}`);
     categoryEl.textContent = category || '';
     categoryEl.hidden = !category;
-    categoryEl.className = `category-pill${watch.category === 'travel' ? ' category-pill--travel' : ''}`;
+    categoryEl.className = `category-pill${displayedCategory === 'travel' ? ' category-pill--travel' : ''}`;
   }
 
   if (canonicalStatusEl) {
@@ -1664,7 +1667,7 @@ const renderWatchDetail = () => {
   const monitoringScope = watch.inputType === 'url'
     && watch.isStory !== false
     && isDistinctMonitoringScope(watch.monitoringSummary, storySummary, watch.title)
-    ? watch.monitoringSummary
+    ? localizedGeneratedArticleScope(watch,getLanguage(),t)||watch.monitoringSummary
     : '';
   if (monitoringScopeCopyEl) monitoringScopeCopyEl.textContent = monitoringScope;
   if (monitoringScopeEl) monitoringScopeEl.hidden = !monitoringScope;
