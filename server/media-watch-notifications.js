@@ -3,7 +3,7 @@ import { safeEmailCode, definiteProviderFailure, emailFailureCounts, countEmailF
 import { withinMediaDeadline } from './media-deadline.js';
 import { randomUUID } from 'node:crypto';
 import { createMediaNotificationIdempotencyKey, getMediaWatchEmailConfig, renderMediaWatchEmail, sendWithResend } from './media-watch-email.js';
-import { structuredMediaEmailDeliveryAllowed, getStructuredMediaStagingEmailConfig, structuredEmailTestOwners } from './structured-media-notification-gates.js';
+import { structuredMediaEmailDeliveryAllowed, getStructuredMediaStagingEmailConfig, structuredEmailTestOwners, structuredDigestWatchScope } from './structured-media-notification-gates.js';
 
 const LIMIT = 25; const CONCURRENCY = 3;
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
@@ -29,6 +29,13 @@ export const processMediaWatchEmailNotifications = async ({ client, env = proces
     return { ...emailFailureCounts(), status: 'invalid-selection', pendingCount: 0, sentCount: 0, failedCount: 0, skippedCount: 0 };
   }
   if (!config) return unavailableEmailResult(env, 'MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED');
+  // Restricted ongoing Staging delivery must never enumerate immediate emails.
+  if (stagingTest && structuredDigestWatchScope(env) !== null) {
+    const empty = { ...emailFailureCounts(), pendingCount: 0, sentCount: 0, failedCount: 0, skippedCount: 0 };
+    if (notificationSelection !== undefined) return { ...empty, status: 'invalid-selection' };
+    const digests = await processMediaWatchDigests({client,env,sender,deadline});
+    return { ...empty, status: digests.status, digests };
+  }
   const selection = notificationSelection === undefined ? null : Object.fromEntries(Object.entries(notificationSelection).map(([key, value]) => [key, value.toLowerCase()]));
   const digests = notificationSelection === undefined && mediaDailyDigestEnabled(env)
     ? await processMediaWatchDigests({client,env,sender,deadline}) : undefined;

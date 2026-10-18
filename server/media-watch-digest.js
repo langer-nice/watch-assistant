@@ -1,6 +1,6 @@
 import {createHash, randomUUID} from 'node:crypto';
 import {getMediaWatchEmailConfig, sendWithResend} from './media-watch-email.js';
-import {getStructuredMediaStagingEmailConfig, structuredEmailTestOwners, structuredMediaEmailDeliveryAllowed} from './structured-media-notification-gates.js';
+import {getStructuredMediaStagingEmailConfig, structuredEmailTestOwners, structuredMediaEmailDeliveryAllowed, structuredDigestWatchScope} from './structured-media-notification-gates.js';
 import {safeEmailCode, definiteProviderFailure} from './watch-email-config.js';
 import {withinMediaDeadline} from './media-deadline.js';
 
@@ -10,7 +10,8 @@ export const validStructuredMediaDigestSelection = (selection, env) => Boolean(s
   && Object.keys(selection).sort().join(',') === 'digestId,ownerId,watchId'
   && ['digestId','watchId','ownerId'].every(key => typeof selection[key] === 'string'
     && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(selection[key]))
-  && structuredEmailTestOwners(env).includes(selection.ownerId.toLowerCase()));
+  && structuredEmailTestOwners(env).includes(selection.ownerId.toLowerCase())
+  && (structuredDigestWatchScope(env) === null || structuredDigestWatchScope(env).includes(selection.watchId.toLowerCase())));
 export const mediaDigestSendHour = env => {
   const value = env?.MEDIA_WATCH_DIGEST_SEND_HOUR_UTC ?? '8';
   return /^(?:[0-9]|1[0-9]|2[0-3])$/.test(value) ? Number(value) : null;
@@ -63,21 +64,28 @@ export const processMediaWatchDigests = async ({client,env=process.env,sender=se
   const rpc=async(name,args)=>{const r=await withinMediaDeadline(()=>client.rpc(name,args),deadline);if(r.error)throw Object.assign(Error('Digest SQL unavailable'),{code:'DATABASE_ERROR'});return r.data;};
   const selection=exact?Object.fromEntries(Object.entries(digestSelection).map(([k,v])=>[k,v.toLowerCase()])):null;
   // Exact delivery never prepares or enumerates any other digest or article.
-  if(!selection)await rpc('prepare_media_watch_digests',{p_send_hour:hour,p_owners:owners,p_structured:structured});
-  const ids=selection?[selection.digestId]:await rpc('pending_media_watch_digests',{p_owners:owners,p_structured:structured});
+  const watchScope=structured?structuredDigestWatchScope(env):null;
+  let scopedSelections;
+  if(!selection && watchScope !== null){
+    scopedSelections=await rpc('prepare_scoped_structured_media_digests',{p_send_hour:hour,p_owners:owners,p_watches:watchScope});
+    if(!Array.isArray(scopedSelections)||scopedSelections.length>2||scopedSelections.some(item=>!validStructuredMediaDigestSelection(item,env)))throw Object.assign(Error('Invalid scoped digest batch'),{code:'DATABASE_ERROR'});
+  }
+  if(!selection && !scopedSelections)await rpc('prepare_media_watch_digests',{p_send_hour:hour,p_owners:owners,p_structured:structured});
+  const ids=selection?[selection.digestId]:scopedSelections?scopedSelections.map(item=>item.digestId):await rpc('pending_media_watch_digests',{p_owners:owners,p_structured:structured});
   if(!Array.isArray(ids)||ids.length>10)throw Error('Invalid digest batch');
   summary.status='success';
   for(const id of ids){
     if(Date.now()>=deadline)break;
+    const selected=selection||scopedSelections?.find(item=>item.digestId===id);
     const token=randomUUID();let claimed=null,boundary=false;
     try{
-      claimed=await rpc(selection?'claim_structured_media_test_digest':'claim_media_watch_digest',selection
-        ?{p_digest_id:id,p_watch_id:selection.watchId,p_owner:selection.ownerId,p_claim_token:token,p_owners:[selection.ownerId],p_send_hour:hour}
+      claimed=await rpc(selected?'claim_structured_media_test_digest':'claim_media_watch_digest',selected
+        ?{p_digest_id:id,p_watch_id:selected.watchId,p_owner:selected.ownerId,p_claim_token:token,p_owners:[selected.ownerId],p_send_hour:hour}
         :{p_id:id,p_token:token,p_owners:owners,p_structured:structured});
       if(!claimed)continue;
       summary.claimedCount++;
       if(claimed.id!==id||claimed.is_structured!==structured||!Array.isArray(claimed.articles)||!claimed.articles.length
-        ||(selection&&(claimed.watch_id!==selection.watchId||claimed.user_id!==selection.ownerId)))throw Error('Invalid digest claim');
+        ||(selected&&(claimed.watch_id!==selected.watchId||claimed.user_id!==selected.ownerId)))throw Error('Invalid digest claim');
       const auth=await withinMediaDeadline(()=>client.auth.admin.getUserById(claimed.user_id),deadline);
       const user=auth.data?.user;
       if(auth.error||!user?.email||!user.email_confirmed_at||(structured&&!structuredMediaEmailDeliveryAllowed(env,claimed.user_id,user.email)))throw Object.assign(Error('Recipient unavailable'),{code:'RECIPIENT_UNVERIFIED'});

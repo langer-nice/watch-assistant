@@ -7,6 +7,13 @@ export const structuredMediaNotificationIntentsEnabled = env =>
 
 export const structuredEmailTestOwners = env => String(env?.STRUCTURED_WATCH_TEST_USER_IDS || '')
   .split(',').map(value => value.trim()).filter(value => /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value));
+// Optional Staging-only delivery scope. A malformed configured list fails closed.
+export const structuredDigestWatchScope = env => {
+  if (env?.STRUCTURED_MEDIA_STAGING_DIGEST_WATCH_IDS === undefined) return null;
+  const ids = String(env.STRUCTURED_MEDIA_STAGING_DIGEST_WATCH_IDS).split(',').map(id => id.trim().toLowerCase());
+  return ids.length > 0 && ids.length <= 2 && new Set(ids).size === ids.length
+    && ids.every(id => /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id)) ? ids : [];
+};
 const address = value => { const parsed = parseAsciiEmailAddress(value); return parsed ? `${parsed.localPart}@${parsed.domain}` : null; };
 const recipients = env => {
   const values = String(env?.STRUCTURED_MEDIA_STAGING_EMAIL_RECIPIENTS || '').split(',').map(value => value.trim());
@@ -19,6 +26,7 @@ export const structuredMediaStagingEmailTestEnabled = env =>
   && env?.STRUCTURED_MEDIA_STAGING_EMAIL_TEST_ENABLED === 'true'
   && env?.STRUCTURED_MEDIA_EMAIL_NOTIFICATIONS_ENABLED === 'true'
   && env?.WATCH_EMAIL_NOTIFICATIONS_ENABLED === 'true' && env?.MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED === 'true'
+  && (structuredDigestWatchScope(env) === null || structuredDigestWatchScope(env).length > 0)
   && structuredEmailTestOwners(env).length > 0 && recipients(env).length > 0;
 
 // Server-side pin: Vercel alias metadata verified on 2026-10-16 against the
