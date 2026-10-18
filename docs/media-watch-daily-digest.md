@@ -183,3 +183,20 @@ therefore needs a separately provisioned authenticated recurring caller of the
 existing scoped endpoint. No external scheduler, account, secret or security bypass
 is created speculatively; Production cron is untouched. Keep live execution and
 email gates off until that operational configuration is explicitly established.
+
+### Structured article freshness
+
+Structured completion distinguishes first discovery from publication. After the
+initial reference is established, a previously unseen matching article qualifies
+as a new development only when its feed publication timestamp is at or after
+`baseline_at` and no later than the check timestamp. The boundary is the Watch's
+initial reference, not its last check or a rolling 24-hour window: delayed
+publication discovery remains eligible, including news older than 24 hours and
+newly published reporting about older stories. Feed timestamps are evidence of
+publication, not proof of the underlying event date.
+
+Pre-reference, undated, invalidly dated and future-dated observations remain in
+the snapshot/identity ledger; they are not asserted to be new developments.
+Existing identity deduplication remains authoritative (including for later edits
+to an already observed URL). This does not rewrite sent digests, replay history,
+change legacy freshness behavior, consent, scheduling or email delivery.
