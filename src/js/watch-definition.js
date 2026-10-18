@@ -52,7 +52,7 @@ export const validateWatchDefinition = (value, source) => {
   if (!matchesStructuredSchema(value, watchDefinitionSchema) || !jsonbSafe(value) || watchDefinitionSize(value) > WATCH_DEFINITION_MAX_BYTES) fail();
   try {
     const interpretation = validateInterpretation({ ...value.interpretation, originalRequest: value.request }, value.request);
-    const expected = compileMonitoringPlan(interpretation, { structured: true });
+    const expected = compileMonitoringPlan(interpretation, { structured: true, roleResolution:value.plan?.criteria?.roleResolution });
     if (canonicalJSON(value.plan) !== canonicalJSON(compactPlan(expected))
       || value.metadata.planFingerprint !== contentFingerprint(expected)) fail();
     if (source !== undefined && canonicalJSON(source) !== canonicalJSON(structuredMonitoringSource(expected.criteria))) fail('WATCH_SOURCE_MISMATCH');

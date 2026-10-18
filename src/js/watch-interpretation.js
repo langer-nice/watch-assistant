@@ -58,6 +58,8 @@ const pendingPlanSchema = object({ schemaVersion: enumeration('monitoring-plan.v
 const mediaCriteria = object({ kind: enumeration('media_literal'), subjects: array(str(), 8, 1),
   matchMode: enumeration('all'), topics: array(str(), 8), exclusions: array(str(), 8), query: str(500),
   edition: enumeration('GB:en') });
+export const roleResolutionSchema = object({ officeId: enumeration('papacy'), originalRole: str(), personId: str(200), name: str(100), names: array(str(100),2,1), sourceUrl: str(200), verifiedAt: str(40) });
+const roleMediaCriteria = object({...mediaCriteria.properties,roleResolution:roleResolutionSchema});
 const currencyCriteria = object({ kind: enumeration('ecb_threshold'), base: enumeration('GBP', 'EUR'), quote: enumeration('GBP', 'EUR'),
   operator: enumeration('gt', 'gte'), target: { ...str(25), pattern: '^\\d{1,12}(?:\\.\\d{1,12})?$' }, policy: enumeration('once', 'crossing', 'daily') });
 const companyCriteria = object({ kind: enumeration('bodacc_siren'), siren: { ...str(9), pattern: '^\\d{9}$' }, country: enumeration('FR') });
@@ -70,7 +72,7 @@ const compiledPlanSchema = object({ schemaVersion: enumeration('monitoring-plan.
   topics: interpretationSchema.properties.topics, exclusions: references,
   geographic: interpretationSchema.properties.geographic,
   recurrence: interpretationSchema.properties.recurrence,
-  criteria: { anyOf: [mediaCriteria, currencyCriteria, companyCriteria] }, limitations: array(str(100), 16, 1),
+  criteria: { anyOf: [mediaCriteria, roleMediaCriteria, currencyCriteria, companyCriteria] }, limitations: array(str(100), 16, 1),
 });
 export const monitoringPlanSchema = { anyOf: [pendingPlanSchema, compiledPlanSchema] };
 

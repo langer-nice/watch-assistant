@@ -1,3 +1,5 @@
+import {roleDevelopmentIntent,validRoleResolution} from '../src/js/role-development.js';
+import {resolveCurrentRole} from './role-development.js';
 import { requestStructuredOutput } from './request-clarification-api.js';
 import { interpretationOutputSchema, reconstructInterpretation } from '../src/js/watch-interpretation.js';
 
@@ -6,7 +8,7 @@ const failureCategories = new Set(['INVALID_INPUT','PROVIDER_CONFIGURATION','PRO
 export const safeInterpretationFailureCategory = cause => failureCategories.has(cause?.failureCategory)
   ? cause.failureCategory : 'APPLICATION_EXCEPTION';
 export const interpretWatchRequest = async (request, {
-  apiKey, model, fetchImpl = fetch, language = 'und', timeoutMs = 15000,
+  apiKey, model, fetchImpl = fetch, language = 'und', timeoutMs = 15000, roleResolver = resolveCurrentRole,
 } = {}) => {
   if (typeof request !== 'string' || !request.trim() || request.length > 500
     || !['en', 'fr', 'mixed', 'und'].includes(language)) throw error('INVALID_INTERPRETATION_REQUEST', 400, 'INVALID_INPUT');
@@ -58,7 +60,21 @@ export const interpretWatchRequest = async (request, {
     if (!output || typeof output !== 'object' || Array.isArray(output) || Object.hasOwn(output, 'originalRequest')) throw error('INTERPRETATION_FAILED', 502);
     phase = 'validation';
     const interpretation = reconstructInterpretation(output, request);
-    return { mode: 'interpretation.v1', executable: false, capabilityStatus: 'not_assessed',
+    let roleResolution;
+    const intent=roleDevelopmentIntent(interpretation);
+    if(intent && interpretation.unresolvedRequirements.every(r=>r.reason==='CURRENT_ROLE_HOLDER_UNVERIFIED')){
+      try{roleResolution=await roleResolver(intent);}catch{/* Preserve actionable unresolved role limitation; never invent a holder. */}
+      if(roleResolution&&!validRoleResolution(roleResolution,intent.originalRole))roleResolution=undefined;
+      if(roleResolution){
+        interpretation.unresolvedRequirements=[];
+        interpretation.evidence=interpretation.evidence.filter(e=>!e.path.startsWith('/unresolvedRequirements/'));
+      }else if(!interpretation.unresolvedRequirements.length){
+        interpretation.unresolvedRequirements=[{text:intent.originalRole,reason:'CURRENT_ROLE_HOLDER_UNVERIFIED'}];
+        const span=interpretation.evidence.find(e=>e.path==='/subjects/0/label');
+        interpretation.evidence.push({...span,path:'/unresolvedRequirements/0'});
+      }
+    }
+    return { ...(roleResolution?{roleResolution}:{}), mode: 'interpretation.v1', executable: false, capabilityStatus: 'not_assessed',
       status: interpretation.ambiguities.length ? 'ambiguous' : interpretation.unresolvedRequirements.length ? 'unresolved' : 'interpreted',
       interpretation };
   } catch (cause) {

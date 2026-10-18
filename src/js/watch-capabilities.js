@@ -1,3 +1,4 @@
+import {roleDevelopmentIntent,validRoleResolution,roleDevelopmentQuery} from './role-development.js';
 import { canonicalJSON as canonical, contentFingerprint } from './structured-fingerprint.js';
 import { validateInterpretation, validateMonitoringPlan } from './watch-interpretation.js';
 import { parseMediaMentionRequest } from './media-mention-request.js';
@@ -32,7 +33,7 @@ const safeLiteral = value => {
   return parsed.recognized && parsed.query === value && !parsed.topics && !parsed.exclusions && !parsed.locale;
 };
 
-export const assessCapabilities = (input, { structured = false } = {}) => {
+export const assessCapabilities = (input, { structured = false, roleResolution } = {}) => {
   let v;
   try { v = validateInterpretation(input); }
   catch (error) {
@@ -43,9 +44,12 @@ export const assessCapabilities = (input, { structured = false } = {}) => {
       issues: [{ code: invalidReference ? 'invalid_subject_reference' : error.reason?.toLowerCase() || 'invalid_interpretation', field: 'interpretation' }],
       clarifications: [], plan: null, alternative: null };
   }
+  const roleIntent=roleDevelopmentIntent(v);
+  const resolvedRole=roleIntent&&validRoleResolution(roleResolution,roleIntent.originalRole);
   const issues = [], clarifications = [];
   const add = (code, field) => { if (!issues.some(i => i.code === code && i.field === field)) issues.push({ code, field }); };
   const ask = (code, field, options = []) => { if (!clarifications.some(i => i.code === code && i.field === field)) clarifications.push({ code, field, options }); };
+  if(roleIntent&&!resolvedRole)add('unsupported_role_resolution','criteria.roleResolution');
   const subjects = new Map(v.subjects.map(s => [s.id, s]));
   const nodes = new Map(v.conditions.map(n => [n.id, n]));
   const capability = capabilityRegistry.capabilities.find(c => c.domain === v.domain);
@@ -105,6 +109,10 @@ export const assessCapabilities = (input, { structured = false } = {}) => {
       issues: [{ code: 'contradictory_topic_role', field: 'topics' }], clarifications: [], plan: null, alternative: null };
     if (positive.length) criteria = { kind: 'media_literal', subjects: positive, matchMode: 'all', topics, exclusions: excluded,
       query: mediaMentionSearchQuery({ subjects: positive, topics, exclusions: excluded }), edition: 'GB:en' };
+    if (roleResolution !== undefined) {
+      if (!resolvedRole) add('unsupported_role_resolution','criteria.roleResolution');
+      else criteria={...criteria,roleResolution:structuredClone(roleResolution),query:roleDevelopmentQuery(roleResolution)};
+    }
     if (criteria?.query.length > 500) add('unsupported_constraint', 'criteria.query');
   } else if (v.domain === 'currency') {
     const n = nodes.get(v.condition);
@@ -166,7 +174,7 @@ export const assessCapabilities = (input, { structured = false } = {}) => {
       status: 'supported', executable: false, domain: v.domain, adapter: capability.adapter,
       subjects: v.subjects.map(s => ({ ...s, label: normal(s.label) })), conditions: v.conditions, condition: v.condition,
       topics: v.topics, exclusions: v.exclusions, geographic: v.geographic, recurrence: v.recurrence,
-      criteria, limitations: capability.limitations });
+      criteria, limitations: criteria?.roleResolution ? [...capability.limitations,'dynamic_verified_role_holder','evidence_required_developments','conservative_event_deduplication'] : capability.limitations });
   }
   return result;
 };
@@ -178,7 +186,7 @@ export const compileMonitoringPlan = (interpretation, options) => {
 };
 export const validateCompiledMonitoringPlan = (plan, interpretation, options) => {
   validateMonitoringPlan(plan);
-  const expected = compileMonitoringPlan(interpretation, options);
+  const expected = compileMonitoringPlan(interpretation, {...options,roleResolution:plan?.criteria?.roleResolution});
   if (canonical(plan) !== canonical(expected)) throw Object.assign(new Error('Monitoring plan does not match its interpretation.'), { code: 'INVALID_MONITORING_PLAN' });
   return structuredClone(plan);
 };

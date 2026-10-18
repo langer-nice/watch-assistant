@@ -1,3 +1,4 @@
+import {validRoleResolution} from './role-development.js';
 import { hasDefinitionVersion } from './watch-definition.js';
 import { structuredMediaCriteria } from './structured-media-execution.js';
 import { currencyCriteriaFor, currencyKey, applyCurrencyCheckResult } from './currency-watch.js';
@@ -47,6 +48,7 @@ const normalizeItem = (item) => {
     author: nullableString(item.author),
     excerpt: nullableString(item.excerpt),
     eventType: nullableString(item.eventType),
+    ...(item.development&&item.roleResolution?{development:structuredClone(item.development),roleResolution:structuredClone(item.roleResolution)}:{}),
     sirens: Array.isArray(item.sirens)
       ? [...new Set(item.sirens.filter((siren) => /^\d{9}$/.test(siren)))]
       : [],
@@ -297,6 +299,11 @@ export const matchFeedItemToStory = (item, storyProfile) => {
 };
 
 export const matchFeedItemToMediaMention = (item, mediaMention) => {
+  if(mediaMention?.roleResolution){
+    const r=item?.roleResolution,d=item?.development;
+    return {matched:Boolean(d&&r&&validRoleResolution(r,mediaMention.roleResolution.originalRole)&&d.officeId===r.officeId&&d.personId===r.personId),evidence:d?[{field:'sourcedDevelopment',strength:'strong',label:d.evidence?.development||''}]:[]};
+  }
+
   const text = canonicalMatchText([
     item?.title,
     item?.excerpt,

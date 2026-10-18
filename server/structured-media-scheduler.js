@@ -31,7 +31,7 @@ export const runStructuredMediaMonitoring = async ({client,env=process.env,sched
    if(!owners.includes(row.user_id)||row.monitoring_state!=='monitoring'||row.deleted_at||!row.lease_token)throw Error('Invalid structured claim');
    validateMediaQuery(row.watch_definition,row.monitoring_source);
    const watch={...row.watch_definition,id:row.id,monitoringSource:row.monitoring_source};
-   const feed=await withinMediaDeadline(()=>fetchFeed(row.monitoring_source.url,{timeoutMs:Math.min(8000,Math.max(1,deadline-Date.now()))}),deadline);
+   const feed=await withinMediaDeadline(()=>fetchFeed(row.monitoring_source.url,{roleContext:{criteria:row.watch_definition.plan.criteria,baselineAt:prior?.baseline_at,priorItems:prior?.items},timeoutMs:Math.min(8000,Math.max(1,deadline-Date.now()))}),deadline);
    const snapshot=applyFeedCheckResult(watch,feed).changes.monitoringSnapshot;
    const items=snapshot.items.map(item=>({...item,identityKeys:mediaArticleIdentityKeys(item)}));
    Object.assign(finish,{p_checked_at:snapshot.checkedAt,p_source_title:snapshot.source?.title,p_source_url:snapshot.source?.url,p_items:items,p_matching:items.filter(item=>matchFeedItemToWatch(item,watch).matched)});

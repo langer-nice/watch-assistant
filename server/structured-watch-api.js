@@ -1,3 +1,5 @@
+import {resolveCurrentRole} from './role-development.js';
+import {roleDevelopmentIntent} from '../src/js/role-development.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { structuredCreationEnabled, requireStructuredCreationAccess } from './structured-creation-access.js';
 // Disabled-by-default endpoint; every operation requires server-authorized test access.
@@ -10,7 +12,7 @@ import { authorizationError, authorizationConfiguration, authorizationBindings, 
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MAX_BODY_BYTES = 98304;
-const safeCodes = new Set(['STRUCTURED_FEATURE_UNAVAILABLE','AUTH_REQUIRED','INVALID_SESSION','AUTH_UNAVAILABLE','SERVER_NOT_CONFIGURED','INVALID_BODY',
+const safeCodes = new Set(['ROLE_EVIDENCE_UNAVAILABLE','STRUCTURED_FEATURE_UNAVAILABLE','AUTH_REQUIRED','INVALID_SESSION','AUTH_UNAVAILABLE','SERVER_NOT_CONFIGURED','INVALID_BODY',
   'INVALID_PLAN_AUTHORIZATION','UNSUPPORTED_AUTHORIZATION_VERSION','PLAN_AUDIENCE_MISMATCH','EXPIRED_PLAN_AUTHORIZATION',
   'PLAN_OWNER_MISMATCH','PLAN_WATCH_MISMATCH','PLAN_OPERATION_MISMATCH','PLAN_MUTATION_MISMATCH','PLAN_REVISION_MISMATCH',
   'PLAN_DEFINITION_MISMATCH','PLAN_VERSION_MISMATCH','UNSUPPORTED_WATCH_VERSION','INVALID_WATCH_DEFINITION','WATCH_SOURCE_MISMATCH',
@@ -45,7 +47,7 @@ const readBody = async request => {
   return value;
 };
 export const createStructuredWatchMiddleware = ({ env = process.env, authenticate = authenticateSupabaseRequest,
-  serviceClient, now = Date.now, creationOnly = false, ...options } = {}) => async (request,response,next) => {
+  serviceClient, resolveRole = resolveCurrentRole, now = Date.now, creationOnly = false, ...options } = {}) => async (request,response,next) => {
   const url = new URL(request.url || '/', 'http://localhost');
   if (url.pathname !== '/api/structured-watches') return next?.();
   const send = (status,body) => {
@@ -88,6 +90,13 @@ export const createStructuredWatchMiddleware = ({ env = process.env, authenticat
       let interpretation;
       try { interpretation = validateInterpretation(body.interpretation); }
       catch { throw authorizationError('INVALID_STRUCTURED_INTERPRETATION',422); }
+      if(body.plan?.criteria?.roleResolution){
+        const r=body.plan.criteria.roleResolution,intent=roleDevelopmentIntent(interpretation);
+        if(!intent)throw authorizationError('INVALID_MONITORING_PLAN',422);
+        const current=await resolveRole(intent);
+        if(current.personId!==r.personId||JSON.stringify(current.names)!==JSON.stringify(r.names)||current.sourceUrl!==r.sourceUrl
+          ||now()-Date.parse(r.verifiedAt)>3600000||Date.parse(r.verifiedAt)>now())throw authorizationError('INVALID_MONITORING_PLAN',422);
+      }
       let plan;
       try { plan = validateCompiledMonitoringPlan(body.plan,interpretation,{structured:true}); }
       catch (error) { throw authorizationError(error.code === 'MONITORING_PLAN_NOT_SUPPORTED' ? error.code : 'INVALID_MONITORING_PLAN',422); }

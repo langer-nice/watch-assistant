@@ -87,7 +87,7 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
       return send(200, result);
     }
     validateMediaQuery(row.watch_definition, row.monitoring_source);
-    const feed = await fetchFeed(row.monitoring_source.url);
+    const feed = await fetchFeed(row.monitoring_source.url,{roleContext:{criteria:row.watch_definition?.plan?.criteria,baselineAt:prior?.baseline_at,priorItems:prior?.items}});
     const watch = { ...row.watch_definition, id: row.id, monitoringSource: row.monitoring_source, status: row.current_status };
     const normalized = applyFeedCheckResult(watch, feed).changes.monitoringSnapshot;
     const items = normalized.items.map(item => ({ ...item, identityKeys: mediaArticleIdentityKeys(item) }));

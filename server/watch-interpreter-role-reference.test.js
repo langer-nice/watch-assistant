@@ -11,7 +11,7 @@ const role=(request,label,{topic,language='en',reason=current}={})=>fixture(requ
 });
 const interpret=async value=>{
  let calls=0;
- const result=await interpretWatchRequest(value.originalRequest,{apiKey:'offline-fixture-only',model:'configured-model',language:value.language,fetchImpl:async(_url,options)=>{
+ const result=await interpretWatchRequest(value.originalRequest,{roleResolver:async()=>null,apiKey:'offline-fixture-only',model:'configured-model',language:value.language,fetchImpl:async(_url,options)=>{
   calls++;const body=JSON.parse(options.body);assert.equal(JSON.parse(body.input).request,value.originalRequest);assert.equal(body.model,'configured-model');assert.equal(body.store,false);assert.equal(body.text.format.strict,true);
   assert.match(body.instructions,/No verified current-officeholder data or lookup tool is supplied/);
   assert.match(body.instructions,/CURRENT_ROLE_HOLDER_UNVERIFIED/);assert.match(body.instructions,/RELATIVE_ROLE_HOLDER_UNVERIFIED/);

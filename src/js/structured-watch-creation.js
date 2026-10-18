@@ -32,6 +32,7 @@ const limitations = {
 };
 export const structuredCreationError = (code,language) => {
  const c=copy[language==='fr'?'fr':'en'];
+ if(code==='ROLE_EVIDENCE_UNAVAILABLE')return language==='fr'?'Le titulaire actuel n’a pas pu être vérifié auprès de la source officielle. Réessayez plus tard ; aucune identité n’a été supposée.':'The current holder could not be verified with the official source. Try again later; no identity was assumed.';
  if (['AUTH_REQUIRED','INVALID_SESSION','AUTH_SESSION_CHANGED','AUTH_UNAVAILABLE'].includes(code)) return c.auth;
  if (['STRUCTURED_BACKEND_DISABLED','STRUCTURED_FEATURE_UNAVAILABLE'].includes(code)) return c.unavailable;
  if (['AI_SERVICE_UNAVAILABLE','AI_TIMEOUT'].includes(code)) return c.ai;
@@ -90,7 +91,7 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
    if(!ready(epoch,owner,original,language))return true;
    const interpretation=validateInterpretation(interpreted.interpretation);
    if(interpretation.originalRequest!==original)throw Object.assign(Error('request'),{code:'INVALID_WATCH_DEFINITION'});
-   const assessed=assessCapabilities(interpretation,{structured:true});
+   const assessed=assessCapabilities(interpretation,{structured:true,roleResolution:interpreted.roleResolution});
    if(assessed.status!=='supported'){
     const question=interpretation.ambiguities[0]?.question;
     const messages=assessed.clarifications.length?[question|| (language==='fr'?'Quelle personne ou quel sujet souhaitez-vous suivre précisément ?':'Which person or subject exactly should we follow?')]:assessed.issues.map(i=>limitations[i.code]?.[language==='fr'?1:0]||c.otherAdapter);
@@ -112,6 +113,10 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
    pending={...identity,definition,token:issued.token};
    const criteria=definition.plan.criteria;
    const messages=[];
+   if(criteria.roleResolution){const r=criteria.roleResolution;messages.push(language==='fr'
+    ? `Titulaire vérifié : ${r.names.at(-1)}. Source : ${r.sourceUrl}. Vérifié le ${r.verifiedAt}. Le titulaire sera vérifié à chaque contrôle. Seuls les développements de santé sourcés et datés pourront être signalés. Les rapports du même type, état et jour sont regroupés de façon conservatrice.`
+    : `Verified current holder: ${r.name}. Source: ${r.sourceUrl}. Verified at ${r.verifiedAt}. The holder will be checked again on each monitoring run. Only sourced, dated health developments can become alerts. Reports of the same type, state and day are conservatively grouped.`);}
+
    if(criteria.subjects.length>1)messages.push(c.all);
    if(criteria.topics.length)messages.push(`${c.topics}: ${criteria.topics.join(', ')}`);
    const focus=definition.interpretation.topics.filter(t=>t.role==='coverage_focus').map(t=>t.label);if(focus.length)messages.push(`${c.focus}: ${focus.join(', ')}`);
