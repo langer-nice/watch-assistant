@@ -79,7 +79,7 @@ export const resolveUrlMonitoringSource = async (
   if (existingSource) {
     return { ...analysis, monitoringSource: existingSource };
   }
-  const request = [analysis?.sourceTitle, analysis?.source]
+  const request = analysis?.monitoringQuery||[analysis?.sourceTitle, analysis?.source]
     .filter((value) => typeof value === 'string' && value.trim())
     .map((value) => value.trim())
     .join(' ');
