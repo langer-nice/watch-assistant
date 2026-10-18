@@ -4698,7 +4698,8 @@ export function initForm() {
       watchError.textContent = '';
     }
 
-    if (!isEditMode && structuredCreation?.isSelected()) {
+    // URLs retain the existing article/source review even when Structured text review is selected.
+    if (!isEditMode && !isUrl(request) && structuredCreation?.isSelected()) {
       await structuredCreation.run(originalRequest,getLanguage());
       return;
     }
