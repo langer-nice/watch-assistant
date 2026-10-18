@@ -200,3 +200,7 @@ the snapshot/identity ledger; they are not asserted to be new developments.
 Existing identity deduplication remains authoritative (including for later edits
 to an already observed URL). This does not rewrite sent digests, replay history,
 change legacy freshness behavior, consent, scheduling or email delivery.
+
+### Restricted Staging morning delivery
+
+Structured Staging digests may be submitted only from 08:00 inclusive to 08:30 exclusive in `Europe/Paris` (IANA CET/CEST). A separate cron-job.org task calls the existing protected email-only scope at 08:15 Paris; the existing hourly monitoring task and per-Watch intervals are unchanged. No pending digest is prepared or claimed outside that window. The worker checks again immediately before provider submission; if preparation crosses the boundary, a service-only RPC releases only its own unsubmitted claim, preserving pending articles for a later morning. It never releases an uncertain provider submission. Older prepared digests retain priority per Watch without changing their contents or the UTC-day uniqueness guards. Production retains its existing timing. This schedules provider submission; downstream inbox arrival remains dependent on the mail provider.

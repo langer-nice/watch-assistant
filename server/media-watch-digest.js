@@ -16,6 +16,13 @@ export const mediaDigestSendHour = env => {
   const value = env?.MEDIA_WATCH_DIGEST_SEND_HOUR_UTC ?? '8';
   return /^(?:[0-9]|1[0-9]|2[0-3])$/.test(value) ? Number(value) : null;
 };
+// Structured Staging delivery only. UTC grouping/idempotency remain unchanged.
+export const parisDigestWindow = (at=Date.now()) => {
+ const date=new Date(at);if(!Number.isFinite(date.getTime()))return {open:false};
+ const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Paris',hourCycle:'h23',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(date).map(p=>[p.type,p.value]));
+ const seconds=Number(parts.hour)*3600+Number(parts.minute)*60+Number(parts.second);
+ return {open:seconds>=8*3600&&seconds<8*3600+1800,utcHour:date.getUTCHours(),closesAt:date.getTime()+(8*3600+1800-seconds)*1000-date.getUTCMilliseconds()};
+};
 const clean = (s, max=300) => typeof s === 'string' ? s.replace(/\s+/gu,' ').trim().slice(0,max) : '';
 const escape = s => String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const https = value => {try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u:null;}catch{return null;}};
@@ -52,15 +59,18 @@ export const renderMediaWatchDigest = ({locale,watchId,watchTitle,period,article
   const html=`<!doctype html><html lang="${lang}"><body style="font-family:Arial,sans-serif;color:#18181b"><h1>${escape(subject)}</h1><p>${escape(intro)}</p>${shown.map(g=>`<section><h2>${escape(g[0].title)}</h2>${g.map(a=>`<p><a href="${escape(a.url)}">${escape(clean(a.source)||a.title)}</a> ${escape(/^\d{4}-\d{2}-\d{2}/.exec(a.publishedAt||'')?.[0]||'')}</p>`).join('')}</section>`).join('')}<p><a href="${escape(detail.href)}">${escape(all)} (${count})</a></p><p><a href="${escape(preferences.href)}">${escape(off)}</a></p></body></html>`;
   return {subject,text,html};
 };
-export const processMediaWatchDigests = async ({client,env=process.env,sender=sendWithResend,deadline=Date.now()+30000,digestSelection}={}) => {
+export const processMediaWatchDigests = async ({client,env=process.env,sender=sendWithResend,deadline=Date.now()+30000,digestSelection,now=Date.now}={}) => {
   const summary={status:'disabled',claimedCount:0,sentCount:0,failedCount:0};
   const exact=digestSelection!==undefined;
   if(exact && (getMediaWatchEmailConfig(env) || !getStructuredMediaStagingEmailConfig(env)
     || !validStructuredMediaDigestSelection(digestSelection,env)))return {...summary,status:'invalid-selection'};
   if(!mediaDailyDigestEnabled(env))return summary;
-  const production=getMediaWatchEmailConfig(env),config=production||getStructuredMediaStagingEmailConfig(env),hour=mediaDigestSendHour(env);
+  const production=getMediaWatchEmailConfig(env),config=production||getStructuredMediaStagingEmailConfig(env);
+  let hour=mediaDigestSendHour(env);
   if(!config||hour===null)return summary;
   const structured=!production,owners=structured?structuredEmailTestOwners(env):[];
+  const window=()=>parisDigestWindow(now());
+  if(structured){const slot=window();if(!slot.open)return {...summary,status:'outside-morning-window'};hour=slot.utcHour;}
   const rpc=async(name,args)=>{const r=await withinMediaDeadline(()=>client.rpc(name,args),deadline);if(r.error)throw Object.assign(Error('Digest SQL unavailable'),{code:'DATABASE_ERROR'});return r.data;};
   const selection=exact?Object.fromEntries(Object.entries(digestSelection).map(([k,v])=>[k,v.toLowerCase()])):null;
   // Exact delivery never prepares or enumerates any other digest or article.
@@ -68,16 +78,18 @@ export const processMediaWatchDigests = async ({client,env=process.env,sender=se
   let scopedSelections;
   if(!selection && watchScope !== null){
     scopedSelections=await rpc('prepare_scoped_structured_media_digests',{p_send_hour:hour,p_owners:owners,p_watches:watchScope});
-    if(!Array.isArray(scopedSelections)||scopedSelections.length>2||scopedSelections.some(item=>!validStructuredMediaDigestSelection(item,env)))throw Object.assign(Error('Invalid scoped digest batch'),{code:'DATABASE_ERROR'});
+    if(!Array.isArray(scopedSelections)||scopedSelections.some(item=>!validStructuredMediaDigestSelection(item,env)))throw Object.assign(Error('Invalid scoped digest batch'),{code:'DATABASE_ERROR'});
+    // Old prepared digests keep their contents and priority; at most one per Watch/day.
+    const seen=new Set();scopedSelections=scopedSelections.filter(item=>{if(seen.has(item.watchId))return false;seen.add(item.watchId);return true;});
   }
   if(!selection && !scopedSelections)await rpc('prepare_media_watch_digests',{p_send_hour:hour,p_owners:owners,p_structured:structured});
   const ids=selection?[selection.digestId]:scopedSelections?scopedSelections.map(item=>item.digestId):await rpc('pending_media_watch_digests',{p_owners:owners,p_structured:structured});
   if(!Array.isArray(ids)||ids.length>10)throw Error('Invalid digest batch');
   summary.status='success';
   for(const id of ids){
-    if(Date.now()>=deadline)break;
+    if(Date.now()>=deadline||(structured&&!window().open))break;
     const selected=selection||scopedSelections?.find(item=>item.digestId===id);
-    const token=randomUUID();let claimed=null,boundary=false;
+    const token=randomUUID();let claimed=null,boundary=false,providerStarted=false;
     try{
       claimed=await rpc(selected?'claim_structured_media_test_digest':'claim_media_watch_digest',selected
         ?{p_digest_id:id,p_watch_id:selected.watchId,p_owner:selected.ownerId,p_claim_token:token,p_owners:[selected.ownerId],p_send_hour:hour}
@@ -91,13 +103,20 @@ export const processMediaWatchDigests = async ({client,env=process.env,sender=se
       if(auth.error||!user?.email||!user.email_confirmed_at||(structured&&!structuredMediaEmailDeliveryAllowed(env,claimed.user_id,user.email)))throw Object.assign(Error('Recipient unavailable'),{code:'RECIPIENT_UNVERIFIED'});
       const locale=await rpc('get_media_watch_notification_locale',{p_user_id:claimed.user_id});
       const content=renderMediaWatchDigest({locale,watchId:claimed.watch_id,watchTitle:claimed.watch_title,period:claimed.period,articles:claimed.articles,baseUrl:config.baseUrl});
+      if(structured&&!window().open)throw Object.assign(Error('Morning window closed'),{code:'DIGEST_WINDOW_CLOSED'});
       boundary=true;
       if(await rpc('begin_media_watch_digest',{p_id:id,p_token:token})!==true){boundary=false;throw Object.assign(Error('Digest no longer eligible'),{code:'DATABASE_ERROR'});}
+      // If preparation crossed 08:30, no provider request has begun: release safely.
+      if(structured&&!window().open)throw Object.assign(Error('Morning window closed'),{code:'DIGEST_WINDOW_CLOSED'});
       const key='watch-digest-'+createHash('sha256').update(`${claimed.watch_id}\0${claimed.period}`).digest('hex');
-      const sent=await withinMediaDeadline(()=>sender({...config,to:user.email,...content,idempotencyKey:key}),deadline);
+      const sent=await withinMediaDeadline(()=>{if(structured&&!window().open)throw Object.assign(Error('Morning window closed'),{code:'DIGEST_WINDOW_CLOSED'});providerStarted=true;return sender({...config,to:user.email,...content,idempotencyKey:key});},deadline);
       if(await rpc('finish_media_watch_digest',{p_id:id,p_token:token,p_provider:sent.id,p_error:null})!==true)throw Object.assign(Error('Completion unknown'),{code:'DATABASE_ERROR'});
       summary.sentCount++;
     }catch(error){
+      if(structured&&claimed&&!providerStarted&&error.code==='DIGEST_WINDOW_CLOSED'){
+        try{await rpc('defer_structured_digest_before_send',{p_id:id,p_token:token});}catch{summary.failedCount++;} // Never mark unsent updates failed or retry an uncertain provider submission.
+        continue;
+      }
       summary.failedCount++;
       const code=boundary&&!definiteProviderFailure(error.code)?'EMAIL_DELIVERY_OUTCOME_UNKNOWN':safeEmailCode(error);
       if(claimed)try{await rpc('finish_media_watch_digest',{p_id:id,p_token:token,p_provider:null,p_error:code});}catch{ /* Submission boundary remains durable: never retry an uncertain submission. */ }
