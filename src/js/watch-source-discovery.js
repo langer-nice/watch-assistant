@@ -31,14 +31,14 @@ export const normalizeMonitoringSource = (source) => {
 
 export const requestMonitoringSource = async (
   request,
-  { language = 'en', fetchImpl = fetch, signal } = {},
+  { language = 'en', fetchImpl = fetch, signal, storyDiscovery = false } = {},
 ) => {
   let response;
   try {
     response = await fetchImpl('/api/monitoring-source', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ request, language }),
+      body: JSON.stringify({ request, language, ...(storyDiscovery ? {storyDiscovery:true} : {}) }),
       signal,
     });
   } catch (error) {
@@ -62,7 +62,7 @@ const requestUrlMonitoringSource = async (request, options = {}) => {
   let lastError = null;
   for (const language of URL_DISCOVERY_LANGUAGES) {
     try {
-      return await requestMonitoringSource(request, { ...requestOptions, language });
+      return await requestMonitoringSource(request, { ...requestOptions, language, storyDiscovery:true });
     } catch (error) {
       if (!(error instanceof SourceDiscoveryError)) throw error;
       lastError = error;

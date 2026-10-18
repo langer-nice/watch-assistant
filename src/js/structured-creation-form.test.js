@@ -4,6 +4,7 @@ import { register } from 'node:module';
 import { parseHTML } from 'linkedom';
 import { readFile } from 'node:fs/promises';
 import { fixture,individual,predicate } from '../../server/test-support/watch-interpretation-fixtures.js';
+import { createMonitoringSourceMiddleware } from '../../server/monitoring-source-api.js';
 import { createStructuredWatchMiddleware } from '../../server/structured-watch-api.js';
 register('./test-support/json-module-loader.js',import.meta.url);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
@@ -25,14 +26,19 @@ for(const articleUrl of [false,true])test(articleUrl?'article URL bypasses selec
  globalThis.fetch=async(path,options={})=>{calls.push(path);
   if(path==='/api/media-watches'){assert.notEqual(options.method,'POST');return Response.json({watches:[],emailEnabled:false});}
   if(articleUrl&&path==='/api/plan-watch?scope=migrated_routes')return Response.json({strategy:'media_story',connector:'media_story',country:null,identifier:suppliedUrl,confidence:0.9,needsClarification:false,clarificationQuestion:null});
-  if(articleUrl&&path==='/api/page-title')return Response.json({title:'Incendie de l’hôtel de ville de Limoges',sourceUrl:suppliedUrl,siteName:'Le Monde',pageType:'news_article',contentAccessLimited:true,monitoringSource:{type:'rss',url:'https://news.google.com/rss/search?q=Limoges+incendie',discovery:'news-search',query:'Limoges incendie'}});
+  if(articleUrl&&path==='/api/page-title')return Response.json({title:'Incendie de l’hôtel de ville de Limoges',sourceUrl:suppliedUrl,siteName:'Le Monde',pageType:'news_article',contentAccessLimited:true});
+  if(articleUrl&&path==='/api/monitoring-source'){
+   assert.equal(JSON.parse(options.body).storyDiscovery,true);
+   const handler=createMonitoringSourceMiddleware({lookup:async()=>[{address:'8.8.8.8',family:4}],fetchImpl:async()=>new Response('<rss><channel><title>Fixture public news feed</title><item><guid>fixture-only</guid><title>Limoges</title><link>https://example.test/limoges</link></item></channel></rss>',{headers:{'content-type':'application/rss+xml'}})});
+   let result;const response={setHeader(){},end(s){result=JSON.parse(s);}};await handler({url:path,method:'POST',body:JSON.parse(options.body)},response);return Response.json(result,{status:response.statusCode});
+  }
   if(path==='/api/plan-watch?mode=interpretation.v1'){assert.equal(JSON.parse(options.body).request,request);return Response.json({mode:'interpretation.v1',interpretation,executable:false});}
   assert.equal(path,'/api/structured-watches');let payload;const res={setHeader(){},end(raw){payload=JSON.parse(raw);}};await middleware({url:path,method:options.method,body:options.body?JSON.parse(options.body):undefined},res);return Response.json(payload,{status:res.statusCode});
  };
  await ms.configureMediaWatchServerStore(auth);const {initForm}=await import('./navigation.js');const form=document.querySelector('#newWatchForm');form.watchRequest=document.querySelector('[name="watchRequest"]');form.whyFollowing=document.querySelector('[name="whyFollowing"]');form.watchRequest.value=request;initForm();
  await until(()=>form.querySelector('[data-structured-opt-in]'));form.querySelector('[data-structured-opt-in]').checked=true;form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));if(articleUrl){
   try{await until(()=>document.querySelector('#urlReviewCreate')&&!document.querySelector('#urlReviewCreate').disabled&&!document.querySelector('#urlReview').hidden);}catch(e){e.message+=JSON.stringify({calls,error:document.querySelector('#watchError')?.textContent,review:document.querySelector('#urlReview')?.textContent});throw e;}
-  assert.equal(persisted,undefined);assert.equal(form.querySelector('[data-structured-review]'),null);assert.ok(calls.includes('/api/page-title'));
+  assert.equal(persisted,undefined);assert.equal(form.querySelector('[data-structured-review]'),null);assert.ok(calls.includes('/api/page-title'));assert.ok(calls.includes('/api/monitoring-source'));
   assert.equal(calls.some(p=>p.includes('interpretation.v1')||p.includes('watch-suggestion')||p.includes('check')||p.includes('cron')),false);
   assert.ok(document.querySelector('#urlReview').textContent.includes('Limoges'));return;
  }

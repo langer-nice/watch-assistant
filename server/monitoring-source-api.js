@@ -111,6 +111,7 @@ export const createMonitoringSourceMiddleware = (options = {}) => (
       sendJson(response, 200, await discoverTextMonitoringSource({
         request: body.request,
         language: body.language,
+        storyDiscovery: body.storyDiscovery === true,
       }, options));
     } catch (error) {
       const safeError = error.code === 'MEDIA_QUERY_REVIEW_REQUIRED' ? error : error instanceof MonitoringSourceDiscoveryError
