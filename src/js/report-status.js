@@ -6,6 +6,7 @@ import { getUnreadUpdates } from './watch-updates.js';
 
 export const WATCH_CLASSIFICATIONS = Object.freeze({
   ATTENTION: 'attention',
+  PENDING: 'pending',
   NEW: 'new',
   UPDATED: 'updated',
   WATCHING: 'watching',
@@ -76,13 +77,20 @@ export const getUserFacingWatchClassification = (watch, { now = new Date() } = {
   if (!watch || typeof watch !== 'object' || watch.status === 'completed') {
     return WATCH_CLASSIFICATIONS.WATCHING;
   }
-  if (monitoringUnavailable(watch) || ['failed', 'pending'].includes(watchCreationState(watch)) || isUserActionRequired(watch)) {
+  const creation=watchCreationState(watch);
+  const awaitingFirst=creation==='pending'&&watch.monitoringAvailability==='saved'
+    && !watch.lastChecked&&watch.lastCheckAttempt?.status!=='succeeded'
+    && !watch.structuredExecutionDisabled&&!watch.monitoringIssueReason&&!watch.attentionReason
+    && !['setup-required','unavailable','needs-attention'].includes(watch.monitoringStatus?.state)
+    && (hasDefinitionVersion(watch)?watch.monitoringState==='monitoring':watch.monitoringState==='monitoring'||watch.status==='watching');
+  if (monitoringUnavailable(watch) || creation==='failed' || (creation==='pending'&&!awaitingFirst) || isUserActionRequired(watch)) {
     return WATCH_CLASSIFICATIONS.ATTENTION;
   }
   // A synchronized Structured definition is not proof of active monitoring.
   if (hasDefinitionVersion(watch) && (watch.monitoringState === 'paused' || watch.status === 'paused')) {
     return WATCH_CLASSIFICATIONS.PAUSED;
   }
+  if(awaitingFirst)return WATCH_CLASSIFICATIONS.PENDING;
   const meaningful = getMeaningfulWatchUpdate(watch);
   // Persisted Update status is the acknowledgement record. Legacy Watches that
   // predate structured Updates retain their old meaningful-text presentation.

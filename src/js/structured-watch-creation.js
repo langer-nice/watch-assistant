@@ -1,3 +1,4 @@
+import { structuredWatchObjective } from './media-watch-title.js';
 import { assessCapabilities } from './watch-capabilities.js';
 import { validateInterpretation } from './watch-interpretation.js';
 import { createWatchDefinition, validateWatchDefinition, structuredMonitoringSource } from './watch-definition.js';
@@ -108,7 +109,7 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
     show(assessed.clarifications.length?c.clarify:c.unsupported,details);button(c.edit,edit);button(c.cancel,clear);message('');return true;
    }
    if(assessed.plan.adapter!=='google_news_literal_v1'){show(c.unsupported,[c.otherAdapter]);button(c.edit,edit);button(c.cancel,clear);message('');return true;}
-   const identity=revalidation?.identity||{watchId:uuid(),mutationId:uuid(),operation:'create',expectedRevision:0,title:assessed.plan.criteria.subjects.join(' + ').slice(0,200)};
+   const identity=revalidation?.identity||{watchId:uuid(),mutationId:uuid(),operation:'create',expectedRevision:0,title:structuredWatchObjective({plan:assessed.plan},language)?.title||assessed.plan.criteria.subjects.join(' + ').slice(0,200)};
    const issued=await request('/api/structured-watches',{action:'issue',...identity,interpretation,plan:assessed.plan});
    if(!ready(epoch,owner,original,language))return true;
    const definition=validateWatchDefinition(issued.definition,issued.source);
@@ -148,16 +149,16 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
      const payload={action:'confirm',...pending};const result=await request('/api/structured-watches',payload);
      if(!ready(epoch,owner,original,language))return;
      if(result.receipt?.id!==pending.watchId||result.receipt?.ownerId!==owner||result.receipt?.mutationId!==pending.mutationId||result.receipt?.monitoringState!=='paused')throw Object.assign(Error('save'),{code:'STRUCTURED_PERSISTENCE_UNAVAILABLE'});
-     saved=true;const id=pending.watchId;pending=null;let summary=c.paused;
+     saved=true;const id=pending.watchId;pending=null;let summary=c.paused,activated=false;
      if(activate){
       try{
        const active=await request('/api/structured-watches',{action:'monitoring',watchId:id,expectedRevision:result.receipt.revision,active:true});
        if(!ready(epoch,owner,original,language))return;
        if(active.id!==id||active.ownerId!==owner||active.revision!==result.receipt.revision+1||active.monitoringState!=='monitoring')throw Error('activation');
-       summary=language==='fr'?'Surveillance quotidienne activée. Le premier contrôle établira une référence. Emails désactivés.':'Daily monitoring activated. The first check will establish a baseline. Emails off.';
+       activated=true;summary=language==='fr'?'Surveillance quotidienne activée. Le premier contrôle établira une référence. Emails désactivés.':'Daily monitoring activated. The first check will establish a baseline. Emails off.';
       }catch{summary=language==='fr'?'Watch enregistrée ; activation non confirmée. Ouvrez la Watch pour vérifier son état avant de réessayer. Aucun nouvel enregistrement nécessaire.':'Watch saved; activation could not be confirmed. Open the Watch to check its state before retrying. Do not create it again.';}
      }
-     if(!ready(epoch,owner,original,language))return;show(c.saved,[summary]);
+     if(!ready(epoch,owner,original,language))return;const objective=activated&&structuredWatchObjective(definition,language);show(objective?objective.activated:c.saved,objective?[objective.description,objective.baseline]:[summary]);
      const link=document.createElement('a');link.className='button button--secondary';link.href=`watch-detail.html?id=${encodeURIComponent(id)}`;link.textContent=c.open;panel.append(link);
      message('');
     }catch(e){if(ready(epoch,owner,original,language)){

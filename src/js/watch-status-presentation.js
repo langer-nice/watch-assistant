@@ -1,6 +1,7 @@
 import { WATCH_CLASSIFICATIONS } from './report-status.js';
 
 export const getWatchStatusPresentation = (classification, translate) => {
+  if(classification===WATCH_CLASSIFICATIONS.PENDING)return {label:translate('statuses.awaitingFirstCheck'),modifier:'stable'};
   if (classification === WATCH_CLASSIFICATIONS.ATTENTION) {
     return { label: translate('statuses.attention'), modifier: 'attention' };
   }

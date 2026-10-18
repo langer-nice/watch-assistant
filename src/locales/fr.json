@@ -554,6 +554,7 @@
     "general": "Général"
   },
   "statuses": {
+    "awaitingFirstCheck": "En attente du premier contrôle",
     "attention": "Nécessite votre attention",
     "watching": "Sous surveillance",
     "updated": "Mis à jour",

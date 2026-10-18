@@ -554,6 +554,7 @@
     "general": "General"
   },
   "statuses": {
+    "awaitingFirstCheck": "Awaiting first check",
     "attention": "Needs attention",
     "watching": "Watching",
     "updated": "Updated",

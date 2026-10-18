@@ -126,7 +126,7 @@ for(const language of ['en','fr'])test(`${language}: daily activation requires e
  choice.checked=true;choice.dispatchEvent(new h.input.ownerDocument.defaultView.Event('change'));assert.match(h.buttons()[0].textContent,/daily|quotidienne/);
  h.buttons()[0].click();await until(()=>h.review().querySelector('a'));assert.equal(h.state.records.size,1);assert.equal(h.state.rpcCount,2);
  const writes=h.state.calls.filter(c=>['confirm','monitoring'].includes(c.body?.action));assert.equal(writes[0].body.action,'confirm');assert.deepEqual(writes[1].body,{action:'monitoring',watchId:writes[0].body.watchId,expectedRevision:1,active:true});
- assert.match(h.review().textContent,language==='fr'?/quotidienne activée/:/Daily monitoring activated/);assert.ok(h.state.calls.every(c=>!c.path.includes('check')&&!c.path.includes('cron')&&!c.path.includes('email')));
+ assert.match(h.review().textContent,language==='fr'?/surveillance activée/:/monitoring activated/);assert.ok(h.state.calls.every(c=>!c.path.includes('check')&&!c.path.includes('cron')&&!c.path.includes('email')));
 });
 test('activation failure preserves the saved Watch and directs to its state without recreating',async t=>{
  const h=await harness(t,news('Monitor news about Gucci.','Gucci'),{monitoring:true,activationFailure:true});await h.run();h.review().querySelector('[data-structured-activate]').checked=true;
