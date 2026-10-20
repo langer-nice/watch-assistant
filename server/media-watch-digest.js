@@ -113,8 +113,12 @@ export const processMediaWatchDigests = async ({client,env=process.env,sender=se
       if(await rpc('finish_media_watch_digest',{p_id:id,p_token:token,p_provider:sent.id,p_error:null})!==true)throw Object.assign(Error('Completion unknown'),{code:'DATABASE_ERROR'});
       summary.sentCount++;
     }catch(error){
-      if(structured&&claimed&&!providerStarted&&error.code==='DIGEST_WINDOW_CLOSED'){
-        try{await rpc('defer_structured_digest_before_send',{p_id:id,p_token:token});}catch{summary.failedCount++;} // Never mark unsent updates failed or retry an uncertain provider submission.
+      if(structured&&claimed&&!providerStarted){
+        // No provider call occurred: keep the frozen articles eligible for a safe
+        // retry, including transient Auth/SQL errors and a lost begin response.
+        if(error.code!=='DIGEST_WINDOW_CLOSED')summary.failedCount++;
+        try{await rpc('defer_structured_digest_before_send',{p_id:id,p_token:token});}
+        catch{if(error.code==='DIGEST_WINDOW_CLOSED')summary.failedCount++;}
         continue;
       }
       summary.failedCount++;
