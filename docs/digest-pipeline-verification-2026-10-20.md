@@ -5,7 +5,7 @@ Two defects were reproduced before correction:
 1. After a digest was deferred past 08:30, account-wide selection could return both an older and a newer envelope for one Watch. Sending the oldest exhausted the daily submission slot; rejecting the newer boundary then marked its unsent members failed. The integration test observed zero pending articles instead of one.
 2. A transient recipient Auth lookup failure before any provider call marked pending members failed. The test observed `failed` instead of `pending`. The worker now uses the existing token-bound deferral before any provider invocation; uncertain provider submissions keep the existing terminal boundary.
 
-Structured selection now returns one oldest envelope per Watch, excluding active claims and Watches with a submission on the current UTC day. Expired pre-submission claims remain recoverable. Legacy selection is unchanged. The Staging migration changes no Watch, preference, member, template, frequency, scheduler or window.
+The smallest correction reuses the existing pre-provider deferral RPC for every Structured failure before the provider call, including a later envelope blocked by the existing daily limit. Oldest-first selection and all SQL remain unchanged. The older eligible envelope sends; the later one stays pending for a later permitted morning. Active/expired claims and uncertain provider submissions retain existing fencing. No Watch, preference, member, template, frequency, scheduler or window is changed. An unnecessary selector migration was rejected by automatic approval review and removed without application; the complete test also passes against the existing SQL.
 
 ## Actual local evidence
 
@@ -19,6 +19,6 @@ Covered: silent baseline; Home report capture; independent automatic capture of 
 
 ## Evidence limits and hosted release
 
-The authorized release is one Git-pinned Staging Preview and this selector migration. The post-release hosted check is read-only: effective Staging branch configuration/alias, installed function bodies and privileges, and existing approved-account notification/digest counts. It must never invoke monitoring, cron, prepare, claim, begin, or Resend. No hosted fixtures, baseline reset, old-article replay or settings changes are permitted.
+The authorized release is one Git-pinned Staging Preview. No database migration is needed or applied. The post-release hosted check is read-only: effective Staging branch configuration/alias, installed function bodies and privileges, and existing approved-account notification/digest counts. It must never invoke monitoring, cron, prepare, claim, begin, or Resend. No hosted fixtures, baseline reset, old-article replay or settings changes are permitted.
 
 Previous Royal Caribbean/Sinner sent records, provider identifiers and user-confirmed receipt are historical actual-delivery evidence. Today's complete application path uses a fake provider; it does not establish a new live Resend submission or future inbox receipt. Future automatic email still requires genuine eligible new content before a permitted window. Production remains unchanged.
