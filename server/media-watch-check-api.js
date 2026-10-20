@@ -1,3 +1,5 @@
+import {mediaDailyDigestEnabled} from './media-watch-digest.js';
+import {structuredMediaNotificationIntentsEnabled} from './structured-media-notification-gates.js';
 import { requireStructuredCreationAccess } from './structured-creation-access.js';
 import { hasDefinitionVersion } from '../src/js/watch-definition.js';
 import { currencyCriteriaFor, applyCurrencyCheckResult } from '../src/js/currency-watch.js';
@@ -99,7 +101,9 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
       p_notification_items: items.filter(item => matchFeedItemToWatch(item, watch).matched),
     };
     const completion = lease
-      ? await service.rpc('finish_structured_media_check', leasedParams(completionParams))
+      ? await service.rpc(mediaDailyDigestEnabled(options.env || process.env)
+        && structuredMediaNotificationIntentsEnabled(options.env || process.env)
+        ? 'finish_structured_manual_check_with_digest' : 'finish_structured_media_check', leasedParams(completionParams))
       : await service.rpc('complete_manual_media_watch_check', completionParams);
     if (completion.error) throw Object.assign(new Error('Check not saved'), { code: 'PERSISTENCE_UNAVAILABLE' });
     if (completion.data?.status !== 'completed') return send(409, { code: 'MEDIA_CONFLICT' });
