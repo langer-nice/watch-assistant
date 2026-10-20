@@ -1,3 +1,4 @@
+import {stagingLegacyEnabled,legacyStagingOwner} from './staging-legacy-notifications.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import {structuredMediaNotificationIntentsEnabled} from './structured-media-notification-gates.js';
 import { requireStructuredCreationAccess } from './structured-creation-access.js';
@@ -104,7 +105,8 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
       ? await service.rpc(mediaDailyDigestEnabled(options.env || process.env)
         && structuredMediaNotificationIntentsEnabled(options.env || process.env)
         ? 'finish_structured_manual_check_with_digest' : 'finish_structured_media_check', leasedParams(completionParams))
-      : await service.rpc('complete_manual_media_watch_check', completionParams);
+      : await service.rpc(!hasDefinitionVersion(row.watch_definition) && row.user_id===legacyStagingOwner && stagingLegacyEnabled(options.env || process.env)
+        ? 'complete_staging_legacy_media_check' : 'complete_manual_media_watch_check', completionParams);
     if (completion.error) throw Object.assign(new Error('Check not saved'), { code: 'PERSISTENCE_UNAVAILABLE' });
     if (completion.data?.status !== 'completed') return send(409, { code: 'MEDIA_CONFLICT' });
     const accepted = new Set(completion.data.matchedItems.map(item => item.id));

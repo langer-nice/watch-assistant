@@ -1,3 +1,4 @@
+import {runStagingLegacyMonitoring,processStagingLegacyDigests,stagingLegacyEnabled} from './staging-legacy-notifications.js';
 import {mediaDailyDigestEnabled, validStructuredMediaDigestSelection} from './media-watch-digest.js';
 import { randomUUID } from 'node:crypto';
 
@@ -187,6 +188,8 @@ export const createCompanyMonitoringCronHandler = ({
   mediaRunner = runMediaMonitoring,
   structuredRunner = runStructuredMediaMonitoring,
   structuredNotificationProcessor = processMediaWatchEmailNotifications,
+  legacyRunner = runStagingLegacyMonitoring,
+  legacyDigestProcessor = processStagingLegacyDigests,
   ...options
 } = {}) => async (request, response) => {
   const runId = createRunId();
@@ -219,18 +222,24 @@ export const createCompanyMonitoringCronHandler = ({
       const selection = hasSelection ? Object.fromEntries(keys.map(key => [key, params.get(key)])) : undefined;
       if (hasSelection && ((digest && params.has('notificationId')) || keys.some(key => params.getAll(key).length !== 1)
         || !(digest ? validStructuredMediaDigestSelection(selection, env) : validStructuredMediaEmailSelection(selection, env)))) return sendJson(response, 400, {runId,status:'invalid-selection'});
-      const notifications = await structuredNotificationProcessor({client:clientFactory({env}),env,...(hasSelection ? {[digest ? 'digestSelection' : 'notificationSelection']:selection} : {})});
-      return sendJson(response, 200, {runId,notifications});
+      const [notifications,legacyDigests] = await Promise.all([
+        structuredNotificationProcessor({client:clientFactory({env}),env,...(hasSelection ? {[digest ? 'digestSelection' : 'notificationSelection']:selection} : {})}),
+        !hasSelection && stagingLegacyEnabled(env) ? legacyDigestProcessor({client:clientFactory({env}),env}) : null,
+      ]);
+      return sendJson(response, 200, {runId,notifications,...(legacyDigests?{legacyDigests}:{})});
     }
     // Controlled Staging execution on the existing authenticated endpoint only;
-    // keep Company/legacy fetches and delivery processors out of this mode.
+    // keep Company and unapproved legacy work out of this mode.
     if (scope === 'structured-media') {
       if (!structuredCreationEnabled(env) || env.STRUCTURED_MEDIA_SCHEDULED_ENABLED !== 'true') return sendJson(response, 404, { runId, status: 'disabled' });
-      const structured = await structuredRunner({ ...options, client: clientFactory({ env }), env, schedulerAuthorized: true });
-      // Same controlled owner/recipient scope, no Company or legacy source work.
+      const [structured,legacy] = await Promise.all([
+        structuredRunner({ ...options, client: clientFactory({ env }), env, schedulerAuthorized: true }),
+        stagingLegacyEnabled(env) ? legacyRunner({...options,client:clientFactory({env}),env,schedulerAuthorized:true}) : null,
+      ]);
+      // Structured processing keeps its existing owner/recipient scope.
       // The existing processor independently enforces every delivery gate.
       const notifications = mediaDailyDigestEnabled(env) ? await structuredNotificationProcessor({client:clientFactory({env}),env}) : null;
-      return sendJson(response, 200, { runId, structured, ...(notifications ? {notifications} : {}) });
+      return sendJson(response, 200, { runId, structured, ...(notifications ? {notifications} : {}),...(legacy?{legacy}:{}) });
     }
     const client = clientFactory({ env });
     const summary = await runner({ client, env, ...options });
