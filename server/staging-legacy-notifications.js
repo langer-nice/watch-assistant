@@ -1,3 +1,4 @@
+import {loadStoryDigestDevelopments} from './story-digest-developments.js';
 import {randomUUID,createHash} from 'node:crypto';
 import {structuredMediaNotificationIntentsEnabled,structuredDigestAccountScope,structuredEmailTestOwners,getStructuredMediaStagingEmailConfig,structuredMediaEmailDeliveryAllowed} from './structured-media-notification-gates.js';
 import {parisDigestWindow,renderMediaWatchDigest} from './media-watch-digest.js';
@@ -43,7 +44,7 @@ export const runStagingLegacyMonitoring=async({client,env=process.env,fetchFeed=
  if(result.failed)result.status='partial-success';return result;
 };
 
-export const processStagingLegacyDigests=async({client,env=process.env,sender=sendWithResend,now=Date.now,deadline=Date.now()+30000}={})=>{
+export const processStagingLegacyDigests=async({client,env=process.env,sender=sendWithResend,developmentBuilder=loadStoryDigestDevelopments,now=Date.now,deadline=Date.now()+30000}={})=>{
  const summary={status:'disabled',sentCount:0,failedCount:0};
  if(!stagingLegacyEnabled(env))return summary;
  const config=getStructuredMediaStagingEmailConfig(env);if(!config)return summary;
@@ -61,7 +62,9 @@ export const processStagingLegacyDigests=async({client,env=process.env,sender=se
    const auth=await withinMediaDeadline(()=>client.auth.admin.getUserById(claimed.user_id),deadline),user=auth.data?.user;
    if(auth.error||!user?.email_confirmed_at||!structuredMediaEmailDeliveryAllowed(env,claimed.user_id,user.email))throw Object.assign(Error('Recipient unavailable'),{code:'RECIPIENT_UNVERIFIED'});
    const locale=await rpc('get_media_watch_notification_locale',{p_user_id:claimed.user_id});
-   const content=renderMediaWatchDigest({locale,watchId:claimed.watch_id,watchTitle:claimed.watch_title,period:claimed.period,articles:claimed.articles,baseUrl:config.baseUrl,includeSourceSummaries:true});
+   let storyDevelopments=[];
+   try{storyDevelopments=await withinMediaDeadline(()=>developmentBuilder({client,claimed,env,deadline}),Math.min(deadline-1000,Date.now()+8000));}catch{/* Keep sourced articles when extraction is unavailable. */}
+   const content=renderMediaWatchDigest({locale,watchId:claimed.watch_id,watchTitle:claimed.watch_title,period:claimed.period,articles:claimed.articles,baseUrl:config.baseUrl,includeSourceSummaries:true,storyDevelopments});
    if(!parisDigestWindow(now()).open)throw Object.assign(Error('Window closed'),{code:'DIGEST_WINDOW_CLOSED'});
    boundary=true;if(await rpc('begin_media_watch_digest',{p_id:id,p_token:token})!==true){boundary=false;throw Error('Digest no longer eligible');}
    const key='watch-digest-'+createHash('sha256').update(`${claimed.watch_id}\0${claimed.period}`).digest('hex');
