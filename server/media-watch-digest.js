@@ -41,7 +41,7 @@ export const groupDigestArticles = items => {
   }
   return [...groups.values()].sort((a,b)=>(Date.parse(b[0].publishedAt)||0)-(Date.parse(a[0].publishedAt)||0));
 };
-export const renderMediaWatchDigest = ({locale,watchId,watchTitle,period,articles,baseUrl}) => {
+export const renderMediaWatchDigest = ({locale,watchId,watchTitle,period,articles,baseUrl,includeSourceSummaries=false}) => {
   const fr=locale==='fr',lang=fr?'fr':'en',app=https(baseUrl);
   if(!app)throw Object.assign(Error('Unsafe app URL'),{code:'INVALID_APP_URL'});
   if(!/^\d{4}-\d{2}-\d{2}$/.test(period||''))throw Error('Invalid digest period');
@@ -54,9 +54,12 @@ export const renderMediaWatchDigest = ({locale,watchId,watchTitle,period,article
   const intro=fr?`${count} nouveaux articles pertinents — ${period} (UTC)`:`${count} new relevant articles — ${period} (UTC)`;
   const all=fr?'Voir tous les résultats de la Watch':'View all Watch results';
   const off=fr?'Désactiver les emails dans les réglages de cette Watch (connexion requise).':'Turn off emails in this Watch’s settings (sign-in required).';
-  const line=a=>[a.title,clean(a.source),/^\d{4}-\d{2}-\d{2}/.exec(a.publishedAt||'')?.[0]||'',a.url].filter(Boolean).join(' — ');
+  // Staging legacy digests retain sourced context that may contain a development absent from the headline.
+  const excerptLabel=fr?'Extrait de la source':'Source excerpt';
+  const excerpt=a=>includeSourceSummaries?clean(a.summary,1200):'';
+  const line=a=>[a.title,clean(a.source),/^\d{4}-\d{2}-\d{2}/.exec(a.publishedAt||'')?.[0]||'',a.url].filter(Boolean).join(' — ')+(excerpt(a)?`\n${excerptLabel}: ${excerpt(a)}`:'');
   const text=[subject,intro,'',...shown.flatMap(g=>g.map(line)),...(count>5?[fr?'Plus de résultats disponibles dans Watch Assistant.':'More results available in Watch Assistant.']:[]),'',`${all}: ${detail.href}`,off,preferences.href].join('\n');
-  const html=`<!doctype html><html lang="${lang}"><body style="font-family:Arial,sans-serif;color:#18181b"><h1>${escape(subject)}</h1><p>${escape(intro)}</p>${shown.map(g=>`<section><h2>${escape(g[0].title)}</h2>${g.map(a=>`<p><a href="${escape(a.url)}">${escape(clean(a.source)||a.title)}</a> ${escape(/^\d{4}-\d{2}-\d{2}/.exec(a.publishedAt||'')?.[0]||'')}</p>`).join('')}</section>`).join('')}<p><a href="${escape(detail.href)}">${escape(all)} (${count})</a></p><p><a href="${escape(preferences.href)}">${escape(off)}</a></p></body></html>`;
+  const html=`<!doctype html><html lang="${lang}"><body style="font-family:Arial,sans-serif;color:#18181b"><h1>${escape(subject)}</h1><p>${escape(intro)}</p>${shown.map(g=>`<section><h2>${escape(g[0].title)}</h2>${g.map(a=>`<p><a href="${escape(a.url)}">${escape(clean(a.source)||a.title)}</a> ${escape(/^\d{4}-\d{2}-\d{2}/.exec(a.publishedAt||'')?.[0]||'')}</p>${excerpt(a)?`<p><strong>${escape(excerptLabel)}:</strong> ${escape(excerpt(a))}</p>`:''}`).join('')}</section>`).join('')}<p><a href="${escape(detail.href)}">${escape(all)} (${count})</a></p><p><a href="${escape(preferences.href)}">${escape(off)}</a></p></body></html>`;
   return {subject,text,html};
 };
 export const processMediaWatchDigests = async ({client,env=process.env,sender=sendWithResend,deadline=Date.now()+30000,digestSelection,now=Date.now}={}) => {

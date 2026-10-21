@@ -61,7 +61,7 @@ export const processStagingLegacyDigests=async({client,env=process.env,sender=se
    const auth=await withinMediaDeadline(()=>client.auth.admin.getUserById(claimed.user_id),deadline),user=auth.data?.user;
    if(auth.error||!user?.email_confirmed_at||!structuredMediaEmailDeliveryAllowed(env,claimed.user_id,user.email))throw Object.assign(Error('Recipient unavailable'),{code:'RECIPIENT_UNVERIFIED'});
    const locale=await rpc('get_media_watch_notification_locale',{p_user_id:claimed.user_id});
-   const content=renderMediaWatchDigest({locale,watchId:claimed.watch_id,watchTitle:claimed.watch_title,period:claimed.period,articles:claimed.articles,baseUrl:config.baseUrl});
+   const content=renderMediaWatchDigest({locale,watchId:claimed.watch_id,watchTitle:claimed.watch_title,period:claimed.period,articles:claimed.articles,baseUrl:config.baseUrl,includeSourceSummaries:true});
    if(!parisDigestWindow(now()).open)throw Object.assign(Error('Window closed'),{code:'DIGEST_WINDOW_CLOSED'});
    boundary=true;if(await rpc('begin_media_watch_digest',{p_id:id,p_token:token})!==true){boundary=false;throw Error('Digest no longer eligible');}
    const key='watch-digest-'+createHash('sha256').update(`${claimed.watch_id}\0${claimed.period}`).digest('hex');
