@@ -1255,17 +1255,19 @@ body.is-watch-edit-open {
 .detail-disclosure > summary:focus-visible,
 .detail-overview a:focus-visible,
 .detail-development a:focus-visible { outline: 2px solid var(--color-action); outline-offset: 3px; border-radius: .25rem; }
-.page--detail > details.watch-management { padding: 0; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.page--detail > .watch-management { padding: 0; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
 .watch-management > #email-notifications,
 .watch-management > #structured-monitoring,
 .watch-management > #currencyPolicyControl,
 .watch-management > .watch-management__controls { margin: var(--space-lg); }
-.page--detail > details.watch-management > summary { margin: 0; }
+.watch-settings { margin-top: var(--space-lg); min-width: 0; }
+.watch-settings > h2 { margin: 0; padding: var(--space-lg); font-size: inherit; font-weight: 600; min-height: 2.75rem; line-height: 1.5; border-bottom: 1px solid var(--color-divider); }
+.watch-settings > h2:focus-visible { outline: 2px solid var(--color-action); outline-offset: 3px; }
 @media (min-width: 36rem) {
  .detail-overview__status { margin-inline: var(--space-xl); }
  .detail-overview__facts, .detail-overview .detail-monitoring-controls, .detail-developments__body { padding-inline: var(--space-xl); }
  .detail-overview__settings { margin-inline: var(--space-xl); }
- .detail-disclosure > summary { padding-inline: var(--space-xl); }
+ .detail-disclosure > summary, .watch-settings > h2 { padding-inline: var(--space-xl); }
 }
 
 @media (max-width: 35.99rem) {

@@ -32,3 +32,12 @@ test('pause and delete retain original handlers and confirmation; readonly restr
  assert.match(source,/pauseResumeEl\.onclick = isPaused[\s\S]*?resumeWatch/);
  const{document}=parseHTML(html);assert(document.getElementById('watchPauseResume'));assert(document.getElementById('watchDeleteCancel'));assert(document.getElementById('watchDeleteConfirm'));assert(document.querySelector('#watchManagement #structured-monitoring'));assert(document.getElementById('watchDelete').compareDocumentPosition(document.getElementById('watchPauseResume'))&2);
 });
+
+test('settings remain expanded with a focusable heading and the original scrolling anchor',async()=>{
+ const {document}=parseHTML(html),section=document.getElementById('watchManagement');
+ assert.equal(section.tagName,'SECTION');assert.equal(section.querySelector('summary'),null);assert.equal(section.hidden,false);
+ assert.equal(document.getElementById('manageWatchTitle').tagName,'H2');assert.equal(document.getElementById('manageWatchTitle').getAttribute('tabindex'),'-1');
+ assert.equal(document.querySelector('[data-watch-settings-link]').getAttribute('href'),'#watchManagement');
+ const source=await readFile(new URL('./watch-detail-overview.js',import.meta.url),'utf8');
+ assert(source.includes("document.getElementById('manageWatchTitle')?.focus({preventScroll:true})"));assert(!source.includes('settings.open=true'));
+});

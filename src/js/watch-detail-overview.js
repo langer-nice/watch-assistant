@@ -54,7 +54,7 @@ export const renderWatchOverview=({document,watch,t,formatTimestamp,language,dig
  const notice=document.getElementById('watchMediaPersistenceNotice'),settingsAnchor=document.getElementById('watchCurrencyPolicyAnchor');
  if(notice&&settingsAnchor)settingsAnchor.insertAdjacentElement('afterend',notice);
  const settingsLink=document.querySelector('[data-watch-settings-link]');
- if(settingsLink)settingsLink.onclick=()=>{const settings=document.getElementById('watchManagement');settings.open=true;settings.querySelector('summary')?.focus();};
+ if(settingsLink)settingsLink.onclick=()=>{document.getElementById('manageWatchTitle')?.focus({preventScroll:true});};
  const initial=document.getElementById('watchInitialContext'),disclosure=document.getElementById('watchInitialContextDisclosure');
  if(disclosure)disclosure.hidden=!initial||initial.hidden;
  const briefing=document.getElementById('watchBriefing');
