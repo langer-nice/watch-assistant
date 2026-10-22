@@ -15,9 +15,9 @@ for(const language of ['en','fr'])test('history dates, stable detection order, l
  const before=structuredClone(items),t=(key,values={})=>Object.entries(values).reduce((s,[k,v])=>s.replaceAll('{'+k+'}',v),key.split('.').reduce((v,k)=>v[k],copies[language]));
  const html=renderUpdateHistory({items,language,t,escapeHtml,formatTimestamp:value=>value}),{document}=parseHTML('<ul>'+html+'</ul>');
  assert.deepEqual([...document.querySelectorAll('.monitoring-update')].map(e=>e.id),['tie-a','tie-b','earlier','old','unknown'].map(id=>'watch-check-update-'+id));
- assert.equal(document.querySelectorAll('.history-day').length,3);
- assert.match(document.querySelector('h3').textContent,language==='fr'?/jeudi 22 octobre 2026/:/Thursday, 22 October 2026/);
- const locale=language==='fr'?'fr-FR':'en-GB';assert.equal(document.querySelector('time').textContent,new Intl.DateTimeFormat(locale,{hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(items[1].timestamp)));
+ assert.equal(document.querySelectorAll('.history-day__heading').length,0);
+ assert.match(document.querySelector('time').textContent,language==='fr'?/Jeu\. 22 oct\. 2026/:/Thu, 22 Oct 2026/);
+ const locale=language==='fr'?'fr-FR':'en-GB';assert(document.querySelector('time').textContent.endsWith(new Intl.DateTimeFormat(locale,{hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(items[1].timestamp))));
  assert.deepEqual([...document.querySelectorAll('a')].map(e=>e.href),[items[1],items[2],items[3],items[0],items[4]].map(i=>i.url));
  assert.equal(document.querySelector('h4').textContent,'Original headline A');assert(html.includes('Original summary'));assert.match(document.querySelector('.history-update__time').title,language==='fr'?/Publié/:/Published/);assert.deepEqual(items,before);
 });
@@ -38,8 +38,8 @@ for(const language of ['en','fr'])test('combined history retains unique events, 
  const {document}=parseHTML('<ul>'+renderUpdateHistory({items:merged,language,t,escapeHtml,formatTimestamp:v=>v,timeZone:'Europe/Paris'})+'</ul>');
  assert.deepEqual([...document.querySelectorAll('h4')].map(e=>e.textContent),['Original headline','Original headline',copies[language].watchData.created,'Historical event without time']);
  assert.equal(document.querySelectorAll('a[href="https://example.test/a"]').length,1);assert(document.querySelector('a[href="https://example.test/unique"]'));
- assert.match(document.querySelector('h3').textContent,language==='fr'?/vendredi 23 octobre 2026/:/Friday, 23 October 2026/);
- assert.equal(document.querySelector('time').textContent,'00:20');assert.equal(document.querySelector('time').getAttribute('datetime'),updates[0].timestamp);
+ assert.match(document.querySelector('time').textContent,language==='fr'?/Ven\. 23 oct\. 2026/:/Fri, 23 Oct 2026/);
+ assert(document.querySelector('time').textContent.endsWith('00:20'));assert.equal(document.querySelector('time').getAttribute('datetime'),updates[0].timestamp);
  assert.equal(document.querySelector('.monitoring-update__title').nextElementSibling.textContent,'Existing excerpt');assert(document.querySelector('ul').textContent.includes('Existing historical label'));
  assert.deepEqual({updates,events},before);
 });
