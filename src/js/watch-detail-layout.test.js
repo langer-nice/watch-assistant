@@ -41,7 +41,7 @@ test('Watch Detail presents operational status and Check Now before developments
  const overview=html.slice(html.indexOf('id="watchOverview"'),html.indexOf('id="watchLatestDevelopments"'));
  assert.match(overview,/id="watchCheckNow"/);
  assert.match(overview,/id="watchCheckFeedback"[^>]*role="status"[^>]*aria-live="polite"/);
- for(const id of ['watchMonitoringControls','watchLastChecked','watchCheckNow','watchCheckFeedback','watchCheckReview'])assert.equal((html.match(new RegExp('id="'+id+'"','g'))||[]).length,1);
+ for(const id of ['watchMonitoringControls','watchLastChecked','watchCheckNow','watchCheckFeedback'])assert.equal((html.match(new RegExp('id="'+id+'"','g'))||[]).length,1);
  for(const id of ['watchInitialContextDisclosure','watchManagement'])assert.match(html,new RegExp('<details[^>]*id="'+id+'"[^>]*>'));
  for(const id of ['watchPauseResume','watchDelete','watchDeleteDialog','email-notifications','watchEditAction'])assert(html.includes('id="'+id+'"'));
 });

@@ -210,6 +210,7 @@
     "empty": "Everything is under control. No active watches right now."
   },
   "detail": {
+    "resultsFromCheck": "What this check found",
     "newInformationFound": "New relevant information found.",
     "lastSuccessfulCheck": "Last successful check",
     "monitoringOverview": "Monitoring",

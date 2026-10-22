@@ -1,3 +1,4 @@
+import {linkCheckResult,checkUpdateTargetId} from './check-result-navigation.js';
 import {renderWatchOverview,renderLatestDevelopments,detailDevelopmentItems} from './watch-detail-overview.js';
 import {reportSyncState} from './report-sync.js';
 import { articleWatchDisplayCategory, localizedGeneratedArticleScope } from './article-watch-presentation.js';
@@ -1400,7 +1401,6 @@ const renderWatchDetail = () => {
   const checkNowLabelEl = document.querySelector('#watchCheckNowLabel');
   const checkSpinnerEl = document.querySelector('.watch-fact-check__spinner');
   const checkFeedbackEl = document.querySelector('#watchCheckFeedback');
-  const checkReviewEl = document.querySelector('#watchCheckReview');
   const monitoringUpdatesEl = document.querySelector('#watchMonitoringUpdates');
   const monitoringUpdatesListEl = document.querySelector('#watchMonitoringUpdatesList');
   const pauseResumeEl = document.querySelector('#watchPauseResume');
@@ -1943,7 +1943,7 @@ const renderWatchDetail = () => {
         ].filter(Boolean).join(' · ');
         const summary = !currencyText && item.summary && normalizeComparableText(item.summary) !== normalizeComparableText(title) ? item.summary : '';
         return `
-          <li class="monitoring-update">
+          <li class="monitoring-update" id="${escapeHtml(checkUpdateTargetId(item.id))}" tabindex="-1">
             ${itemUrl
     ? `<a href="${escapeHtml(itemUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)} <span aria-hidden="true">↗</span></a>`
     : `<p class="monitoring-update__title">${escapeHtml(title)}</p>`}
@@ -1974,6 +1974,7 @@ const renderWatchDetail = () => {
     });
     checkNowEl.setAttribute('aria-busy', String(checkInProgress));
     checkNowEl.onclick = async () => {
+      checkFeedbackEl?.classList.remove('is-action');
       const issue = manualCheckIssue(getWatchById(watch.id), {
         inProgress: detailCheckInProgress || watchCheckController.isChecking(watch.id),
         preparing: isPreparing, canCheckStoredWatch: canCheckStoredMediaWatch,
@@ -2043,11 +2044,9 @@ const renderWatchDetail = () => {
   if (checkSpinnerEl) {
     checkSpinnerEl.hidden = !detailCheckInProgress;
   }
-  if (checkReviewEl) {
-    checkReviewEl.hidden = true;
-    checkReviewEl.removeAttribute('aria-label');
-    checkReviewEl.onclick = null;
-  }
+  checkFeedbackEl?.classList.remove('is-action');
+  const checkResultsEl=document.querySelector('#watchCheckResults');
+  if(checkResultsEl){checkResultsEl.hidden=true;checkResultsEl.replaceChildren();}
   const feedBaselineNoticeEl = document.querySelector('#watchFeedBaselineNotice');
   if (feedBaselineNoticeEl) {
     feedBaselineNoticeEl.hidden = !normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl)
@@ -2084,23 +2083,7 @@ const renderWatchDetail = () => {
         ? 'new'
         : 'success';
       checkFeedbackEl.hidden = false;
-      if (hasReviewableUpdates && checkReviewEl) {
-        const reviewTarget = count === 1 ? currentSituationContainerEl : monitoringUpdatesEl;
-        const labelKey = count === 1 ? 'detail.reviewUpdate' : 'detail.reviewUpdates';
-        checkReviewEl.href = count === 1 ? '#current-situation' : '#watchMonitoringUpdates';
-        checkReviewEl.textContent = t(labelKey);
-        checkReviewEl.setAttribute('aria-label', t(labelKey));
-        checkReviewEl.hidden = false;
-        checkReviewEl.onclick = (event) => {
-          event.preventDefault();
-          window.history.replaceState(
-            window.history.state,
-            '',
-            `${window.location.pathname}${window.location.search}${checkReviewEl.getAttribute('href')}`,
-          );
-          revealUpdateTarget(reviewTarget);
-        };
-      }
+      if(['matching-items','new-items'].includes(outcome))linkCheckResult({feedback:checkFeedbackEl,section:checkResultsEl,updates:reviewableUpdates,document,t,window});
     } else if (!hasFeedUrl) {
       checkFeedbackEl.textContent = '';
       checkFeedbackEl.hidden = true;
