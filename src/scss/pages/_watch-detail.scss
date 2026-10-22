@@ -1315,3 +1315,14 @@ body.is-watch-edit-open {
 .watch-management__delete:disabled { opacity: .65; cursor: not-allowed; }
 #watchDeleteUnavailable { margin: 0; font-size: .8125rem; color: var(--color-text-muted); line-height: 1.5; }
 @media (prefers-reduced-motion: reduce) { #email-notifications input[role='switch']::before { transition: none; } }
+
+// Update History shares the existing timeline's quiet line and date hierarchy.
+#watchMonitoringUpdatesList .history-day + .history-day { margin-top: var(--space-xl); }
+.history-day__heading { margin: 0 0 var(--space-md); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); line-height: 1.5; }
+.history-day__updates { list-style: none; margin: 0; padding: 0 0 0 var(--space-lg); border-left: 1px solid var(--color-timeline-line); }
+#watchMonitoringUpdatesList .monitoring-update { position: relative; padding-bottom: var(--space-lg); }
+#watchMonitoringUpdatesList .monitoring-update::before { content: ''; position: absolute; left: calc(-1 * var(--space-lg) - var(--space-xxs)); top: var(--space-xxs); width: var(--space-xs); height: var(--space-xs); border-radius: var(--radius-pill); background: var(--color-border); }
+#watchMonitoringUpdatesList .monitoring-update + .monitoring-update { margin-top: 0; padding-top: 0; border-top: 0; }
+#watchMonitoringUpdatesList .monitoring-update:last-child { padding-bottom: 0; }
+.history-update__time { margin: 0; color: var(--color-text-subtle); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; line-height: 1.4; }
+#watchMonitoringUpdatesList .monitoring-update__metadata a { font-size: inherit; color: inherit; font-weight: inherit; display: inline-flex; align-items: center; min-height: 2.75rem; }

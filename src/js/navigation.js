@@ -1,4 +1,5 @@
-import {linkCheckResult,checkUpdateTargetId} from './check-result-navigation.js';
+import {renderUpdateHistory} from './update-history-presentation.js';
+import {linkCheckResult} from './check-result-navigation.js';
 import {watchOperationalState,renderWatchOverview,renderLatestDevelopments,detailDevelopmentItems} from './watch-detail-overview.js';
 import {reportSyncState} from './report-sync.js';
 import { articleWatchDisplayCategory, localizedGeneratedArticleScope } from './article-watch-presentation.js';
@@ -1929,30 +1930,14 @@ const renderWatchDetail = () => {
 
   const monitoringUpdates = detailDevelopmentItems(watch);
   if (monitoringUpdatesListEl) {
-    monitoringUpdatesListEl.innerHTML = monitoringUpdates
-      .map((item, index) => {
-        const itemUrl = getSafeExternalUrl(item.sourceUrl);
-        const legacyChange = index === 0 ? getLatestChange(watch) : '';
-        const currencyText = currencyUpdateSummary(watch, item, getLanguage());
-        const title = currencyText || item.sourceTitle || item.summary || legacyChange || t('detail.untitledItem');
-        const timestamp = formatMonitoringTimestamp(item.timestamp);
-        const metadata = [
-          item.sourceDomain,
-          item.publishedAt ? t('detail.publishedDate',{date:formatMonitoringTimestamp(item.publishedAt)}) : '',
-          t('detail.detectedDate',{date:timestamp}),
-        ].filter(Boolean).join(' · ');
-        const summary = !currencyText && item.summary && normalizeComparableText(item.summary) !== normalizeComparableText(title) ? item.summary : '';
-        return `
-          <li class="monitoring-update" id="${escapeHtml(checkUpdateTargetId(item.id))}" tabindex="-1">
-            ${itemUrl
-    ? `<a href="${escapeHtml(itemUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)} <span aria-hidden="true">↗</span></a>`
-    : `<p class="monitoring-update__title">${escapeHtml(title)}</p>`}
-            ${metadata ? `<p class="monitoring-update__metadata">${escapeHtml(metadata)}</p>` : ''}
-            ${summary ? `<p class="monitoring-update__description">${escapeHtml(summary)}</p>` : ''}
-          </li>
-        `;
-      })
-      .join('');
+    const historyItems = monitoringUpdates.map((item, index) => {
+      const legacyChange = index === 0 ? getLatestChange(watch) : '';
+      const currencyText = currencyUpdateSummary(watch, item, getLanguage());
+      const title = currencyText || item.sourceTitle || item.summary || legacyChange || t('detail.untitledItem');
+      const summary = !currencyText && item.summary && normalizeComparableText(item.summary) !== normalizeComparableText(title) ? item.summary : '';
+      return {...item, title, summary, source:item.sourceDomain, url:getSafeExternalUrl(item.sourceUrl)};
+    });
+    monitoringUpdatesListEl.innerHTML = renderUpdateHistory({items:historyItems,language:getLanguage(),t,escapeHtml,formatTimestamp:formatMonitoringTimestamp});
   }
   if (monitoringUpdatesEl) {
     monitoringUpdatesEl.hidden = monitoringUpdates.length === 0;
