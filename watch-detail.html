@@ -64,6 +64,42 @@
           <p class="detail-header__message" id="watchNotFound" hidden></p>
         </header>
 
+        <section class="detail-card detail-panel detail-overview" id="watchOverview" aria-labelledby="watchOverviewTitle" hidden>
+          <h2 class="section-heading visually-hidden" id="watchOverviewTitle" data-i18n="detail.monitoringOverview"></h2>
+          <p class="detail-overview__status" id="watchMonitoringHealth" role="status"></p>
+          <dl class="detail-overview__facts">
+            <div><dt data-i18n="detail.nextCheck"></dt><dd id="watchNextCheck"></dd></div>
+            <div><dt data-i18n="detail.checkFrequency"></dt><dd id="watchCheckFrequency"></dd></div>
+            <div><dt data-i18n="detail.emailNotifications"></dt><dd id="watchEmailSummary"></dd></div>
+            <div hidden><dt data-i18n="currency.policyLabel"></dt><dd id="watchCurrencyPolicySummary"></dd></div>
+          </dl>
+          <a class="detail-overview__settings" href="#watchManagement" data-watch-settings-link data-i18n="detail.watchSettings"></a>
+            <section
+              class="detail-card__field detail-monitoring-controls"
+              id="watchMonitoringControls"
+              data-detail-field="lastChecked"
+              aria-labelledby="watchLastCheckedTitle"
+              hidden
+            >
+              <h3 class="section-heading" id="watchLastCheckedTitle" data-i18n="detail.lastSuccessfulCheck"></h3>
+              <div class="watch-fact-check">
+                <p id="watchLastChecked"></p>
+                <button class="watch-fact-check__button" id="watchCheckNow" type="button">
+                  <span class="watch-fact-check__spinner" aria-hidden="true" hidden></span>
+                  <span id="watchCheckNowLabel" data-i18n="detail.checkNow"></span>
+                </button>
+              </div>
+              <p class="watch-fact-check__feedback" id="watchCheckFeedback" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+              <a class="watch-fact-check__review" id="watchCheckReview" href="#current-situation" hidden></a>
+            </section>
+
+        </section>
+
+        <section class="detail-card detail-panel detail-developments" id="watchLatestDevelopments" aria-labelledby="watchLatestDevelopmentsTitle" hidden>
+          <h2 class="section-heading" id="watchLatestDevelopmentsTitle" data-i18n="detail.latestDevelopments"></h2>
+          <div id="watchLatestDevelopmentsBody" class="detail-developments__body"></div>
+        </section>
+
         <aside class="detail-clarity-warning" id="watchClarityWarning" aria-labelledby="watchClarityWarningTitle" hidden>
           <svg class="detail-clarity-warning__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M12 3 2.8 20h18.4L12 3Z"></path>
@@ -78,10 +114,10 @@
           </div>
         </aside>
 
-        <section class="detail-card detail-panel" id="watchInitialContext" hidden></section>
 
-        <section class="detail-card detail-panel" id="watchBriefing" aria-labelledby="whatIKnowTitle">
-          <h2 class="section-heading" id="whatIKnowTitle" data-i18n="detail.whatIKnow"></h2>
+
+        <details class="detail-card detail-panel detail-disclosure" id="watchBriefing" aria-labelledby="whatIKnowTitle">
+          <summary id="whatIKnowTitle" data-i18n="detail.whatIKnow"></summary>
 
           <div class="detail-card__primary" id="watchPrimary">
             <section
@@ -134,26 +170,6 @@
               ></a>
             </section>
 
-            <section
-              class="detail-card__field detail-monitoring-controls"
-              id="watchMonitoringControls"
-              data-detail-field="lastChecked"
-              aria-labelledby="watchLastCheckedTitle"
-              hidden
-            >
-              <h3 class="section-heading" id="watchLastCheckedTitle" data-i18n="detail.lastChecked"></h3>
-              <div class="watch-fact-check">
-                <p id="watchLastChecked"></p>
-                <button class="watch-fact-check__button" id="watchCheckNow" type="button">
-                  <span class="watch-fact-check__spinner" aria-hidden="true" hidden></span>
-                  <span id="watchCheckNowLabel" data-i18n="detail.checkNow"></span>
-                </button>
-              </div>
-              <p class="watch-fact-check__feedback" id="watchCheckFeedback" role="status" aria-live="polite" aria-atomic="true" hidden></p>
-              <p class="watch-fact-check__feedback" id="watchFeedBaselineNotice" data-i18n="detail.feedBaselineNotice" hidden></p>
-              <a class="watch-fact-check__review" id="watchCheckReview" href="#current-situation" hidden></a>
-            </section>
-
             <section class="detail-card__field detail-card__field--recommendation" data-detail-field="recommendation" hidden>
               <h3 class="section-heading" data-i18n="detail.recommendation"></h3>
               <p id="watchRecommendation"></p>
@@ -196,7 +212,7 @@
               <span aria-hidden="true">↗</span>
             </a>
           </section>
-        </section>
+        </details>
 
         <section class="detail-card detail-panel" id="watchWhyToday" aria-labelledby="whyTodayTitle" hidden>
           <h2 class="section-heading" id="whyTodayTitle" data-i18n="detail.whyToday"></h2>
@@ -216,6 +232,12 @@
           <h2 class="section-heading" id="timelineTitle" data-i18n="detail.howWeGotHere"></h2>
           <ol id="watchTimeline"></ol>
         </section>
+
+        <details class="detail-card detail-disclosure" id="watchInitialContextDisclosure" hidden>
+          <summary data-i18n="detail.initialContextReferences"></summary>
+          <section class="detail-panel" id="watchInitialContext" hidden></section>
+          <p class="watch-fact-check__feedback" id="watchFeedBaselineNotice" data-i18n="detail.feedBaselineNotice" hidden></p>
+        </details>
 
         <section class="watch-preparing" id="watchPreparing" role="status" aria-live="polite" hidden>
           <span class="watch-preparing__spinner" aria-hidden="true"></span>
@@ -254,8 +276,9 @@
           <div class="external-actions__list" id="watchExternalActions"></div>
         </section>
 
-        <section class="watch-management" id="watchManagement" aria-labelledby="manageWatchTitle">
-          <h2 class="section-heading" id="manageWatchTitle" data-i18n="detail.manageWatch"></h2>
+        <details class="watch-management detail-disclosure" id="watchManagement" aria-labelledby="manageWatchTitle">
+          <summary id="manageWatchTitle" data-i18n="detail.watchSettings"></summary>
+          <span id="watchCurrencyPolicyAnchor"></span>
           <div id="structured-monitoring" hidden>
             <button type="button" class="button button--secondary" data-monitoring-toggle disabled></button>
             <p data-monitoring-hint></p>
@@ -295,7 +318,7 @@
               <span data-i18n="detail.deleteWatch"></span>
             </button>
           </div>
-        </section>
+        </details>
 
         <dialog class="watch-delete-dialog" id="watchDeleteDialog" aria-labelledby="watchDeleteTitle" aria-describedby="watchDeleteCopy">
           <form method="dialog">

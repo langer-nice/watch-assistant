@@ -18,7 +18,7 @@ test('comparable Watch Detail white panels share one full-width header separator
   ];
 
   comparablePanelIds.forEach((id) => {
-    const openingTag = html.match(new RegExp(`<section[^>]*id="${id}"[^>]*>`))?.[0] || '';
+    const openingTag = html.match(new RegExp(`<(?:section|details)[^>]*id="${id}"[^>]*>`))?.[0] || '';
     assert.match(openingTag, /class="[^"]*\bdetail-panel\b[^"]*"/);
   });
   assert.match(cardStyles, /\.detail-panel > \.section-heading\s*\{[\s\S]*?margin:\s*0;[\s\S]*?padding:\s*var\(--space-lg\) var\(--space-lg\) var\(--space-md\);[\s\S]*?border-bottom:\s*1px solid var\(--color-divider\)/);

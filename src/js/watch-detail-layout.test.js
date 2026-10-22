@@ -33,36 +33,17 @@ test('Watch Detail header omits redundant status and Home-report actions', async
   assert.match(styles, /\.detail-header h1\s*\{[\s\S]*?grid-column:\s*1 \/ -1;[\s\S]*?min-width:\s*0;[\s\S]*?overflow-wrap:\s*anywhere/);
 });
 
-test('Watch Detail places operational checking directly after Current Situation in What I know', async () => {
-  const [html, navigation, styles] = await Promise.all([
-    read('../../watch-detail.html'),
-    read('./navigation.js'),
-    read('../scss/pages/_watch-detail.scss'),
-  ]);
-  const briefingStart = html.indexOf('id="watchBriefing"');
-  const factsStart = html.indexOf('id="watchFacts"');
-  const briefingMarkup = html.slice(briefingStart, factsStart);
-  const factsMarkup = html.slice(factsStart, html.indexOf('id="watchMonitoringUpdates"'));
-  const currentSituationIndex = briefingMarkup.indexOf('id="current-situation"');
-  const controlsIndex = briefingMarkup.indexOf('id="watchMonitoringControls"');
-  const recommendationIndex = briefingMarkup.indexOf('data-detail-field="recommendation"');
-
-  assert.ok(briefingStart >= 0);
-  assert.match(briefingMarkup, /id="whatIKnowTitle"[^>]*data-i18n="detail\.whatIKnow"/);
-  assert.ok(currentSituationIndex >= 0 && currentSituationIndex < controlsIndex);
-  assert.ok(controlsIndex < recommendationIndex);
-  assert.match(briefingMarkup, /id="watchMonitoringControls"[\s\S]*?data-detail-field="lastChecked"[\s\S]*?aria-labelledby="watchLastCheckedTitle"/);
-  assert.match(briefingMarkup, /id="watchLastCheckedTitle"[^>]*data-i18n="detail\.lastChecked"[\s\S]*?id="watchLastChecked"[\s\S]*?id="watchCheckNow"/);
-  assert.match(briefingMarkup, /id="watchCheckFeedback"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/);
-  assert.doesNotMatch(factsMarkup, /watchLastChecked|watchCheckNow|watchCheckFeedback|watchCheckReview|data-detail-field="lastChecked"/);
-  for (const id of ['watchMonitoringControls', 'watchLastChecked', 'watchCheckNow', 'watchCheckFeedback', 'watchCheckReview']) {
-    assert.equal((html.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1);
-  }
-  assert.match(styles, /\.detail-monitoring-controls\s*\{[\s\S]*?padding-top:\s*var\(--space-lg\);[\s\S]*?border-top:\s*1px solid var\(--color-divider\)/);
-  assert.match(styles, /\.detail-current-update \[hidden\]\s*\{[\s\S]*?display:\s*none/);
-  assert.match(styles, /\.watch-fact-check > p\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?overflow-wrap:\s*anywhere/);
-  assert.match(navigation, /const hasMetadata = sources\.length > 0 \|\| hasConfidence \|\| hasLatestChange;/);
-  assert.doesNotMatch(navigation, /const hasMetadata =[^;]*hasLastChecked/);
+test('Watch Detail presents operational status and Check Now before developments and disclosures', async () => {
+ const html=await read('../../watch-detail.html');
+ const ids=['watchTitle','watchOverview','watchLatestDevelopments','watchTimelineSection','watchInitialContextDisclosure','watchManagement'];
+ const positions=ids.map(id=>html.indexOf('id="'+id+'"'));
+ assert(positions.every((position,index)=>position>=0&&(!index||position>positions[index-1])));
+ const overview=html.slice(html.indexOf('id="watchOverview"'),html.indexOf('id="watchLatestDevelopments"'));
+ assert.match(overview,/id="watchCheckNow"/);
+ assert.match(overview,/id="watchCheckFeedback"[^>]*role="status"[^>]*aria-live="polite"/);
+ for(const id of ['watchMonitoringControls','watchLastChecked','watchCheckNow','watchCheckFeedback','watchCheckReview'])assert.equal((html.match(new RegExp('id="'+id+'"','g'))||[]).length,1);
+ for(const id of ['watchInitialContextDisclosure','watchManagement'])assert.match(html,new RegExp('<details[^>]*id="'+id+'"[^>]*>'));
+ for(const id of ['watchPauseResume','watchDelete','watchDeleteDialog','email-notifications','watchEditAction'])assert(html.includes('id="'+id+'"'));
 });
 
 test('Story Summary uses the standard padded detail-card alignment at all breakpoints', async () => {

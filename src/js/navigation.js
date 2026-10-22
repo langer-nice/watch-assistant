@@ -1,3 +1,4 @@
+import {renderWatchOverview,renderLatestDevelopments,detailDevelopmentItems} from './watch-detail-overview.js';
 import {reportSyncState} from './report-sync.js';
 import { articleWatchDisplayCategory, localizedGeneratedArticleScope } from './article-watch-presentation.js';
 import { canManuallyCheckWatch, manualCheckIssue } from './watch-manual-check.js';
@@ -193,7 +194,7 @@ import {
 import {
   isPreviewTestLoaderAvailable,
 } from './preview-test-watches.js';
-import { getWatchJourneyEvents } from './watch-timeline.js';
+import { getWatchTimelineEvents } from './watch-timeline.js';
 import {
   getBodaccBusinessEventLabel,
   getCurrentSituationPresentation,
@@ -1412,8 +1413,10 @@ const renderWatchDetail = () => {
   const deleteConfirmEl = document.querySelector('#watchDeleteConfirm');
 
   renderMediaPersistenceNotice(watch, titleEl, getLanguage());
-  renderCurrencyPolicyControl(watch, titleEl, getLanguage());
+  renderCurrencyPolicyControl(watch, document.querySelector('#watchCurrencyPolicyAnchor')||titleEl, getLanguage());
   renderInitialContext(document.querySelector('#watchInitialContext'), watch, { t, formatTimestamp: formatMonitoringTimestamp });
+  renderWatchOverview({document,watch,t,formatTimestamp:formatMonitoringTimestamp,language:getLanguage(),digestAt0815:import.meta.env.VITE_MEDIA_WATCH_DAILY_DIGEST_ENABLED==='true'&&import.meta.env.VITE_SUPABASE_URL==='https://tseexvbwhrtofcsrvcqc.supabase.co'});
+  renderLatestDevelopments({document,watch,t,formatTimestamp:formatMonitoringTimestamp,language:getLanguage(),sanitizeUrl:getSafeExternalUrl});
 
   const hideDetailContent = () => {
     [
@@ -1519,6 +1522,7 @@ const renderWatchDetail = () => {
   };
   const revealUpdateTarget = (target) => {
     if (!target || target.hidden) return;
+    const disclosure=target.closest('details');if(disclosure)disclosure.open=true;
     target.focus({ preventScroll: true });
     target.scrollIntoView({ block: 'start' });
   };
@@ -1847,9 +1851,7 @@ const renderWatchDetail = () => {
     whyFollowingEl.hidden = !hasWhyFollowing;
   }
 
-  const timeline = getWatchJourneyEvents(watch, {
-    currentUpdateId: latestMeaningfulUpdate?.status === 'new' ? latestMeaningfulUpdate.id : null,
-  })
+  const timeline = getWatchTimelineEvents(watch).reverse()
     .map((item) => {
       const label = item.type === 'created'
         ? t(watchCreationState(watch) === 'local' ? 'watchData.draftRetained' : 'watchData.created')
@@ -1872,13 +1874,13 @@ const renderWatchDetail = () => {
         label,
         articleUrl: item.type === 'update'
           ? getSafeExternalUrl(item.source.sourceUrl)
-          : null,
+          : getSafeExternalUrl(item.source?.sourceUrl||item.source?.url),
       };
     })
     .filter(Boolean)
     .map((item, index, items) => ({
       ...item,
-      isLatest: index === items.length - 1,
+      isLatest: index === 0,
     }));
   if (timelineEl) {
     timelineEl.innerHTML = timeline
@@ -1925,7 +1927,7 @@ const renderWatchDetail = () => {
     actionsSectionEl.hidden = renderedActions.length === 0;
   }
 
-  const monitoringUpdates = getWatchUpdates(watch).reverse();
+  const monitoringUpdates = detailDevelopmentItems(watch);
   if (monitoringUpdatesListEl) {
     monitoringUpdatesListEl.innerHTML = monitoringUpdates
       .map((item, index) => {
@@ -1936,7 +1938,8 @@ const renderWatchDetail = () => {
         const timestamp = formatMonitoringTimestamp(item.timestamp);
         const metadata = [
           item.sourceDomain,
-          currencyText ? t('currency.detected', { date: timestamp }) : timestamp,
+          item.publishedAt ? t('detail.publishedDate',{date:formatMonitoringTimestamp(item.publishedAt)}) : '',
+          t('detail.detectedDate',{date:timestamp}),
         ].filter(Boolean).join(' · ');
         const summary = !currencyText && item.summary && normalizeComparableText(item.summary) !== normalizeComparableText(title) ? item.summary : '';
         return `
@@ -2070,7 +2073,7 @@ const renderWatchDetail = () => {
       const hasReviewableUpdates = ['matching-items', 'new-items'].includes(outcome) && count > 0;
       const localizedOutcomeKey = hasReviewableUpdates
         ? `${outcomeKey}.${count === 1 ? 'one' : 'other'}`
-        : ['matching-items', 'new-items'].includes(outcome) ? 'detail.noMatchingUpdates' : outcomeKey;
+        : ['matching-items', 'new-items'].includes(outcome) ? 'detail.newInformationFound' : outcomeKey;
       checkFeedbackEl.textContent = t(localizedOutcomeKey, { count });
       checkFeedbackEl.dataset.state = hasReviewableUpdates
         ? 'new'

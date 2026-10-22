@@ -1210,3 +1210,69 @@ body.is-watch-edit-open {
     > .mobile-new-watch-action { position: static; }
   }
 }
+
+// Current monitoring facts precede articles and configuration.
+.detail-overview__status {
+  margin: var(--space-lg) var(--space-lg) var(--space-md);
+  font-weight: var(--font-weight-semibold);
+  font-size: 1.125rem;
+}
+.detail-overview__status[data-state='failed'],
+.detail-overview__status[data-state='attention'] { color: var(--color-error, #a32d32); }
+.detail-overview__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--space-lg);
+  margin: 0;
+  padding: 0 var(--space-lg) var(--space-lg);
+}
+.detail-overview__facts div { min-width: 0; }
+.detail-overview__facts dt { font-size: .8125rem; color: var(--color-text-muted); margin-bottom: .375rem; }
+.detail-overview__facts dd { margin: 0; line-height: 1.5; overflow-wrap: anywhere; font-weight: 500; }
+.detail-overview__facts [hidden] { display: none; }
+.detail-overview__settings { display: inline-flex; align-items: center; min-height: 2.75rem; margin: 0 var(--space-lg) var(--space-md); }
+.detail-overview .detail-monitoring-controls { margin: 0; padding: var(--space-lg); }
+.detail-overview .watch-fact-check { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-md); }
+.detail-overview .watch-fact-check > p { flex: 1 1 12rem; }
+.detail-overview .watch-fact-check__button { min-height: 2.75rem; }
+.detail-overview .watch-fact-check__feedback {
+  padding: var(--space-md); margin-top: var(--space-md);
+  font-size: 1rem; font-weight: 600; line-height: 1.5;
+  color: var(--color-text); background: var(--color-action-tint); border-radius: var(--radius-input);
+}
+.detail-overview .watch-fact-check__feedback[data-state='error'] { color: var(--color-error, #a32d32); background: #fff0ef; }
+.detail-overview #watchFeedBaselineNotice { font-size: .8125rem; font-weight: 400; color: var(--color-text-muted); background: transparent; padding: 0; }
+.detail-developments__body { padding: var(--space-lg); }
+.detail-development-list { list-style: none; margin: 0; padding: 0; }
+.detail-development { min-width: 0; padding: 0 0 var(--space-lg); margin: 0 0 var(--space-lg); border-bottom: 1px solid var(--color-divider); }
+.detail-development h3 { margin: 0 0 var(--space-sm); font-size: 1.0625rem; line-height: 1.45; }
+.detail-development p { margin: var(--space-sm) 0; line-height: 1.6; overflow-wrap: anywhere; }
+.detail-development a { display: inline-flex; align-items: center; min-height: 2.75rem; overflow-wrap: anywhere; }
+.detail-development .monitoring-update__metadata { font-size: .8125rem; color: var(--color-text-muted); }
+.detail-disclosure { margin-top: var(--space-lg); min-width: 0; }
+.detail-disclosure > summary { cursor: pointer; padding: var(--space-lg); font-weight: 600; min-height: 2.75rem; line-height: 1.5; }
+.detail-disclosure[open] > summary { border-bottom: 1px solid var(--color-divider); }
+.detail-disclosure > summary:focus-visible,
+.detail-overview a:focus-visible,
+.detail-development a:focus-visible { outline: 2px solid var(--color-action); outline-offset: 3px; border-radius: .25rem; }
+.page--detail > details.watch-management { padding: 0; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.watch-management > #email-notifications,
+.watch-management > #structured-monitoring,
+.watch-management > #currencyPolicyControl,
+.watch-management > .watch-management__controls { margin: var(--space-lg); }
+.page--detail > details.watch-management > summary { margin: 0; }
+@media (min-width: 36rem) {
+ .detail-overview__status { margin-inline: var(--space-xl); }
+ .detail-overview__facts, .detail-overview .detail-monitoring-controls, .detail-developments__body { padding-inline: var(--space-xl); }
+ .detail-overview__settings { margin-inline: var(--space-xl); }
+ .detail-disclosure > summary { padding-inline: var(--space-xl); }
+}
+
+@media (max-width: 35.99rem) {
+ .detail-overview__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); }
+ .detail-overview__facts > div:nth-child(3) { grid-column: 1 / -1; }
+}
+#watchInitialContextDisclosure > #watchFeedBaselineNotice { margin: var(--space-lg); color: var(--color-text-muted); font-size: .8125rem; line-height: 1.5; }
+
+.detail-overview .watch-fact-check > p { flex: 1 1 7rem; }
+.detail-overview #watchOverviewTitle { padding: 0; border: 0; }
