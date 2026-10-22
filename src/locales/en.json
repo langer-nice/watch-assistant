@@ -210,7 +210,11 @@
     "empty": "Everything is under control. No active watches right now."
   },
   "detail": {
-    "historyDetectionUnknown": "Detection date unavailable",
+    "history": "History",
+    "historyEventDate": "Event: {date}",
+    "historyTimeUnknown": "Time unavailable",
+
+    "historyDetectionUnknown": "Date unavailable",
     "settingsOn": "On",
     "settingsOff": "Off",
     "settingsSaved": "Saved.",

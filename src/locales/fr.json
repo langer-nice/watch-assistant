@@ -210,7 +210,11 @@
     "empty": "Tout est sous contrôle. Aucune Watch active pour le moment."
   },
   "detail": {
-    "historyDetectionUnknown": "Date de détection indisponible",
+    "history": "Historique",
+    "historyEventDate": "Événement : {date}",
+    "historyTimeUnknown": "Heure indisponible",
+
+    "historyDetectionUnknown": "Date indisponible",
     "settingsOn": "Activées",
     "settingsOff": "Désactivées",
     "settingsSaved": "Enregistré.",

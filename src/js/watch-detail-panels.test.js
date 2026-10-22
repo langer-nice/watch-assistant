@@ -12,7 +12,6 @@ test('comparable Watch Detail white panels share one full-width header separator
   const comparablePanelIds = [
     'watchBriefing',
     'watchWhyToday',
-    'watchTimelineSection',
     'watchFacts',
     'watchMonitoringUpdates',
   ];

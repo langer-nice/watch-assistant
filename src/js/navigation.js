@@ -1,4 +1,4 @@
-import {renderUpdateHistory} from './update-history-presentation.js';
+import {mergeHistoryItems,renderUpdateHistory} from './update-history-presentation.js';
 import {linkCheckResult} from './check-result-navigation.js';
 import {watchOperationalState,renderWatchOverview,renderLatestDevelopments,detailDevelopmentItems} from './watch-detail-overview.js';
 import {reportSyncState} from './report-sync.js';
@@ -1386,8 +1386,6 @@ const renderWatchDetail = () => {
   const metadataEl = document.querySelector('#watchMetadata');
   const whyFollowingEl = document.querySelector('#watchWhyFollowing');
   const whyFollowingCopyEl = document.querySelector('#watchWhyFollowingCopy');
-  const timelineSectionEl = document.querySelector('#watchTimelineSection');
-  const timelineEl = document.querySelector('#watchTimeline');
   const actionsSectionEl = document.querySelector('#watchActionsSection');
   const externalActionsEl = document.querySelector('#watchExternalActions');
   const confirmationEl = document.querySelector('#watchConfirmation');
@@ -1425,7 +1423,6 @@ const renderWatchDetail = () => {
       factsEl,
       whyTodayEl,
       whyFollowingEl,
-      timelineSectionEl,
       actionsSectionEl,
       confirmationEl,
       clarityWarningEl,
@@ -1852,58 +1849,24 @@ const renderWatchDetail = () => {
     whyFollowingEl.hidden = !hasWhyFollowing;
   }
 
-  const timeline = getWatchTimelineEvents(watch).reverse()
-    .map((item) => {
-      const label = item.type === 'created'
-        ? t(watchCreationState(watch) === 'local' ? 'watchData.draftRetained' : 'watchData.created')
-        : item.type === 'update'
-          ? currencyUpdateSummary(watch, item.source, getLanguage())
-            || getBodaccBusinessEventLabel(item.source, t)
-            || item.source.sourceTitle
-            || item.source.summary
-            || t('detail.updateDetected')
-          : localizeListItem(item.source);
-      if (!label) {
-        return null;
-      }
-      const currencyEvent = item.type === 'update' && currencyUpdateSummary(watch, item.source, getLanguage());
-      const date = currencyEvent
-        ? t('currency.detected', { date: formatMonitoringTimestamp(item.source.timestamp) })
-        : item.dateKey ? t(item.dateKey) : item.timestamp ? formatDate(item.timestamp) : '';
-      return {
-        date,
-        label,
-        articleUrl: item.type === 'update'
-          ? getSafeExternalUrl(item.source.sourceUrl)
-          : getSafeExternalUrl(item.source?.sourceUrl||item.source?.url),
-      };
-    })
-    .filter(Boolean)
-    .map((item, index, items) => ({
-      ...item,
-      isLatest: index === 0,
-    }));
-  if (timelineEl) {
-    timelineEl.innerHTML = timeline
-      .map((item) => `
-        <li class="timeline__item${item.isLatest ? ' timeline__item--latest' : ''}">
-          <span class="timeline__marker" aria-hidden="true"></span>
-          <div>
-            ${item.date ? `<p class="timeline__date">${escapeHtml(item.date)}</p>` : ''}
-            <p class="timeline__event">${escapeHtml(item.label)}</p>
-            ${item.articleUrl ? `
-              <a class="timeline__article-link" href="${escapeHtml(item.articleUrl)}" target="_blank" rel="noopener noreferrer">
-                ${escapeHtml(t(currencyCriteriaFor(watch) ? 'common.openSource' : 'detail.openArticle'))} <span aria-hidden="true">↗</span>
-              </a>
-            ` : ''}
-          </div>
-        </li>
-      `)
-      .join('');
-  }
-  if (timelineSectionEl) {
-    timelineSectionEl.hidden = timeline.length === 0;
-  }
+  const timeline = getWatchTimelineEvents(watch).reverse().map((item) => {
+    const source = item.source || {};
+    const title = item.type === 'created' ? t('watchData.created')
+      : item.type === 'update'
+        ? currencyUpdateSummary(watch, source, getLanguage()) || getBodaccBusinessEventLabel(source, t) || source.sourceTitle || source.summary || t('detail.updateDetected')
+        : localizeListItem(source);
+    return {
+      id: 'history-event-' + (source.id || item.order),
+      articleId: item.type === 'update' || source.type === 'update' ? source.updateId || source.monitoringUpdateId || source.id : source.updateId || source.monitoringUpdateId,
+      eventId: item.type === 'created' ? 'watch-created' : source.id,
+      timestamp: item.type === 'update' ? source.timestamp : item.timestamp,
+      event: item.type !== 'update', created: item.type === 'created', title, dateLabel: item.dateKey ? t(item.dateKey) : '',
+      summary: source.summary && source.summary !== title ? source.summary : '',
+      publishedAt: source.publishedAt,
+      source: source.sourceName || source.sourceDomain,
+      url: getSafeExternalUrl(source.sourceUrl || source.url),
+    };
+  }).filter(item => item.title);
 
   const externalActions = Array.isArray(watch.externalActions)
     ? watch.externalActions
@@ -1929,18 +1892,19 @@ const renderWatchDetail = () => {
   }
 
   const monitoringUpdates = detailDevelopmentItems(watch);
-  if (monitoringUpdatesListEl) {
-    const historyItems = monitoringUpdates.map((item, index) => {
+  const historyItems = monitoringUpdates.map((item, index) => {
       const legacyChange = index === 0 ? getLatestChange(watch) : '';
       const currencyText = currencyUpdateSummary(watch, item, getLanguage());
       const title = currencyText || item.sourceTitle || item.summary || legacyChange || t('detail.untitledItem');
       const summary = !currencyText && item.summary && normalizeComparableText(item.summary) !== normalizeComparableText(title) ? item.summary : '';
-      return {...item, title, summary, source:item.sourceDomain, url:getSafeExternalUrl(item.sourceUrl)};
+      return {...item, title, summary, articleId:item.id, event:false, source:item.sourceName || item.sourceDomain, url:getSafeExternalUrl(item.sourceUrl)};
     });
-    monitoringUpdatesListEl.innerHTML = renderUpdateHistory({items:historyItems,language:getLanguage(),t,escapeHtml,formatTimestamp:formatMonitoringTimestamp});
+  const combinedHistory = mergeHistoryItems(historyItems, timeline);
+  if (monitoringUpdatesListEl) {
+    monitoringUpdatesListEl.innerHTML = renderUpdateHistory({items:combinedHistory,language:getLanguage(),t,escapeHtml,formatTimestamp:formatMonitoringTimestamp});
   }
   if (monitoringUpdatesEl) {
-    monitoringUpdatesEl.hidden = monitoringUpdates.length === 0;
+    monitoringUpdatesEl.hidden = combinedHistory.length === 0;
   }
 
   if (preparingEl) {

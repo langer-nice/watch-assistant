@@ -35,7 +35,7 @@ test('Watch Detail header omits redundant status and Home-report actions', async
 
 test('Watch Detail presents operational status and Check Now before developments and disclosures', async () => {
  const html=await read('../../watch-detail.html');
- const ids=['watchTitle','watchOverview','watchLatestDevelopments','watchTimelineSection','watchInitialContextDisclosure','watchManagement'];
+ const ids=['watchTitle','watchOverview','watchLatestDevelopments','watchInitialContextDisclosure','watchMonitoringUpdates','watchManagement'];
  const positions=ids.map(id=>html.indexOf('id="'+id+'"'));
  assert(positions.every((position,index)=>position>=0&&(!index||position>positions[index-1])));
  const overview=html.slice(html.indexOf('id="watchOverview"'),html.indexOf('id="watchLatestDevelopments"'));
