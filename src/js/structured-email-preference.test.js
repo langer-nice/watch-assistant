@@ -29,7 +29,7 @@ test('actual Supabase RPC builder without catch supports owner load/save/reload 
  assert.equal(typeof client.rpc('get_structured_media_email_preference',{p_watch_id:id}).catch,'undefined');
  const call=(name,p)=>client.rpc(name,p);
  const f=await fixture('fr',call);assert.equal(f.root.hidden,false);assert.equal(f.input.checked,false);
- f.input.checked=true;f.input.dispatchEvent(new Event('change'));await tick();assert.equal(consent,true);assert(f.root.textContent.includes('activées'));f.control.destroy();
+ f.input.checked=true;f.input.dispatchEvent(new Event('change'));await tick();assert.equal(consent,true);assert(f.root.textContent.includes('Enregistré.'));f.control.destroy();
  const reloaded=await fixture('en',call);assert.equal(reloaded.input.checked,true);assert.equal(reloaded.root.hidden,false);reloaded.control.destroy();assert.equal(requests.length,3);
 });
 test('rejected RPC thenable fails closed without unhandled errors or secret disclosure',async()=>{const f=await fixture('en',()=>Promise.reject(Error('PRIVATE')));assert(f.root.hidden);assert(f.input.disabled);assert(!f.root.textContent.includes('PRIVATE'));});

@@ -210,6 +210,18 @@
     "empty": "Tout est sous contrôle. Aucune Watch active pour le moment."
   },
   "detail": {
+    "settingsOn": "Activées",
+    "settingsOff": "Désactivées",
+    "settingsSaved": "Enregistré.",
+    "settingsConsentDescription": "Activez ce bouton pour autoriser les emails de cette Watch. Chaque choix est enregistré dès sa sélection.",
+    "settingsWhenEmail": "Quand souhaitez-vous recevoir les emails ?",
+    "settingsMorningOption": "Rapport du matin · 08 h 15",
+    "settingsMorningDescription": "Un email regroupant les nouveautés chaque matin.",
+    "settingsImmediateOption": "Au fil des nouveautés",
+    "settingsImmediateDescription": "Un email lorsqu’une nouveauté est détectée ; plusieurs emails par jour sont possibles.",
+    "settingsImmediateCaveat": "L’envoi immédiat n’est pas confirmé pour cette Watch ; les emails suivent les horaires pris en charge par le service.",
+    "settingsDeleteUnavailable": "Cette Watch est en lecture seule dans cette version. Sa suppression n’est pas disponible ici.",
+    "settingsMonitoringStates": {"active": "Active — contrôles automatiques", "paused": "En pause — contrôles automatiques arrêtés", "awaiting": "En attente du premier contrôle réussi", "failed": "Le dernier contrôle a échoué — consultez son résultat", "attention": "Surveillance à vérifier", "unconfirmed": "Surveillance automatique non confirmée", "unavailable": "Statut de surveillance indisponible"},
     "resultsFromCheck": "Résultats de ce contrôle",
     "newInformationFound": "De nouvelles informations pertinentes ont été trouvées.",
     "lastSuccessfulCheck": "Dernier contrôle réussi",

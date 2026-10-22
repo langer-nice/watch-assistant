@@ -210,6 +210,18 @@
     "empty": "Everything is under control. No active watches right now."
   },
   "detail": {
+    "settingsOn": "On",
+    "settingsOff": "Off",
+    "settingsSaved": "Saved.",
+    "settingsConsentDescription": "Turn this switch on to allow emails for this Watch. Changes are saved when you select them.",
+    "settingsWhenEmail": "When should we email you?",
+    "settingsMorningOption": "Morning report · 08:15",
+    "settingsMorningDescription": "One email containing new updates each morning.",
+    "settingsImmediateOption": "As updates happen",
+    "settingsImmediateDescription": "Email when a new update is detected; potentially several emails per day.",
+    "settingsImmediateCaveat": "Immediate delivery is not confirmed for this Watch; delivery follows the supported service schedule.",
+    "settingsDeleteUnavailable": "This Watch is read-only in this version. Deletion is not available here.",
+    "settingsMonitoringStates": {"active": "Active — checking automatically", "paused": "Paused — automatic checks stopped", "awaiting": "Awaiting first successful check", "failed": "The last check failed — please review its result", "attention": "Monitoring needs attention", "unconfirmed": "Automatic monitoring not confirmed", "unavailable": "Monitoring status unavailable"},
     "resultsFromCheck": "What this check found",
     "newInformationFound": "New relevant information found.",
     "lastSuccessfulCheck": "Last successful check",

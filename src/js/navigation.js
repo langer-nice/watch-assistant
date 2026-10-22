@@ -1,5 +1,5 @@
 import {linkCheckResult,checkUpdateTargetId} from './check-result-navigation.js';
-import {renderWatchOverview,renderLatestDevelopments,detailDevelopmentItems} from './watch-detail-overview.js';
+import {watchOperationalState,renderWatchOverview,renderLatestDevelopments,detailDevelopmentItems} from './watch-detail-overview.js';
 import {reportSyncState} from './report-sync.js';
 import { articleWatchDisplayCategory, localizedGeneratedArticleScope } from './article-watch-presentation.js';
 import { canManuallyCheckWatch, manualCheckIssue } from './watch-manual-check.js';
@@ -2150,7 +2150,17 @@ const renderWatchDetail = () => {
       };
   }
 
-  if (deleteEl) deleteEl.hidden = Boolean(watch.serverReadOnly);
+  const settingsMonitoring=document.querySelector('#watchSettingsMonitoringStatus');
+  if(settingsMonitoring)settingsMonitoring.textContent=t('detail.settingsMonitoringStates.'+watchOperationalState(watch));
+  const settingsNotice=document.querySelector('#watchMediaPersistenceNotice');
+  if(settingsNotice&&watch.monitoringAvailability==='saved'&&['active','paused'].includes(watchOperationalState(watch)))settingsNotice.hidden=true;
+  if(deleteEl){
+    deleteEl.hidden=false;
+    deleteEl.disabled=Boolean(watch.serverReadOnly);
+    if(watch.serverReadOnly)deleteEl.setAttribute('aria-describedby','watchDeleteUnavailable');else deleteEl.removeAttribute('aria-describedby');
+  }
+  const deleteUnavailable=document.querySelector('#watchDeleteUnavailable');
+  if(deleteUnavailable)deleteUnavailable.hidden=!watch.serverReadOnly;
   if (deleteEl && deleteDialogEl) {
     deleteEl.onclick = () => {
       deleteDialogEl.showModal();

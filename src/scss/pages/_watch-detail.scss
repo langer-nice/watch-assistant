@@ -1285,3 +1285,31 @@ body.is-watch-edit-open {
 .watch-fact-check__result-link:hover { text-decoration: underline; }
 .watch-fact-check__result-link:focus-visible, #watchCheckResults:focus, #watchCheckResults li:focus { outline: 2px solid var(--color-action); outline-offset: 3px; }
 #watchCheckResults, #watchCheckResults li { scroll-margin-top: 6rem; }
+
+// Compact settings; all controls retain the existing save/change handlers.
+.watch-settings__monitoring { padding: var(--space-lg); border-bottom: 1px solid var(--color-divider); }
+.watch-settings__monitoring h2 { margin: 0 0 var(--space-xs); font-size: 1rem; }
+.watch-settings__monitoring p { margin: 0; line-height: 1.5; }
+#email-notifications .watch-settings__switch-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: var(--space-sm); min-height: 2.75rem; }
+#email-notifications [data-email-consent-state] { color: var(--color-text-muted); font-size: .875rem; }
+#email-notifications input[role='switch'] { appearance: none; position: relative; width: 2.75rem; height: 1.625rem; margin: 0; border: 1px solid var(--color-border); border-radius: 2rem; background: var(--color-text-muted); cursor: pointer; }
+#email-notifications input[role='switch']::before { content: ''; display: block; position: absolute; top: .125rem; left: .125rem; width: 1.25rem; height: 1.25rem; border-radius: 50%; background: var(--color-surface); transition: transform 120ms; }
+#email-notifications input[role='switch']:checked { background: var(--color-action); }
+#email-notifications input[role='switch']:checked::before { transform: translateX(1.125rem); }
+#email-notifications input:focus-visible { outline: 2px solid var(--color-action); outline-offset: 3px; }
+#email-notifications input:disabled { cursor: default; }
+#email-notifications select[data-email-frequency] { width: 1px; height: 1px; min-width: 0; padding: 0; border: 0; }
+.watch-settings__frequency { margin: var(--space-lg) 0 0; padding: 0; border: 0; min-width: 0; }
+.watch-settings__frequency legend { padding: 0; margin-bottom: var(--space-md); font-weight: 600; }
+.watch-settings__frequency label { display: flex; align-items: flex-start; gap: var(--space-sm); padding-block: var(--space-sm); cursor: pointer; min-height: 2.75rem; }
+.watch-settings__frequency input { flex: 0 0 auto; width: 1.125rem; height: 1.125rem; margin-top: .25rem; accent-color: var(--color-action); }
+.watch-settings__frequency span { min-width: 0; }
+.watch-settings__frequency strong, .watch-settings__frequency small { display: block; line-height: 1.5; overflow-wrap: anywhere; }
+.watch-settings__frequency strong { font-size: .9375rem; font-weight: 500; }
+.watch-settings__frequency small { color: var(--color-text-muted); font-size: .8125rem; margin-top: .25rem; }
+.watch-settings__frequency .watch-settings__availability { font-size: .75rem; }
+.watch-management__controls { display: flex; flex-direction: column; align-items: stretch; padding-top: var(--space-lg); border-top: 1px solid var(--color-divider); }
+.watch-management__controls #structured-monitoring button { width: 100%; min-height: 2.75rem; }
+.watch-management__delete:disabled { opacity: .65; cursor: not-allowed; }
+#watchDeleteUnavailable { margin: 0; font-size: .8125rem; color: var(--color-text-muted); line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { #email-notifications input[role='switch']::before { transition: none; } }

@@ -7,6 +7,7 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t, 
   const frequency = root.querySelector('[data-email-frequency]');
   const frequencyControl = root.querySelector('[data-email-frequency-control]');
   const consentState = root.querySelector('[data-email-consent-state]');
+  const choices=[...root.querySelectorAll('[data-email-mode]')];
   if (!input || !label || !hint || !status || (digestEnabled && (!frequency || !frequencyControl || !consentState))) return;
   const id = new URLSearchParams(location.search).get('id');
   if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id || '')) return;
@@ -26,25 +27,27 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t, 
       if (selected) selected.selected = true;
     }
   };
-  const disable = value => { input.disabled = value; if (frequency) frequency.disabled = value; };
+  const disable = value => { input.disabled = value; if (frequency) frequency.disabled = value; for(const choice of choices)choice.disabled=value||Boolean([...frequency.options].find(option=>option.value===choice.value)?.disabled); };
   const restore = () => {
     input.checked = saved?.enabled === true;
     setFrequency(saved?.mode || 'off');
-    if (consentState) consentState.textContent = digestEnabled && saved ? t(saved.enabled ? 'detail.emailOn' : 'detail.emailOff') : '';
+    if(consentState)consentState.textContent=saved?t(saved.enabled?'detail.settingsOn':'detail.settingsOff'):'';
+    for(const choice of choices)choice.checked=choice.value===saved?.mode;
+    input.setAttribute('aria-checked',String(input.checked));
   };
   const render = () => {
-    status.textContent = feedbackKey ? t(feedbackKey) : '';
-    label.textContent = t(digestEnabled ? 'detail.emailConsent' : 'detail.emailNotifications');
+    status.textContent = feedbackKey ? t(['detail.emailOn','detail.emailOff'].includes(feedbackKey)?'detail.settingsSaved':feedbackKey) : '';
+    label.textContent = t('detail.emailNotifications');
     input.setAttribute('aria-label', label.textContent);
     hint.textContent = t(digestEnabled ? 'detail.emailDigestIndependent' : 'detail.emailIndependent');
-    if (frequencyControl) frequencyControl.hidden = !digestEnabled;
+    if (frequencyControl) frequencyControl.hidden = !digestEnabled||saved?.enabled!==true;
     if (frequency) {
       frequency.setAttribute('aria-label', t('detail.emailFrequency'));
       const caption = root.querySelector('[data-email-frequency-label]');
-      if (caption) caption.textContent = t('detail.emailFrequency');
+      if (caption) caption.textContent = t(choices.length?'detail.settingsWhenEmail':'detail.emailFrequency');
       for (const option of frequency.options) option.textContent = t('detail.emailFrequency' + ({off:'Off',daily_digest:'Daily',immediate:'Immediate'}[option.value]));
     }
-    if (consentState && digestEnabled && saved) consentState.textContent = t(saved.enabled ? 'detail.emailOn' : 'detail.emailOff');
+    if(consentState&&saved)consentState.textContent=t(saved.enabled?'detail.settingsOn':'detail.settingsOff');
   };
   const scrub = () => {
     saved = null; busy = false; feedbackKey = null; root.setAttribute('aria-busy', 'false'); root.hidden = true; disable(true); restore(); status.textContent = '';
@@ -73,7 +76,7 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t, 
       else if (!fromFrequency && enabled && mode === 'off') mode = 'daily_digest';
     }
     const document = root.ownerDocument;
-    const focusedControl = [input, frequency].includes(document.activeElement) ? document.activeElement : null;
+    const focusedControl = [input, frequency,...choices].includes(document.activeElement) ? document.activeElement : null;
     busy = true; root.setAttribute('aria-busy', 'true'); disable(true); feedbackKey = null; status.textContent = '';
     const result = await rpc(digestEnabled ? 'set_media_watch_email_policy' : 'set_structured_media_email_preference',
       digestEnabled ? {p_watch_id:id,p_mode:mode,p_enabled:enabled} : {p_watch_id:id,p_enabled:enabled});
@@ -90,7 +93,9 @@ export const initStructuredEmailPreference = ({root, client, auth, location, t, 
   const changeFrequency = () => { void save(true); };
   input.addEventListener('change', changeConsent);
   if (digestEnabled) frequency.addEventListener('change', changeFrequency);
+  const changeChoice=event=>{if(event.target.checked&&!event.target.disabled){setFrequency(event.target.value);void save(true);}};
+  for(const choice of choices)choice.addEventListener('change',changeChoice);
   const unsubscribe = auth.subscribe(refresh);
   void refresh();
-  return {refresh, render, destroy(){ generation++; owner = null; unsubscribe?.(); input.removeEventListener('change', changeConsent); frequency?.removeEventListener('change', changeFrequency); scrub(); }};
+  return {refresh, render, destroy(){ generation++; owner = null; unsubscribe?.(); input.removeEventListener('change', changeConsent); frequency?.removeEventListener('change', changeFrequency);choices.forEach(choice=>choice.removeEventListener('change',changeChoice)); scrub(); }};
 };

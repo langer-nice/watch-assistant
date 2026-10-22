@@ -280,26 +280,37 @@
         <details class="watch-management detail-disclosure" id="watchManagement" aria-labelledby="manageWatchTitle">
           <summary id="manageWatchTitle" data-i18n="detail.watchSettings"></summary>
           <span id="watchCurrencyPolicyAnchor"></span>
-          <div id="structured-monitoring" hidden>
-            <button type="button" class="button button--secondary" data-monitoring-toggle disabled></button>
-            <p data-monitoring-hint></p>
-            <p role="status" aria-live="polite" aria-atomic="true"></p>
-          </div>
+          <section class="watch-settings__monitoring" aria-labelledby="watchSettingsMonitoringTitle">
+            <h2 id="watchSettingsMonitoringTitle" data-i18n="detail.monitoringOverview"></h2>
+            <p id="watchSettingsMonitoringStatus" role="status"></p>
+          </section>
           <div id="email-notifications" role="group" aria-labelledby="email-preference-label" hidden>
-            <label><input type="checkbox" disabled> <span id="email-preference-label" data-email-label></span></label>
-            <label data-email-frequency-control hidden>
-              <span data-email-frequency-label></span>
-              <select data-email-frequency disabled aria-describedby="email-frequency-hint">
-                <option value="off"></option>
-                <option value="daily_digest"></option>
-                <option value="immediate"></option>
-              </select>
+            <label class="watch-settings__switch-row">
+              <span id="email-preference-label" data-email-label></span>
+              <span data-email-consent-state></span>
+              <input type="checkbox" role="switch" aria-describedby="email-consent-description" disabled>
             </label>
-            <p data-email-consent-state></p>
-            <p data-email-hint id="email-frequency-hint"></p>
+            <p id="email-consent-description" class="visually-hidden" data-i18n="detail.settingsConsentDescription"></p>
+            <div data-email-frequency-control hidden>
+              <fieldset class="watch-settings__frequency">
+                <legend data-email-frequency-label></legend>
+                <label><input type="radio" name="watch-email-mode" value="daily_digest" data-email-mode="daily_digest"><span><strong data-i18n="detail.settingsMorningOption"></strong><small data-i18n="detail.settingsMorningDescription"></small></span></label>
+                <label><input type="radio" name="watch-email-mode" value="immediate" data-email-mode="immediate"><span><strong data-i18n="detail.settingsImmediateOption"></strong><small data-i18n="detail.settingsImmediateDescription"></small><small class="watch-settings__availability" data-i18n="detail.settingsImmediateCaveat"></small></span></label>
+              </fieldset>
+              <select data-email-frequency class="visually-hidden" tabindex="-1" aria-hidden="true" disabled>
+                <option value="off"></option><option value="daily_digest"></option><option value="immediate"></option>
+              </select>
+            </div>
+            <p data-email-hint id="email-frequency-hint" hidden></p>
             <p role="status" aria-live="polite" aria-atomic="true"></p>
           </div>
           <div class="watch-management__controls">
+          <div id="structured-monitoring" hidden>
+            <button type="button" class="button button--secondary" data-monitoring-toggle disabled></button>
+            <p data-monitoring-hint hidden></p>
+            <p role="status" aria-live="polite" aria-atomic="true"></p>
+          </div>
+
             <button class="button button--secondary watch-management__pause" id="watchPauseResume" type="button">
               <svg id="watchPauseIcon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M9 6v12M15 6v12"></path>
@@ -318,6 +329,7 @@
               </svg>
               <span data-i18n="detail.deleteWatch"></span>
             </button>
+            <p id="watchDeleteUnavailable" data-i18n="detail.settingsDeleteUnavailable" hidden></p>
           </div>
         </details>
 
