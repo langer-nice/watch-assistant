@@ -1,5 +1,5 @@
 import {runStagingLegacyMonitoring,processStagingLegacyDigests,stagingLegacyEnabled} from './staging-legacy-notifications.js';
-import {mediaDailyDigestEnabled, validStructuredMediaDigestSelection} from './media-watch-digest.js';
+import {validStructuredMediaDigestSelection} from './media-watch-digest.js';
 import { randomUUID } from 'node:crypto';
 
 import { applyFeedCheckResult } from '../src/js/watch-monitoring.js';
@@ -236,10 +236,9 @@ export const createCompanyMonitoringCronHandler = ({
         structuredRunner({ ...options, client: clientFactory({ env }), env, schedulerAuthorized: true }),
         stagingLegacyEnabled(env) ? legacyRunner({...options,client:clientFactory({env}),env,schedulerAuthorized:true}) : null,
       ]);
-      // Structured processing keeps its existing owner/recipient scope.
-      // The existing processor independently enforces every delivery gate.
-      const notifications = mediaDailyDigestEnabled(env) ? await structuredNotificationProcessor({client:clientFactory({env}),env}) : null;
-      return sendJson(response, 200, { runId, structured, ...(notifications ? {notifications} : {}),...(legacy?{legacy}:{}) });
+      // The hourly Staging route captures updates only. The existing dedicated
+      // 08:15 email route above owns delivery for Structured and legacy digests.
+      return sendJson(response, 200, { runId, structured, ...(legacy?{legacy}:{}) });
     }
     const client = clientFactory({ env });
     const summary = await runner({ client, env, ...options });
