@@ -1,5 +1,6 @@
+import {generateMorningReport,runMorningBatches} from './morning-report.js';
 import {runStagingLegacyMonitoring,processStagingLegacyDigests,stagingLegacyEnabled} from './staging-legacy-notifications.js';
-import {validStructuredMediaDigestSelection} from './media-watch-digest.js';
+import {parisDigestWindow as validMorningDeliveryWindow,validStructuredMediaDigestSelection} from './media-watch-digest.js';
 import { randomUUID } from 'node:crypto';
 
 import { applyFeedCheckResult } from '../src/js/watch-monitoring.js';
@@ -190,6 +191,7 @@ export const createCompanyMonitoringCronHandler = ({
   structuredNotificationProcessor = processMediaWatchEmailNotifications,
   legacyRunner = runStagingLegacyMonitoring,
   legacyDigestProcessor = processStagingLegacyDigests,
+  morningReportProcessor = generateMorningReport,
   ...options
 } = {}) => async (request, response) => {
   const runId = createRunId();
@@ -222,6 +224,17 @@ export const createCompanyMonitoringCronHandler = ({
       const selection = hasSelection ? Object.fromEntries(keys.map(key => [key, params.get(key)])) : undefined;
       if (hasSelection && ((digest && params.has('notificationId')) || keys.some(key => params.getAll(key).length !== 1)
         || !(digest ? validStructuredMediaDigestSelection(selection, env) : validStructuredMediaEmailSelection(selection, env)))) return sendJson(response, 400, {runId,status:'invalid-selection'});
+      // Retry composition from stored results only; delivery remains independent.
+      if(!hasSelection)try{
+        let report=await morningReportProcessor({client:clientFactory({env}),env,at:now()});
+        // A 24-hour lease may become due seconds after the 08:00 hourly tick.
+        // The existing 08:15 tick drains only that due work, without moving its
+        // interval or checking any non-due Watch. Then capture before delivery.
+        if(report.status==='awaiting-completed-checks'&&validMorningDeliveryWindow(now()).open&&env.STRUCTURED_MEDIA_SCHEDULED_ENABLED==='true'){
+          await runMorningBatches({run:structuredRunner,args:{...options,client:clientFactory({env}),env,schedulerAuthorized:true},at:now()});
+          await morningReportProcessor({client:clientFactory({env}),env,at:now()});
+        }
+      }catch{/* Existing email delivery stays independent. */}
       const [notifications,legacyDigests] = await Promise.all([
         structuredNotificationProcessor({client:clientFactory({env}),env,...(hasSelection ? {[digest ? 'digestSelection' : 'notificationSelection']:selection} : {})}),
         !hasSelection && stagingLegacyEnabled(env) ? legacyDigestProcessor({client:clientFactory({env}),env}) : null,
@@ -233,12 +246,14 @@ export const createCompanyMonitoringCronHandler = ({
     if (scope === 'structured-media') {
       if (!structuredCreationEnabled(env) || env.STRUCTURED_MEDIA_SCHEDULED_ENABLED !== 'true') return sendJson(response, 404, { runId, status: 'disabled' });
       const [structured,legacy] = await Promise.all([
-        structuredRunner({ ...options, client: clientFactory({ env }), env, schedulerAuthorized: true }),
+        runMorningBatches({run:structuredRunner,args:{...options,client:clientFactory({env}),env,schedulerAuthorized:true},at:now()}),
         stagingLegacyEnabled(env) ? legacyRunner({...options,client:clientFactory({env}),env,schedulerAuthorized:true}) : null,
       ]);
+      let morningReport;
+      try{morningReport=await morningReportProcessor({client:clientFactory({env}),env,at:now()});}catch{morningReport={status:'unavailable'};}
       // The hourly Staging route captures updates only. The existing dedicated
       // 08:15 email route above owns delivery for Structured and legacy digests.
-      return sendJson(response, 200, { runId, structured, ...(legacy?{legacy}:{}) });
+      return sendJson(response, 200, { runId, structured, morningReport, ...(legacy?{legacy}:{}) });
     }
     const client = clientFactory({ env });
     const summary = await runner({ client, env, ...options });

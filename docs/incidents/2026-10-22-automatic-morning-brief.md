@@ -1,0 +1,15 @@
+# Staging Morning Brief and 08:15 digest
+
+Scope: `codex/structured-interpretation-v1`, Supabase `tseexvbwhrtofcsrvcqc`, approved owner only. Reuses `6d4e1f1` and existing cron scopes. No provider or AI calls during verification.
+
+The hourly route never sends digests. The shared Staging digest gate now opens at 08:15 and closes at 08:30 Europe/Paris; UTC daily idempotency remains unchanged.
+
+Morning processing reuses the existing lease-based scheduler, draining already-due batches within the existing 18-second budget. It never moves a Watch's interval. Scheduled checks due by 08:15 and active leases prevent report persistence until completion. The existing 08:15 route can drain due Structured leases and retry composition before independent delivery; it never reruns the legacy 08:00 checks. Failed or unfinished required checks leave the previous report intact. Non-due Watches retain their actual stored check timestamps; a partial report warning identifies results that do not all have a successful check this morning. A 24-hour interval can become due after either cron tick: this cannot guarantee a fresh check for every Watch before 08:15 without changing intervals or external scheduling. No such changes are made.
+
+Composition uses the same row mapping and report classification as the browser. It reads persisted Watches/snapshots, then revalidates source versions and due work under shared Watch locks before inserting once per owner/Paris day. Report persistence never writes to Watches, snapshots, identity history, notification preferences or outboxes. `watch_reports` has RLS enabled, no direct API grants, authenticated owner-only reads, authenticated manual saves, and service-only automatic saves. All rollout writes are pinned to the approved Staging owner. No authenticated RPC accepts an owner parameter for reading.
+
+Home loads server reports at authentication, page load, focus and visibility restoration. Account epoch checks discard requests that cross logout/account changes. Local read acknowledgements overlay matching result identities without rewriting the automatic report or its generation timestamp. Manual generation remains available and persists locally first, then privately on the server. An unavailable persistence service is visible on Home.
+
+Focused verification: 35 tests passed, including timing across CET/CEST, leased batching, incomplete-source blocking, private SQL/RLS/ACL isolation, daily uniqueness, pending article preservation, Home restoration/account races, existing manual generation and report rules. Vite build passed. No email or real monitoring invocation was used. Hosted migration/deployment and actual next scheduled execution must be recorded separately after completion.
+
+Hosted Staging migration applied successfully on 2026-10-22. Read-only verification: RLS true; all direct table API grants revoked; authenticated owner read RPC and service-only context privileges correct; 0 reports (no synthetic backfill); exactly 14 pending notifications retained. Screenshot: `docs/evidence/morning-report-staging-acl-2026-10-22.png`.

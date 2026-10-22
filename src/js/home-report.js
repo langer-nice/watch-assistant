@@ -1,3 +1,4 @@
+import {getUnreadUpdates} from './watch-updates.js';
 import { watchCreationState } from './watch-creation-state.js';
 import { WATCH_CLASSIFICATIONS, isRecentlyCreatedWatch, monitoringUnavailable } from './report-status.js';
 import { getWatchCreationDate } from './watch-dates.js';
@@ -21,7 +22,17 @@ export const selectHomeReport = ({
       reportUpdateTitle: entry.updateTitle, reportSummary: entry.summary,
       reportCheckedAt: entry.checkedAt, reportFailureCode: entry.failureCode,
     });
-    statusById.set(entry.watchId, entry.classification);
+    const local=watches.find(w=>w.id===entry.watchId);
+    // Server snapshots carry facts, never account-local read acknowledgements.
+    // Apply the existing visibility rules only to automatic reports.
+    let classification=entry.classification;
+    if(snapshot.origin==='automatic'&&local){
+      if(entry.classification===WATCH_CLASSIFICATIONS.UPDATED){
+        const unread=new Set(getUnreadUpdates(local).map(update=>update.id));
+        if(entry.resultIds?.length&&entry.resultIds.every(id=>local.updates?.some(update=>update.id===id))&&!entry.resultIds.some(id=>unread.has(id)))classification=WATCH_CLASSIFICATIONS.WATCHING;
+      }else if(entry.classification===WATCH_CLASSIFICATIONS.NEW&&!isRecentlyCreatedWatch(local,now))classification=WATCH_CLASSIFICATIONS.WATCHING;
+    }
+    statusById.set(entry.watchId, classification);
   }
   // Keep the stored report immutable, but do not present a currently local-only
   // or pending Watch as successfully monitored. Surface it regardless of age.

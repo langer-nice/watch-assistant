@@ -14,3 +14,12 @@ test('existing dedicated 08:15 Staging scope still processes both digest types w
  const calls=[];const handler=createCompanyMonitoringCronHandler({env,now:()=>Date.parse('2026-10-22T06:15:00Z'),clientFactory:()=>({}),structuredRunner:()=>assert.fail('No monitoring in delivery route'),legacyRunner:()=>assert.fail('No monitoring in delivery route'),structuredNotificationProcessor:async()=>{calls.push('structured-email');return{sentCount:0};},legacyDigestProcessor:async()=>{calls.push('legacy-email');return{sentCount:0};}});
  const result=await invoke(handler,'structured-media-email-test');assert.deepEqual(calls.sort(),['legacy-email','structured-email']);assert.deepEqual(result.notifications,{sentCount:0});assert.deepEqual(result.legacyDigests,{sentCount:0});
 });
+
+test('08:15 tick finishes only due scheduled leases before composition and delivery',async()=>{
+ const calls=[];let contextCalls=0;
+ const handler=createCompanyMonitoringCronHandler({env,now:()=>Date.parse('2026-10-22T06:15:00Z'),clientFactory:()=>({}),
+ morningReportProcessor:async()=>{calls.push('report');return {status:++contextCalls===1?'awaiting-completed-checks':'generated'};},
+ structuredRunner:async()=>{calls.push('due-leases');return {claimed:0,failed:0};},legacyRunner:()=>assert.fail('Legacy already checked at 08:00'),
+ structuredNotificationProcessor:async()=>{calls.push('delivery');return {};},legacyDigestProcessor:async()=>({})});
+ await invoke(handler,'structured-media-email-test');assert.deepEqual(calls,['report','due-leases','report','delivery']);
+});

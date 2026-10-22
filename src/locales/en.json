@@ -92,6 +92,9 @@
     "flow3": "Watch Assistant — Flow 3"
   },
   "home": {
+    "reportPartial": "Partial report: some Watches have no recent completed check. Their original check times are retained.",
+    "reportSyncUnavailable": "The latest server report is unavailable. The retained local report may be old.",
+
     "newBadge": "New",
     "confirmationTitle": "Now watching",
     "confirmationPlaceholder": "Argentina v England world cup match",

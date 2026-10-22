@@ -92,6 +92,9 @@
     "flow3": "Watch Assistant — Parcours 3"
   },
   "home": {
+    "reportPartial": "Rapport partiel : certaines Watches n’ont pas de contrôle récent terminé. Leur dernier contrôle peut précéder ce matin.",
+    "reportSyncUnavailable": "Le dernier rapport serveur est indisponible. Le rapport local conservé peut être ancien.",
+
     "newBadge": "Nouveau",
     "confirmationTitle": "Nouvelle Watch",
     "confirmationPlaceholder": "Match Argentine-Angleterre de la Coupe du monde",

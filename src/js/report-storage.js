@@ -73,6 +73,8 @@ export const normalizeReport = (report) => {
   counts.considered = watchIdsConsidered.length;
   return {
     version: REPORT_STORAGE_VERSION,
+    ...(report.origin==='automatic'||report.origin==='manual'?{origin:report.origin}:{}),
+    ...(report.origin==='automatic'?{partial:report.partial===true,snapshotAt:report.snapshotAt||report.completedAt}:{}),
     ownerId: owner,
     id: report.id,
     startedAt: report.startedAt,

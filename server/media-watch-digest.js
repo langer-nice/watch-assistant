@@ -21,7 +21,7 @@ export const parisDigestWindow = (at=Date.now()) => {
  const date=new Date(at);if(!Number.isFinite(date.getTime()))return {open:false};
  const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Paris',hourCycle:'h23',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(date).map(p=>[p.type,p.value]));
  const seconds=Number(parts.hour)*3600+Number(parts.minute)*60+Number(parts.second);
- return {open:seconds>=8*3600&&seconds<8*3600+1800,utcHour:date.getUTCHours(),closesAt:date.getTime()+(8*3600+1800-seconds)*1000-date.getUTCMilliseconds()};
+ return {open:seconds>=8*3600+900&&seconds<8*3600+1800,utcHour:date.getUTCHours(),closesAt:date.getTime()+(8*3600+1800-seconds)*1000-date.getUTCMilliseconds()};
 };
 const clean = (s, max=300) => typeof s === 'string' ? s.replace(/\s+/gu,' ').trim().slice(0,max) : '';
 const escape = s => String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');

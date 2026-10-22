@@ -1,3 +1,5 @@
+import {snapshotEntry,storedAttemptForWatch} from './report-snapshot.js';
+import {saveManualReport} from './report-sync.js';
 import { getAccountOwner, getAccountEpoch } from './account-storage.js';
 import {
   classifyReportAttempt,
@@ -36,50 +38,13 @@ const addReportProvenance = (watch, resultIds, { reportId, completedAt }) => ({
   )),
 });
 
-const snapshotEntry = (watch, attempt, checkedAt) => {
-  const classification = classifyReportAttempt({ watch, now: new Date(checkedAt) });
-  const meaningfulUpdate = classification === 'updated' ? getMeaningfulWatchUpdate(watch) : null;
-  return {
-    watchId: watch.id,
-    classification,
-    title: watch.title || watch.request || '',
-    category: watch.category || 'general',
-    updateTitle: meaningfulUpdate?.headline || '',
-    summary: meaningfulUpdate?.summary || '',
-    checkedAt,
-    attemptStatus: attempt.status,
-    outcome: attempt.outcome,
-    failureCode: attempt.code,
-    resultIds: attempt.resultIds,
-  };
-};
-
-const storedAttemptForWatch = (watch, completedAt) => {
-  const unavailable = monitoringUnavailable(watch);
-  const paused = watch.status === 'paused';
-  const latest = watch.lastCheckAttempt;
-  const failed = latest?.status === 'failed';
-  const checkedAt = latest?.attemptedAt || watch.lastChecked || completedAt;
-  const meaningful = getMeaningfulWatchUpdate(watch);
-  const resultIds = !failed && meaningful?.update?.id ? [meaningful.update.id] : [];
-  return {
-    watchId: watch.id,
-    status: paused || unavailable || !latest ? 'skipped' : failed ? 'failed' : 'succeeded',
-    startedAt: checkedAt,
-    completedAt: checkedAt,
-    outcome: unavailable ? 'persistence-unavailable' : paused ? 'paused' : failed ? 'failed' : latest?.outcome || 'no-new-items',
-    code: failed ? latest.code || 'CHECK_FAILED' : null,
-    baselineCheckedAt: watch.monitoringSnapshot?.checkedAt || null,
-    resultIds,
-  };
-};
-
 // Check Now changes the live Watch outside report generation. Replacing the
 // latest snapshot under the same ID keeps Home current without creating report
 // history or rerunning unrelated network checks.
 export const refreshLatestReport = ({ watches, now = () => new Date(), save = saveReport } = {}) => {
   const latest = getReports()[0];
   if (!latest) return null;
+  if (latest.origin==='automatic') return latest;
   const completedAt = now().toISOString();
   const considered = (Array.isArray(watches) ? watches : [])
     .filter((watch) => watch?.id && watch.status !== 'completed');
@@ -106,7 +71,7 @@ export const generateReport = ({
   checkController,
   getWatch,
   saveWatch,
-  save = saveReport,
+  save = saveManualReport,
   loadReports = getReports,
   clock = () => new Date(),
   idFactory = makeId,

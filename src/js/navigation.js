@@ -1,3 +1,4 @@
+import {reportSyncState} from './report-sync.js';
 import { articleWatchDisplayCategory, localizedGeneratedArticleScope } from './article-watch-presentation.js';
 import { canManuallyCheckWatch, manualCheckIssue } from './watch-manual-check.js';
 import { initStructuredWatchCreation } from './structured-watch-creation.js';
@@ -2439,6 +2440,13 @@ const renderHomeSummary = () => {
   }
 
   const reportHeader = getHomeReportHeader({ hasReport, uncertain, totalChecked: homeReport.totalChecked }, t);
+  let reportNotice=document.querySelector('#homeServerReportNotice');
+  if(!reportNotice&&briefingDate){reportNotice=document.createElement('p');reportNotice.id='homeServerReportNotice';reportNotice.setAttribute('role','status');briefingDate.parentElement.append(reportNotice);}
+  if(reportNotice){
+    const partial=homeReport.report?.origin==='automatic'&&homeReport.report.partial;
+    reportNotice.hidden=!partial&&reportSyncState!=='unavailable';
+    reportNotice.textContent=partial?t('home.reportPartial'):reportSyncState==='unavailable'?t('home.reportSyncUnavailable'):'';
+  }
   if (briefingDate) {
     briefingDate.hidden = reportHeader.hideTimestamp;
     const storedTimestamp = resolveHomeReportTimestamp({
