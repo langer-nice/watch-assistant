@@ -1,3 +1,4 @@
+import { createStructuredWatchMiddleware } from './server/structured-watch-api.js';
 import { createMediaWatchMiddleware } from './server/media-watch-api.js';
 import { defineConfig, loadEnv } from 'vite';
 import { resolve } from 'path';
@@ -15,6 +16,9 @@ export default defineConfig(({ mode }) => {
   if (env.VITE_SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('VITE_SUPABASE_SERVICE_ROLE_KEY is forbidden because VITE_ variables are bundled for browsers.');
   }
+  if (env.VITE_STRUCTURED_WATCH_SIGNING_SECRET) {
+    throw new Error('VITE_STRUCTURED_WATCH_SIGNING_SECRET is forbidden because VITE_ variables are bundled for browsers.');
+  }
   const middleware = createUrlWatchMiddleware({
     apiKey: process.env.OPENAI_API_KEY || env.OPENAI_API_KEY,
     model: process.env.OPENAI_MODEL || env.OPENAI_MODEL || 'gpt-5.6-luna',
@@ -30,7 +34,8 @@ export default defineConfig(({ mode }) => {
   const checkWatchMiddleware = createCheckWatchMiddleware();
   const monitoringSourceMiddleware = createMonitoringSourceMiddleware();
   const checkCompanyMiddleware = createCheckCompanyMiddleware();
-  const planWatchMiddleware = createPlanWatchMiddleware();
+  const planWatchMiddleware = createPlanWatchMiddleware({ env, apiKey: process.env.OPENAI_API_KEY || env.OPENAI_API_KEY, model: process.env.OPENAI_MODEL || env.OPENAI_MODEL || 'gpt-5.6-luna' });
+  const structuredWatchMiddleware = createStructuredWatchMiddleware({ env, creationOnly:true });
   const companyWatchMiddleware = createCompanyWatchMiddleware({ env });
   const urlWatchPlugin = {
     name: 'url-watch-prototype-api',
@@ -42,6 +47,7 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use(monitoringSourceMiddleware);
       server.middlewares.use(checkCompanyMiddleware);
       server.middlewares.use(planWatchMiddleware);
+      server.middlewares.use(structuredWatchMiddleware);
       server.middlewares.use(companyWatchMiddleware);
       server.middlewares.use(createMediaWatchMiddleware({ env }));
     },
@@ -53,6 +59,7 @@ export default defineConfig(({ mode }) => {
       server.middlewares.use(monitoringSourceMiddleware);
       server.middlewares.use(checkCompanyMiddleware);
       server.middlewares.use(planWatchMiddleware);
+      server.middlewares.use(structuredWatchMiddleware);
       server.middlewares.use(companyWatchMiddleware);
       server.middlewares.use(createMediaWatchMiddleware({ env }));
     },

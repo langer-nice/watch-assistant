@@ -1,8 +1,12 @@
+import {configureReportSync} from './report-sync.js';
+import {initStructuredMonitoringPreference} from './structured-monitoring-preference.js';
+import { configureStructuredWatchCreation } from './structured-watch-creation.js';
 import { applyExampleToEditor } from './example-watches.js';
 import { getAccountEpoch, getAccountOwner } from './account-storage.js';
-import { configureMediaWatchServerStore } from './media-watch-server-store.js';
+import { configureMediaWatchServerStore, synchronizeMediaWatches } from './media-watch-server-store.js';
 import { configureHomeGreeting, initApp } from './navigation.js';
-import { initializeLanguage, setLanguage } from './i18n.js';
+import { initializeLanguage, setLanguage, t } from './i18n.js';
+import { initStructuredEmailPreference } from './structured-email-preference.js';
 import { initTopNavigation } from './top-navigation.js';
 import { initializeAnalytics } from './analytics.js';
 import { initAuthUi } from './auth-ui.js';
@@ -29,6 +33,12 @@ const authUi = initAuthUi({ onResume: async (request, owner) => {
   document.querySelector('#newWatchForm').requestSubmit();
 } });
 configureHomeGreeting(authUi?.auth);
+void configureReportSync({client:authUi?.client,auth:authUi?.auth});
+configureStructuredWatchCreation(authUi?.auth);
+const emailPreference = initStructuredEmailPreference({root:document.querySelector('#email-notifications'),client:authUi?.client,auth:authUi?.auth,location:window.location,t,digestEnabled:import.meta.env.VITE_MEDIA_WATCH_DAILY_DIGEST_ENABLED === 'true'});
+document.addEventListener('i18n:languageChanged', () => emailPreference?.render());
+const structuredMonitoring = initStructuredMonitoringPreference({root:document.querySelector('#structured-monitoring'),client:authUi?.client,auth:authUi?.auth,location:window.location,t,onChanged:()=>synchronizeMediaWatches({readOnly:true})});
+document.addEventListener('i18n:languageChanged',()=>structuredMonitoring?.render());
 // Drop sensitive DOM before a page can enter the back/forward cache. Restoration
 // must resolve the session again rather than reuse a frozen account snapshot.
 window.addEventListener('pagehide', () => {

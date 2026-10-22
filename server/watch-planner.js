@@ -2,6 +2,7 @@ import { parseCurrencyRequest } from '../src/js/currency-watch.js';
 import { parseCompanyWatchRequest } from '../src/js/company-watch-request.js';
 import { parseMediaStoryRequest } from '../src/js/media-story-request.js';
 import { discoverTextMonitoringSource } from './monitoring-source-api.js';
+import { interpretWatchRequest } from './watch-interpreter.js';
 
 const UNKNOWN_QUESTION = 'What would you like to monitor?';
 const COMPANY_QUESTIONS = {
@@ -41,6 +42,8 @@ const isMonacoCompanyRequest = (request, companyRequest) => {
 };
 
 export const planWatch = async (request, options = {}) => {
+  if (options.mode === 'interpretation.v1') return interpretWatchRequest(request, options);
+  if (options.mode != null) throw Object.assign(new Error('Invalid interpretation mode.'), { code: 'INVALID_INTERPRETATION_REQUEST', statusCode: 400 });
   if (typeof request !== 'string' || !request.trim()) return createPlannerDecision();
 
   if (parseCurrencyRequest(request)) return createPlannerDecision({ strategy: 'structured_source', connector: 'ecb', confidence: 1, needsClarification: false, clarificationQuestion: null });

@@ -1,3 +1,8 @@
+import {stagingLegacyEnabled,legacyStagingOwner} from './staging-legacy-notifications.js';
+import {mediaDailyDigestEnabled} from './media-watch-digest.js';
+import {structuredMediaNotificationIntentsEnabled} from './structured-media-notification-gates.js';
+import { requireStructuredCreationAccess } from './structured-creation-access.js';
+import { hasDefinitionVersion } from '../src/js/watch-definition.js';
 import { currencyCriteriaFor, applyCurrencyCheckResult } from '../src/js/currency-watch.js';
 import { fetchCurrencyRate } from './currency-rate.js';
 import { validateMediaQuery } from '../src/js/media-provider-query.js';
@@ -18,7 +23,13 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     response.end(JSON.stringify(body));
   };
   if (request.method !== 'POST') return send(405, { code: 'METHOD_NOT_ALLOWED' });
-  let row; let prior; let service;
+  let row; let prior; let service; let lease;
+  const leasedParams = (params = {}) => ({ p_watch_id: row.id, p_owner: row.user_id,
+    p_revision: row.media_revision, p_token: lease, p_manual: true,
+    p_checked_at: params.p_checked_at || null, p_source_title: params.p_source_title || null,
+    p_source_url: params.p_source_url || null, p_items: params.p_items || [],
+    p_expected_checked_at: prior?.checked_at || null, p_expected_items: prior?.items || null,
+    p_matching: params.p_notification_items || [], p_error: params.p_error || null });
   try {
     const { client, user } = await authenticate(request, options);
     let body = request.body;
@@ -39,8 +50,25 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     if (!row) return send(404, { code: 'WATCH_NOT_FOUND' });
     if (!['feed','currency'].includes(row.monitoring_source?.type)) return send(400, { code: 'INVALID_MONITORING_SOURCE' });
     if (Number(row.media_revision) !== body.revision) return send(409, { code: 'MEDIA_CONFLICT' });
+    // Only the owner-filtered persisted definition selects structured dispatch.
+    // The authenticated read is needed to distinguish legacy Watches; reject
+    // structured execution before service-client initialization or side effects.
+    if (hasDefinitionVersion(row.watch_definition)) {
+      requireStructuredCreationAccess(user, options.env || process.env);
+      validateMediaQuery(row.watch_definition, row.monitoring_source);
+    }
     prior = Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
     service = serviceClient || createSupabaseServiceClient(options);
+    if (hasDefinitionVersion(row.watch_definition) && (options.env || process.env).STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true') {
+      const claim = await service.rpc('claim_structured_media_manual_check', {
+        p_watch_id: row.id, p_owner: user.id, p_revision: row.media_revision,
+      });
+      if (claim.error) throw Object.assign(new Error('Manual claim unavailable'), { code: 'PERSISTENCE_UNAVAILABLE' });
+      if (!claim.data?.lease_token) return send(409, { code: 'MEDIA_CONFLICT' });
+      lease = claim.data.lease_token;
+      row = claim.data;
+      prior = Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
+    }
     if (row.monitoring_source.type === 'currency') {
       if (row.monitoring_state !== 'monitoring') return send(409, { code: 'MEDIA_CONFLICT' });
       const watch = { ...row.watch_definition, id: row.id, status: row.current_status,
@@ -62,17 +90,23 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
       return send(200, result);
     }
     validateMediaQuery(row.watch_definition, row.monitoring_source);
-    const feed = await fetchFeed(row.monitoring_source.url);
-    const watch = { ...row.watch_definition, id: row.id, status: row.current_status };
+    const feed = await fetchFeed(row.monitoring_source.url,{roleContext:{criteria:row.watch_definition?.plan?.criteria,baselineAt:prior?.baseline_at,priorItems:prior?.items}});
+    const watch = { ...row.watch_definition, id: row.id, monitoringSource: row.monitoring_source, status: row.current_status };
     const normalized = applyFeedCheckResult(watch, feed).changes.monitoringSnapshot;
     const items = normalized.items.map(item => ({ ...item, identityKeys: mediaArticleIdentityKeys(item) }));
-    const completion = await service.rpc('complete_manual_media_watch_check', {
+    const completionParams = {
       p_watch_id: row.id, p_user_id: user.id, p_expected_revision: body.revision,
       p_checked_at: normalized.checkedAt, p_source_title: normalized.source?.title, p_source_url: normalized.source?.url,
       p_item_ids: items.map(item => item.id), p_items: items,
       p_expected_checked_at: prior?.checked_at || null, p_expected_items: prior?.items || null,
       p_notification_items: items.filter(item => matchFeedItemToWatch(item, watch).matched),
-    });
+    };
+    const completion = lease
+      ? await service.rpc(mediaDailyDigestEnabled(options.env || process.env)
+        && structuredMediaNotificationIntentsEnabled(options.env || process.env)
+        ? 'finish_structured_manual_check_with_digest' : 'finish_structured_media_check', leasedParams(completionParams))
+      : await service.rpc(!hasDefinitionVersion(row.watch_definition) && row.user_id===legacyStagingOwner && stagingLegacyEnabled(options.env || process.env)
+        ? 'complete_staging_legacy_media_check' : 'complete_manual_media_watch_check', completionParams);
     if (completion.error) throw Object.assign(new Error('Check not saved'), { code: 'PERSISTENCE_UNAVAILABLE' });
     if (completion.data?.status !== 'completed') return send(409, { code: 'MEDIA_CONFLICT' });
     const accepted = new Set(completion.data.matchedItems.map(item => item.id));
@@ -94,11 +128,13 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     result.changes.initialContext = prior
       ? (prior.initial_items === null || prior.initial_items === undefined ? null : { checkedAt: prior.baseline_at, items: prior.initial_items })
       : { checkedAt: normalized.checkedAt, items };
+    if (hasDefinitionVersion(row.watch_definition) && row.monitoring_state === 'paused') result.changes.status = 'paused';
     return send(200, result);
   } catch (error) {
     // CAS prevents a failed/stale request from damaging a newer successful check.
     if (row && service) {
-      try { await service.rpc(row.monitoring_source.type === 'currency' ? 'fail_scheduled_media_watch_check' : 'fail_manual_media_watch_check', {
+      try { if (lease) await service.rpc('finish_structured_media_check', leasedParams({p_error:error.code || 'CHECK_FAILED'}));
+      else await service.rpc(row.monitoring_source.type === 'currency' ? 'fail_scheduled_media_watch_check' : 'fail_manual_media_watch_check', {
         p_watch_id: row.id, p_revision: row.media_revision, p_expected_checked_at: prior?.checked_at || null, ...(row.monitoring_source.type === 'currency' ? {} : { p_user_id: row.user_id, p_code: error.code || 'CHECK_FAILED' }),
       }); } catch { /* Do not replace the original failure. */ }
     }

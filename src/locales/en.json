@@ -92,6 +92,9 @@
     "flow3": "Watch Assistant — Flow 3"
   },
   "home": {
+    "reportPartial": "Partial report: some Watches have no recent completed check. Their original check times are retained.",
+    "reportSyncUnavailable": "The latest server report is unavailable. The retained local report may be old.",
+
     "newBadge": "New",
     "confirmationTitle": "Now watching",
     "confirmationPlaceholder": "Argentina v England world cup match",
@@ -207,6 +210,56 @@
     "empty": "Everything is under control. No active watches right now."
   },
   "detail": {
+    "history": "History",
+    "historyEventDate": "Event: {date}",
+    "historyTimeUnknown": "Time unavailable",
+
+    "historyDetectionUnknown": "Date unavailable",
+    "settingsOn": "On",
+    "settingsOff": "Off",
+    "settingsSaved": "Saved.",
+    "settingsConsentDescription": "Turn this switch on to allow emails for this Watch. Changes are saved when you select them.",
+    "settingsWhenEmail": "When should we email you?",
+    "settingsMorningOption": "Morning report · 08:15",
+    "settingsMorningDescription": "One email containing new updates each morning.",
+    "settingsImmediateOption": "As updates happen",
+    "settingsImmediateDescription": "Email when a new update is detected; potentially several emails per day.",
+    "settingsImmediateCaveat": "Immediate delivery is not confirmed for this Watch; delivery follows the supported service schedule.",
+    "settingsDeleteUnavailable": "This Watch is read-only in this version. Deletion is not available here.",
+    "settingsMonitoringStates": {"active": "Active — checking automatically", "paused": "Paused — automatic checks stopped", "awaiting": "Awaiting first successful check", "failed": "The last check failed — please review its result", "attention": "Monitoring needs attention", "unconfirmed": "Automatic monitoring not confirmed", "unavailable": "Monitoring status unavailable"},
+    "resultsFromCheck": "What this check found",
+    "newInformationFound": "New relevant information found.",
+    "lastSuccessfulCheck": "Last successful check",
+    "monitoringOverview": "Monitoring",
+    "latestDevelopments": "Latest developments",
+    "nextCheck": "Next scheduled check",
+    "checkFrequency": "Monitoring frequency",
+    "nextCheckPaused": "Paused — no check scheduled",
+    "nextCheckUnavailable": "Not available",
+    "frequencyDaily": "Daily",
+    "frequencyHours": "Every {count} hours",
+    "frequencyUnavailable": "Not available",
+    "emailStatusUnavailable": "Email status unavailable",
+    "dailyEmail0815": "Morning report · 08:15 Europe/Paris",
+    "initialContextReferences": "Initial context and reference articles",
+    "watchSettings": "Watch settings",
+    "publishedDate": "Published: {date}",
+    "detectedDate": "Detected: {date}",
+    "developmentsEmpty": "No new developments found at the last check. Earlier results remain in the history.",
+    "developmentsAwaiting": "Your first check will establish what is already known. New developments will appear here.",
+    "viewFullHistory": "View all updates and sources",
+    "monitoringStates": {"active": "Monitoring active", "awaiting": "Awaiting first successful check", "paused": "Monitoring paused", "failed": "Last check failed — see the result below", "attention": "Monitoring needs attention", "unconfirmed": "Automatic monitoring not confirmed", "unavailable": "Monitoring status unavailable"},
+    "emailNotifications": "Email notifications",
+    "emailConsent": "Allow emails for this Watch",
+    "emailFrequency": "Email frequency",
+    "emailFrequencyOff": "Off",
+    "emailFrequencyDaily": "Morning report",
+    "emailFrequencyImmediate": "Immediately",
+    "emailDigestIndependent": "Select a frequency, then check the box to allow emails. Saved changes apply to future updates.",
+    "emailIndependent": "Receive emails for this Watch. Monitoring stays independent; turn emails off here at any time.",
+    "emailOn": "Email notifications: On",
+    "emailOff": "Email notifications: Off",
+    "emailSaveFailed": "Email preference could not be saved. Please try again.",
     "allWatches": "All Watches",
     "backToAllWatches": "Back to All Watches",
     "breadcrumbLabel": "Watch location",
@@ -215,6 +268,7 @@
     "activationFailedCopy": "This Watch is saved, but its initial check failed. Use Check now to retry; monitoring has not been confirmed.",
     "activationPendingCopy": "This Watch is saved. Its first check is still pending.",
     "savedLocallyCopy": "Your request is saved on this device. Review the synchronization notice before relying on automatic monitoring.",
+    "structuredSavedPausedCopy": "This Watch is saved paused. Monitoring is not active and no automatic notifications are being sent.",
     "createdCopy": "Monitoring is active. I’ll check automatically for future updates.",
     "updatedTitle": "Watch updated",
     "updatedCopy": "Your changes have been saved.",
@@ -269,7 +323,7 @@
     "noNewUpdates": "No new updates found.",
     "noMatchingUpdates": "New articles were retrieved, but none matched this Watch.",
     "baselineEstablished": "Initial reference established. Articles found in this first check are not new alerts.",
-    "feedBaselineNotice": "The first successful check establishes a reference from the articles returned by the source. These existing articles do not appear as alerts. Later checks look for unseen matching articles; coverage is limited to the source’s returned results.",
+    "feedBaselineNotice": "The first check saves reference articles. Later checks look for new relevant information.",
     "newItemsFound": {
       "one": "{count} new update found.",
       "other": "{count} new updates found."
@@ -281,7 +335,7 @@
       "missingSource": "No monitoring source is available for this Watch. Add a supported source in Advanced settings, then try again.",
       "notFound": "The monitoring source could not be found. Check or replace it in Advanced settings, then try again.",
       "accessDenied": "The monitoring source blocked access. Choose another accessible source in Advanced settings.",
-      "timeout": "The monitoring source took too long to respond. Try again in a moment.",
+      "timeout": "The check took too long. Its completion could not be confirmed. Try again later.",
       "unreadable": "The monitoring source returned a format Watch Assistant can’t read. Choose another source in Advanced settings.",
       "unreachable": "The monitoring source could not be reached. Check the source or try again later.",
       "temporary": "A temporary service or network problem interrupted the check. Try again.",
@@ -328,7 +382,12 @@
     "initialContextEmpty": "No matching articles were returned at this first check.",
     "initialContextPending": "Initial context will appear after the first successful check.",
     "initialContextUnavailable": "Initial context was not retained for this Watch. Later results are not shown as its starting point.",
-    "noUnseenArticles": "No unseen articles were returned by the source."
+    "noUnseenArticles": "No new information found.",
+    "structuredMonitoringDaily": "Automatic monitoring is independent of email preferences.",
+    "structuredMonitoringUnavailable": "Automatic Staging scheduling is disabled. You can still pause an active Watch.",
+    "structuredMonitoringActive": "Monitoring activated.",
+    "structuredMonitoringPaused": "Monitoring paused.",
+    "structuredMonitoringFailed": "We could not confirm this change. Reload before trying again."
   },
   "newWatch": {
     "back": "Home",
@@ -537,6 +596,7 @@
     "general": "General"
   },
   "statuses": {
+    "awaitingFirstCheck": "Awaiting first check",
     "attention": "Needs attention",
     "watching": "Watching",
     "updated": "Updated",
@@ -555,6 +615,7 @@
     "low": "Low"
   },
   "watchData": {
+    "generatedEvents": {"cityHallFire": "City hall fire", "townHallFire": "Town hall fire"},
     "draftRetained": "Request saved on this device",
     "created": "Watch created",
     "genericMonitoringScope": "This Watch will follow relevant future reporting, including major developments and significant follow-up reporting.",
@@ -770,6 +831,7 @@
     "unavailable": "This example is not available."
   },
   "currency": {
+    "policyLabel": "Currency alert policy",
     "evaluated": "Last evaluated on {date}",
     "met": "Target reached",
     "notMet": "Target not reached",

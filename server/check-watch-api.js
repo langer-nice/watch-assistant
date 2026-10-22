@@ -1,3 +1,5 @@
+import {resolveCurrentRole,assessRoleDevelopments} from './role-development.js';
+import {roleDevelopmentQuery} from '../src/js/role-development.js';
 import { fetchCurrencyRate } from './currency-rate.js';
 import { createHash } from 'node:crypto';
 import http from 'node:http';
@@ -113,6 +115,7 @@ const createNormalizedItem = ({
   source,
   author,
   excerpt,
+  sourceUrl,
 }) => {
   const normalizedTitle = cleanText(title, MAX_TITLE_LENGTH);
   const normalizedPublishedAt = normalizeDate(publishedAt);
@@ -136,6 +139,7 @@ const createNormalizedItem = ({
     source: normalizedSource,
     author: normalizedAuthor,
     excerpt: normalizedExcerpt,
+    ...(sourceUrl ? {sourceUrl} : {}),
   };
 };
 
@@ -158,7 +162,8 @@ const parseRss = (rss, sourceUrl) => {
       title: item?.title,
       url,
       publishedAt: item?.pubDate,
-      source: item?.source || sourceTitle,
+      source: item?.source?.['#text'] || item?.source || sourceTitle,
+      sourceUrl: normalizeLink(item?.source?.['@_url'],sourceUrl),
       author: item?.author || item?.creator,
       excerpt: item?.description,
     });
@@ -378,7 +383,7 @@ const fetchFeedWithinDeadline = async (sourceUrl, {
   throw new CheckWatchError('TOO_MANY_REDIRECTS', 502, 'The feed redirected too many times.');
 };
 
-export const fetchAndNormalizeFeed = async (sourceUrl, {
+const fetchPlainAndNormalizeFeed = async (sourceUrl, {
   fetchImpl,
   lookup,
   timeoutMs = FETCH_TIMEOUT_MS,
@@ -420,6 +425,25 @@ export const fetchAndNormalizeFeed = async (sourceUrl, {
   } finally {
     clearTimeout(timeoutId);
   }
+};
+
+// Optional development assessment reuses the same retrieval and completion paths.
+export const fetchAndNormalizeFeed = async (sourceUrl,options={}) => {
+ const {roleContext,roleResolver=resolveCurrentRole,developmentAssessor=assessRoleDevelopments,...plain}=options;
+ const criteria=roleContext?.criteria;
+ if(!criteria?.roleResolution)return fetchPlainAndNormalizeFeed(sourceUrl,plain);
+ const deadline=Date.now()+16000;
+ const resolution=await roleResolver({officeId:criteria.roleResolution.officeId,originalRole:criteria.roleResolution.originalRole});
+ const runtime=new URL(sourceUrl);runtime.searchParams.set('q',roleDevelopmentQuery(resolution));
+ if(Date.now()>=deadline)throw new CheckWatchError('TIMEOUT',504,'Role verification timed out.');
+ const feed=await fetchPlainAndNormalizeFeed(runtime.href,{...plain,timeoutMs:Math.min(plain.timeoutMs||8000,deadline-Date.now())});
+ // The first reference remains silent; no paid classification needed to establish it.
+ if(!roleContext.baselineAt)return feed;
+ const prior=new Set((roleContext.priorItems||[]).map(i=>i.id));
+ if(deadline-Date.now()<1000)throw new CheckWatchError('TIMEOUT',504,'Development evidence assessment timed out.');
+ const developments=await developmentAssessor(feed.items.filter(i=>!prior.has(i.id)),resolution,{baselineAt:roleContext.baselineAt,checkedAt:feed.checkedAt,apiKey:process.env.OPENAI_API_KEY,model:process.env.OPENAI_MODEL,timeoutMs:deadline-Date.now()});
+ const accepted=new Map(developments.map(i=>[i.id,i]));
+ return {...feed,items:feed.items.map(i=>accepted.get(i.id)||i)};
 };
 
 const readJsonBody = async (request) => {

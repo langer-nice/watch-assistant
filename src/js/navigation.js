@@ -1,3 +1,10 @@
+import {mergeHistoryItems,renderUpdateHistory} from './update-history-presentation.js';
+import {linkCheckResult} from './check-result-navigation.js';
+import {watchOperationalState,renderWatchOverview,renderLatestDevelopments,detailDevelopmentItems} from './watch-detail-overview.js';
+import {reportSyncState} from './report-sync.js';
+import { articleWatchDisplayCategory, localizedGeneratedArticleScope } from './article-watch-presentation.js';
+import { canManuallyCheckWatch, manualCheckIssue } from './watch-manual-check.js';
+import { initStructuredWatchCreation } from './structured-watch-creation.js';
 import { creationConfirmationKey, watchCreationState } from './watch-creation-state.js';
 import { showCurrencyCreationReview } from './currency-creation-review.js';
 import { parseCurrencyRequest, normalizeCurrencyWatch, CURRENCY_SOURCE } from './currency-watch.js';
@@ -18,7 +25,7 @@ import { selectHomeReport } from './home-report.js';
 import { getMediaServerWatches } from './media-watch-server-store.js';
 import { renderMediaPersistenceNotice } from './media-watch-persistence-notice.js';
 import { localizedGeneratedMediaTitle } from './media-watch-title.js';
-import { getLocalizedWatchCopy, translateStoredWatchCopy } from './watch-copy-translation.js';
+import { getLocalizedWatchCopy } from './watch-copy-translation.js';
 import {
   getWatches,
   getUserCreatedWatches,
@@ -189,7 +196,7 @@ import {
 import {
   isPreviewTestLoaderAvailable,
 } from './preview-test-watches.js';
-import { getWatchJourneyEvents } from './watch-timeline.js';
+import { getWatchTimelineEvents } from './watch-timeline.js';
 import {
   getBodaccBusinessEventLabel,
   getCurrentSituationPresentation,
@@ -238,7 +245,7 @@ const currentCheckController = () => {
   if (epoch !== checkControllerEpoch) {
     checkControllerEpoch = epoch;
     sessionCheckController = createWatchCheckController({
-      checkStoredWatch: watch => canCheckStoredMediaWatch(watch) ? checkStoredMediaWatch(watch) : null,
+      checkStoredWatch: (watch, options) => canCheckStoredMediaWatch(watch) ? checkStoredMediaWatch(watch, options) : null,
       getWatch: (id) => epoch === getAccountEpoch() ? getWatchById(id) : null,
       saveWatch: (id, changes) => epoch === getAccountEpoch() ? updateWatch(id, changes) : null,
     });
@@ -532,7 +539,7 @@ const isDistinctMeaningfulText = (value, comparison = '') => (
 );
 
 const getWatchDisplayTitle = (watch) => getCompanyWatchTitle(watch, {
-  storedTitle: localizedGeneratedMediaTitle(watch, getLanguage())
+  storedTitle: watch.inputType==='url'?watch.title:localizedGeneratedMediaTitle(watch, getLanguage())
     || getLocalizedWatchCopy(watch, getLanguage(), 'title')
     || localizeField(watch, 'title'),
   formatFallback: (siren) => t('newWatch.companyReviewTitleValue', { siren }),
@@ -580,7 +587,8 @@ const getMonitoringSummary = (watch, title) => {
       .filter(hasMeaningfulText)
       .map(normalizeComparableText),
   );
-  const monitoringSummary = getLocalizedWatchCopy(watch, getLanguage(), 'summary')
+  const monitoringSummary = localizedGeneratedArticleScope(watch,getLanguage(),t)
+    || getLocalizedWatchCopy(watch, getLanguage(), 'summary')
     || localizeField(watch, 'monitoringSummary');
   if (
     hasMeaningfulText(monitoringSummary)
@@ -1063,8 +1071,8 @@ const renderSummaryWatchCard = ({
 } = {}) => {
   const title = hasMeaningfulText(titleOverride) ? titleOverride : getWatchDisplayTitle(watch);
   if (!hasMeaningfulText(title)) return '';
-  const category = watch.category ? t(`categories.${watch.category}`) : t('categories.general');
-  const categoryModifier = watch.category || 'general';
+  const categoryModifier = articleWatchDisplayCategory(watch);
+  const category = t(`categories.${categoryModifier}`);
   const statusPresentation = getSummaryCardStatus(status);
   const readOnly = getReadOnlyCardPresentation(watch, t, getLanguage());
   return renderSummaryCard({
@@ -1378,8 +1386,6 @@ const renderWatchDetail = () => {
   const metadataEl = document.querySelector('#watchMetadata');
   const whyFollowingEl = document.querySelector('#watchWhyFollowing');
   const whyFollowingCopyEl = document.querySelector('#watchWhyFollowingCopy');
-  const timelineSectionEl = document.querySelector('#watchTimelineSection');
-  const timelineEl = document.querySelector('#watchTimeline');
   const actionsSectionEl = document.querySelector('#watchActionsSection');
   const externalActionsEl = document.querySelector('#watchExternalActions');
   const confirmationEl = document.querySelector('#watchConfirmation');
@@ -1394,7 +1400,6 @@ const renderWatchDetail = () => {
   const checkNowLabelEl = document.querySelector('#watchCheckNowLabel');
   const checkSpinnerEl = document.querySelector('.watch-fact-check__spinner');
   const checkFeedbackEl = document.querySelector('#watchCheckFeedback');
-  const checkReviewEl = document.querySelector('#watchCheckReview');
   const monitoringUpdatesEl = document.querySelector('#watchMonitoringUpdates');
   const monitoringUpdatesListEl = document.querySelector('#watchMonitoringUpdatesList');
   const pauseResumeEl = document.querySelector('#watchPauseResume');
@@ -1407,8 +1412,10 @@ const renderWatchDetail = () => {
   const deleteConfirmEl = document.querySelector('#watchDeleteConfirm');
 
   renderMediaPersistenceNotice(watch, titleEl, getLanguage());
-  renderCurrencyPolicyControl(watch, titleEl, getLanguage());
+  renderCurrencyPolicyControl(watch, document.querySelector('#watchCurrencyPolicyAnchor')||titleEl, getLanguage());
   renderInitialContext(document.querySelector('#watchInitialContext'), watch, { t, formatTimestamp: formatMonitoringTimestamp });
+  renderWatchOverview({document,watch,t,formatTimestamp:formatMonitoringTimestamp,language:getLanguage(),digestAt0815:import.meta.env.VITE_MEDIA_WATCH_DAILY_DIGEST_ENABLED==='true'&&import.meta.env.VITE_SUPABASE_URL==='https://tseexvbwhrtofcsrvcqc.supabase.co'});
+  renderLatestDevelopments({document,watch,t,formatTimestamp:formatMonitoringTimestamp,language:getLanguage(),sanitizeUrl:getSafeExternalUrl});
 
   const hideDetailContent = () => {
     [
@@ -1416,7 +1423,6 @@ const renderWatchDetail = () => {
       factsEl,
       whyTodayEl,
       whyFollowingEl,
-      timelineSectionEl,
       actionsSectionEl,
       confirmationEl,
       clarityWarningEl,
@@ -1481,10 +1487,11 @@ const renderWatchDetail = () => {
   }
 
   if (categoryEl) {
-    const category = watch.category && t(`categories.${watch.category}`);
+    const displayedCategory=articleWatchDisplayCategory(watch);
+    const category = watch.category && t(`categories.${displayedCategory}`);
     categoryEl.textContent = category || '';
     categoryEl.hidden = !category;
-    categoryEl.className = `category-pill${watch.category === 'travel' ? ' category-pill--travel' : ''}`;
+    categoryEl.className = `category-pill${displayedCategory === 'travel' ? ' category-pill--travel' : ''}`;
   }
 
   if (canonicalStatusEl) {
@@ -1513,6 +1520,7 @@ const renderWatchDetail = () => {
   };
   const revealUpdateTarget = (target) => {
     if (!target || target.hidden) return;
+    const disclosure=target.closest('details');if(disclosure)disclosure.open=true;
     target.focus({ preventScroll: true });
     target.scrollIntoView({ block: 'start' });
   };
@@ -1662,7 +1670,7 @@ const renderWatchDetail = () => {
   const monitoringScope = watch.inputType === 'url'
     && watch.isStory !== false
     && isDistinctMonitoringScope(watch.monitoringSummary, storySummary, watch.title)
-    ? watch.monitoringSummary
+    ? localizedGeneratedArticleScope(watch,getLanguage(),t)||watch.monitoringSummary
     : '';
   if (monitoringScopeCopyEl) monitoringScopeCopyEl.textContent = monitoringScope;
   if (monitoringScopeEl) monitoringScopeEl.hidden = !monitoringScope;
@@ -1841,60 +1849,24 @@ const renderWatchDetail = () => {
     whyFollowingEl.hidden = !hasWhyFollowing;
   }
 
-  const timeline = getWatchJourneyEvents(watch, {
-    currentUpdateId: latestMeaningfulUpdate?.status === 'new' ? latestMeaningfulUpdate.id : null,
-  })
-    .map((item) => {
-      const label = item.type === 'created'
-        ? t(watchCreationState(watch) === 'local' ? 'watchData.draftRetained' : 'watchData.created')
-        : item.type === 'update'
-          ? currencyUpdateSummary(watch, item.source, getLanguage())
-            || getBodaccBusinessEventLabel(item.source, t)
-            || item.source.sourceTitle
-            || item.source.summary
-            || t('detail.updateDetected')
-          : localizeListItem(item.source);
-      if (!label) {
-        return null;
-      }
-      const currencyEvent = item.type === 'update' && currencyUpdateSummary(watch, item.source, getLanguage());
-      const date = currencyEvent
-        ? t('currency.detected', { date: formatMonitoringTimestamp(item.source.timestamp) })
-        : item.dateKey ? t(item.dateKey) : item.timestamp ? formatDate(item.timestamp) : '';
-      return {
-        date,
-        label,
-        articleUrl: item.type === 'update'
-          ? getSafeExternalUrl(item.source.sourceUrl)
-          : null,
-      };
-    })
-    .filter(Boolean)
-    .map((item, index, items) => ({
-      ...item,
-      isLatest: index === items.length - 1,
-    }));
-  if (timelineEl) {
-    timelineEl.innerHTML = timeline
-      .map((item) => `
-        <li class="timeline__item${item.isLatest ? ' timeline__item--latest' : ''}">
-          <span class="timeline__marker" aria-hidden="true"></span>
-          <div>
-            ${item.date ? `<p class="timeline__date">${escapeHtml(item.date)}</p>` : ''}
-            <p class="timeline__event">${escapeHtml(item.label)}</p>
-            ${item.articleUrl ? `
-              <a class="timeline__article-link" href="${escapeHtml(item.articleUrl)}" target="_blank" rel="noopener noreferrer">
-                ${escapeHtml(t(currencyCriteriaFor(watch) ? 'common.openSource' : 'detail.openArticle'))} <span aria-hidden="true">↗</span>
-              </a>
-            ` : ''}
-          </div>
-        </li>
-      `)
-      .join('');
-  }
-  if (timelineSectionEl) {
-    timelineSectionEl.hidden = timeline.length === 0;
-  }
+  const timeline = getWatchTimelineEvents(watch).reverse().map((item) => {
+    const source = item.source || {};
+    const title = item.type === 'created' ? t('watchData.created')
+      : item.type === 'update'
+        ? currencyUpdateSummary(watch, source, getLanguage()) || getBodaccBusinessEventLabel(source, t) || source.sourceTitle || source.summary || t('detail.updateDetected')
+        : localizeListItem(source);
+    return {
+      id: 'history-event-' + (source.id || item.order),
+      articleId: item.type === 'update' || source.type === 'update' ? source.updateId || source.monitoringUpdateId || source.id : source.updateId || source.monitoringUpdateId,
+      eventId: item.type === 'created' ? 'watch-created' : source.id,
+      timestamp: item.type === 'update' ? source.timestamp : item.timestamp,
+      event: item.type !== 'update', created: item.type === 'created', title, dateLabel: item.dateKey ? t(item.dateKey) : '',
+      summary: source.summary && source.summary !== title ? source.summary : '',
+      publishedAt: source.publishedAt,
+      source: source.sourceName || source.sourceDomain,
+      url: getSafeExternalUrl(source.sourceUrl || source.url),
+    };
+  }).filter(item => item.title);
 
   const externalActions = Array.isArray(watch.externalActions)
     ? watch.externalActions
@@ -1919,34 +1891,20 @@ const renderWatchDetail = () => {
     actionsSectionEl.hidden = renderedActions.length === 0;
   }
 
-  const monitoringUpdates = getWatchUpdates(watch).reverse();
+  const monitoringUpdates = detailDevelopmentItems(watch);
+  const historyItems = monitoringUpdates.map((item, index) => {
+      const legacyChange = index === 0 ? getLatestChange(watch) : '';
+      const currencyText = currencyUpdateSummary(watch, item, getLanguage());
+      const title = currencyText || item.sourceTitle || item.summary || legacyChange || t('detail.untitledItem');
+      const summary = !currencyText && item.summary && normalizeComparableText(item.summary) !== normalizeComparableText(title) ? item.summary : '';
+      return {...item, title, summary, articleId:item.id, event:false, source:item.sourceName || item.sourceDomain, url:getSafeExternalUrl(item.sourceUrl)};
+    });
+  const combinedHistory = mergeHistoryItems(historyItems, timeline);
   if (monitoringUpdatesListEl) {
-    monitoringUpdatesListEl.innerHTML = monitoringUpdates
-      .map((item, index) => {
-        const itemUrl = getSafeExternalUrl(item.sourceUrl);
-        const legacyChange = index === 0 ? getLatestChange(watch) : '';
-        const currencyText = currencyUpdateSummary(watch, item, getLanguage());
-        const title = currencyText || item.sourceTitle || item.summary || legacyChange || t('detail.untitledItem');
-        const timestamp = formatMonitoringTimestamp(item.timestamp);
-        const metadata = [
-          item.sourceDomain,
-          currencyText ? t('currency.detected', { date: timestamp }) : timestamp,
-        ].filter(Boolean).join(' · ');
-        const summary = !currencyText && item.summary && normalizeComparableText(item.summary) !== normalizeComparableText(title) ? item.summary : '';
-        return `
-          <li class="monitoring-update">
-            ${itemUrl
-    ? `<a href="${escapeHtml(itemUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)} <span aria-hidden="true">↗</span></a>`
-    : `<p class="monitoring-update__title">${escapeHtml(title)}</p>`}
-            ${metadata ? `<p class="monitoring-update__metadata">${escapeHtml(metadata)}</p>` : ''}
-            ${summary ? `<p class="monitoring-update__description">${escapeHtml(summary)}</p>` : ''}
-          </li>
-        `;
-      })
-      .join('');
+    monitoringUpdatesListEl.innerHTML = renderUpdateHistory({items:combinedHistory,language:getLanguage(),t,escapeHtml,formatTimestamp:formatMonitoringTimestamp});
   }
   if (monitoringUpdatesEl) {
-    monitoringUpdatesEl.hidden = monitoringUpdates.length === 0;
+    monitoringUpdatesEl.hidden = combinedHistory.length === 0;
   }
 
   if (preparingEl) {
@@ -1959,10 +1917,28 @@ const renderWatchDetail = () => {
   }
   if (checkNowEl) {
     checkNowEl.hidden = isPreparing;
-    checkNowEl.disabled = detailCheckInProgress || isPreparing || Boolean(watch.serverReadOnly);
-    checkNowEl.setAttribute('aria-busy', String(detailCheckInProgress));
+    const checkInProgress = detailCheckInProgress || watchCheckController.isChecking(watch.id);
+    checkNowEl.disabled = !canManuallyCheckWatch(watch, {
+      inProgress: checkInProgress, preparing: isPreparing, canCheckStoredWatch: canCheckStoredMediaWatch,
+    });
+    checkNowEl.setAttribute('aria-busy', String(checkInProgress));
     checkNowEl.onclick = async () => {
-      if (detailCheckInProgress || watchCheckController.isChecking(watch.id)) return;
+      checkFeedbackEl?.classList.remove('is-action');
+      const issue = manualCheckIssue(getWatchById(watch.id), {
+        inProgress: detailCheckInProgress || watchCheckController.isChecking(watch.id),
+        preparing: isPreparing, canCheckStoredWatch: canCheckStoredMediaWatch,
+      });
+      if (issue) {
+        const checking = issue === 'CHECK_IN_PROGRESS';
+        checkNowEl.disabled = true;
+        checkNowEl.setAttribute('aria-busy', String(checking));
+        if (checkFeedbackEl) {
+          checkFeedbackEl.textContent = t(checking ? 'detail.checkingForUpdates' : issue === 'WATCH_NOT_FOUND' ? 'detail.notFoundCopy' : getMonitoringFailureMessageKey(issue));
+          checkFeedbackEl.dataset.state = checking ? 'info' : 'error';
+          checkFeedbackEl.hidden = false;
+        }
+        return;
+      }
 
       detailCheckInProgress = true;
       detailCheckErrorWatchId = null;
@@ -1986,7 +1962,7 @@ const renderWatchDetail = () => {
         if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
           await checkServerCompanyWatch(watch.id);
         } else {
-          const result = await watchCheckController.check(watch.id);
+          const result = await watchCheckController.check(watch.id, { timeoutMs: 30000 });
           const displayedUpdateIds = result.matchedItems.map(({ id }) => id);
           if (displayedUpdateIds.length) markUpdatesAsRead(watch.id, displayedUpdateIds);
         }
@@ -2000,8 +1976,13 @@ const renderWatchDetail = () => {
           });
         }
       } finally {
-        refreshLatestReport({ watches: getWatches() });
+        // Report presentation must never leave a completed check looking busy.
         detailCheckInProgress = false;
+        try {
+          refreshLatestReport({ watches: getWatches() });
+        } catch {
+          console.warn('[Watch detail] The saved report could not be refreshed.');
+        }
         renderWatchDetail();
       }
     };
@@ -2012,11 +1993,9 @@ const renderWatchDetail = () => {
   if (checkSpinnerEl) {
     checkSpinnerEl.hidden = !detailCheckInProgress;
   }
-  if (checkReviewEl) {
-    checkReviewEl.hidden = true;
-    checkReviewEl.removeAttribute('aria-label');
-    checkReviewEl.onclick = null;
-  }
+  checkFeedbackEl?.classList.remove('is-action');
+  const checkResultsEl=document.querySelector('#watchCheckResults');
+  if(checkResultsEl){checkResultsEl.hidden=true;checkResultsEl.replaceChildren();}
   const feedBaselineNoticeEl = document.querySelector('#watchFeedBaselineNotice');
   if (feedBaselineNoticeEl) {
     feedBaselineNoticeEl.hidden = !normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl)
@@ -2047,29 +2026,13 @@ const renderWatchDetail = () => {
       const hasReviewableUpdates = ['matching-items', 'new-items'].includes(outcome) && count > 0;
       const localizedOutcomeKey = hasReviewableUpdates
         ? `${outcomeKey}.${count === 1 ? 'one' : 'other'}`
-        : ['matching-items', 'new-items'].includes(outcome) ? 'detail.noMatchingUpdates' : outcomeKey;
+        : ['matching-items', 'new-items'].includes(outcome) ? 'detail.newInformationFound' : outcomeKey;
       checkFeedbackEl.textContent = t(localizedOutcomeKey, { count });
       checkFeedbackEl.dataset.state = hasReviewableUpdates
         ? 'new'
         : 'success';
       checkFeedbackEl.hidden = false;
-      if (hasReviewableUpdates && checkReviewEl) {
-        const reviewTarget = count === 1 ? currentSituationContainerEl : monitoringUpdatesEl;
-        const labelKey = count === 1 ? 'detail.reviewUpdate' : 'detail.reviewUpdates';
-        checkReviewEl.href = count === 1 ? '#current-situation' : '#watchMonitoringUpdates';
-        checkReviewEl.textContent = t(labelKey);
-        checkReviewEl.setAttribute('aria-label', t(labelKey));
-        checkReviewEl.hidden = false;
-        checkReviewEl.onclick = (event) => {
-          event.preventDefault();
-          window.history.replaceState(
-            window.history.state,
-            '',
-            `${window.location.pathname}${window.location.search}${checkReviewEl.getAttribute('href')}`,
-          );
-          revealUpdateTarget(reviewTarget);
-        };
-      }
+      if(['matching-items','new-items'].includes(outcome))linkCheckResult({feedback:checkFeedbackEl,section:checkResultsEl,updates:reviewableUpdates,document,t,window});
     } else if (!hasFeedUrl) {
       checkFeedbackEl.textContent = '';
       checkFeedbackEl.hidden = true;
@@ -2136,7 +2099,17 @@ const renderWatchDetail = () => {
       };
   }
 
-  if (deleteEl) deleteEl.hidden = Boolean(watch.serverReadOnly);
+  const settingsMonitoring=document.querySelector('#watchSettingsMonitoringStatus');
+  if(settingsMonitoring)settingsMonitoring.textContent=t('detail.settingsMonitoringStates.'+watchOperationalState(watch));
+  const settingsNotice=document.querySelector('#watchMediaPersistenceNotice');
+  if(settingsNotice&&watch.monitoringAvailability==='saved'&&['active','paused'].includes(watchOperationalState(watch)))settingsNotice.hidden=true;
+  if(deleteEl){
+    deleteEl.hidden=false;
+    deleteEl.disabled=Boolean(watch.serverReadOnly);
+    if(watch.serverReadOnly)deleteEl.setAttribute('aria-describedby','watchDeleteUnavailable');else deleteEl.removeAttribute('aria-describedby');
+  }
+  const deleteUnavailable=document.querySelector('#watchDeleteUnavailable');
+  if(deleteUnavailable)deleteUnavailable.hidden=!watch.serverReadOnly;
   if (deleteEl && deleteDialogEl) {
     deleteEl.onclick = () => {
       deleteDialogEl.showModal();
@@ -2417,6 +2390,13 @@ const renderHomeSummary = () => {
   }
 
   const reportHeader = getHomeReportHeader({ hasReport, uncertain, totalChecked: homeReport.totalChecked }, t);
+  let reportNotice=document.querySelector('#homeServerReportNotice');
+  if(!reportNotice&&briefingDate){reportNotice=document.createElement('p');reportNotice.id='homeServerReportNotice';reportNotice.setAttribute('role','status');briefingDate.parentElement.append(reportNotice);}
+  if(reportNotice){
+    const partial=homeReport.report?.origin==='automatic'&&homeReport.report.partial;
+    reportNotice.hidden=!partial&&reportSyncState!=='unavailable';
+    reportNotice.textContent=partial?t('home.reportPartial'):reportSyncState==='unavailable'?t('home.reportSyncUnavailable'):'';
+  }
   if (briefingDate) {
     briefingDate.hidden = reportHeader.hideTimestamp;
     const storedTimestamp = resolveHomeReportTimestamp({
@@ -2721,9 +2701,11 @@ export function initForm() {
     return;
   }
 
+  let structuredCreation;
   const editor = createEditorSession({
     form,
     onInvalidate: () => {
+      structuredCreation?.invalidate();
       editNavigationAllowed = true;
       form.voiceDictationCleanup?.();
       urlAnalysisController?.abort();
@@ -2976,7 +2958,9 @@ export function initForm() {
 
   const scheduleKeywordRegeneration = () => {
     window.clearTimeout(keywordRegenerationTimer);
+    if (structuredCreation?.isSelected()) return;
     keywordRegenerationTimer = window.setTimeout(() => {
+      if (structuredCreation?.isSelected()) return;
       const request = input?.value.trim() || '';
       const requestChanged = normalizeComparableText(keywordSourceRequest)
         !== normalizeComparableText(request);
@@ -4638,6 +4622,8 @@ export function initForm() {
     }, 200);
   });
 
+  if (!isEditMode) structuredCreation = initStructuredWatchCreation({form,input,error:watchError,getLanguage,listen:editor.listen,isCurrent:editor.isCurrent});
+
   editor.listen(form, 'submit', async (event) => {
     event.preventDefault();
     voiceDictation?.stop({ focus: false });
@@ -4673,6 +4659,11 @@ export function initForm() {
       watchError.textContent = '';
     }
 
+    // URLs retain the existing article/source review even when Structured text review is selected.
+    if (!isEditMode && !isUrl(request) && structuredCreation?.isSelected()) {
+      await structuredCreation.run(originalRequest,getLanguage());
+      return;
+    }
     synchronizeInferredFields(request);
     if (!isEditMode && parseCurrencyRequest(request)) {
       await savePlainTextWatch(request, whyFollowing, { preserveOriginalWording: true });
@@ -5229,31 +5220,7 @@ const resolveInitialHomeRoute = (env = import.meta.env) => {
   return null;
 };
 
-let watchTranslationTimer;
-const scheduleWatchTranslations = () => {
-  window.clearTimeout(watchTranslationTimer);
-  watchTranslationTimer = window.setTimeout(() => {
-    const language = getLanguage();
-    const watches = getUserCreatedWatches().filter((watch) => watch.inputType === 'text' && !currencyCriteriaFor(watch));
-    // A small queue avoids opening many model requests at once for older accounts.
-    void (async () => {
-      for (const watch of watches) {
-        if (getLanguage() !== language) return;
-        await translateStoredWatchCopy(watch, language, {
-          update: (id, targetLanguage, copy) => {
-            const current = getWatchById(id);
-            if (!current || current.title !== copy.sourceTitle
-              || (current.monitoringSummary || '') !== copy.sourceSummary) return;
-            updateWatch(id, {
-              localizedCopy: { ...current.localizedCopy, [targetLanguage]: copy },
-            });
-          },
-        });
-      }
-    })();
-  }, 200);
-};
-
+// Viewing only reads stored translations; it never generates or saves new copy.
 export const initApp = () => {
   const initialRoute = resolveInitialHomeRoute();
   if (initialRoute) {
@@ -5272,7 +5239,6 @@ export const initApp = () => {
   renderWatchList();
   renderWatchDetail();
   initForm();
-  scheduleWatchTranslations();
 
   window.addEventListener('storage', () => {
     renderHomeSummary();
@@ -5286,7 +5252,6 @@ export const initApp = () => {
     renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
-    scheduleWatchTranslations();
   });
 
   window.addEventListener(ACCOUNT_STORAGE_CHANGED_EVENT, () => {
@@ -5313,7 +5278,6 @@ export const initApp = () => {
     renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
-    scheduleWatchTranslations();
   });
 
   window.addEventListener(REPORTS_CHANGED_EVENT, () => {
@@ -5329,7 +5293,6 @@ export const initApp = () => {
     renderHomeBriefing();
     renderWatchList();
     renderWatchDetail();
-    scheduleWatchTranslations();
   });
 
   document.addEventListener('visibilitychange', () => {

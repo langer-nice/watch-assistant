@@ -1,8 +1,10 @@
+import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { validateMediaQuery } from '../src/js/media-provider-query.js';
 import { createMediaWatchCheckMiddleware } from './media-watch-check-api.js';
 import { getMediaWatchEmailConfig } from './media-watch-email.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
 import { mediaWatchDefinition } from '../src/js/media-watch-definition.js';
+import { hasDefinitionVersion } from '../src/js/watch-definition.js';
 
 export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabaseRequest, ...options } = {}) => async (request, response, next) => {
   const url = new URL(request.url || '/', 'http://localhost');
@@ -25,7 +27,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
       const watches = [];
       for (let start = 0; ; start += 100) {
         const { data, error } = await client.from('watches')
-          .select('id,title,watch_definition,monitoring_source,monitoring_state,current_status,created_at,deleted_at,media_revision,media_mutation_id,last_checked_at,media_last_change_detected_at,last_change_item_id,last_change_title,last_change_url,last_change_summary,last_change_published_at,currency_evaluation,last_check_error_code,last_check_outcome,updated_at,media_watch_snapshots(*),currency_watch_events(*)')
+          .select('id,user_id,title,watch_definition,monitoring_source,monitoring_state,current_status,created_at,deleted_at,media_revision,media_mutation_id,last_checked_at,media_last_change_detected_at,last_change_item_id,last_change_title,last_change_url,last_change_summary,last_change_published_at,currency_evaluation,last_check_error_code,last_check_outcome,updated_at,media_watch_snapshots(*),currency_watch_events(*)')
           .eq('user_id', user.id).eq('type', 'media_news').order('id').range(start, start + 99);
         if (error) throw Object.assign(new Error('DATABASE_ERROR'), { code: 'DATABASE_ERROR', databaseCode: error.code });
         watches.push(...data);
@@ -46,6 +48,8 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
     if (!raw || Buffer.byteLength(JSON.stringify(raw)) > 12000 || !Number.isSafeInteger(raw.revision) || raw.revision < 0
       || typeof raw.deleted !== 'boolean' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw.mutation)) return send(400, { code: 'INVALID_BODY' });
     const input = raw.definition;
+    // No structured authorization/write path exists in this increment.
+    if (hasDefinitionVersion(input?.watch_definition)) return send(409, { code: 'STRUCTURED_PERSISTENCE_DISABLED' });
     if (!['monitoring', 'paused'].includes(input?.monitoring_state)) return send(400, { code: 'INVALID_MEDIA_DEFINITION' });
     let definition;
     try {
@@ -73,7 +77,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
       if (!old || config(old.watch_definition, old.monitoring_source)
         !== config(definition.watch_definition, definition.monitoring_source)) throw error;
     }
-    const { data, error } = await client.rpc('persist_media_watch', {
+    const { data, error } = await client.rpc(mediaDailyDigestEnabled(options.env || process.env) ? 'persist_media_watch_with_digest' : 'persist_media_watch', {
       p_id: definition.id, p_title: definition.title, p_source: definition.monitoring_source,
       p_definition: definition.watch_definition, p_state: definition.monitoring_state,
       p_revision: raw.revision, p_mutation: raw.mutation, p_deleted: raw.deleted,

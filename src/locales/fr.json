@@ -92,6 +92,9 @@
     "flow3": "Watch Assistant — Parcours 3"
   },
   "home": {
+    "reportPartial": "Rapport partiel : certaines Watches n’ont pas de contrôle récent terminé. Leur dernier contrôle peut précéder ce matin.",
+    "reportSyncUnavailable": "Le dernier rapport serveur est indisponible. Le rapport local conservé peut être ancien.",
+
     "newBadge": "Nouveau",
     "confirmationTitle": "Nouvelle Watch",
     "confirmationPlaceholder": "Match Argentine-Angleterre de la Coupe du monde",
@@ -207,6 +210,56 @@
     "empty": "Tout est sous contrôle. Aucune Watch active pour le moment."
   },
   "detail": {
+    "history": "Historique",
+    "historyEventDate": "Événement : {date}",
+    "historyTimeUnknown": "Heure indisponible",
+
+    "historyDetectionUnknown": "Date indisponible",
+    "settingsOn": "Activées",
+    "settingsOff": "Désactivées",
+    "settingsSaved": "Enregistré.",
+    "settingsConsentDescription": "Activez ce bouton pour autoriser les emails de cette Watch. Chaque choix est enregistré dès sa sélection.",
+    "settingsWhenEmail": "Quand souhaitez-vous recevoir les emails ?",
+    "settingsMorningOption": "Rapport du matin · 08 h 15",
+    "settingsMorningDescription": "Un email regroupant les nouveautés chaque matin.",
+    "settingsImmediateOption": "Au fil des nouveautés",
+    "settingsImmediateDescription": "Un email lorsqu’une nouveauté est détectée ; plusieurs emails par jour sont possibles.",
+    "settingsImmediateCaveat": "L’envoi immédiat n’est pas confirmé pour cette Watch ; les emails suivent les horaires pris en charge par le service.",
+    "settingsDeleteUnavailable": "Cette Watch est en lecture seule dans cette version. Sa suppression n’est pas disponible ici.",
+    "settingsMonitoringStates": {"active": "Active — contrôles automatiques", "paused": "En pause — contrôles automatiques arrêtés", "awaiting": "En attente du premier contrôle réussi", "failed": "Le dernier contrôle a échoué — consultez son résultat", "attention": "Surveillance à vérifier", "unconfirmed": "Surveillance automatique non confirmée", "unavailable": "Statut de surveillance indisponible"},
+    "resultsFromCheck": "Résultats de ce contrôle",
+    "newInformationFound": "De nouvelles informations pertinentes ont été trouvées.",
+    "lastSuccessfulCheck": "Dernier contrôle réussi",
+    "monitoringOverview": "Surveillance",
+    "latestDevelopments": "Derniers développements",
+    "nextCheck": "Prochain contrôle planifié",
+    "checkFrequency": "Fréquence de surveillance",
+    "nextCheckPaused": "En pause — aucun contrôle planifié",
+    "nextCheckUnavailable": "Non communiqué",
+    "frequencyDaily": "Quotidienne",
+    "frequencyHours": "Toutes les {count} heures",
+    "frequencyUnavailable": "Non communiquée",
+    "emailStatusUnavailable": "Statut des emails indisponible",
+    "dailyEmail0815": "Rapport du matin · 08 h 15, heure de Paris",
+    "initialContextReferences": "Contexte initial et articles de référence",
+    "watchSettings": "Réglages de la Watch",
+    "publishedDate": "Publié : {date}",
+    "detectedDate": "Détecté : {date}",
+    "developmentsEmpty": "Aucun nouveau développement lors du dernier contrôle. Les résultats précédents restent dans l’historique.",
+    "developmentsAwaiting": "Le premier contrôle établira ce qui est déjà connu. Les nouveaux développements apparaîtront ici.",
+    "viewFullHistory": "Voir toutes les mises à jour et leurs sources",
+    "monitoringStates": {"active": "Surveillance active", "awaiting": "En attente du premier contrôle réussi", "paused": "Surveillance en pause", "failed": "Dernier contrôle échoué — voir le résultat ci-dessous", "attention": "Surveillance à vérifier", "unconfirmed": "Surveillance automatique non confirmée", "unavailable": "Statut de surveillance indisponible"},
+    "emailNotifications": "Notifications par email",
+    "emailConsent": "Autoriser les emails pour cette Watch",
+    "emailFrequency": "Fréquence des emails",
+    "emailFrequencyOff": "Désactivés",
+    "emailFrequencyDaily": "Rapport du matin",
+    "emailFrequencyImmediate": "Immédiatement",
+    "emailDigestIndependent": "Choisissez une fréquence, puis cochez la case pour autoriser les emails. Les changements enregistrés concernent les prochaines mises à jour.",
+    "emailIndependent": "Recevoir des emails pour cette Watch. La surveillance reste indépendante ; désactivez les emails ici à tout moment.",
+    "emailOn": "Notifications par email : activées",
+    "emailOff": "Notifications par email : désactivées",
+    "emailSaveFailed": "Impossible d’enregistrer ce réglage. Veuillez réessayer.",
     "allWatches": "Toutes les Watches",
     "backToAllWatches": "Retour à toutes les Watches",
     "breadcrumbLabel": "Emplacement de la Watch",
@@ -215,6 +268,7 @@
     "activationFailedCopy": "Cette Watch est enregistrée, mais sa première vérification a échoué. Utilisez Vérifier maintenant pour réessayer ; la surveillance n’est pas confirmée.",
     "activationPendingCopy": "Cette Watch est enregistrée. Sa première vérification reste à effectuer.",
     "savedLocallyCopy": "Votre demande est enregistrée sur cet appareil. Consultez l’état de synchronisation avant de compter sur le suivi automatique.",
+    "structuredSavedPausedCopy": "Cette Watch est enregistrée en pause. La surveillance est inactive et aucune notification automatique n’est envoyée.",
     "createdCopy": "La surveillance est active. Je vérifierai automatiquement les prochaines mises à jour.",
     "updatedTitle": "Watch mise à jour",
     "updatedCopy": "Vos modifications ont été enregistrées.",
@@ -269,7 +323,7 @@
     "noNewUpdates": "Aucune nouvelle mise à jour trouvée.",
     "noMatchingUpdates": "De nouveaux articles ont été récupérés, mais aucun ne correspond à cette Watch.",
     "baselineEstablished": "État de référence établi. Les articles trouvés lors de cette première vérification ne sont pas de nouvelles alertes.",
-    "feedBaselineNotice": "La première vérification réussie établit une référence à partir des articles renvoyés par la source. Ces articles existants ne sont pas affichés comme des alertes. Les vérifications suivantes recherchent des articles correspondants encore jamais vus ; la couverture se limite aux résultats renvoyés par la source.",
+    "feedBaselineNotice": "Le premier contrôle enregistre les articles de référence. Les suivants recherchent de nouvelles informations pertinentes.",
     "newItemsFound": {
       "one": "{count} nouvelle mise à jour trouvée.",
       "other": "{count} nouvelles mises à jour trouvées."
@@ -281,7 +335,7 @@
       "missingSource": "Aucune source de surveillance n’est disponible pour cette Watch. Ajoutez une source compatible dans les réglages avancés, puis réessayez.",
       "notFound": "La source de surveillance est introuvable. Vérifiez-la ou remplacez-la dans les réglages avancés, puis réessayez.",
       "accessDenied": "La source de surveillance a bloqué l’accès. Choisissez une autre source accessible dans les réglages avancés.",
-      "timeout": "La source de surveillance a mis trop de temps à répondre. Réessayez dans un instant.",
+      "timeout": "La vérification a pris trop de temps. Son résultat n’a pas pu être confirmé. Réessayez plus tard.",
       "unreadable": "La source de surveillance a renvoyé un format que Watch Assistant ne peut pas lire. Choisissez une autre source dans les réglages avancés.",
       "unreachable": "La source de surveillance est inaccessible. Vérifiez la source ou réessayez plus tard.",
       "temporary": "Un problème temporaire de service ou de réseau a interrompu la vérification. Réessayez.",
@@ -328,7 +382,12 @@
     "initialContextEmpty": "Aucun article correspondant n’a été renvoyé lors de cette première vérification.",
     "initialContextPending": "Le contexte initial apparaîtra après la première vérification réussie.",
     "initialContextUnavailable": "Le contexte initial de cette Watch n’a pas été conservé. Les résultats ultérieurs ne sont pas présentés comme son point de départ.",
-    "noUnseenArticles": "La source n’a renvoyé aucun article encore jamais vu."
+    "noUnseenArticles": "Aucune nouvelle information trouvée.",
+    "structuredMonitoringDaily": "La surveillance automatique est indépendante des préférences email.",
+    "structuredMonitoringUnavailable": "Le déclenchement automatique Staging est désactivé. Vous pouvez toujours mettre une Watch active en pause.",
+    "structuredMonitoringActive": "Surveillance activée.",
+    "structuredMonitoringPaused": "Surveillance en pause.",
+    "structuredMonitoringFailed": "Ce changement n’a pas pu être confirmé. Rechargez avant de réessayer."
   },
   "newWatch": {
     "back": "Accueil",
@@ -537,6 +596,7 @@
     "general": "Général"
   },
   "statuses": {
+    "awaitingFirstCheck": "En attente du premier contrôle",
     "attention": "Nécessite votre attention",
     "watching": "Sous surveillance",
     "updated": "Mis à jour",
@@ -555,6 +615,7 @@
     "low": "Faible"
   },
   "watchData": {
+    "generatedEvents": {"cityHallFire": "Incendie de l’hôtel de ville", "townHallFire": "Incendie de la mairie"},
     "draftRetained": "Demande conservée sur cet appareil",
     "created": "Watch créée",
     "genericMonitoringScope": "Cette Watch suivra les prochaines informations pertinentes, notamment les développements majeurs et les informations de suivi importantes.",
@@ -770,6 +831,7 @@
     "unavailable": "Cet exemple n’est pas disponible."
   },
   "currency": {
+    "policyLabel": "Politique d’alerte de change",
     "evaluated": "Dernière évaluation le {date}",
     "met": "Seuil atteint",
     "notMet": "Seuil non atteint",

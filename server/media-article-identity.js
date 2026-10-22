@@ -16,6 +16,7 @@ export const mediaArticleIdentityKeys = (item) => {
     if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, '');
     keys.push(`url:${hash(url.href)}`);
   } catch { /* Undeliverable records still retain their source identity. */ }
+  if (/^[a-f0-9]{64}$/.test(item.development?.key||'')) { keys.push(`id:${item.development.key}`); return keys; }
   if (typeof item.id === 'string' && item.id && !/^https?:\/\//i.test(item.id)) keys.push(`id:${hash(item.id)}`);
   if (!keys.length) keys.push(`id:${hash(String(item.id || ''))}`);
   return keys;

@@ -327,6 +327,24 @@ const getSupportedProducts = (page) => {
   }).slice(0, 3);
 };
 
+// Recover a civic-fire story's discriminating place from explicit headline/slug evidence.
+// No geocoding, inaccessible article text, or inferred proper name is needed.
+const headlineCivicFireContext = (page,slug='') => {
+ for(const text of [page.title,slug].filter(Boolean)){
+  const fire=text.match(/\b(incendie|fire)\b/iu);const building=text.match(/\b(h[ôo]tel de ville|mairie|city hall|town hall)\b/iu);
+  if(!fire||!building)continue;
+  const place=text.match(/^(?:[àa]\s+)([\p{L}][\p{L}'’-]*(?:\s+(?:de|du|la|le|les)\s+[\p{L}][\p{L}'’-]*)?)(?=\s*[,;:]|\s+(?:la|le|les|l['’])\b)/iu)
+   ||text.match(/^(?:in|near)\s+([\p{L}][\p{L}'’-]*(?:\s+[\p{Lu}][\p{L}'’-]*){0,2})(?=\s*[,;:]|\s+(?:the|a|an)\b)/u);
+  if(!place)continue;
+  const location=place[1].replace(/^\p{L}/u,c=>c.toLocaleUpperCase());
+  const french=fire[1].toLowerCase()==='incendie';
+  const site=/h[ôo]tel/iu.test(building[1])?'hôtel de ville':building[1].toLowerCase();
+  const event=french?`Incendie ${site==='mairie'?'de la':'de l’'}${site}`:`${site.charAt(0).toUpperCase()+site.slice(1)} fire`;
+  return {location,event,query:`"${location}" ${fire[1].toLowerCase()} "${site}"`};
+ }
+ return null;
+};
+
 const getSupportedLocation = (page, slug, excludedNames = []) => {
   const source = [page.title, page.description, page.articleText, slug].filter(Boolean).join(' ');
   const precisePair = source.match(
@@ -586,7 +604,8 @@ export const createSourceDerivedFallback = (page, sourceUrl = '', {
   const people = getStoryPeople(analysisPage);
   const supportedPerson = people.primary;
   const supportedProducts = getSupportedProducts(analysisPage);
-  const supportedLocation = getSupportedLocation(analysisPage, slug, supportedProducts);
+  const civicFire=headlineCivicFireContext(analysisPage,slug);
+  const supportedLocation = civicFire?.location||getSupportedLocation(analysisPage, slug, supportedProducts);
   const cloudGamingPhenomenon = getCloudGamingPhenomenon(analysisPage);
   const supportsSearchOperation = /(?:search(?: and rescue)?|hunt)\b[\s\S]{0,80}\bmissing hikers?/i.test(source)
     || /missing hikers?[\s\S]{0,80}\bsearch(?: and rescue)?/i.test(source);
@@ -595,7 +614,7 @@ export const createSourceDerivedFallback = (page, sourceUrl = '', {
   const organizationConnection = getRelevantOrganization(analysisPage, supportedPerson);
   const centralTopic = getCentralTopic(analysisPage);
   const distinctiveRisks = getDistinctiveRisks(analysisPage.articleText);
-  const primaryEvent = coherentVehicleAttackEvent
+  const primaryEvent = civicFire?.event||coherentVehicleAttackEvent
     || missingHikers
     || (supportsSearchOperation ? 'Search operation' : '')
     || centralTopic;
@@ -627,6 +646,7 @@ export const createSourceDerivedFallback = (page, sourceUrl = '', {
     ...supportedProducts.map((label) => ({ label, type: 'product_service', rule: 'supported_product_or_service' })),
     supportedLocation && { label: supportedLocation, type: 'location', rule: 'supported_location_pattern' },
     organizationConnection?.name && { label: organizationConnection.name, type: 'organization', rule: 'person_organization_connection' },
+    civicFire && {label:civicFire.event,type:'event',rule:'headline_civic_fire_context'},
     coherentVehicleAttackEvent && { label: coherentVehicleAttackEvent, type: 'event', rule: 'coherent_vehicle_attack_event' },
     centralTopic && { label: centralTopic, type: 'event', rule: 'central_topic_pattern' },
     missingHikers && { label: missingHikers, type: 'event', rule: 'title_missing_hikers_pattern' },
@@ -877,6 +897,7 @@ const createAnalysisResult = ({
     sourceUrl: analysisPage.sourceUrl || url.href,
     sourcePublishedAt: storyProfile.sourceArticle.publishedAt,
     monitoringSource: analysisPage.monitoringSource || null,
+    ...(headlineCivicFireContext(analysisPage,getUrlSlug(url))?{monitoringQuery:headlineCivicFireContext(analysisPage,getUrlSlug(url)).query}:{}),
     contentAccessLimited: analysisPage.contentAccessLimited === true,
     conceptSourceFields,
     analysisProvider: suggestion.analysisProvider || 'openai',

@@ -1,5 +1,6 @@
 import { currencyCriteriaFor, CURRENCY_SOURCE, CURRENCY_POLICIES } from './currency-watch.js';
 import { SUPPORTED_WATCH_CATEGORIES } from './watch-category.js';
+import { hasDefinitionVersion, definitionFromWatch, validateWatchDefinition } from './watch-definition.js';
 // Only the fields used by feed discovery and matching cross the persistence boundary.
 const text = (value, limit) => {
   if (typeof value !== 'string' || !value.trim() || value.length > limit) throw new Error('INVALID_MEDIA_DEFINITION');
@@ -10,11 +11,19 @@ const list = (value, limit = 8) => {
   return value.map((item) => text(item, 200));
 };
 export const isMediaWatch = (watch) => Boolean(
-  currencyCriteriaFor(watch) || (watch?.inputType === 'text' && watch.mediaMention)
+  hasDefinitionVersion(watch) || currencyCriteriaFor(watch) || (watch?.inputType === 'text' && watch.mediaMention)
   || (watch?.inputType === 'url' && watch.isStory === true && watch.storyProfile),
 );
 export const mediaWatchDefinition = (watch) => {
   if (!isMediaWatch(watch) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(watch.id)) throw new Error('INVALID_MEDIA_DEFINITION');
+  if (hasDefinitionVersion(watch)) {
+    if (!watch.monitoringSource) throw new Error('INVALID_MEDIA_DEFINITION');
+    const definition = validateWatchDefinition(definitionFromWatch(watch), watch.monitoringSource);
+    if (definition.plan.domain === 'official_company') throw new Error('INVALID_MEDIA_DEFINITION');
+    return { id: watch.id, title: text(watch.title, 200), watch_definition: definition,
+      monitoring_source: structuredClone(watch.monitoringSource),
+      monitoring_state: watch.monitoringState === 'paused' || ['paused', 'completed'].includes(watch.status) ? 'paused' : 'monitoring' };
+  }
   const criteria = currencyCriteriaFor(watch);
   if (criteria) {
     if (watch.currencyPolicy !== undefined && !CURRENCY_POLICIES.includes(watch.currencyPolicy)) throw new Error('INVALID_MEDIA_DEFINITION');

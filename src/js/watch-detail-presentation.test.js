@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { getWatchDetailPresentationSnapshot } from './watch-detail-presentation.js';
 import { markUpdateAsRead } from './watch-updates.js';
+import { definitions } from '../../server/test-support/watch-definition-fixtures.js';
+import { getWatchStatusPresentation } from './watch-status-presentation.js';
 
 const unreadWatch = {
   id: 'updated-watch',
@@ -66,4 +68,29 @@ test('non-Updated Watches never receive a temporary Updated presentation', () =>
   assert.equal(getWatchDetailPresentationSnapshot({
     id: 'new', status: 'watching', createdAt: new Date().toISOString(), updates: [],
   }).classification, 'new');
+});
+
+// Persisted monitoring state and result classification are independent of sync.
+const structured = () => ({...definitions()[1],id:'paused-fixture',status:'paused',monitoringState:'paused',monitoringAvailability:'saved',createdAt:'2026-01-01T00:00:00Z',updates:[]});
+for (const changes of [
+ {}, {status:'watching'},
+ {lastCheckAttempt:{status:'succeeded'},updates:unreadWatch.updates},
+]) test(`Structured paused state is not activated by hydration: ${JSON.stringify(changes)}`,()=>{
+ const watch={...structured(),...changes},before=structuredClone(watch);
+ assert.equal(getWatchDetailPresentationSnapshot(watch).classification,'paused');assert.deepEqual(watch,before);
+ assert.deepEqual(getWatchStatusPresentation('paused',key=>key),{label:'statuses.paused',modifier:'stable'});
+});
+test('Structured monitoring is watching only for the explicit active scenario',()=>{
+ const watch={...structured(),monitoringState:'monitoring',status:'watching',lastCheckAttempt:{status:'succeeded'}};
+ assert.equal(getWatchDetailPresentationSnapshot(watch).classification,'watching');
+});
+for(const changes of [{actionRequired:true},{monitoringAvailability:'stale'},{status:'attention',requiresAttention:true},{status:'watching',monitoringState:'monitoring',lastCheckAttempt:{status:'failed'}}])test(`Structured attention remains visible: ${JSON.stringify(changes)}`,()=>{
+ assert.equal(getWatchDetailPresentationSnapshot({...structured(),...changes}).classification,'attention');
+});
+test('legacy paused classification retains its existing behavior',()=>{
+ assert.equal(getWatchDetailPresentationSnapshot({id:'legacy',status:'paused',monitoringState:'paused',createdAt:'2026-01-01T00:00:00Z',updates:[]}).classification,'watching');
+});
+
+test('missing persisted monitoring state without a successful check remains attention, not active',()=>{
+ assert.equal(getWatchDetailPresentationSnapshot({...structured(),monitoringState:undefined}).classification,'attention');
 });

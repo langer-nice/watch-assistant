@@ -41,6 +41,23 @@ const sendJson = (response, statusCode, body) => {
   response.end(JSON.stringify(body));
 };
 
+// Shared server-side transport. Callers supply their own non-executing schema.
+export const requestStructuredOutput = async ({ apiKey, model = 'gpt-5.6-luna',
+  fetchImpl = fetch, signal, instructions, input, reasoning, max_output_tokens, text,
+  maxOutputBytes = Infinity,
+}) => {
+  if (!apiKey) throw Object.assign(new Error('AI service is not configured.'), { statusCode: 503 });
+  const response = await fetchImpl('https://api.openai.com/v1/responses', {
+    method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    ...(signal ? { signal } : {}),
+    body: JSON.stringify({ model, store: false, instructions, input, reasoning, max_output_tokens, text }),
+  });
+  if (!response.ok) throw Object.assign(new Error(`OpenAI request failed with status ${response.status}.`), { statusCode: 502, providerStatus: response.status });
+  const output = extractOutputText(await response.json()) || '';
+  if (typeof output !== 'string' || Buffer.byteLength(output) > maxOutputBytes) throw new SyntaxError('Invalid structured response.');
+  return JSON.parse(output);
+};
+
 export const generateRequestClarification = async ({
   request,
   language = 'en',
@@ -55,15 +72,7 @@ export const generateRequestClarification = async ({
     throw error;
   }
 
-  const response = await fetchImpl('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      store: false,
+  const result = await requestStructuredOutput({ apiKey, model, fetchImpl,
       instructions: [
         'Evaluate a request for an automated monitoring Watch.',
         'Return resultType "clear" when it is already clear and actionable; return the original wording in suggestedRequest and leave clarificationMessage empty.',
@@ -100,15 +109,7 @@ export const generateRequestClarification = async ({
           },
         },
       },
-    }),
   });
-
-  if (!response.ok) {
-    const error = new Error(`OpenAI request failed with status ${response.status}.`);
-    error.statusCode = 502;
-    throw error;
-  }
-  const result = JSON.parse(extractOutputText(await response.json()) || '');
   const validTypes = new Set(['clear', 'suggestion', 'clarification_required']);
   if (
     !validTypes.has(result.resultType)

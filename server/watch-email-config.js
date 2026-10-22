@@ -41,6 +41,12 @@ export const emailNotificationsEnabled = (env, flag) => env?.[flag] === 'true'
 
 export const getWatchEmailConfig = (env, flag) => {
   if (!emailNotificationsEnabled(env, flag)) return null;
+  return getWatchEmailCredentials(env);
+};
+
+// Credential validation shared with the separately authorized, Structured-only
+// Staging test policy. This function itself grants no delivery authorization.
+export const getWatchEmailCredentials = env => {
   const apiKey = typeof env?.RESEND_API_KEY === 'string' ? env.RESEND_API_KEY.trim() : '';
   const from = normalizeWatchEmailSender(env?.WATCH_EMAIL_FROM);
   if (!apiKey || /\s/u.test(apiKey) || !from) return null;
@@ -52,7 +58,7 @@ export const getWatchEmailConfig = (env, flag) => {
   } catch { return null; }
 };
 
-const SAFE_CODES = new Set(['DATABASE_ERROR', 'RECIPIENT_UNVERIFIED', 'RECIPIENT_LOCALE_UNAVAILABLE',
+const SAFE_CODES = new Set(['STRUCTURED_EMAIL_DISABLED', 'DATABASE_ERROR', 'RECIPIENT_UNVERIFIED', 'RECIPIENT_LOCALE_UNAVAILABLE',
   'INVALID_ARTICLE_URL', 'INVALID_APP_URL', 'EMAIL_PROVIDER_ERROR', 'EMAIL_RATE_LIMITED',
   'EMAIL_PROVIDER_RETRYABLE', 'EMAIL_PROVIDER_REJECTED_422', 'EMAIL_PROVIDER_REJECTED',
   'EMAIL_CONFIGURATION_INVALID', 'EMAIL_DELIVERY_OUTCOME_UNKNOWN', 'MEDIA_DEADLINE_EXCEEDED']);

@@ -16,7 +16,7 @@ const messages = {
 };
 const formatDate = (value, locale) => { if (value == null || value === '') return ''; const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date); };
 
-export const renderMediaWatchEmail = ({ locale, watchId, watchTitle, article, baseUrl }) => {
+export const renderMediaWatchEmail = ({ locale, watchId, watchTitle, article, baseUrl, structured = false }) => {
   const language = locale === 'fr' ? 'fr' : 'en'; const currency = article?.currencyEvaluation;
   const copy = !currency ? messages[language] : language === 'fr'
     ? { subject: watch => `Seuil de change atteint : ${watch}`, heading: 'Seuil de change atteint', intro: () => 'Votre condition de change est satisfaite par le cours de référence quotidien de la BCE.', source: 'Source', date: 'Date du cours', summary: 'Résultat', article: 'Consulter la source', detail: 'Voir la Watch' }
@@ -28,6 +28,11 @@ export const renderMediaWatchEmail = ({ locale, watchId, watchTitle, article, ba
   const detailUrl = new URL('/watch-detail.html', appUrl); detailUrl.searchParams.set('id', watchId);
   const text = [copy.heading, '', copy.intro(watch), '', title, `${copy.source}: ${source}`, ...(date ? [`${copy.date}: ${date}`] : []), ...(summary ? ['', `${copy.summary}: ${summary}`] : []), '', `${copy.article}: ${articleUrl.href}`, `${copy.detail}: ${detailUrl.href}`].join('\n');
   const html = `<!doctype html><html lang="${language}"><head><meta charset="utf-8"><title>${escapeHtml(copy.subject(watch))}</title></head><body style="font-family:Arial,sans-serif;color:#18181b"><h1>${escapeHtml(copy.heading)}</h1><p>${escapeHtml(copy.intro(watch))}</p><h2>${escapeHtml(title)}</h2><p><strong>${escapeHtml(copy.source)}:</strong> ${escapeHtml(source)}</p>${date ? `<p><strong>${escapeHtml(copy.date)}:</strong> ${escapeHtml(date)}</p>` : ''}${summary ? `<p><strong>${escapeHtml(copy.summary)}:</strong> ${escapeHtml(summary)}</p>` : ''}<p><a href="${escapeHtml(articleUrl.href)}">${escapeHtml(copy.article)}</a></p><p><a href="${escapeHtml(detailUrl.href)}">${escapeHtml(copy.detail)}</a></p></body></html>`;
-  return { subject: copy.subject(watch), html, text, articleUrl: articleUrl.href, detailUrl: detailUrl.href };
+  const preferencesUrl = new URL(detailUrl); preferencesUrl.hash = 'email-notifications';
+  const manage = language === 'fr' ? 'Désactiver les emails dans les réglages de cette Watch (connexion requise).' : 'Turn off emails in this Watch’s settings (sign-in required).';
+  return { subject: copy.subject(watch),
+    html: structured ? html.replace('</body>', `<p><a href="${escapeHtml(preferencesUrl.href)}">${escapeHtml(manage)}</a></p></body>`) : html,
+    text: structured ? `${text}\n\n${manage}\n${preferencesUrl.href}` : text,
+    articleUrl: articleUrl.href, detailUrl: detailUrl.href };
 };
 export { sendWithResend };

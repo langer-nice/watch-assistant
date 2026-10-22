@@ -1,3 +1,5 @@
+import { hasDefinitionVersion } from './watch-definition.js';
+import { structuredMediaCriteria } from './structured-media-execution.js';
 import { parseMediaMentionRequest } from './media-mention-request.js';
 import { mediaMentionSearchQuery } from './media-subject-aliases.js';
 
@@ -26,6 +28,7 @@ export const planMediaQuery = (request, { language = 'en', sourceUrl } = {}) => 
   return { mediaMention: mediaMentionDefinition(parsed), monitoringSource: { type: 'feed', url: url.href, query } };
 };
 export const validateMediaQuery = (definition, source) => {
+  if (hasDefinitionVersion(definition)) return structuredMediaCriteria(definition, source);
   if (definition?.inputType !== 'text' || !googleNewsSource(source?.url)) return;
   const expected = planMediaQuery(definition.request, { sourceUrl: source.url });
   const url = new URL(source.url), planned = new URL(expected.monitoringSource.url);

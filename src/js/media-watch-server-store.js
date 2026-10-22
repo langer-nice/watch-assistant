@@ -1,3 +1,5 @@
+import {mapMediaReportRow} from './media-watch-row.js';
+import { canExecuteStructuredMedia, structuredMediaCriteria } from './structured-media-execution.js';
 import { planLocalMediaRecovery } from './local-media-recovery.js';
 import { currencyCriteriaFor } from './currency-watch.js';
 import { createWatchRequestGate, readWatchCache, writeWatchCache, watchRequest } from './watch-server-resilience.js';
@@ -5,6 +7,7 @@ import { getAccountOwner, localWatchStorageKey, safeStorage } from './account-st
 import { addUpdateToWatch } from './watch-updates.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
 import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
+import { hasDefinitionVersion } from './watch-definition.js';
 
 const PREFIX = 'watchAssistant.mediaSync.';
 let authSource;
@@ -34,11 +37,11 @@ const validateRow = (row) => {
     // A newer persisted definition is readable but cannot be edited by this client.
     return { ...row, clientReadOnly: true };
   }
-  return { ...row, clientReadOnly: false };
+  return { ...row, clientReadOnly: hasDefinitionVersion(row.watch_definition) };
 };
 export const getMediaWatchLoadState = () => ({
   status: !owner() ? 'idle' : loadError ? (loaded ? 'stale' : 'unavailable') : loaded ? 'ready' : 'loading',
-  hasSnapshot: loaded, incompatible: rows.filter(row => !row.deleted_at && row.clientReadOnly).length, error: loadError, waiting, refreshing: loading, syncing: Boolean(running), syncError,
+  hasSnapshot: loaded, incompatible: rows.filter(row => !row.deleted_at && row.clientReadOnly && !canExecuteStructuredMedia({ ...row.watch_definition, monitoringSource: row.monitoring_source })).length, error: loadError, waiting, refreshing: loading, syncing: Boolean(running), syncError,
 });
 const session = () => {
   const state = authSource?.getState?.();
@@ -170,10 +173,21 @@ export const ensureMediaWatchSaved = async (watch) => {
     || epoch !== generation || user !== owner()) throw Object.assign(new Error('Watch not synchronized'), { code: 'PERSISTENCE_UNAVAILABLE' });
   return remote;
 };
-export const checkStoredMediaWatch = async (watch) => {
+export const checkStoredMediaWatch = async (watch, {signal} = {}) => {
+  const requireActiveRequest=()=>{if(signal?.aborted)throw Object.assign(new Error('Check completion timed out.'),{code:'TIMEOUT'});};
+  requireActiveRequest();
   const user = owner(); const epoch = generation;
-  const remote = await ensureMediaWatchSaved(watch);
+  let remote;
+  if (hasDefinitionVersion(watch)) {
+    if (!canCheckStoredMediaWatch(watch)) throw Object.assign(new Error('Not owned'), { code: 'AUTH_REQUIRED' });
+    structuredMediaCriteria(watch);
+    remote = user === identity ? rows.find(row => row.id === watch.id && !row.deleted_at && row.user_id === user) : null;
+    if (!remote || Number(remote.media_revision) !== watch.mediaPersistence.revision) throw Object.assign(new Error('Watch changed'), { code: 'MEDIA_CONFLICT' });
+    structuredMediaCriteria(remote.watch_definition, remote.monitoring_source);
+  } else remote = await ensureMediaWatchSaved(watch);
+  requireActiveRequest();
   const response = await watchRequest('/api/media-watches?action=check', {
+    signal,
     method: 'POST', headers: { Authorization: `Bearer ${session().access_token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: watch.id, revision: Number(remote.media_revision) }),
   }, 15000);
@@ -182,39 +196,7 @@ export const checkStoredMediaWatch = async (watch) => {
   if (epoch !== generation || user !== owner()) throw Object.assign(new Error('Account changed'), { code: 'AUTH_SESSION_CHANGED' });
   return result;
 };
-const feedSnapshot = row => Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
-const feedState = row => {
-  const snapshot = feedSnapshot(row);
-  return {
-    initialContext: snapshot?.initial_items == null ? null : { checkedAt: snapshot.baseline_at, items: snapshot.initial_items },
-    ...(snapshot ? { monitoringSnapshot: { checkedAt: snapshot.checked_at, itemIds: snapshot.item_ids, items: snapshot.items } } : {}),
-    lastCheckOutcome: row.last_check_outcome ? { type: row.last_check_outcome } : null,
-    lastCheckAttempt: row.last_check_error_code ? { status: 'failed', code: row.last_check_error_code, attemptedAt: row.updated_at }
-      : row.last_checked_at ? { status: 'succeeded', attemptedAt: row.last_checked_at } : null,
-  };
-};
-
-export const getMediaServerWatches = () => (owner() && owner() === identity ? rows : []).filter((row) => !row.deleted_at).map((row) => ({
-  id: row.id, title: row.title, ...row.watch_definition, serverReadOnly: Boolean(row.clientReadOnly),
-  ...(row.watch_definition.inputType === 'url' ? { isStory: true } : {}),
-  monitoringSource: row.monitoring_source, feedUrl: row.monitoring_source.url,
-  monitoringState: row.monitoring_state,
-  status: row.monitoring_state === 'paused' ? 'paused' : row.current_status,
-  createdAt: row.watch_definition?.localCreatedAt || row.created_at,
-  ...(!row.watch_definition.currencyCriteria ? feedState(row) : {}),
-  lastChecked: row.last_checked_at || null,
-  ...(row.watch_definition.currencyCriteria ? {
-    currencyEvaluation: row.currency_evaluation || null,
-    currencySatisfied: Boolean(row.last_change_item_id?.startsWith(`currency:${row.watch_definition.currencyRevision}:`)),
-    lastCheckOutcome: row.last_check_outcome ? { type: row.last_check_outcome } : null,
-    lastCheckAttempt: row.last_check_error_code ? { status: 'failed', code: row.last_check_error_code, attemptedAt: row.updated_at }
-      : row.last_checked_at ? { status: 'succeeded', attemptedAt: row.last_checked_at } : null,
-  } : {}),
-  updates: row.currency_watch_events?.length ? row.currency_watch_events.map(event => ({ id: event.id, timestamp: event.detected_at, sourceTitle: event.article.title, sourceUrl: event.article.url, summary: event.article.excerpt, publishedAt: event.article.publishedAt, currencyEvaluation: event.evaluation, status: 'new' })) : row.last_change_item_id ? [{ id: row.last_change_item_id, timestamp: row.media_last_change_detected_at,
-    sourceTitle: row.last_change_title, sourceUrl: row.last_change_url, summary: row.last_change_summary,
-    publishedAt: row.last_change_published_at, status: 'new' }] : [],
-  mediaPersistence: { ownerId: owner() },
-}));
+export const getMediaServerWatches = () => (owner() && owner() === identity ? rows : []).filter(row=>!row.deleted_at).map(row=>mapMediaReportRow(row,owner()));
 export const mergeMediaWatches = (local) => {
   const user = owner();
   const visible = local.filter((watch) => !watch.mediaPersistence?.ownerId || watch.mediaPersistence.ownerId === user);
@@ -239,6 +221,7 @@ export const mergeMediaWatches = (local) => {
             && localDefinition.monitoring_source.url === remoteDefinition.monitoring_source.url;
         } catch { sameCriteria = false; }
       }
+      if (hasDefinitionVersion(hydrated) && localWatch?.mediaPersistence?.revision !== hydrated.mediaPersistence?.revision) sameCriteria = false;
       if (sameCriteria && Date.parse(localWatch?.lastChecked) > (Date.parse(remote.lastChecked) || 0)) {
         hydrated.lastChecked = localWatch.lastChecked;
         if (!currency) for (const key of ['initialContext','monitoringSnapshot','lastCheckOutcome','lastCheckAttempt']) {
@@ -262,7 +245,7 @@ export const mergeMediaWatches = (local) => {
 };
 
 export const getMediaPersistenceState = (watch) => {
-  if (watch?.serverReadOnly) return { status: 'incompatible' };
+  if (watch?.serverReadOnly && !canExecuteStructuredMedia(watch)) return { status: 'incompatible' };
   if (!isMediaWatch(watch) && !watch?.mediaPersistence?.ownerId) {
     return ['text', 'url'].includes(watch?.inputType) ? { status: 'unsupported', canRecover: canRecoverLocalMediaWatch(watch) } : null;
   }

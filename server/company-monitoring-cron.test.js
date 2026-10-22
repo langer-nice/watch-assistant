@@ -76,6 +76,7 @@ test('correct cron authorization executes and returns only a safe operational su
   const logs = [];
   const handler = createCompanyMonitoringCronHandler({
     env: { CRON_SECRET: 'cron-value' }, clientFactory: () => ({ privileged: true }),
+    mediaRunner: async options => { assert.equal(options.schedulerAuthorized, true); return { status: 'disabled' }; },
     runner: async () => ({ totalEligibleWatches: 2, uniqueSirens: 1, checkedCount: 1,
       changedCount: 0, unchangedCount: 2, failedCount: 0, skippedCount: 0, status: 'success' }),
     logger: { info: (...args) => logs.push(args) }, createRunId: () => 'run-1', now: () => 10,
@@ -305,4 +306,11 @@ test('one failed SIREN preserves processing for others and records only a safe c
   assert.equal(client.calls.failures[0].p_error_code, 'UPSTREAM_ERROR');
   assert.equal(client.calls.failures[0].p_expected_checked_at, '2026-09-01T06:00:00.000Z');
   assert.deepEqual(client.calls.failures[0].p_expected_items, watch('a').company_watch_snapshots[0].items);
+});
+
+for (const scenario of ['authorized','unauthorized','disabled','production']) test(`isolated Structured scope preserves legacy workloads: ${scenario}`,async()=>{
+ const env={CRON_SECRET:'synthetic-cron',SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',VERCEL_ENV:scenario==='production'?'production':'preview',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_MEDIA_SCHEDULED_ENABLED:scenario==='disabled'?'false':'true'};
+ let structuredCalls=0;const handler=createCompanyMonitoringCronHandler({env,clientFactory:()=>({synthetic:true}),runner:()=>assert.fail('Company must not execute'),mediaRunner:()=>assert.fail('Legacy Media/delivery must not execute'),structuredRunner:async options=>{structuredCalls++;assert.equal(options.schedulerAuthorized,true);return {status:'success',claimed:0};},logger:{info(){},error(){}}});
+ let body;const res={setHeader(){},end(raw){body=JSON.parse(raw);}};await handler({method:'GET',url:'/api/cron/company-monitoring?scope=structured-media',headers:{authorization:scenario==='unauthorized'?'Bearer wrong':'Bearer synthetic-cron'}},res);
+ assert.equal(res.statusCode,scenario==='authorized'?200:scenario==='unauthorized'?401:404);assert.equal(structuredCalls,scenario==='authorized'?1:0);assert.doesNotMatch(JSON.stringify(body),/synthetic-cron/);
 });

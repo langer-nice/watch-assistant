@@ -13,6 +13,7 @@ const collectWatchTimestamps = (watch) => [
 ];
 
 export const resolveHomeReportTimestamp = ({ report = null, watches = [] } = {}) => {
+  if(report?.origin==='automatic')return parseUsableTimestamp(report.completedAt)?.toISOString()||null;
   const candidates = [
     report?.completedAt,
     ...(Array.isArray(report?.entries)

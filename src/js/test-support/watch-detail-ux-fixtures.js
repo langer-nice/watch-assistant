@@ -1,0 +1,18 @@
+import {normalizeCurrencyWatch,applyCurrencyCheckResult} from '../currency-watch.js';
+import {fixture,individual,predicate} from '../../../server/test-support/watch-interpretation-fixtures.js';
+import {compileMonitoringPlan} from '../watch-capabilities.js';
+import {readFile} from 'node:fs/promises';
+import {structuredMonitoringSource,createWatchDefinition} from '../watch-definition.js';
+const limogesSources=JSON.parse(await readFile(new URL('../../../server/test-support/fixtures/limoges-digest-20261021.json',import.meta.url),'utf8'));
+const at='2026-10-22T07:30:00Z';
+const update=(id,title,summary=title)=>({id,timestamp:at,publishedAt:'2026-10-22T07:00:00Z',sourceTitle:title,summary,sourceName:'Fixture publisher',sourceUrl:'https://example.test/'+id,status:'new'});
+const base=(id,title)=>({id,title,request:'Monitor '+title,inputType:'text',category:'news',createdAt:'2026-10-01T08:00:00Z',status:'watching',monitoringState:'monitoring',monitoringAvailability:'saved',lastChecked:at,lastCheckAttempt:{status:'succeeded',attemptedAt:at},lastCheckOutcome:{type:'matching-items',newItemIds:['new']},monitoringSource:{type:'feed',url:'https://example.test/feed'},feedUrl:'https://example.test/feed',initialContext:{checkedAt:'2026-10-01T08:00:00Z',items:[]},updates:[],timeline:[]});
+const interpretation=fixture('Monitor news about Royal Caribbean Group.',[individual('subject','Royal Caribbean Group','organization')],[predicate('news','news_about',['subject'])]);
+const definition=createWatchDefinition(interpretation,compileMonitoringPlan(interpretation,{structured:true}));
+const royal={...base('11111111-1111-4111-8111-111111111111','Royal Caribbean Group'),...definition,title:'Royal Caribbean Group',status:'watching',monitoringState:'monitoring',lastChecked:at,lastCheckAttempt:{status:'succeeded',attemptedAt:at},monitoringSource:structuredMonitoringSource(definition.plan.criteria),mediaPersistence:{ownerId:'synthetic-user-a',revision:1,mutation:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},updates:[update('new','Royal Caribbean announces its latest voyage','The company has published details of a new voyage.')]};
+const limoges={...base('22222222-2222-4222-8222-222222222222','Incendie de l’hôtel de ville de Limoges'),inputType:'url',isStory:true,storyProfile:{storySummary:'Incendie de l’hôtel de ville de Limoges',concepts:[{label:'Limoges',type:'location'},{label:'Incendie de l’hôtel de ville',type:'event'}]},updates:limogesSources.articles.map(({id,article})=>({...update(id,article.title,article.summary),sourceUrl:article.url,sourceName:article.source,publishedAt:article.publishedAt}))};
+const madrid={...base('33333333-3333-4333-8333-333333333333','Real Madrid'),mediaMention:{subjects:['Real Madrid'],matchMode:'all'},updates:[update('new','Real Madrid prépare son prochain match'),{...update('old','Real Madrid remporte son match précédent'),timestamp:'2026-10-21T08:00:00Z',publishedAt:'2026-10-21T07:00:00Z'}]};
+let currency=normalizeCurrencyWatch({id:'44444444-4444-4444-8444-444444444444',title:'GBP/EUR',request:'The pound reaches 1.17 to the euro',inputType:'text',category:'finance',status:'watching',monitoringState:'monitoring',createdAt:'2026-10-01T08:00:00Z'});
+currency={...currency,...applyCurrencyCheckResult(currency,{criteria:currency.currencyCriteria,checkedAt:at,observation:{base:'EUR',quote:'GBP',rate:'0.85463',date:'2026-10-21'}}).changes};
+export const detailUxFixtures=[royal,limoges,madrid,currency];
+for(const watch of detailUxFixtures){watch.mediaPersistence={ownerId:'synthetic-user-a',revision:1,mutation:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'};if(!watch.currencyCriteria)watch.lastCheckOutcome={type:'matching-items',newItemIds:watch.updates.map(u=>u.id)};}

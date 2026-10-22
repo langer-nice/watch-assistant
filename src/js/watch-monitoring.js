@@ -1,3 +1,7 @@
+import {boundedManualCheckRequest} from './manual-check-deadline.js';
+import {validRoleResolution} from './role-development.js';
+import { hasDefinitionVersion } from './watch-definition.js';
+import { structuredMediaCriteria } from './structured-media-execution.js';
 import { currencyCriteriaFor, currencyKey, applyCurrencyCheckResult } from './currency-watch.js';
 import { mediaSubjectAliases } from './media-subject-aliases.js';
 import { getStoryProfileIdentifiers } from './story-profile.js';
@@ -45,6 +49,7 @@ const normalizeItem = (item) => {
     author: nullableString(item.author),
     excerpt: nullableString(item.excerpt),
     eventType: nullableString(item.eventType),
+    ...(item.development&&item.roleResolution?{development:structuredClone(item.development),roleResolution:structuredClone(item.roleResolution)}:{}),
     sirens: Array.isArray(item.sirens)
       ? [...new Set(item.sirens.filter((siren) => /^\d{9}$/.test(siren)))]
       : [],
@@ -295,6 +300,11 @@ export const matchFeedItemToStory = (item, storyProfile) => {
 };
 
 export const matchFeedItemToMediaMention = (item, mediaMention) => {
+  if(mediaMention?.roleResolution){
+    const r=item?.roleResolution,d=item?.development;
+    return {matched:Boolean(d&&r&&validRoleResolution(r,mediaMention.roleResolution.originalRole)&&d.officeId===r.officeId&&d.personId===r.personId),evidence:d?[{field:'sourcedDevelopment',strength:'strong',label:d.evidence?.development||''}]:[]};
+  }
+
   const text = canonicalMatchText([
     item?.title,
     item?.excerpt,
@@ -333,6 +343,7 @@ const getValidatedBodaccSiren = (source) => (
 );
 
 export const matchFeedItemToWatch = (item, watch, { trustedSourceType = null } = {}) => {
+  if (hasDefinitionVersion(watch)) return matchFeedItemToMediaMention(item, structuredMediaCriteria(watch));
   const bodaccSiren = getValidatedBodaccSiren(watch?.monitoringSource);
   if (trustedSourceType === 'bodacc' && bodaccSiren) {
     return {
@@ -364,6 +375,7 @@ export const applyFeedCheckResult = (watch, response, {
   if (!watch || typeof watch !== 'object') {
     throw new MonitoringCheckError('WATCH_NOT_FOUND', 'The Watch could not be found.');
   }
+  if (hasDefinitionVersion(watch)) structuredMediaCriteria(watch);
   if (!response || typeof response !== 'object' || !Array.isArray(response.items)) {
     throw new MonitoringCheckError('INVALID_RESPONSE', 'The monitoring response is invalid.');
   }
@@ -580,7 +592,7 @@ export const applyFeedCheckResult = (watch, response, {
   };
 };
 
-export const requestFeedCheck = async (feedUrl, { fetchImpl = fetch } = {}) => {
+export const requestFeedCheck = async (feedUrl, { fetchImpl = fetch, signal } = {}) => {
   const normalizedFeedUrl = normalizeFeedUrl(feedUrl);
   if (!normalizedFeedUrl) {
     throw new MonitoringCheckError('MISSING_FEED_URL', 'This Watch needs an RSS or Atom feed URL.');
@@ -591,6 +603,7 @@ export const requestFeedCheck = async (feedUrl, { fetchImpl = fetch } = {}) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sourceUrl: normalizedFeedUrl }),
+      ...(signal?{signal}:{}),
     });
   } catch {
     throw new MonitoringCheckError('CHECK_FAILED', 'The Watch could not be checked.');
@@ -616,7 +629,7 @@ const COMPANY_FAILURE_CODES = new Set([
   'MALFORMED_RESPONSE',
 ]);
 
-export const requestCompanyCheck = async (siren, { fetchImpl = fetch } = {}) => {
+export const requestCompanyCheck = async (siren, { fetchImpl = fetch, signal } = {}) => {
   if (typeof siren !== 'string' || !/^\d{9}$/.test(siren)) {
     throw new MonitoringCheckError(
       'INVALID_MONITORING_SOURCE',
@@ -629,6 +642,7 @@ export const requestCompanyCheck = async (siren, { fetchImpl = fetch } = {}) => 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ siren }),
+      ...(signal?{signal}:{}),
     });
   } catch {
     throw new MonitoringCheckError('CHECK_FAILED', 'The Watch could not be checked.');
@@ -669,11 +683,12 @@ export const createWatchCheckController = ({
   checkStoredWatch = null,
   requestCompany = requestCompanyCheck,
   requestCurrency = requestCurrencyCheck,
+  checkTimeoutMs = null,
   now = () => new Date(),
 }) => {
   const inFlight = new Map();
 
-  const check = (watchId, { onCheckingChange = () => {} } = {}) => {
+  const check = (watchId, { onCheckingChange = () => {}, timeoutMs = checkTimeoutMs } = {}) => {
     if (inFlight.has(watchId)) return inFlight.get(watchId);
 
     let resolveOperation;
@@ -684,9 +699,11 @@ export const createWatchCheckController = ({
     });
     inFlight.set(watchId, operation);
 
+    const requestWithDeadline=work=>timeoutMs==null?work(undefined):boundedManualCheckRequest(work,timeoutMs);
     let startedKey;
     const definitionKey = (watch) => JSON.stringify([watch?.mediaPersistence?.ownerId, watch?.request,
       watch?.monitoringSource?.type === 'rss' ? 'feed' : watch?.monitoringSource?.type,
+      watch?.definitionVersion, watch?.metadata?.planFingerprint, watch?.mediaPersistence?.revision,
       watch?.monitoringSource?.url || watch?.feedUrl, watch?.monitoringSource?.siren, currencyKey(watch),
       watch?.mediaMention?.subjects || [], watch?.mediaMention?.matchMode,
       watch?.mediaMention?.topics, watch?.mediaMention?.exclusions, watch?.mediaMention?.locale,
@@ -699,9 +716,11 @@ export const createWatchCheckController = ({
         if (!watch) {
           throw new MonitoringCheckError('WATCH_NOT_FOUND', 'The Watch could not be found.');
         }
+        const structured = hasDefinitionVersion(watch);
+        if (structured) structuredMediaCriteria(watch);
         startedKey = definitionKey(watch);
         if (checkStoredWatch) {
-          const stored = await checkStoredWatch(watch);
+          const stored = await requestWithDeadline(signal=>checkStoredWatch(watch,{signal}));
           if (stored) {
             if (definitionKey(getWatch(watchId)) !== startedKey) throw new MonitoringCheckError('STALE_CHECK', 'The Watch changed during this check.');
             const changes = { ...stored.changes };
@@ -710,11 +729,12 @@ export const createWatchCheckController = ({
             return { ...stored, changes, watch: saveWatch(watchId, changes) };
           }
         }
+        if (structured) throw new MonitoringCheckError('AUTH_REQUIRED', 'Structured checks require the authenticated stored Watch.');
         let response;
         let trustedSourceType = null;
         if (watch.monitoringSource?.type === 'currency' && !currencyCriteriaFor(watch)) throw new MonitoringCheckError('INVALID_CURRENCY_CRITERIA', 'Unsupported currency condition.');
         if (currencyCriteriaFor(watch)) {
-          response = await requestCurrency(watch.request);
+          response = await requestWithDeadline(signal=>requestCurrency(watch.request,{signal}));
           trustedSourceType = 'currency';
         } else if (watch.monitoringSource?.type === 'bodacc') {
           const siren = getValidatedBodaccSiren(watch.monitoringSource);
@@ -724,7 +744,7 @@ export const createWatchCheckController = ({
               'The BODACC monitoring source is invalid.',
             );
           }
-          response = await requestCompany(siren);
+          response = await requestWithDeadline(signal=>requestCompany(siren,{signal}));
           trustedSourceType = 'bodacc';
         } else {
           const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
@@ -734,7 +754,7 @@ export const createWatchCheckController = ({
               'No monitoring source is configured for this Watch.',
             );
           }
-          response = await requestCheck(feedUrl);
+          response = await requestWithDeadline(signal=>requestCheck(feedUrl,{signal}));
         }
         if (definitionKey(getWatch(watchId)) !== startedKey) throw new MonitoringCheckError('STALE_CHECK', 'The Watch was edited during this check.');
         const result = trustedSourceType === 'currency' ? applyCurrencyCheckResult(getWatch(watchId), response) : applyFeedCheckResult(watch, response, { now, trustedSourceType });
@@ -779,8 +799,8 @@ export const createWatchCheckController = ({
         }
         throw error;
       } finally {
-        onCheckingChange(false);
         inFlight.delete(watchId);
+        onCheckingChange(false);
       }
     };
 

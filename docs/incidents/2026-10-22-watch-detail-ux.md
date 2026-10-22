@@ -1,0 +1,13 @@
+# Watch Detail hierarchy — Staging
+
+Presentation-only redesign on `codex/structured-interpretation-v1`.
+
+The header retains title, category and existing Edit behavior. A monitoring overview now precedes content, with operational health, last successful check, Check Now and live feedback, known scheduling metadata and saved email consent/frequency. Missing next-check/interval data is explicitly unavailable; no backend lookup or inferred date is added. Saved consent OFF overrides frequency. The 08:15 Paris label is shown only under the existing pinned Staging digest configuration.
+
+Latest developments show existing source headlines/excerpts, clearly labelled publication/detection dates and original source links. Only three article previews appear here; all updates and reference articles remain accessible below. The exact extraction rules from `8ce903f` are shared with browser presentation; a source parity check confirmed unchanged rules, and the server wrapper retains its original SHA-256 keys. No detection, extraction, deduplication, email template or delivery behavior changes. The Check Now result no longer misleadingly says “no matching updates” when the persisted result says matching information but the server projection has no item count; it uses an unnumbered positive result instead.
+
+The timeline uses every stored lifecycle/update event newest first, creation last, retaining links and the existing exact-identity consolidation. The underlying timeline helpers/data are unchanged. Initial context and Watch settings use native collapsed details. Existing controls, save behavior, delete confirmation, source content and currency alert policies remain. Currency rate/threshold content stays open; its selected alert policy remains visible in the overview while detailed policy controls move into settings. Longer persistence guidance moves into settings.
+
+Validation: 32 focused UI tests passed; Vite build passed. Four local fixtures cover Royal Caribbean Group (Structured), the existing Limoges source evidence, Real Madrid and GBP/EUR in both languages. Responsive browser inspection at 390×844 and 1024×900 found no horizontal overflow; native settings disclosure was operated with Enter, and result announcements retain `aria-live=polite`. No Check Now, monitoring job, consent change, real Watch mutation, email, paid AI call or database migration was invoked. Preview fixtures block API writes and external fetches.
+
+Evidence: `docs/evidence/watch-detail-mobile-fr-2026-10-22.png` and `docs/evidence/watch-detail-desktop-en-2026-10-22.png`. Production, external schedules, reports and notification infrastructure are outside this change.

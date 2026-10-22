@@ -1,10 +1,29 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "codex/structured-interpretation-v1": false
+    }
+  },
   "functions": {
     "api/watch-suggestion.js": {
       "maxDuration": 60
     }
   },
+  "rewrites": [
+    {
+      "source": "/api/company-watches",
+      "destination": "/api/company/company-watches"
+    },
+    {
+      "source": "/api/company-watch",
+      "destination": "/api/company/company-watch"
+    },
+    {
+      "source": "/api/check-company-watch",
+      "destination": "/api/company/check-company-watch"
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron/company-monitoring",

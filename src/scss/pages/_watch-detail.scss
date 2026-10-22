@@ -1158,3 +1158,186 @@ body.is-watch-edit-open {
   select { display: block; width: 100%; min-width: 0; max-width: 100%; padding: var(--space-sm); margin: 0 0 var(--space-sm); font: inherit; }
   p { margin-top: var(--space-sm); }
 }
+
+// Shared Media/News preferences: native controls, readable wrapping and touch targets.
+#email-notifications {
+  min-width: 0;
+  margin-block: var(--space-md);
+
+  &[hidden], [hidden] { display: none; }
+
+  > label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-height: 44px;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+  }
+
+  > label > input { flex: 0 0 auto; width: 20px; height: 20px; }
+
+  [data-email-frequency-control]:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-xs);
+    margin-block: var(--space-sm);
+  }
+
+  select {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-input);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+  }
+
+  input:disabled, select:disabled { opacity: .6; cursor: wait; }
+  p { overflow-wrap: anywhere; }
+  [role='status'] { min-height: 1.5em; }
+}
+
+// Keep the mobile action in the document flow when Media/News preferences are visible.
+// Bottom padding alone cannot prevent a fixed action covering focused mid-page controls.
+@media (max-width: 47.999rem) {
+  .app-shell--detail:has(#email-notifications:not([hidden])) {
+    > .page { padding-bottom: var(--space-lg); }
+    > .mobile-new-watch-action { position: static; }
+  }
+}
+
+// Current monitoring facts precede articles and configuration.
+.detail-overview__status {
+  margin: var(--space-lg) var(--space-lg) var(--space-md);
+  font-weight: var(--font-weight-semibold);
+  font-size: 1.125rem;
+}
+.detail-overview__status[data-state='failed'],
+.detail-overview__status[data-state='attention'] { color: var(--color-error, #a32d32); }
+.detail-overview__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--space-lg);
+  margin: 0;
+  padding: 0 var(--space-lg) var(--space-lg);
+}
+.detail-overview__facts div { min-width: 0; }
+.detail-overview__facts dt { font-size: .8125rem; color: var(--color-text-muted); margin-bottom: .375rem; }
+.detail-overview__facts dd { margin: 0; line-height: 1.5; overflow-wrap: anywhere; font-weight: 500; }
+.detail-overview__facts [hidden] { display: none; }
+.detail-overview__settings { display: inline-flex; align-items: center; min-height: 2.75rem; margin: 0 var(--space-lg) var(--space-md); }
+.detail-overview .detail-monitoring-controls { margin: 0; padding: var(--space-lg); }
+.detail-overview .watch-fact-check { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-md); }
+.detail-overview .watch-fact-check > p { flex: 1 1 12rem; }
+.detail-overview .watch-fact-check__button { min-height: 2.75rem; }
+.detail-overview .watch-fact-check__feedback {
+  padding: var(--space-md); margin-top: var(--space-md);
+  font-size: 1rem; font-weight: 600; line-height: 1.5;
+  color: var(--color-text); background: var(--color-action-tint); border-radius: var(--radius-input);
+}
+.detail-overview .watch-fact-check__feedback[data-state='error'] { color: var(--color-error, #a32d32); background: #fff0ef; }
+.detail-overview #watchFeedBaselineNotice { font-size: .8125rem; font-weight: 400; color: var(--color-text-muted); background: transparent; padding: 0; }
+.detail-developments__body { padding: var(--space-lg); }
+.detail-development-list { list-style: none; margin: 0; padding: 0; }
+.detail-development { min-width: 0; padding: 0 0 var(--space-lg); margin: 0 0 var(--space-lg); border-bottom: 1px solid var(--color-divider); }
+.detail-development h3 { margin: 0 0 var(--space-sm); font-size: 1.0625rem; line-height: 1.45; }
+.detail-development p { margin: var(--space-sm) 0; line-height: 1.6; overflow-wrap: anywhere; }
+.detail-development a { display: inline-flex; align-items: center; min-height: 2.75rem; overflow-wrap: anywhere; }
+.detail-development .monitoring-update__metadata { font-size: .8125rem; color: var(--color-text-muted); }
+.detail-disclosure { margin-top: var(--space-lg); min-width: 0; }
+.detail-disclosure > summary { cursor: pointer; padding: var(--space-lg); font-weight: 600; min-height: 2.75rem; line-height: 1.5; }
+.detail-disclosure[open] > summary { border-bottom: 1px solid var(--color-divider); }
+.detail-disclosure > summary:focus-visible,
+.detail-overview a:focus-visible,
+.detail-development a:focus-visible { outline: 2px solid var(--color-action); outline-offset: 3px; border-radius: .25rem; }
+.page--detail > .watch-management { padding: 0; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.watch-management > #email-notifications,
+.watch-management > #structured-monitoring,
+.watch-management > #currencyPolicyControl,
+.watch-management > .watch-management__controls { margin: var(--space-lg); }
+.watch-settings { margin-top: var(--space-lg); min-width: 0; }
+.watch-settings > h2 { margin: 0; padding: var(--space-lg); font-size: inherit; font-weight: 600; min-height: 2.75rem; line-height: 1.5; border-bottom: 1px solid var(--color-divider); }
+.watch-settings > h2:focus-visible { outline: 2px solid var(--color-action); outline-offset: 3px; }
+@media (min-width: 36rem) {
+ .detail-overview__status { margin-inline: var(--space-xl); }
+ .detail-overview__facts, .detail-overview .detail-monitoring-controls, .detail-developments__body { padding-inline: var(--space-xl); }
+ .detail-overview__settings { margin-inline: var(--space-xl); }
+ .detail-disclosure > summary, .watch-settings > h2 { padding-inline: var(--space-xl); }
+}
+
+@media (max-width: 35.99rem) {
+ .detail-overview__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); }
+ .detail-overview__facts > div:nth-child(3) { grid-column: 1 / -1; }
+}
+#watchInitialContextDisclosure > #watchFeedBaselineNotice { margin: var(--space-lg); color: var(--color-text-muted); font-size: .8125rem; line-height: 1.5; }
+
+.detail-overview .watch-fact-check > p { flex: 1 1 7rem; }
+.detail-overview #watchOverviewTitle { padding: 0; border: 0; }
+
+.detail-overview__settings { gap: .5rem; }
+.detail-overview__settings svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.75; flex-shrink: 0; }
+
+.detail-overview .watch-fact-check__feedback.is-action { padding: 0; }
+.watch-fact-check__result-link { display: block; padding: var(--space-md); min-height: 2.75rem; color: inherit; text-decoration: none; border-radius: inherit; }
+.watch-fact-check__result-link:hover { text-decoration: underline; }
+.watch-fact-check__result-link:focus-visible, #watchCheckResults:focus, #watchCheckResults li:focus { outline: 2px solid var(--color-action); outline-offset: 3px; }
+#watchCheckResults, #watchCheckResults li { scroll-margin-top: 6rem; }
+
+// Compact settings; all controls retain the existing save/change handlers.
+.watch-settings__monitoring { padding: var(--space-lg); border-bottom: 1px solid var(--color-divider); }
+.watch-settings__monitoring h2 { margin: 0 0 var(--space-xs); font-size: 1rem; }
+.watch-settings__monitoring p { margin: 0; line-height: 1.5; }
+#email-notifications .watch-settings__switch-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: var(--space-sm); min-height: 2.75rem; }
+#email-notifications [data-email-consent-state] { color: var(--color-text-muted); font-size: .875rem; }
+#email-notifications input[role='switch'] { appearance: none; position: relative; width: 2.75rem; height: 1.625rem; margin: 0; border: 1px solid var(--color-border); border-radius: 2rem; background: var(--color-text-muted); cursor: pointer; }
+#email-notifications input[role='switch']::before { content: ''; display: block; position: absolute; top: .125rem; left: .125rem; width: 1.25rem; height: 1.25rem; border-radius: 50%; background: var(--color-surface); transition: transform 120ms; }
+#email-notifications input[role='switch']:checked { background: var(--color-action); }
+#email-notifications input[role='switch']:checked::before { transform: translateX(1.125rem); }
+#email-notifications input:focus-visible { outline: 2px solid var(--color-action); outline-offset: 3px; }
+#email-notifications input:disabled { cursor: default; }
+#email-notifications select[data-email-frequency] { width: 1px; height: 1px; min-width: 0; padding: 0; border: 0; }
+.watch-settings__frequency { margin: var(--space-lg) 0 0; padding: 0; border: 0; min-width: 0; }
+.watch-settings__frequency legend { padding: 0; margin-bottom: var(--space-md); font-weight: 600; }
+.watch-settings__frequency label { display: flex; align-items: flex-start; gap: var(--space-sm); padding-block: var(--space-sm); cursor: pointer; min-height: 2.75rem; }
+.watch-settings__frequency input { flex: 0 0 auto; width: 1.125rem; height: 1.125rem; margin-top: .25rem; accent-color: var(--color-action); }
+.watch-settings__frequency span { min-width: 0; }
+.watch-settings__frequency strong, .watch-settings__frequency small { display: block; line-height: 1.5; overflow-wrap: anywhere; }
+.watch-settings__frequency strong { font-size: .9375rem; font-weight: 500; }
+.watch-settings__frequency small { color: var(--color-text-muted); font-size: .8125rem; margin-top: .25rem; }
+.watch-settings__frequency .watch-settings__availability { font-size: .75rem; }
+.watch-management__controls { display: flex; flex-direction: column; align-items: stretch; padding-top: var(--space-lg); border-top: 1px solid var(--color-divider); }
+.watch-management__controls #structured-monitoring button { width: 100%; min-height: 2.75rem; }
+.watch-management__delete:disabled { opacity: .65; cursor: not-allowed; }
+#watchDeleteUnavailable { margin: 0; font-size: .8125rem; color: var(--color-text-muted); line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { #email-notifications input[role='switch']::before { transition: none; } }
+
+// Update History shares the existing timeline's quiet line and date hierarchy.
+#watchMonitoringUpdatesList .history-day + .history-day { margin-top: var(--space-xl); }
+.history-day__heading { margin: 0 0 var(--space-md); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); line-height: 1.5; }
+.history-day__updates { list-style: none; margin: 0; padding: 0 0 0 var(--space-lg); border-left: 1px solid var(--color-timeline-line); }
+#watchMonitoringUpdatesList .monitoring-update { position: relative; padding-bottom: var(--space-lg); }
+#watchMonitoringUpdatesList .monitoring-update::before { content: ''; position: absolute; left: calc(-1 * var(--space-lg) - var(--space-xxs)); top: var(--space-xxs); width: var(--space-xs); height: var(--space-xs); border-radius: var(--radius-pill); background: var(--color-border); }
+#watchMonitoringUpdatesList .monitoring-update + .monitoring-update { margin-top: 0; padding-top: 0; border-top: 0; }
+#watchMonitoringUpdatesList .monitoring-update:last-child { padding-bottom: 0; }
+.history-update__time { margin: 0; color: var(--color-text-subtle); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; line-height: 1.4; }
+#watchMonitoringUpdatesList .monitoring-update__metadata a { font-size: inherit; color: var(--color-text-subtle); font-weight: inherit; display: inline-flex; align-items: center; min-height: 2.75rem; }
+
+#watchMonitoringUpdatesList .monitoring-update__description { display: none; }
+#watchMonitoringUpdatesList .monitoring-update__metadata a:visited,
+#watchMonitoringUpdatesList .monitoring-update__metadata a:hover,
+#watchMonitoringUpdatesList .monitoring-update__metadata a:focus-visible { color: var(--color-text-subtle); }
+
+#watchLatestDevelopments a,
+#watchLatestDevelopments a:visited,
+#watchLatestDevelopments a:hover,
+#watchLatestDevelopments a:active,
+#watchLatestDevelopments a:focus-visible { color: var(--color-text-subtle); }
+
+.page--detail a:not(.button):not([role='button']):not(.detail-edit-action):not(.detail-clarity-warning__edit):not(.external-action) {
+  &, &:visited, &:hover, &:active, &:focus-visible { color: var(--color-text-subtle); }
+}

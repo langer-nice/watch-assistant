@@ -1,6 +1,7 @@
 import { WATCH_CLASSIFICATIONS } from './report-status.js';
 
 export const getWatchStatusPresentation = (classification, translate) => {
+  if(classification===WATCH_CLASSIFICATIONS.PENDING)return {label:translate('statuses.awaitingFirstCheck'),modifier:'stable'};
   if (classification === WATCH_CLASSIFICATIONS.ATTENTION) {
     return { label: translate('statuses.attention'), modifier: 'attention' };
   }
@@ -9,6 +10,9 @@ export const getWatchStatusPresentation = (classification, translate) => {
   }
   if (classification === WATCH_CLASSIFICATIONS.NEW) {
     return { label: translate('home.newBadge'), modifier: 'stable' };
+  }
+  if (classification === WATCH_CLASSIFICATIONS.PAUSED) {
+    return { label: translate('statuses.paused'), modifier: 'stable' };
   }
   if (classification === WATCH_CLASSIFICATIONS.WATCHING) {
     return { label: translate('statuses.watching'), modifier: 'watching' };

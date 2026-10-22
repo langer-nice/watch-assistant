@@ -1,3 +1,4 @@
+import { canExecuteStructuredMedia } from './structured-media-execution.js';
 import { normalizeCurrencyWatch } from './currency-watch.js';
 import { normalizeFeedUrl } from './watch-monitoring.js';
 import { createStoryProfile } from './story-profile.js';
@@ -25,6 +26,7 @@ import {
 } from './page-classification.js';
 import { mediaMentionDefinition } from './media-provider-query.js';
 import { parseMediaMentionRequest } from './media-mention-request.js';
+import { hasDefinitionVersion, definitionFromWatch, validateWatchDefinition } from './watch-definition.js';
 
 export const WATCH_MODEL_VERSION = 10;
 
@@ -86,6 +88,16 @@ const normalizeLastCheckAttempt = (attempt) => {
 
 export const migrateWatchModel = (watch) => {
   if (!watch || typeof watch !== 'object') return { watch, migrated: false };
+  if (hasDefinitionVersion(watch)) {
+    let code = null;
+    try { validateWatchDefinition(definitionFromWatch(watch), watch.monitoringSource); }
+    catch (error) { code = error.code || 'INVALID_WATCH_DEFINITION'; }
+    // Definitions remain read-only; validated Media supports authenticated checks.
+    // Never run legacy normalization, including for malformed or future versions.
+    const retained = { ...watch, serverReadOnly: true, structuredExecutionDisabled: Boolean(code) || !canExecuteStructuredMedia(watch),
+      ...(code ? { structuredDefinitionError: code } : {}) };
+    return { watch: retained, migrated: JSON.stringify(retained) !== JSON.stringify(watch) };
+  }
   const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
   const bodaccMonitoringSource = normalizeBodaccMonitoringSource(watch.monitoringSource);
   const storedPageType = normalizePageType(watch.pageType);
