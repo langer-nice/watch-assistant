@@ -1,3 +1,4 @@
+import {productionReportsEnabled,productionWatchOwners} from './structured-production-access.js';
 import {randomUUID} from 'node:crypto';
 import {stagingLegacyEnabled,legacyStagingOwner} from './staging-legacy-notifications.js';
 import {mapMediaReportRow} from '../src/js/media-watch-row.js';
@@ -14,18 +15,25 @@ export const morningReportWindow=(at=Date.now())=>{
 };
 // Read durable results only. This path cannot check a source, acknowledge an
 // article, consume an outbox row, or send a notification.
-export const generateMorningReport=async({client,env=process.env,at=Date.now()}={})=>{
+export const generateMorningReport=async({client,env=process.env,at=Date.now(),schedulerAuthorized=false}={})=>{
  const window=morningReportWindow(at);
- if(!window||!stagingLegacyEnabled(env))return {status:'disabled'};
- const context=await client.rpc('morning_report_context',{p_cutoff:window.cutoff});
+ const production=productionReportsEnabled(env);
+ if(!window||(!production&&!stagingLegacyEnabled(env))||(production&&!schedulerAuthorized))return {status:'disabled'};
+ const owners=production?await productionWatchOwners(client):[legacyStagingOwner];
+ const results=[];
+ for(const owner of owners)results.push(await generateOwnerReport({client,window,at,owner,production}));
+ return production?{status:'completed',reports:results}:results[0];
+};
+const generateOwnerReport=async({client,window,at,owner,production})=>{
+ const context=await client.rpc('morning_report_context',{p_cutoff:window.cutoff,...(production?{p_owner:owner}:{})});
  if(context.error)throw Error('Morning context unavailable');
  const data=context.data;
  if(!data||data.pending>0)return {status:'awaiting-completed-checks'};
  if(data.exists)return {status:'already-generated'};
- if(!Array.isArray(data.watches)||!data.watches.every(row=>row.user_id===legacyStagingOwner))throw Error('Invalid morning owner');
- const watches=data.watches.map(row=>row.type==='media_news'?mapMediaReportRow(row,legacyStagingOwner):mapCompanyWatchRow(row));
+ if(!Array.isArray(data.watches)||!data.watches.every(row=>row.user_id===owner))throw Error('Invalid morning owner');
+ const watches=data.watches.map(row=>row.type==='media_news'?mapMediaReportRow(row,owner):mapCompanyWatchRow(row));
  const completedAt=new Date(at).toISOString();
- const report={...buildStoredReport({watches,ownerId:legacyStagingOwner,id:randomUUID(),startedAt:window.cutoff,completedAt}),origin:'automatic',snapshotAt:completedAt,sourceRevision:data.revision,
+ const report={...buildStoredReport({watches,ownerId:owner,id:randomUUID(),startedAt:window.cutoff,completedAt}),origin:'automatic',snapshotAt:completedAt,sourceRevision:data.revision,
   partial:watches.some(w=>w.lastCheckAttempt?.status!=='succeeded'||!w.lastChecked||Date.parse(w.lastChecked)<Date.parse(window.cutoff))};
  // Pending/paused classifications are not completed checks. Keep them visible
  // as attention instead of silently losing them in report normalization.

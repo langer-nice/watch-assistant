@@ -42,7 +42,9 @@ export const processMediaWatchEmailNotifications = async ({ client, env = proces
   const counts = emailFailureCounts();
   const request = (operation) => withinMediaDeadline(operation, deadline);
   const expired = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-  let query = client.from('media_watch_notifications').select(stagingTest ? 'id,watches!inner(watch_definition,user_id)' : 'id').eq('status', 'pending');
+  const excludeStructured = env.VERCEL_ENV === 'production';
+  let query = client.from('media_watch_notifications').select(stagingTest || excludeStructured ? 'id,watches!inner(watch_definition,user_id)' : 'id').eq('status', 'pending');
+  if (excludeStructured) query = query.is('watches.watch_definition->>definitionVersion',null);
   if (mediaDailyDigestEnabled(env)) query = query.eq('delivery_mode', 'immediate');
   if (stagingTest) query = query.eq('watches.watch_definition->>definitionVersion', 'watch-definition.v1').in('watches.user_id', structuredEmailTestOwners(env));
   if (selection) query = query.eq('id', selection.notificationId).eq('watch_id', selection.watchId)

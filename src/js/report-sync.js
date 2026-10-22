@@ -3,7 +3,8 @@ import {getLatestReport,saveReport} from './report-storage.js';
 const setState=state=>{reportSyncState=state;globalThis.window?.dispatchEvent?.(new Event('watchassistant:reportschanged'));};
 let connection=null,unsubscribe=null,flight=null;
 export let reportSyncState='idle';
-const enabled=env=>env?.VITE_SUPABASE_URL==='https://tseexvbwhrtofcsrvcqc.supabase.co'&&env?.VITE_MEDIA_WATCH_DAILY_DIGEST_ENABLED==='true';
+const enabled=env=>(env?.VITE_SUPABASE_URL==='https://tseexvbwhrtofcsrvcqc.supabase.co'&&env?.VITE_MEDIA_WATCH_DAILY_DIGEST_ENABLED==='true')
+ ||(env?.VITE_SUPABASE_URL==='https://cztpitujsnzhhenedwjn.supabase.co'&&env?.VITE_MORNING_REPORT_PRODUCTION_ENABLED==='true');
 export const loadLatestServerReport=async()=>{
  const c=connection,owner=getAccountOwner(),epoch=getAccountEpoch();
  if(!c||!owner||!enabled(c.env))return null;

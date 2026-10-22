@@ -12,7 +12,8 @@ let state={status:'authenticated',session:{user:{id:owner}}};const callbacks=[];
 const auth={getState:()=>state,subscribe:fn=>{callbacks.push(fn);return()=>{};}};
 globalThis.localStorage={data:new Map(),getItem(key){return this.data.get(key)||null;},setItem(key,value){this.data.set(key,value);},removeItem(key){this.data.delete(key);}};
 const login=id=>{state=id?{status:'authenticated',session:{user:{id}}}:{status:'anonymous'};callbacks.forEach(fn=>fn(state));};
-test('Home restores persisted report after reload/login/device and guards account-switch races',async()=>{
+for(const configuration of [env,{VITE_SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',VITE_MORNING_REPORT_PRODUCTION_ENABLED:'true'}])test('Home restores persisted report after reload/login/device and guards account-switch races '+configuration.VITE_SUPABASE_URL,async()=>{
+ const env=configuration;
  configureAccountStorage(auth);resetStoredReports();let resolve;
  await configureReportSync({client:{rpc:async name=>{assert.equal(name,'latest_watch_report');return {data:report};}},auth,env});
  assert.equal(getLatestReport().id,report.id);

@@ -1,3 +1,4 @@
+import {productionExecutionEnabled,productionReportsEnabled} from './structured-production-access.js';
 import {generateMorningReport,runMorningBatches} from './morning-report.js';
 import {runStagingLegacyMonitoring,processStagingLegacyDigests,stagingLegacyEnabled} from './staging-legacy-notifications.js';
 import {parisDigestWindow as validMorningDeliveryWindow,validStructuredMediaDigestSelection} from './media-watch-digest.js';
@@ -244,13 +245,13 @@ export const createCompanyMonitoringCronHandler = ({
     // Controlled Staging execution on the existing authenticated endpoint only;
     // keep Company and unapproved legacy work out of this mode.
     if (scope === 'structured-media') {
-      if (!structuredCreationEnabled(env) || env.STRUCTURED_MEDIA_SCHEDULED_ENABLED !== 'true') return sendJson(response, 404, { runId, status: 'disabled' });
+      if ((!structuredCreationEnabled(env) && !productionExecutionEnabled(env)) || env.STRUCTURED_MEDIA_SCHEDULED_ENABLED !== 'true') return sendJson(response, 404, { runId, status: 'disabled' });
       const [structured,legacy] = await Promise.all([
         runMorningBatches({run:structuredRunner,args:{...options,client:clientFactory({env}),env,schedulerAuthorized:true},at:now()}),
         stagingLegacyEnabled(env) ? legacyRunner({...options,client:clientFactory({env}),env,schedulerAuthorized:true}) : null,
       ]);
       let morningReport;
-      try{morningReport=await morningReportProcessor({client:clientFactory({env}),env,at:now()});}catch{morningReport={status:'unavailable'};}
+      try{morningReport=await morningReportProcessor({client:clientFactory({env}),env,at:now(),schedulerAuthorized:true});}catch{morningReport={status:'unavailable'};}
       // The hourly Staging route captures updates only. The existing dedicated
       // 08:15 email route above owns delivery for Structured and legacy digests.
       return sendJson(response, 200, { runId, structured, morningReport, ...(legacy?{legacy}:{}) });
@@ -259,6 +260,10 @@ export const createCompanyMonitoringCronHandler = ({
     const summary = await runner({ client, env, ...options });
     let media;
     try { media = await mediaRunner({ client, env, ...options, schedulerAuthorized: true }); } catch { media = { status: 'unavailable' }; }
+    if(productionReportsEnabled(env)) {
+      try { await morningReportProcessor({client:clientFactory({env}),env,at:now(),schedulerAuthorized:true}); }
+      catch { /* Report persistence does not change legacy monitoring/delivery. */ }
+    }
     const result = { runId, ...summary, media, durationMs: Math.max(0, now() - startedAt) };
     logger.info?.('[Company monitoring cron] Run completed.', result);
     sendJson(response, 200, result);

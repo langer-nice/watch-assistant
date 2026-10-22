@@ -1,3 +1,4 @@
+import {productionExecutionEnabled,productionWatchOwners} from './structured-production-access.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { structuredCreationEnabled } from './structured-creation-access.js';
 import { validateMediaQuery } from '../src/js/media-provider-query.js';
@@ -14,9 +15,10 @@ export const runStructuredMediaMonitoring = async ({client,env=process.env,sched
  const summary={status:'disabled',claimed:0,changed:0,unchanged:0,failed:0,skipped:0,notifications:'disabled'};
  if(env.STRUCTURED_MEDIA_SCHEDULED_ENABLED!=='true')return summary;
  if(!schedulerAuthorized || typeof env.CRON_SECRET!=='string' || !env.CRON_SECRET.trim())return {...summary,status:'unauthorized'};
- if(!structuredCreationEnabled(env))return {...summary,status:'environment-blocked'};
+ const production=productionExecutionEnabled(env);
+ if(!production&&!structuredCreationEnabled(env))return {...summary,status:'environment-blocked'};
  const enqueue = structuredMediaNotificationIntentsEnabled(env);
- const owners=String(env.STRUCTURED_WATCH_TEST_USER_IDS||'').split(',').map(x=>x.trim()).filter(x=>/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(x));
+ const owners=production?await productionWatchOwners(client):String(env.STRUCTURED_WATCH_TEST_USER_IDS||'').split(',').map(x=>x.trim()).filter(x=>/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(x));
  if(!owners.length)return {...summary,status:'unauthorized'};
  if(!Number.isInteger(batchSize)||batchSize<1||batchSize>3)throw Error('Invalid structured batch');
  if(Date.now()>=deadline)return {...summary,status:'deadline'};

@@ -1,9 +1,10 @@
+import {structuredProductionEnabled} from './structured-production-access.js';
 import { structuredCreationEnabled } from './structured-creation-access.js';
 import { parseAsciiEmailAddress, getWatchEmailCredentials } from './watch-email-config.js';
 
 // Intent creation is independent of delivery. Neither flag is enabled by default.
 export const structuredMediaNotificationIntentsEnabled = env =>
-  env?.STRUCTURED_MEDIA_NOTIFICATION_INTENTS_ENABLED === 'true' && structuredCreationEnabled(env);
+  env?.STRUCTURED_MEDIA_NOTIFICATION_INTENTS_ENABLED === 'true' && (structuredCreationEnabled(env) || structuredProductionEnabled(env));
 
 export const structuredEmailTestOwners = env => String(env?.STRUCTURED_WATCH_TEST_USER_IDS || '')
   .split(',').map(value => value.trim()).filter(value => /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value));
