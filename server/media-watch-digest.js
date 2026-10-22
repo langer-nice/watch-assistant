@@ -1,6 +1,7 @@
+import {productionWatchOwners} from './structured-production-access.js';
 import {createHash, randomUUID} from 'node:crypto';
 import {getMediaWatchEmailConfig, sendWithResend} from './media-watch-email.js';
-import {getStructuredMediaStagingEmailConfig, structuredEmailTestOwners, structuredMediaEmailDeliveryAllowed, structuredDigestWatchScope} from './structured-media-notification-gates.js';
+import {getStructuredMediaStagingEmailConfig, structuredEmailTestOwners, structuredMediaEmailDeliveryAllowed, structuredDigestWatchScope, getStructuredMediaProductionDigestConfig} from './structured-media-notification-gates.js';
 import {safeEmailCode, definiteProviderFailure} from './watch-email-config.js';
 import {withinMediaDeadline} from './media-deadline.js';
 
@@ -70,22 +71,24 @@ export const renderMediaWatchDigest = ({locale,watchId,watchTitle,period,article
   const html=`<!doctype html><html lang="${lang}"><body style="font-family:Arial,sans-serif;color:#18181b"><h1>${escape(subject)}</h1><p>${escape(intro)}</p>${developmentHtml}${remaining.map(g=>`<section><h2>${escape(g[0].title)}</h2>${g.map(a=>`<p><a href="${escape(a.url)}">${escape(clean(a.source)||a.title)}</a> ${escape(/^\d{4}-\d{2}-\d{2}/.exec(a.publishedAt||'')?.[0]||'')}</p>${excerpt(a)?`<p><strong>${escape(excerptLabel)}:</strong> ${escape(excerpt(a))}</p>`:''}`).join('')}</section>`).join('')}<p><a href="${escape(detail.href)}">${escape(all)} (${count})</a></p><p><a href="${escape(preferences.href)}">${escape(off)}</a></p></body></html>`;
   return {subject,text,html};
 };
-export const processMediaWatchDigests = async ({client,env=process.env,sender=sendWithResend,deadline=Date.now()+30000,digestSelection,now=Date.now}={}) => {
+export const processMediaWatchDigests = async ({client,env=process.env,sender=sendWithResend,deadline=Date.now()+30000,digestSelection,now=Date.now,structuredProduction=false}={}) => {
   const summary={status:'disabled',claimedCount:0,sentCount:0,failedCount:0};
   const exact=digestSelection!==undefined;
+  const productionStructured=structuredProduction ? getStructuredMediaProductionDigestConfig(env,now()) : null;
+  if(structuredProduction && (!productionStructured || exact))return summary;
   if(exact && (getMediaWatchEmailConfig(env) || !getStructuredMediaStagingEmailConfig(env)
     || !validStructuredMediaDigestSelection(digestSelection,env)))return {...summary,status:'invalid-selection'};
-  if(!mediaDailyDigestEnabled(env))return summary;
-  const production=getMediaWatchEmailConfig(env),config=production||getStructuredMediaStagingEmailConfig(env);
+  if(!structuredProduction && !mediaDailyDigestEnabled(env))return summary;
+  const production=structuredProduction?null:getMediaWatchEmailConfig(env),config=productionStructured||production||getStructuredMediaStagingEmailConfig(env);
   let hour=mediaDigestSendHour(env);
   if(!config||hour===null)return summary;
-  const structured=!production,owners=structured?structuredEmailTestOwners(env):[];
+  const structured=!production,owners=structuredProduction?await productionWatchOwners(client):structured?structuredEmailTestOwners(env):[];
   const window=()=>parisDigestWindow(now());
   if(structured){const slot=window();if(!slot.open)return {...summary,status:'outside-morning-window'};hour=slot.utcHour;}
   const rpc=async(name,args)=>{const r=await withinMediaDeadline(()=>client.rpc(name,args),deadline);if(r.error)throw Object.assign(Error('Digest SQL unavailable'),{code:'DATABASE_ERROR'});return r.data;};
   const selection=exact?Object.fromEntries(Object.entries(digestSelection).map(([k,v])=>[k,v.toLowerCase()])):null;
   // Exact delivery never prepares or enumerates any other digest or article.
-  const watchScope=structured?structuredDigestWatchScope(env):null;
+  const watchScope=structured&&!structuredProduction?structuredDigestWatchScope(env):null;
   let scopedSelections;
   if(!selection && watchScope !== null){
     scopedSelections=await rpc('prepare_scoped_structured_media_digests',{p_send_hour:hour,p_owners:owners,p_watches:watchScope});
@@ -93,8 +96,8 @@ export const processMediaWatchDigests = async ({client,env=process.env,sender=se
     // Old prepared digests keep their contents and priority; at most one per Watch/day.
     const seen=new Set();scopedSelections=scopedSelections.filter(item=>{if(seen.has(item.watchId))return false;seen.add(item.watchId);return true;});
   }
-  if(!selection && !scopedSelections)await rpc('prepare_media_watch_digests',{p_send_hour:hour,p_owners:owners,p_structured:structured});
-  const ids=selection?[selection.digestId]:scopedSelections?scopedSelections.map(item=>item.digestId):await rpc('pending_media_watch_digests',{p_owners:owners,p_structured:structured});
+  if(!structuredProduction && !selection && !scopedSelections)await rpc('prepare_media_watch_digests',{p_send_hour:hour,p_owners:owners,p_structured:structured});
+  const ids=structuredProduction?await rpc('prepare_production_structured_digests',{p_since:config.eligibleAfter,p_owners:owners}):selection?[selection.digestId]:scopedSelections?scopedSelections.map(item=>item.digestId):await rpc('pending_media_watch_digests',{p_owners:owners,p_structured:structured});
   if(!Array.isArray(ids)||ids.length>10)throw Error('Invalid digest batch');
   summary.status='success';
   for(const id of ids){
@@ -102,7 +105,8 @@ export const processMediaWatchDigests = async ({client,env=process.env,sender=se
     const selected=selection||scopedSelections?.find(item=>item.digestId===id);
     const token=randomUUID();let claimed=null,boundary=false,providerStarted=false;
     try{
-      claimed=await rpc(selected?'claim_structured_media_test_digest':'claim_media_watch_digest',selected
+      claimed=await rpc(structuredProduction?'claim_production_structured_digest':selected?'claim_structured_media_test_digest':'claim_media_watch_digest',structuredProduction
+        ?{p_id:id,p_token:token,p_owners:owners,p_since:config.eligibleAfter}:selected
         ?{p_digest_id:id,p_watch_id:selected.watchId,p_owner:selected.ownerId,p_claim_token:token,p_owners:[selected.ownerId],p_send_hour:hour}
         :{p_id:id,p_token:token,p_owners:owners,p_structured:structured});
       if(!claimed)continue;
@@ -111,7 +115,7 @@ export const processMediaWatchDigests = async ({client,env=process.env,sender=se
         ||(selected&&(claimed.watch_id!==selected.watchId||claimed.user_id!==selected.ownerId)))throw Error('Invalid digest claim');
       const auth=await withinMediaDeadline(()=>client.auth.admin.getUserById(claimed.user_id),deadline);
       const user=auth.data?.user;
-      if(auth.error||!user?.email||!user.email_confirmed_at||(structured&&!structuredMediaEmailDeliveryAllowed(env,claimed.user_id,user.email)))throw Object.assign(Error('Recipient unavailable'),{code:'RECIPIENT_UNVERIFIED'});
+      if(auth.error||!user?.email||!user.email_confirmed_at||(structuredProduction?(user.id!==claimed.user_id||!owners.includes(user.id)):(structured&&!structuredMediaEmailDeliveryAllowed(env,claimed.user_id,user.email))))throw Object.assign(Error('Recipient unavailable'),{code:'RECIPIENT_UNVERIFIED'});
       const locale=await rpc('get_media_watch_notification_locale',{p_user_id:claimed.user_id});
       const content=renderMediaWatchDigest({locale,watchId:claimed.watch_id,watchTitle:claimed.watch_title,period:claimed.period,articles:claimed.articles,baseUrl:config.baseUrl});
       if(structured&&!window().open)throw Object.assign(Error('Morning window closed'),{code:'DIGEST_WINDOW_CLOSED'});

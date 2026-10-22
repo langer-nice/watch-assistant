@@ -58,3 +58,19 @@ export const getStructuredMediaStagingEmailConfig = env => {
 export const structuredMediaEmailDeliveryAllowed = (env, owner, recipient) =>
   Boolean(getStructuredMediaStagingEmailConfig(env)) && structuredEmailTestOwners(env).includes(owner)
   && Boolean(address(recipient)) && recipients(env).includes(address(recipient));
+
+// Production digest opt-in is separate from both legacy delivery and Preview tests.
+export const getStructuredMediaProductionDigestConfig = (env, at=Date.now()) => {
+  if (!structuredProductionEnabled(env) || env.NODE_ENV === 'test'
+    || env.STRUCTURED_MEDIA_PRODUCTION_DIGEST_ENABLED !== 'true'
+    || env.STRUCTURED_MEDIA_EMAIL_NOTIFICATIONS_ENABLED !== 'true'
+    || env.WATCH_EMAIL_NOTIFICATIONS_ENABLED !== 'true'
+    || env.MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED !== 'true') return null;
+  const since=env.STRUCTURED_MEDIA_PRODUCTION_DIGEST_ELIGIBLE_AFTER;
+  if (typeof since !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(since)
+    || !Number.isFinite(Date.parse(since)) || Date.parse(since)>Number(new Date(at))) return null;
+  if (env.WATCH_APP_BASE_URL !== 'https://watch-assistant-omega.vercel.app'
+    && env.WATCH_APP_BASE_URL !== 'https://watch-assistant-omega.vercel.app/') return null;
+  const config=getWatchEmailCredentials(env);
+  return config ? {...config,eligibleAfter:since} : null;
+};

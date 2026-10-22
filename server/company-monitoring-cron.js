@@ -1,7 +1,7 @@
 import {productionExecutionEnabled,productionReportsEnabled} from './structured-production-access.js';
-import {generateMorningReport,runMorningBatches} from './morning-report.js';
+import {generateMorningReport,runMorningBatches,morningReportWindow} from './morning-report.js';
 import {runStagingLegacyMonitoring,processStagingLegacyDigests,stagingLegacyEnabled} from './staging-legacy-notifications.js';
-import {parisDigestWindow as validMorningDeliveryWindow,validStructuredMediaDigestSelection} from './media-watch-digest.js';
+import {processMediaWatchDigests,parisDigestWindow as validMorningDeliveryWindow,validStructuredMediaDigestSelection} from './media-watch-digest.js';
 import { randomUUID } from 'node:crypto';
 
 import { applyFeedCheckResult } from '../src/js/watch-monitoring.js';
@@ -13,7 +13,7 @@ import { processCompanyWatchEmailNotifications } from './company-watch-notificat
 import { runMediaMonitoring } from './media-monitoring-cron.js';
 import { runStructuredMediaMonitoring } from './structured-media-scheduler.js';
 import { structuredCreationEnabled } from './structured-creation-access.js';
-import { getStructuredMediaStagingEmailConfig } from './structured-media-notification-gates.js';
+import { getStructuredMediaStagingEmailConfig, getStructuredMediaProductionDigestConfig } from './structured-media-notification-gates.js';
 import { processMediaWatchEmailNotifications, validStructuredMediaEmailSelection } from './media-watch-notifications.js';
 import { createSupabaseServiceClient, requireCronSecret } from './supabase-service.js';
 
@@ -193,6 +193,7 @@ export const createCompanyMonitoringCronHandler = ({
   legacyRunner = runStagingLegacyMonitoring,
   legacyDigestProcessor = processStagingLegacyDigests,
   morningReportProcessor = generateMorningReport,
+  productionDigestProcessor = processMediaWatchDigests,
   ...options
 } = {}) => async (request, response) => {
   const runId = createRunId();
@@ -217,7 +218,23 @@ export const createCompanyMonitoringCronHandler = ({
     const selectionKeys = ['notificationId', 'digestId', 'watchId', 'ownerId'];
     const hasSelection = selectionKeys.some(key => params.has(key));
     if (hasSelection && scope !== 'structured-media-email-test') return sendJson(response, 400, {runId,status:'invalid-selection'});
-    if (scope && !['structured-media', 'structured-media-email-test'].includes(scope)) return sendJson(response, 400, { runId, status: 'invalid-scope' });
+    if (scope && !['structured-media', 'structured-media-email-test', 'structured-morning'].includes(scope)) return sendJson(response, 400, { runId, status: 'invalid-scope' });
+    // Existing authenticated endpoint; external Paris-time ticks are configured separately.
+    if (scope === 'structured-morning') {
+      if (!productionReportsEnabled(env) && !getStructuredMediaProductionDigestConfig(env,now())) return sendJson(response,404,{runId,status:'disabled'});
+      if (!morningReportWindow(now())) return sendJson(response,200,{runId,status:'outside-morning-window'});
+      const client=clientFactory({env});
+      // Claim only already-due Structured leases, preserving each Watch interval.
+      const structured=productionExecutionEnabled(env)
+        ? await runMorningBatches({run:structuredRunner,args:{...options,client,env,schedulerAuthorized:true},at:now()}) : {status:'disabled'};
+      let morningReport;
+      try { morningReport=await morningReportProcessor({client,env,at:now(),schedulerAuthorized:true}); }
+      catch { morningReport={status:'unavailable'}; }
+      // Composition is read-only with respect to notifications. Delivery has its own gates.
+      const digests=validMorningDeliveryWindow(now()).open
+        ? await productionDigestProcessor({client,env,now,structuredProduction:true}) : {status:'outside-morning-window'};
+      return sendJson(response,200,{runId,structured,morningReport,digests});
+    }
     if (scope === 'structured-media-email-test') {
       if (!getStructuredMediaStagingEmailConfig(env)) return sendJson(response, 404, {runId,status:'disabled'});
       const digest = params.has('digestId');

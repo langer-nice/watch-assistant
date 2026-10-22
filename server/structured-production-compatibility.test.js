@@ -56,11 +56,11 @@ test('legacy sender excludes Structured intents even with Production gates OFF; 
 });
 test('Production private report SQL: owner isolation, uniqueness and protected capture',async()=>{
  const db=new PGlite();try{
-  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,email text);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;create function auth.role() returns text language sql stable as $$select current_setting('request.jwt.claim.role',true)$$;grant usage on schema auth,public to anon,authenticated,service_role;grant execute on all functions in schema auth to anon,authenticated,service_role;create function public.test_production_clock() returns timestamptz language sql as $$select '2026-10-22T06:02Z'::timestamptz$$;`);
+  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,email text);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;create function auth.role() returns text language sql stable as $$select current_setting('request.jwt.claim.role',true)$$;grant usage on schema auth,public to anon,authenticated,service_role;grant execute on all functions in schema auth to anon,authenticated,service_role;create function public.test_production_clock() returns timestamptz language sql as $$select coalesce(nullif(current_setting('test.production_now',true),''),'2026-10-22T06:02Z')::timestamptz$$;`);
   const dir=new URL('../supabase/migrations/',import.meta.url),all=(await readdir(dir)).filter(x=>x.endsWith('.sql')).sort();
-  const excluded=['20261017160000','20261018160000','20261018195000','20261020170000','20261022160000'];
+  const excluded=['20261017160000','20261018160000','20261020170000','20261022160000'];
   const order=[...all.filter(x=>x<'20261012'),...all.filter(x=>x.startsWith('20261013140000')),...all.filter(x=>x>='20261012'&&!x.startsWith('20261013140000')&&!excluded.some(p=>x.startsWith(p)))];
-  for(const file of order){let sql=(await readFile(new URL(file,dir),'utf8')).replace('create extension if not exists pgcrypto;','');if(file.startsWith('20261023120000'))sql=sql.replaceAll('clock_timestamp()','public.test_production_clock()');await db.exec(sql);}
+  for(const file of order){let sql=(await readFile(new URL(file,dir),'utf8')).replace('create extension if not exists pgcrypto;','');sql=sql.replaceAll('clock_timestamp()','public.test_production_clock()').replaceAll('now()','public.test_production_clock()');await db.exec(sql);}
   await db.query('insert into auth.users values ($1,$2),($3,$4)',[owner,'owner@example.test',other,'other@example.test']);
   await db.query("insert into public.watches(id,user_id,type,title,siren,monitoring_state,last_checked_at) values($1,$2,'company_bodacc','Existing A','552100554','monitoring','2026-10-22T06:01Z'),($3,$4,'company_bodacc','Existing B','552100554','monitoring','2026-10-22T06:01Z')",[watch,owner,watch2,other]);
   const role=(r,user,sql,args=[])=>db.transaction(async tx=>{await tx.exec(`set local role ${r}`);await tx.query("select set_config('request.jwt.claim.role',$1,true),set_config('request.jwt.claim.sub',$2,true)",[r,user||'']);return tx.query(sql,args);});
@@ -87,5 +87,41 @@ test('Production private report SQL: owner isolation, uniqueness and protected c
   await role('service_role',null,'select public.maintain_media_watch_notifications(false)');
   const pending=(await db.query('select source_article_id,status from public.media_watch_notifications order by source_article_id')).rows;
   assert.deepEqual(pending,[{source_article_id:'legacy-pending',status:'failed'},{source_article_id:'structured-pending',status:'pending'}]);
+  // Production adapters: no legacy enrollment, no historical membership, atomic one/day.
+  const svc=async(sql,args=[])=>role('service_role',null,sql,args);
+  assert.deepEqual((await role('service_role',null,"select public.prepare_production_structured_digests('2026-10-22T06:00Z',$1) r",[[owner]])).rows[0].r,[]);
+  await role('authenticated',owner,"select public.set_media_watch_email_policy($1,'daily_digest',true)",[structuredId]);
+  await db.query("select set_config('test.production_now','2026-10-22T06:15Z',false)");
+  const since='2026-10-22T06:00Z';
+  const add=async(key,stamp)=>db.query(`insert into public.media_watch_notifications(watch_id,user_id,source_article_id,watch_title,article,created_at) values($1,$2,$3,'Fixture','{"title":"New","url":"https://example.test/new"}',$4)`,[structuredId,owner,key,stamp]);
+  await add('historical','2026-10-20T06:15Z');await add('fresh','2026-10-22T06:14Z');
+  for(const r of ['anon','authenticated'])await assert.rejects(()=>role(r,owner,'select public.prepare_production_structured_digests($1,$2)',[since,[owner]]));
+  assert.deepEqual((await svc('select public.prepare_production_structured_digests($1,$2) r',[since,[other]])).rows[0].r,[]);
+  const ids=(await svc('select public.prepare_production_structured_digests($1,$2) r',[since,[owner]])).rows[0].r;assert.equal(ids.length,1);
+  const members=(await db.query('select source_article_id from public.media_watch_notifications where digest_id=$1',[ids[0]])).rows;assert.deepEqual(members,[{source_article_id:'fresh'}]);
+  const token='99999999-9999-4999-8999-999999999999';
+  const claim=async(owners=[owner],cutoff=since)=> (await svc('select public.claim_production_structured_digest($1,$2,$3,$4) r',[ids[0],token,owners,cutoff])).rows[0].r;
+  assert.equal(await claim([other]),null);assert.equal(await claim([owner],'2026-10-22T06:15Z'),null);
+  const claims=await Promise.all([claim(),claim()]);assert.equal(claims.filter(Boolean).length,1);
+  assert.equal((await svc('select public.begin_media_watch_digest($1,$2) r',[ids[0],token])).rows[0].r,true);
+  await svc("select public.finish_media_watch_digest($1,$2,null,'EMAIL_DELIVERY_OUTCOME_UNKNOWN')",[ids[0],token]);
+  assert.equal(await claim(),null);
+  await add('later','2026-10-22T06:16Z');
+  assert.deepEqual((await svc('select public.prepare_production_structured_digests($1,$2) r',[since,[owner]])).rows[0].r,[]);
+  const independent='23456789-2345-4345-8345-234567890123';
+  await svc("select public.persist_structured_watch_v1($1,$2,'create',$3,0,$4,$5,$6,$7,$8)",[other,independent,'77777777-7777-4777-8777-777777777777',title,source,definition,fingerprint(definition),fingerprint({definition,source,title})]);
+  await svc('select public.set_structured_media_monitoring($1,$2,1,true,86400)',[independent,other]);
+  await role('authenticated',other,"select public.set_media_watch_email_policy($1,'daily_digest',false)",[independent]);
+  await db.query(`insert into public.media_watch_notifications(watch_id,user_id,source_article_id,watch_title,article) values($1,$2,'without-consent','Fixture','{"title":"New","url":"https://example.test/other"}')`,[independent,other]);
+  assert.deepEqual((await svc('select public.prepare_production_structured_digests($1,$2) r',[since,[other]])).rows[0].r,[]);
+  await role('authenticated',other,"select public.set_media_watch_email_policy($1,'daily_digest',true)",[independent]);
+  // Off observations remain terminal; only a subsequent new observation may send.
+  await db.query(`insert into public.media_watch_notifications(watch_id,user_id,source_article_id,watch_title,article) values($1,$2,'after-consent','Fixture','{"title":"New","url":"https://example.test/other-new"}')`,[independent,other]);
+  const second=(await svc('select public.prepare_production_structured_digests($1,$2) r',[since,[owner,other]])).rows[0].r;assert.equal(second.length,1);
+  const secondClaim=(await svc('select public.claim_production_structured_digest($1,$2,$3,$4) r',[second[0],token,[other],since])).rows[0].r;
+  assert.equal(secondClaim.user_id,other);assert.deepEqual(secondClaim.articles.map(a=>a.id),['after-consent']);
+  // Previously completed legacy results remain available, explicitly stale/partial
+  // at composition; unfinished due Structured leases still block freshness.
+  assert((await svc("select public.morning_report_context($1,'2026-10-22T06:00Z') r",[owner])).rows[0].r.pending>0);
  }finally{await db.close();}
 });
