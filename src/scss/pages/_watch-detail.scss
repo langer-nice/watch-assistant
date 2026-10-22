@@ -1325,4 +1325,9 @@ body.is-watch-edit-open {
 #watchMonitoringUpdatesList .monitoring-update + .monitoring-update { margin-top: 0; padding-top: 0; border-top: 0; }
 #watchMonitoringUpdatesList .monitoring-update:last-child { padding-bottom: 0; }
 .history-update__time { margin: 0; color: var(--color-text-subtle); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; line-height: 1.4; }
-#watchMonitoringUpdatesList .monitoring-update__metadata a { font-size: inherit; color: inherit; font-weight: inherit; display: inline-flex; align-items: center; min-height: 2.75rem; }
+#watchMonitoringUpdatesList .monitoring-update__metadata a { font-size: inherit; color: var(--color-text-subtle); font-weight: inherit; display: inline-flex; align-items: center; min-height: 2.75rem; }
+
+#watchMonitoringUpdatesList .monitoring-update__description { display: none; }
+#watchMonitoringUpdatesList .monitoring-update__metadata a:visited,
+#watchMonitoringUpdatesList .monitoring-update__metadata a:hover,
+#watchMonitoringUpdatesList .monitoring-update__metadata a:focus-visible { color: var(--color-text-subtle); }
