@@ -1337,3 +1337,7 @@ body.is-watch-edit-open {
 #watchLatestDevelopments a:hover,
 #watchLatestDevelopments a:active,
 #watchLatestDevelopments a:focus-visible { color: var(--color-text-subtle); }
+
+.page--detail a:not(.button):not([role='button']):not(.detail-edit-action):not(.detail-clarity-warning__edit):not(.external-action) {
+  &, &:visited, &:hover, &:active, &:focus-visible { color: var(--color-text-subtle); }
+}
