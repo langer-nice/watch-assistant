@@ -16,7 +16,7 @@ test('manual Check Now acknowledges exactly the developments displayed by its re
   const navigation = await readFile(new URL('./navigation.js', import.meta.url), 'utf8');
   const handler = navigation.match(/checkNowEl\.onclick = async \(\) => \{[\s\S]*?^    \};/m)?.[0] || '';
 
-  assert.match(handler, /const result = await watchCheckController\.check\(watch\.id\)/);
+  assert.match(handler, /const result = await watchCheckController\.check\(watch\.id, \{ timeoutMs: 30000 \}\)/);
   assert.match(handler, /result\.matchedItems\.map\(\(\{ id \}\) => id\)/);
   assert.match(handler, /markUpdatesAsRead\(watch\.id, displayedUpdateIds\)/);
   assert.match(handler, /refreshLatestReport\(\{ watches: getWatches\(\) \}\)/);

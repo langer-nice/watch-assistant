@@ -232,7 +232,7 @@ test('Check now exposes an immediate accessible lifecycle and always restores th
   assert.match(lifecycle, /detail\.checking[\s\S]*?checkSpinnerEl\.hidden = false/);
   assert.match(lifecycle, /detail\.checkingForUpdates/);
   assert.match(lifecycle, /detailCheckInProgress \|\| watchCheckController\.isChecking\(watch\.id\)/);
-  assert.match(lifecycle, /try \{[\s\S]*?await waitForVisiblePaint\(\);[\s\S]*?await watchCheckController\.check\(watch\.id\)[\s\S]*?catch \(error\)[\s\S]*?finally \{[\s\S]*?detailCheckInProgress = false;[\s\S]*?renderWatchDetail\(\)/);
+  assert.match(lifecycle, /try \{[\s\S]*?await waitForVisiblePaint\(\);[\s\S]*?await watchCheckController\.check\(watch\.id, \{ timeoutMs: 30000 \}\)[\s\S]*?catch \(error\)[\s\S]*?finally \{[\s\S]*?detailCheckInProgress = false;[\s\S]*?renderWatchDetail\(\)/);
   assert.match(styles, /\.watch-fact-check__button\s*\{[\s\S]*?width:\s*fit-content;[\s\S]*?flex:\s*0 0 auto/);
   assert.match(styles, /\.watch-fact-check__button\s*\{[\s\S]*?box-shadow:\s*none/);
   assert.doesNotMatch(styles, /\.watch-fact-check__button\s*\{[^}]*min-width/);

@@ -1,3 +1,4 @@
+import {boundedManualCheckRequest} from './manual-check-deadline.js';
 import {validRoleResolution} from './role-development.js';
 import { hasDefinitionVersion } from './watch-definition.js';
 import { structuredMediaCriteria } from './structured-media-execution.js';
@@ -591,7 +592,7 @@ export const applyFeedCheckResult = (watch, response, {
   };
 };
 
-export const requestFeedCheck = async (feedUrl, { fetchImpl = fetch } = {}) => {
+export const requestFeedCheck = async (feedUrl, { fetchImpl = fetch, signal } = {}) => {
   const normalizedFeedUrl = normalizeFeedUrl(feedUrl);
   if (!normalizedFeedUrl) {
     throw new MonitoringCheckError('MISSING_FEED_URL', 'This Watch needs an RSS or Atom feed URL.');
@@ -602,6 +603,7 @@ export const requestFeedCheck = async (feedUrl, { fetchImpl = fetch } = {}) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sourceUrl: normalizedFeedUrl }),
+      ...(signal?{signal}:{}),
     });
   } catch {
     throw new MonitoringCheckError('CHECK_FAILED', 'The Watch could not be checked.');
@@ -627,7 +629,7 @@ const COMPANY_FAILURE_CODES = new Set([
   'MALFORMED_RESPONSE',
 ]);
 
-export const requestCompanyCheck = async (siren, { fetchImpl = fetch } = {}) => {
+export const requestCompanyCheck = async (siren, { fetchImpl = fetch, signal } = {}) => {
   if (typeof siren !== 'string' || !/^\d{9}$/.test(siren)) {
     throw new MonitoringCheckError(
       'INVALID_MONITORING_SOURCE',
@@ -640,6 +642,7 @@ export const requestCompanyCheck = async (siren, { fetchImpl = fetch } = {}) => 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ siren }),
+      ...(signal?{signal}:{}),
     });
   } catch {
     throw new MonitoringCheckError('CHECK_FAILED', 'The Watch could not be checked.');
@@ -680,11 +683,12 @@ export const createWatchCheckController = ({
   checkStoredWatch = null,
   requestCompany = requestCompanyCheck,
   requestCurrency = requestCurrencyCheck,
+  checkTimeoutMs = null,
   now = () => new Date(),
 }) => {
   const inFlight = new Map();
 
-  const check = (watchId, { onCheckingChange = () => {} } = {}) => {
+  const check = (watchId, { onCheckingChange = () => {}, timeoutMs = checkTimeoutMs } = {}) => {
     if (inFlight.has(watchId)) return inFlight.get(watchId);
 
     let resolveOperation;
@@ -695,6 +699,7 @@ export const createWatchCheckController = ({
     });
     inFlight.set(watchId, operation);
 
+    const requestWithDeadline=work=>timeoutMs==null?work(undefined):boundedManualCheckRequest(work,timeoutMs);
     let startedKey;
     const definitionKey = (watch) => JSON.stringify([watch?.mediaPersistence?.ownerId, watch?.request,
       watch?.monitoringSource?.type === 'rss' ? 'feed' : watch?.monitoringSource?.type,
@@ -715,7 +720,7 @@ export const createWatchCheckController = ({
         if (structured) structuredMediaCriteria(watch);
         startedKey = definitionKey(watch);
         if (checkStoredWatch) {
-          const stored = await checkStoredWatch(watch);
+          const stored = await requestWithDeadline(signal=>checkStoredWatch(watch,{signal}));
           if (stored) {
             if (definitionKey(getWatch(watchId)) !== startedKey) throw new MonitoringCheckError('STALE_CHECK', 'The Watch changed during this check.');
             const changes = { ...stored.changes };
@@ -729,7 +734,7 @@ export const createWatchCheckController = ({
         let trustedSourceType = null;
         if (watch.monitoringSource?.type === 'currency' && !currencyCriteriaFor(watch)) throw new MonitoringCheckError('INVALID_CURRENCY_CRITERIA', 'Unsupported currency condition.');
         if (currencyCriteriaFor(watch)) {
-          response = await requestCurrency(watch.request);
+          response = await requestWithDeadline(signal=>requestCurrency(watch.request,{signal}));
           trustedSourceType = 'currency';
         } else if (watch.monitoringSource?.type === 'bodacc') {
           const siren = getValidatedBodaccSiren(watch.monitoringSource);
@@ -739,7 +744,7 @@ export const createWatchCheckController = ({
               'The BODACC monitoring source is invalid.',
             );
           }
-          response = await requestCompany(siren);
+          response = await requestWithDeadline(signal=>requestCompany(siren,{signal}));
           trustedSourceType = 'bodacc';
         } else {
           const feedUrl = normalizeFeedUrl(watch.monitoringSource?.url || watch.feedUrl || '');
@@ -749,7 +754,7 @@ export const createWatchCheckController = ({
               'No monitoring source is configured for this Watch.',
             );
           }
-          response = await requestCheck(feedUrl);
+          response = await requestWithDeadline(signal=>requestCheck(feedUrl,{signal}));
         }
         if (definitionKey(getWatch(watchId)) !== startedKey) throw new MonitoringCheckError('STALE_CHECK', 'The Watch was edited during this check.');
         const result = trustedSourceType === 'currency' ? applyCurrencyCheckResult(getWatch(watchId), response) : applyFeedCheckResult(watch, response, { now, trustedSourceType });
@@ -794,8 +799,8 @@ export const createWatchCheckController = ({
         }
         throw error;
       } finally {
-        onCheckingChange(false);
         inFlight.delete(watchId);
+        onCheckingChange(false);
       }
     };
 

@@ -35,8 +35,10 @@ export const renderWatchOverview=({document,watch,t,formatTimestamp,language,dig
  document.getElementById('watchMonitoringHealth').dataset.state=state;
  const paused=state==='paused';
  const next=watch.monitoringSchedule?.nextDueAt||watch.nextCheckAt;
+ document.getElementById('watchNextCheck').parentElement.hidden=!paused&&!usable(next);
  text('watchNextCheck',paused?t('detail.nextCheckPaused'):usable(next)?formatTimestamp(next):t('detail.nextCheckUnavailable'));
  const interval=watch.monitoringSchedule?.intervalSeconds||watch.monitoringIntervalSeconds;
+ document.getElementById('watchCheckFrequency').parentElement.hidden=!(Number.isInteger(interval)&&interval>0);
  text('watchCheckFrequency',interval===86400?t('detail.frequencyDaily'):Number.isInteger(interval)&&interval>0?t('detail.frequencyHours',{count:interval/3600}):t('detail.frequencyUnavailable'));
  const currency=document.getElementById('watchCurrencyPolicySummary');
  if(currency){currency.parentElement.hidden=!currencyCriteriaFor(watch);currency.textContent=currencyPolicyCopy[language==='fr'?'fr':'en'][currencyPolicyFor(watch)]||'';}

@@ -74,6 +74,8 @@ export const createWatchRequestGate = (kind) => {
 export const watchRequest = async (path, options = {}, timeoutMs = 8000) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const externalSignal=options.signal,abort=()=>controller.abort();
+  if(externalSignal?.aborted)abort();else externalSignal?.addEventListener('abort',abort,{once:true});
   try {
     const response = await fetch(path, { ...options, signal: controller.signal });
     let body;
@@ -87,5 +89,5 @@ export const watchRequest = async (path, options = {}, timeoutMs = 8000) => {
     if (controller.signal.aborted) throw Object.assign(new Error('Watch request timed out.'), { code: 'TIMEOUT' });
     if (!error.code && error instanceof TypeError) throw Object.assign(new Error('Watch network request failed.'), { code: 'NETWORK_ERROR' });
     throw error;
-  } finally { clearTimeout(timer); }
+  } finally { clearTimeout(timer); externalSignal?.removeEventListener('abort',abort); }
 };

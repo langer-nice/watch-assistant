@@ -243,7 +243,7 @@ const currentCheckController = () => {
   if (epoch !== checkControllerEpoch) {
     checkControllerEpoch = epoch;
     sessionCheckController = createWatchCheckController({
-      checkStoredWatch: watch => canCheckStoredMediaWatch(watch) ? checkStoredMediaWatch(watch) : null,
+      checkStoredWatch: (watch, options) => canCheckStoredMediaWatch(watch) ? checkStoredMediaWatch(watch, options) : null,
       getWatch: (id) => epoch === getAccountEpoch() ? getWatchById(id) : null,
       saveWatch: (id, changes) => epoch === getAccountEpoch() ? updateWatch(id, changes) : null,
     });
@@ -2012,7 +2012,7 @@ const renderWatchDetail = () => {
         if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
           await checkServerCompanyWatch(watch.id);
         } else {
-          const result = await watchCheckController.check(watch.id);
+          const result = await watchCheckController.check(watch.id, { timeoutMs: 30000 });
           const displayedUpdateIds = result.matchedItems.map(({ id }) => id);
           if (displayedUpdateIds.length) markUpdatesAsRead(watch.id, displayedUpdateIds);
         }
@@ -2026,8 +2026,13 @@ const renderWatchDetail = () => {
           });
         }
       } finally {
-        refreshLatestReport({ watches: getWatches() });
+        // Report presentation must never leave a completed check looking busy.
         detailCheckInProgress = false;
+        try {
+          refreshLatestReport({ watches: getWatches() });
+        } catch {
+          console.warn('[Watch detail] The saved report could not be refreshed.');
+        }
         renderWatchDetail();
       }
     };

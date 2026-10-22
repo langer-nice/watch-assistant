@@ -14,7 +14,8 @@ test('Royal Caribbean, Limoges, Real Madrid and GBP/EUR retain their source fact
   renderWatchOverview({document,watch,t,language,formatTimestamp:value=>value});
   renderLatestDevelopments({document,watch,t,language,formatTimestamp:value=>value,sanitizeUrl:value=>value?.startsWith('https://')?value:''});
   assert.equal(document.getElementById('watchOverview').hidden,false);
-  assert.equal(document.getElementById('watchNextCheck').textContent,t('detail.nextCheckUnavailable'));
+  assert.equal(document.getElementById('watchNextCheck').parentElement.hidden,true);
+  assert.equal(document.getElementById('watchCheckFrequency').parentElement.hidden,true);
   assert.equal(document.getElementById('watchEmailSummary').textContent,t('detail.emailStatusUnavailable'));
   if(watch.inputType==='url')assert.match(document.getElementById('watchLatestDevelopmentsBody').textContent,language==='fr'?/Un suspect a été interpellé/:/A suspect was arrested/);
   if(watch.title==='Real Madrid')assert.equal(detailDevelopmentItems(watch)[0].id,'new');
@@ -38,4 +39,26 @@ test('email consent OFF wins over daily frequency; unknown schedule is never fab
  assert.equal(document.getElementById('watchEmailSummary').textContent,t('detail.emailOff'));
  input.checked=true;email.querySelector('[data-email-frequency-control]').hidden=false;const select=email.querySelector('select');Object.defineProperty(select,'value',{value:'daily_digest'});
  renderWatchOverview({document,watch,t,language:'en',formatTimestamp:v=>v,digestAt0815:true});assert.equal(document.getElementById('watchEmailSummary').textContent,t('detail.dailyEmail0815'));
+});
+
+test('a report refresh failure cannot keep a completed Check Now busy',async()=>{
+ const source=await readFile(new URL('./navigation.js',import.meta.url),'utf8');
+ const body=source.match(/finally \{\n        \/\/ Report presentation[\s\S]*?\n        renderWatchDetail\(\);/)?.[0].replace(/^finally \{/, '');
+ assert(body,'The protected Check Now cleanup must exist');
+ const cleanup=new Function('refreshLatestReport','getWatches','console',`let detailCheckInProgress=true;let observedBusy;const renderWatchDetail=()=>{observedBusy=detailCheckInProgress;};${body};return {detailCheckInProgress,observedBusy};`);
+ for(const fail of [false,true]){
+  let warned=0;const result=cleanup(()=>{if(fail)throw Error('Invalid stored report');},()=>[],{warn:()=>warned++});
+  assert.deepEqual(result,{detailCheckInProgress:false,observedBusy:false});assert.equal(warned,fail?1:0);
+ }
+});
+
+test('Morning report wording and settings arrow are localized and accessible',()=>{
+ assert.equal(dictionaries.en.detail.dailyEmail0815,'Morning report · 08:15 Europe/Paris');
+ assert.equal(dictionaries.fr.detail.dailyEmail0815,'Rapport du matin · 08 h 15, heure de Paris');
+ const {document}=parseHTML(html),link=document.querySelector('[data-watch-settings-link]');
+ assert.equal(link.getAttribute('href'),'#watchManagement');assert.equal(link.querySelector('svg').getAttribute('aria-hidden'),'true');assert(link.querySelector('[data-i18n="detail.watchSettings"]'));
+ const watch={...detailUxFixtures[2],monitoringSchedule:{nextDueAt:'2026-10-23T08:00:00Z',intervalSeconds:86400}};
+ renderWatchOverview({document,watch,t:translate('en'),language:'en',formatTimestamp:v=>v});
+ assert.equal(document.getElementById('watchNextCheck').parentElement.hidden,false);assert.equal(document.getElementById('watchNextCheck').textContent,watch.monitoringSchedule.nextDueAt);
+ assert.equal(document.getElementById('watchCheckFrequency').textContent,'Daily');
 });
