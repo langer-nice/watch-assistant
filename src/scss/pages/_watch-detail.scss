@@ -1331,3 +1331,9 @@ body.is-watch-edit-open {
 #watchMonitoringUpdatesList .monitoring-update__metadata a:visited,
 #watchMonitoringUpdatesList .monitoring-update__metadata a:hover,
 #watchMonitoringUpdatesList .monitoring-update__metadata a:focus-visible { color: var(--color-text-subtle); }
+
+#watchLatestDevelopments a,
+#watchLatestDevelopments a:visited,
+#watchLatestDevelopments a:hover,
+#watchLatestDevelopments a:active,
+#watchLatestDevelopments a:focus-visible { color: var(--color-text-subtle); }
