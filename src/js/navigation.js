@@ -2958,9 +2958,9 @@ export function initForm() {
 
   const scheduleKeywordRegeneration = () => {
     window.clearTimeout(keywordRegenerationTimer);
-    if (structuredCreation?.isSelected()) return;
+    if (structuredCreation?.isEnabled() && parseMediaMentionRequest(input?.value || '').recognized) return;
     keywordRegenerationTimer = window.setTimeout(() => {
-      if (structuredCreation?.isSelected()) return;
+      if (structuredCreation?.isEnabled() && parseMediaMentionRequest(input?.value || '').recognized) return;
       const request = input?.value.trim() || '';
       const requestChanged = normalizeComparableText(keywordSourceRequest)
         !== normalizeComparableText(request);
@@ -4622,7 +4622,7 @@ export function initForm() {
     }, 200);
   });
 
-  if (!isEditMode) structuredCreation = initStructuredWatchCreation({form,input,error:watchError,getLanguage,listen:editor.listen,isCurrent:editor.isCurrent});
+  if (!isEditMode) structuredCreation = initStructuredWatchCreation({form,input,noteInput:form.whyFollowing,error:watchError,getLanguage,listen:editor.listen,isCurrent:editor.isCurrent});
 
   editor.listen(form, 'submit', async (event) => {
     event.preventDefault();
@@ -4659,11 +4659,6 @@ export function initForm() {
       watchError.textContent = '';
     }
 
-    // URLs retain the existing article/source review even when Structured text review is selected.
-    if (!isEditMode && !isUrl(request) && structuredCreation?.isSelected()) {
-      await structuredCreation.run(originalRequest,getLanguage());
-      return;
-    }
     synchronizeInferredFields(request);
     if (!isEditMode && parseCurrencyRequest(request)) {
       await savePlainTextWatch(request, whyFollowing, { preserveOriginalWording: true });
@@ -4761,6 +4756,9 @@ export function initForm() {
       );
       return;
     }
+
+    // Specialised routes above keep their existing handling.
+    if (!isEditMode && await structuredCreation?.run(originalRequest, getLanguage())) return;
 
     if (parseMediaMentionRequest(request).recognized) {
       await savePlainTextWatch(originalRequest, whyFollowing, { preserveOriginalWording: true });

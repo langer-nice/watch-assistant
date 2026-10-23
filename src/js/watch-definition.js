@@ -46,10 +46,11 @@ export const structuredMonitoringSource = criteria => {
 };
 
 // Full deterministic verification, shared by server and browser. No legacy request parser.
+// The optional note is signed text; it never changes the core plan or its schema.
 // Metadata is content provenance, NOT proof of owner approval or write authorization.
 export const validateWatchDefinition = (value, source) => {
   if (!hasDefinitionVersion(value) || value.definitionVersion !== WATCH_DEFINITION_VERSION) fail('UNSUPPORTED_WATCH_VERSION');
-  if (!matchesStructuredSchema(value, watchDefinitionSchema) || !jsonbSafe(value) || watchDefinitionSize(value) > WATCH_DEFINITION_MAX_BYTES) fail();
+  if (!matchesStructuredSchema(omitted(value, ['whyFollowing']), watchDefinitionSchema) || (Object.hasOwn(value, 'whyFollowing') && typeof value.whyFollowing !== 'string') || !jsonbSafe(value) || watchDefinitionSize(value) > WATCH_DEFINITION_MAX_BYTES) fail();
   try {
     const interpretation = validateInterpretation({ ...value.interpretation, originalRequest: value.request }, value.request);
     const expected = compileMonitoringPlan(interpretation, { structured: true, roleResolution:value.plan?.criteria?.roleResolution });
@@ -64,11 +65,12 @@ export const validateWatchDefinition = (value, source) => {
 };
 
 // Foundation only: callers still need authenticated confirmation in the next increment.
-export const createWatchDefinition = (interpretation, plan, { category = interpretation?.domain === 'currency' ? 'finance' : interpretation?.domain === 'media_news' ? 'news' : 'general' } = {}) => {
+export const createWatchDefinition = (interpretation, plan, { whyFollowing = '', category = interpretation?.domain === 'currency' ? 'finance' : interpretation?.domain === 'media_news' ? 'news' : 'general' } = {}) => {
+  if (typeof whyFollowing !== 'string') fail();
   const validated = validateInterpretation(interpretation);
   validateCompiledMonitoringPlan(plan, validated, { structured: true });
   return validateWatchDefinition({ definitionVersion: WATCH_DEFINITION_VERSION, inputType: 'text', request: validated.originalRequest,
-    category, interpretation: omitted(validated, ['originalRequest']), plan: compactPlan(plan),
+    category, ...(whyFollowing.trim() ? { whyFollowing: whyFollowing.trim() } : {}), interpretation: omitted(validated, ['originalRequest']), plan: compactPlan(plan),
     metadata: { validatorVersion: WATCH_DEFINITION_VALIDATOR, compilerVersion: WATCH_DEFINITION_COMPILER,
       planFingerprint: contentFingerprint(plan) } });
 };
@@ -77,5 +79,5 @@ export const monitoringPlanForDefinition = value => {
   return compileMonitoringPlan({ ...definition.interpretation, originalRequest: definition.request }, { structured: true });
 };
 // Runtime Watches have identity/state outside the strictly allowlisted definition.
-export const definitionFromWatch = watch => Object.fromEntries(Object.keys(watchDefinitionSchema.properties)
+export const definitionFromWatch = watch => Object.fromEntries([...Object.keys(watchDefinitionSchema.properties), 'whyFollowing']
   .filter(key => Object.hasOwn(watch, key)).map(key => [key, watch[key]]));

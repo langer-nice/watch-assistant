@@ -11,8 +11,8 @@ const activeSession = () => {
   return state?.status === 'authenticated' ? state.session : null;
 };
 const copy = {
- en: { opt:'Try the new news request review', review:'Review your Watch', original:'Your request', subjects:'News about', all:'All names must appear in the same article.', topics:'Required topics', focus:'Topics of interest (not filters)', exclusions:'Exclude articles mentioning', coverage:'Google News, UK English edition. Matches use article titles and excerpts, including approved alternative names. Only the first 20 results are checked; coverage is not comprehensive.', recurrence:'Future alerts: each new matching article, after a first baseline.', language:'Request language', en:'English', fr:'French', mixed:'English and French', und:'Not identified', paused:'Saved paused. Monitoring is not active and no automatic notifications are being sent.', before:'This Watch will be saved paused. No source check or automatic notification will start.', confirm:'Confirm and save paused', edit:'Edit my request', cancel:'Cancel review', saved:'Watch saved', open:'Open Watch', busy:'Preparing your review…', saving:'Saving…', retry:'Try saving again', unsupported:'This request cannot be monitored yet.', clarify:'Please clarify your request', otherAdapter:'This preview can save news about named people or brands. Currency and official company monitoring are not available in this flow.', error:'The request could not be reviewed. Your text has been kept.', unavailable:'This preview is unavailable for your account.', auth:'Sign in again to continue. Your request has been kept.', ai:'The interpretation service is temporarily unavailable. Try reviewing again.', expired:'This review has expired. Edit or resubmit your request to review it again.', invalid:'The review has changed or is invalid. Review your request again before saving.', conflict:'The Watch changed or this submission conflicts with an earlier save. Reload before continuing.', persist:'Saving could not be confirmed. Try saving again with this same review to avoid duplicates.', stale:'Your request or language changed. Submit it again for a fresh review.' },
- fr: { opt:'Essayer la nouvelle vérification des demandes d’actualité', review:'Vérifier votre Watch', original:'Votre demande', subjects:'Actualités concernant', all:'Tous les noms doivent figurer dans le même article.', topics:'Sujets obligatoires', focus:'Sujets d’intérêt (sans filtrage)', exclusions:'Exclure les articles mentionnant', coverage:'Google Actualités, édition britannique en anglais. Les correspondances portent sur les titres et extraits, avec les autres noms approuvés. Seuls les 20 premiers résultats sont vérifiés ; la couverture n’est pas exhaustive.', recurrence:'Alertes futures : chaque nouvel article correspondant, après une première référence.', language:'Langue de la demande', en:'Anglais', fr:'Français', mixed:'Anglais et français', und:'Non identifiée', paused:'Enregistrée en pause. La surveillance est inactive et aucune notification automatique n’est envoyée.', before:'Cette Watch sera enregistrée en pause. Aucune vérification de source ni notification automatique ne démarrera.', confirm:'Confirmer et enregistrer en pause', edit:'Modifier ma demande', cancel:'Annuler la vérification', saved:'Watch enregistrée', open:'Ouvrir la Watch', busy:'Préparation de la vérification…', saving:'Enregistrement…', retry:'Réessayer l’enregistrement', unsupported:'Cette demande ne peut pas encore être surveillée.', clarify:'Précisez votre demande', otherAdapter:'Cet aperçu permet d’enregistrer des actualités sur des personnes ou marques nommées. Le suivi des devises et des registres officiels d’entreprises n’est pas disponible ici.', error:'La demande n’a pas pu être vérifiée. Votre texte est conservé.', unavailable:'Cet aperçu n’est pas disponible pour votre compte.', auth:'Reconnectez-vous pour continuer. Votre demande est conservée.', ai:'Le service d’interprétation est temporairement indisponible. Réessayez la vérification.', expired:'Cette vérification a expiré. Modifiez ou renvoyez votre demande pour la vérifier à nouveau.', invalid:'La vérification a changé ou est invalide. Vérifiez de nouveau votre demande avant d’enregistrer.', conflict:'La Watch a changé ou cet envoi entre en conflit avec un enregistrement précédent. Rechargez avant de continuer.', persist:'L’enregistrement n’a pas pu être confirmé. Réessayez avec cette même vérification pour éviter les doublons.', stale:'Votre demande ou sa langue a changé. Renvoyez-la pour une nouvelle vérification.' },
+ en: { review:'Review your Watch', original:'Your request', subjects:'News about', all:'All names must appear in the same article.', topics:'Required topics', focus:'Topics of interest (not filters)', exclusions:'Exclude articles mentioning', coverage:'Google News, UK English edition. Matches use article titles and excerpts, including approved alternative names. Only the first 20 results are checked; coverage is not comprehensive.', recurrence:'Future alerts: each new matching article, after a first baseline.', language:'Request language', en:'English', fr:'French', mixed:'English and French', und:'Not identified', paused:'Saved paused. Monitoring is not active and no automatic notifications are being sent.', before:'This Watch will be saved paused. No source check or automatic notification will start.', confirm:'Confirm and save paused', edit:'Edit my request', cancel:'Cancel review', saved:'Watch saved', open:'Open Watch', busy:'Preparing your review…', saving:'Saving…', retry:'Try saving again', unsupported:'This request cannot be monitored yet.', clarify:'Please clarify your request', otherAdapter:'This preview can save news about named people or brands. Currency and official company monitoring are not available in this flow.', error:'The request could not be reviewed. Your text has been kept.', unavailable:'This preview is unavailable for your account.', auth:'Sign in again to continue. Your request has been kept.', ai:'The interpretation service is temporarily unavailable. Try reviewing again.', expired:'This review has expired. Edit or resubmit your request to review it again.', invalid:'The review has changed or is invalid. Review your request again before saving.', conflict:'The Watch changed or this submission conflicts with an earlier save. Reload before continuing.', persist:'Saving could not be confirmed. Try saving again with this same review to avoid duplicates.', stale:'Your request or language changed. Submit it again for a fresh review.' },
+ fr: { review:'Vérifier votre Watch', original:'Votre demande', subjects:'Actualités concernant', all:'Tous les noms doivent figurer dans le même article.', topics:'Sujets obligatoires', focus:'Sujets d’intérêt (sans filtrage)', exclusions:'Exclure les articles mentionnant', coverage:'Google Actualités, édition britannique en anglais. Les correspondances portent sur les titres et extraits, avec les autres noms approuvés. Seuls les 20 premiers résultats sont vérifiés ; la couverture n’est pas exhaustive.', recurrence:'Alertes futures : chaque nouvel article correspondant, après une première référence.', language:'Langue de la demande', en:'Anglais', fr:'Français', mixed:'Anglais et français', und:'Non identifiée', paused:'Enregistrée en pause. La surveillance est inactive et aucune notification automatique n’est envoyée.', before:'Cette Watch sera enregistrée en pause. Aucune vérification de source ni notification automatique ne démarrera.', confirm:'Confirmer et enregistrer en pause', edit:'Modifier ma demande', cancel:'Annuler la vérification', saved:'Watch enregistrée', open:'Ouvrir la Watch', busy:'Préparation de la vérification…', saving:'Enregistrement…', retry:'Réessayer l’enregistrement', unsupported:'Cette demande ne peut pas encore être surveillée.', clarify:'Précisez votre demande', otherAdapter:'Cet aperçu permet d’enregistrer des actualités sur des personnes ou marques nommées. Le suivi des devises et des registres officiels d’entreprises n’est pas disponible ici.', error:'La demande n’a pas pu être vérifiée. Votre texte est conservé.', unavailable:'Cet aperçu n’est pas disponible pour votre compte.', auth:'Reconnectez-vous pour continuer. Votre demande est conservée.', ai:'Le service d’interprétation est temporairement indisponible. Réessayez la vérification.', expired:'Cette vérification a expiré. Modifiez ou renvoyez votre demande pour la vérifier à nouveau.', invalid:'La vérification a changé ou est invalide. Vérifiez de nouveau votre demande avant d’enregistrer.', conflict:'La Watch a changé ou cet envoi entre en conflit avec un enregistrement précédent. Rechargez avant de continuer.', persist:'L’enregistrement n’a pas pu être confirmé. Réessayez avec cette même vérification pour éviter les doublons.', stale:'Votre demande ou sa langue a changé. Renvoyez-la pour une nouvelle vérification.' },
 };
 const limitations = {
  unsupported_role_resolution:['Your role reference is understood. This news monitor cannot reliably identify who holds or held that role, or distinguish that person from other holders. No personal name has been assumed; your requested topics are preserved.','Votre référence à une fonction est comprise. Ce suivi ne peut pas identifier fiablement son titulaire actuel ou passé, ni le distinguer des autres titulaires. Aucun nom personnel n’a été supposé ; vos sujets demandés sont conservés.'],
@@ -45,8 +45,8 @@ export const structuredCreationError = (code,language) => {
  return c.error;
 };
 
-export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen,isCurrent=()=>true,fetchImpl=(...args)=>fetch(...args),uuid=()=>crypto.randomUUID()}) => {
- let enabled=false, monitoringEnabled=false, selected, label, generation=0, pending=null, busy=false, panel;
+export const initStructuredWatchCreation = ({form,input,noteInput,error,getLanguage,listen,isCurrent=()=>true,fetchImpl=(...args)=>fetch(...args),uuid=()=>crypto.randomUUID()}) => {
+ let enabled=false, monitoringEnabled=false, generation=0, pending=null, busy=false, panel, reviewNote='';
  const message=text=>{if(error)error.textContent=text;const inline=panel?.querySelector('.structured-review-error');if(inline)inline.textContent=text;};
  const labels=()=>copy[getLanguage()==='fr'?'fr':'en'];
  const clear=()=>{generation++;pending=null;panel?.remove();panel=null;form.classList.remove('is-reviewing');};
@@ -55,7 +55,7 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
   let response;try{response=await fetchImpl(path,{method:body?'POST':'GET',headers:headers(),...(body?{body:JSON.stringify(body)}:{})});}catch(e){throw Object.assign(Error('request'),{code:e.code||'NETWORK_ERROR'});}
   const value=await response.json().catch(()=>null);if(!response.ok||!value)throw Object.assign(Error('request'),{code:value?.code||'STRUCTURED_PERSISTENCE_UNAVAILABLE'});return value;
  };
- const ready=(epoch,owner,original,language)=>isCurrent()&&generation===epoch&&activeSession()?.user?.id===owner&&input.value===original&&getLanguage()===language&&selected?.checked;
+ const ready=(epoch,owner,original,language)=>isCurrent()&&generation===epoch&&activeSession()?.user?.id===owner&&input.value===original&&getLanguage()===language&&enabled&&(noteInput?.value||'').trim()===reviewNote;
  const show=(title,paragraphs)=>{
   panel?.remove();panel=document.createElement('section');panel.dataset.structuredReview='';panel.className='structured-watch-review';panel.setAttribute('aria-live','polite');
   const h=document.createElement('h2');h.textContent=title;h.tabIndex=-1;panel.append(h);
@@ -76,16 +76,17 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
   if(!activeSession())return;
   const accessOwner=activeSession()?.user?.id;
   try {const result=await request('/api/structured-watches');if(!isCurrent()||activeSession()?.user?.id!==accessOwner||result.enabled!==true)return;enabled=true;monitoringEnabled=result.monitoringEnabled===true;
-   label=document.createElement('label');label.className='structured-watch-opt-in';selected=document.createElement('input');selected.type='checkbox';selected.dataset.structuredOptIn='';const text=document.createElement('span');text.textContent=labels().opt;label.append(selected,text);input.insertAdjacentElement('afterend',label);
-   listen(selected,'change',clear);
   }catch{/* Default/public flow stays unchanged. No AI or persistence request. */}
  };
- listen(input,'input',()=>{if(busy||pending||panel){clear();message(labels().stale);}});
- listen(document,'i18n:languageChanged',()=>{clear();if(label)label.querySelector('span').textContent=labels().opt;});
+ const invalidateInput=()=>{if(busy||pending||panel){clear();message(labels().stale);}};
+ listen(input,'input',invalidateInput);
+ listen(noteInput,'input',invalidateInput);
+ listen(document,'i18n:languageChanged',clear);
  const run=async(original,language,revalidation)=>{
-  if(!enabled||!selected?.checked)return false;
   if(busy)return true;
-  clear();busy=true;const epoch=generation,owner=activeSession()?.user?.id,c=labels();
+  if(!enabled){const epoch=generation;busy=true;try{await accessReady;}finally{busy=false;}if(epoch!==generation)return true;}
+  if(!enabled)return false;
+  clear();reviewNote=(noteInput?.value||'').trim();busy=true;const epoch=generation,owner=activeSession()?.user?.id,c=labels();
   message(c.busy);
   try{
    // Refresh a rejected, expired review without another AI call when its role evidence is still current.
@@ -94,6 +95,7 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
     ? reusable : await request('/api/plan-watch?mode=interpretation.v1',{request:original,language});
    if(!ready(epoch,owner,original,language))return true;
    const interpretation=validateInterpretation(interpreted.interpretation);
+   if(interpretation.domain!=='media_news'){message('');return false;}
    if(interpretation.originalRequest!==original)throw Object.assign(Error('request'),{code:'INVALID_WATCH_DEFINITION'});
    const assessed=assessCapabilities(interpretation,{structured:true,roleResolution:interpreted.roleResolution});
    if(assessed.status!=='supported'){
@@ -110,10 +112,10 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
    }
    if(assessed.plan.adapter!=='google_news_literal_v1'){show(c.unsupported,[c.otherAdapter]);button(c.edit,edit);button(c.cancel,clear);message('');return true;}
    const identity=revalidation?.identity||{watchId:uuid(),mutationId:uuid(),operation:'create',expectedRevision:0,title:structuredWatchObjective({plan:assessed.plan},language)?.title||assessed.plan.criteria.subjects.join(' + ').slice(0,200)};
-   const issued=await request('/api/structured-watches',{action:'issue',...identity,interpretation,plan:assessed.plan});
+   const issued=await request('/api/structured-watches',{action:'issue',...identity,interpretation,plan:assessed.plan,...(reviewNote?{whyFollowing:reviewNote}:{})});
    if(!ready(epoch,owner,original,language))return true;
    const definition=validateWatchDefinition(issued.definition,issued.source);
-   if(canonicalJSON(definition)!==canonicalJSON(createWatchDefinition(interpretation,assessed.plan))||typeof issued.token!=='string')throw Object.assign(Error('review'),{code:'INVALID_WATCH_DEFINITION'});
+   if(canonicalJSON(definition)!==canonicalJSON(createWatchDefinition(interpretation,assessed.plan,{whyFollowing:reviewNote}))||typeof issued.token!=='string')throw Object.assign(Error('review'),{code:'INVALID_WATCH_DEFINITION'});
    pending={...identity,definition,token:issued.token};
    const criteria=definition.plan.criteria;
    const messages=[];
@@ -175,6 +177,6 @@ export const initStructuredWatchCreation = ({form,input,error,getLanguage,listen
   finally{busy=false;}
   return true;
  };
- void access();
- return {run,invalidate:clear,isSelected:()=>enabled&&Boolean(selected?.checked)};
+ const accessReady=access();
+ return {run,invalidate:clear,isEnabled:()=>enabled};
 };
