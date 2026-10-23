@@ -71,12 +71,12 @@ export const createPlanWatchMiddleware = (options = {}) => (
         const code = codes.has(error.code) ? error.code : 'INVALID_INTERPRETATION_REQUEST';
         const reasons = new Set(['DOMAIN_PREDICATE_CONFLICT', 'CONDITION_EVIDENCE_MISMATCH', 'OFFICIAL_SOURCE_UNGROUNDED']);
         const env = options.env || process.env;
-        // Existing Staging boundary only. Never log prompts, provider bodies,
+        // Temporary diagnostic in enabled Preview/Production only. Never log prompts, provider bodies,
         // credentials, arbitrary exception text or user/account identifiers.
-        const diagnostic = env.VERCEL_ENV === 'preview' && structuredCreationEnabled(env)
+        const diagnostic = ['preview', 'production'].includes(env.VERCEL_ENV) && structuredCreationEnabled(env)
           ? {failureCategory:safeInterpretationFailureCategory(error)} : {};
         if (diagnostic.failureCategory) {
-          try { (options.logger || console).warn('structured_interpretation_failed', {code,...diagnostic}); }
+          try { (options.logger || console).warn('structured_interpretation_failed', {code,...diagnostic,...(code === 'INTERPRETATION_FAILED' && reasons.has(error.reason) ? {reason:error.reason} : {})}); }
           catch { /* Diagnostics must never change the response contract. */ }
         }
         sendJson(response, codes.has(error.code) ? error.statusCode : 400, { mode: 'interpretation.v1', executable: false, code, ...diagnostic,
