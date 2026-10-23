@@ -7,7 +7,7 @@ import { canManuallyCheckWatch, manualCheckIssue } from './watch-manual-check.js
 import { initStructuredWatchCreation } from './structured-watch-creation.js';
 import { creationConfirmationKey, watchCreationState } from './watch-creation-state.js';
 import { showCurrencyCreationReview } from './currency-creation-review.js';
-import { parseCurrencyRequest, normalizeCurrencyWatch, CURRENCY_SOURCE } from './currency-watch.js';
+import { parseCurrencyRequest, isCurrencyRequest, normalizeCurrencyWatch, CURRENCY_SOURCE } from './currency-watch.js';
 import { renderCurrencyPolicyControl } from './currency-policy-control.js';
 import { getReadOnlyCardPresentation, getHomeReportHeader, renderReportReadiness } from './watch-report-presentation.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
@@ -2958,9 +2958,9 @@ export function initForm() {
 
   const scheduleKeywordRegeneration = () => {
     window.clearTimeout(keywordRegenerationTimer);
-    if (structuredCreation?.isSelected()) return;
+    if (structuredCreation?.usesAutomaticReview()) return;
     keywordRegenerationTimer = window.setTimeout(() => {
-      if (structuredCreation?.isSelected()) return;
+      if (structuredCreation?.usesAutomaticReview()) return;
       const request = input?.value.trim() || '';
       const requestChanged = normalizeComparableText(keywordSourceRequest)
         !== normalizeComparableText(request);
@@ -3053,7 +3053,7 @@ export function initForm() {
       input.disabled = disabled;
     }
     if (form.whyFollowing) {
-      form.whyFollowing.disabled = disabled;
+      form.whyFollowing.disabled = disabled || !isEditMode;
     }
     if (noteToggle) {
       noteToggle.disabled = disabled;
@@ -4217,7 +4217,7 @@ export function initForm() {
         noteRegion.classList.remove('is-visible');
       }
       if (noteToggle) {
-        noteToggle.hidden = false;
+        noteToggle.hidden = !isEditMode;
         noteToggle.setAttribute('aria-expanded', 'false');
       }
       if (watchOptionsEl && !isEditMode) watchOptionsEl.hidden = true;
@@ -4293,6 +4293,8 @@ export function initForm() {
         input.value = inputValue;
       }
       if (noteInput) {
+        if (noteToggle) noteToggle.hidden = false;
+        noteInput.disabled = false;
         noteInput.value = localizeField(editingWatch, 'whyFollowing') || '';
         if (noteInput.value && noteRegion && noteToggle) {
           noteRegion.hidden = false;
@@ -4351,6 +4353,11 @@ export function initForm() {
       if (watchOptionsEl) {
         watchOptionsEl.hidden = true;
       }
+      // New Watches keep all requested context in the single composer field.
+      // Existing notes remain available when editing their original Watch.
+      if (noteToggle) noteToggle.hidden = true;
+      if (noteRegion) noteRegion.hidden = true;
+      if (noteInput) noteInput.disabled = true;
       keywordSourceRequest = input?.value || '';
       const mediaMentionConcepts = getMediaMentionConcepts(keywordSourceRequest);
       keywordItems = mediaMentionConcepts
@@ -4579,6 +4586,7 @@ export function initForm() {
   });
 
   editor.listen(noteToggle, 'click', () => {
+    if (!isEditMode) return;
     if (!noteRegion) return;
 
     noteRegion.hidden = false;
@@ -4615,7 +4623,7 @@ export function initForm() {
     window.clearTimeout(noteCollapseTimer);
     noteCollapseTimer = window.setTimeout(() => {
       noteRegion.hidden = true;
-      noteToggle.hidden = false;
+      noteToggle.hidden = !isEditMode;
       noteToggle.setAttribute('aria-expanded', 'false');
       noteToggle.focus();
       noteCollapseTimer = null;
@@ -4645,6 +4653,7 @@ export function initForm() {
 
     const originalRequest = input?.value || '';
     const request = originalRequest.trim();
+    const requestLanguage = getLanguage();
     const whyFollowing = form.whyFollowing?.value || '';
 
     if (!hasMeaningfulRequest()) {
@@ -4659,11 +4668,6 @@ export function initForm() {
       watchError.textContent = '';
     }
 
-    // URLs retain the existing article/source review even when Structured text review is selected.
-    if (!isEditMode && !isUrl(request) && structuredCreation?.isSelected()) {
-      await structuredCreation.run(originalRequest,getLanguage());
-      return;
-    }
     synchronizeInferredFields(request);
     if (!isEditMode && parseCurrencyRequest(request)) {
       await savePlainTextWatch(request, whyFollowing, { preserveOriginalWording: true });
@@ -4760,6 +4764,19 @@ export function initForm() {
         whyFollowing,
       );
       return;
+    }
+
+    // Specialized routes above retain their existing sources and confirmation.
+    // All remaining new text requests use the same review when the server enables it.
+    // Currency clarification stays with its dedicated validator, including incomplete requests.
+    if (!isEditMode && !isCurrencyRequest(request) && structuredCreation) {
+      planningInProgress = true;
+      try {
+        if (await structuredCreation.run(originalRequest, requestLanguage)) return;
+      } finally {
+        planningInProgress = false;
+      }
+      if (!editor.isCurrent()) return;
     }
 
     if (parseMediaMentionRequest(request).recognized) {
