@@ -55,7 +55,7 @@ test('a first Watch appears before any report, then leaves Home after the new wi
   assert.deepEqual(expired.watches,[]);
 });
 
-test('the live overlay excludes report members, earlier Watches and completed Watches',()=>{
+test('the New overlay includes recent report members and earlier Watches, excluding completed or untitled Watches',()=>{
   const report=reportFor([{id:'bitcoin',classification:'new'}]);
   const at='2026-09-27T08:02:00Z';
   const watches=[
@@ -65,7 +65,7 @@ test('the live overlay excludes report members, earlier Watches and completed Wa
     {id:'no-title',title:'',status:'watching',createdAt:at},
   ];
   const selected=selectHomeReport({report,watches,now:new Date('2026-09-27T08:03:00Z')});
-  assert.deepEqual(selected.newlyCreatedWatches.map(({id})=>id),['bitcoin']);
+  assert.deepEqual(selected.newlyCreatedWatches.map(({id})=>id),['bitcoin','older']);
 });
 
 test('one check with a change is completed but not in Everything else',()=>{
@@ -140,4 +140,33 @@ test('FR/EN singular/plural use the same report totals and quiet subset; rendere
   assert.match(source,/if \(allQuiet\) allQuiet.hidden = !hasQuietItems/);
   assert.match(source,/checkedSummary.textContent = reportHeader.summary/);
   assert.match(source,/pluralKey\('home.everythingChecked', quietWatches.length\)/);
+});
+
+const authoritative = {active:true,uncertain:false,loading:false,waiting:false,failed:false};
+test('a current Watch under 24 hours stays New regardless of its saved report classification',()=>{
+  const watch={...bitcoin,createdAt:'2026-09-27T07:59:00Z'};
+  for(const classification of ['watching','updated','attention','new']){
+    const report=reportFor([{id:watch.id,classification}]),original=structuredClone(report);
+    const selected=selectHomeReport({report,watches:[watch],watchListAvailability:authoritative,now:new Date('2026-09-27T08:03:00Z')});
+    assert.deepEqual(selected.watches.map(w=>w.id),[watch.id]);assert.equal(selected.statusById.get(watch.id),'new');
+    assert.equal(selected.newlyCreatedWatches.length,1);assert.equal(selected.totalChecked,1);assert.deepEqual(report,original);assert.deepEqual(selected.report,original);
+  }
+});
+test('current creation time expires the Home New badge at 24 hours even for a saved New entry',()=>{
+  const watch={...bitcoin,createdAt:'2026-09-26T08:03:00Z'};
+  const selected=selectHomeReport({report:reportFor([{id:watch.id,classification:'new'}]),watches:[watch],watchListAvailability:authoritative,now:new Date('2026-09-27T08:03:00Z')});
+  assert.equal(selected.newlyCreatedWatches.length,0);assert.equal(selected.statusById.get(watch.id),'watching');assert.deepEqual(counts(selected),[1,1]);
+});
+test('a fully authoritative current set excludes missing report IDs without changing report history or totals',()=>{
+  const report=reportFor([{id:'missing',classification:'updated'},{id:bitcoin.id,classification:'updated'}]);
+  const selected=selectHomeReport({report,watches:[bitcoin],watchListAvailability:authoritative});
+  assert.deepEqual(selected.watches.map(w=>w.id),[bitcoin.id]);assert.equal(selected.statusById.has('missing'),false);
+  assert.equal(selected.totalChecked,2);assert.deepEqual(selected.report,report);
+});
+test('partial, failed, waiting or refreshing Watch loads preserve report entries until current IDs are authoritative',()=>{
+  const report=reportFor([{id:'not-yet-loaded',classification:'updated'}]);
+  for(const state of [{...authoritative,active:false},{...authoritative,uncertain:true},{...authoritative,loading:true},{...authoritative,waiting:true},{...authoritative,failed:true}]){
+    const selected=selectHomeReport({report,watches:[],watchListAvailability:state});
+    assert.deepEqual(selected.watches.map(w=>w.id),['not-yet-loaded']);assert.deepEqual(selected.report,report);
+  }
 });
