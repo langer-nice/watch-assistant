@@ -8,11 +8,12 @@ import { watchCreationState,creationConfirmationKey } from './watch-creation-sta
 const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',other='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const until=async fn=>{for(let i=0;i<100;i++){if(fn())return;await tick();}assert.fail('Flow did not settle');};
+const deferred=()=>{let resolve;const promise=new Promise(done=>{resolve=done;});return {promise,resolve};};
 const news=(request,label='Jannik Sinner',language='en',extra={})=>fixture(request,[individual('s',label,label==='Jannik Sinner'?'person':'organization')],[predicate('n','news_about',['s'])],{language,...extra});
 const harness=async(t,interpretation,options={})=>{
  const previous=globalThis.document;const {document}=parseHTML('<form><textarea></textarea><p id="error"></p></form>');globalThis.document=document;
  const form=document.querySelector('form'),input=document.querySelector('textarea'),error=document.querySelector('#error');input.value=interpretation.originalRequest;
- const state={owner,language:interpretation.language,clock:Date.UTC(2026,9,12),interpretation,calls:[],records:new Map(),rpcCount:0,aiError:null,confirmFailure:null,hold:null,lose:false};
+ const state={owner,language:interpretation.language,current:true,clock:Date.UTC(2026,9,12),interpretation,calls:[],records:new Map(),rpcCount:0,aiError:null,confirmFailure:null,hold:null,lose:false,accessHold:options.deferAccess?deferred():null,accessError:options.accessError||null};
  configureStructuredWatchCreation({getState:()=>({status:'authenticated',session:{user:{id:state.owner},access_token:'fixture-only'}})});
  t.after(()=>{globalThis.document=previous;configureStructuredWatchCreation(null);});
  const env={SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner+','+other,STRUCTURED_WATCH_SIGNING_SECRET:'fixture-only-'.repeat(4)};
@@ -23,15 +24,18 @@ const harness=async(t,interpretation,options={})=>{
   const receipt=state.records.get(p.p_id)||{id:p.p_id,ownerId:p.p_owner,mutationId:p.p_mutation,operation:p.p_operation,expectedRevision:p.p_revision,revision:1,definitionFingerprint:p.p_definition_fingerprint,payloadFingerprint:p.p_payload_fingerprint,monitoringState:'paused'};
   state.records.set(p.p_id,receipt);return {data:receipt,error:null};
  }}});
- let n=0;const controller=initStructuredWatchCreation({form,input,error,getLanguage:()=>state.language,listen:(node,event,fn)=>node?.addEventListener(event,fn),uuid:()=>`cccccccc-cccc-4ccc-8ccc-${String(++n).padStart(12,'0')}`,fetchImpl:async(path,request)=>{
+ let n=0;const controller=initStructuredWatchCreation({form,input,error,getLanguage:()=>state.language,isCurrent:()=>state.current,listen:(node,event,fn)=>node?.addEventListener(event,fn),uuid:()=>`cccccccc-cccc-4ccc-8ccc-${String(++n).padStart(12,'0')}`,fetchImpl:async(path,request)=>{
   const body=request.body?JSON.parse(request.body):undefined;state.calls.push({path,body});
   if(path.startsWith('/api/plan-watch')){if(state.aiError)return Response.json({code:state.aiError},{status:503});assert.equal(body.request,input.value);return Response.json({mode:'interpretation.v1',interpretation:state.interpretation,executable:false});}
-  assert.equal(path,'/api/structured-watches');if(options.disabled)return Response.json({code:'STRUCTURED_FEATURE_UNAVAILABLE'},{status:404});
+  assert.equal(path,'/api/structured-watches');
+  if(!body){if(state.accessHold)await state.accessHold.promise;if(state.accessError)return Response.json({code:state.accessError},{status:503});}
+  if(options.disabled)return Response.json({code:'STRUCTURED_FEATURE_UNAVAILABLE'},{status:404});
   let value;const response={setHeader(){},end(raw){value=JSON.parse(raw);}};await middleware({url:path,method:request.method,body},response);
   if(body?.action==='confirm'&&state.lose){state.lose=false;throw Error('lost response');}
   return Response.json(value,{status:response.statusCode});
  }});
- if(options.disabled){await tick();assert.equal(form.querySelector('[data-structured-opt-in]'),null);}else{await until(()=>form.querySelector('[data-structured-opt-in]'));form.querySelector('[data-structured-opt-in]').checked=true;}
+ if(!options.deferAccess)await controller.ready;
+ assert.equal(form.querySelector('[data-structured-opt-in]'),null);
  return {state,form,input,error,controller,review:()=>form.querySelector('[data-structured-review]'),buttons:()=>[...form.querySelectorAll('[data-structured-review] button')],run:()=>controller.run(input.value,state.language)};
 };
 for(const [language,request,label] of [['en','Keep me updated on Jannik Sinner.','Jannik Sinner'],['fr','Tiens-moi informé des actualités de Jannik Sinner.','Jannik Sinner'],['en','Monitor news about Gucci.','Gucci'],['fr','Surveille les actualités concernant Gucci.','Gucci']])test(`${language} ${label}: explicit review, one interpretation, signed confirmation, saved paused`,async t=>{
@@ -41,8 +45,42 @@ for(const [language,request,label] of [['en','Keep me updated on Jannik Sinner.'
  assert.ok(h.state.calls.every(c=>!c.path.includes('check')&&!c.path.includes('cron')));assert.equal(h.review().querySelector('a').href.includes('token'),false);
  const def=h.state.calls.find(c=>c.body?.action==='confirm').body.definition;assert.equal(watchCreationState({...def,monitoringState:'paused',lastChecked:'2026-10-12'}),'paused');assert.equal(creationConfirmationKey({...def,monitoringState:'paused'}),'detail.structuredSavedPausedCopy');
 });
-test('default gate/unselected opt-in preserves legacy dispatch and makes no interpretation calls',async t=>{
- const h=await harness(t,news('Monitor news about Gucci.','Gucci'),{disabled:true});assert.equal(await h.run(),false);assert.equal(h.state.calls.length,1);assert.equal(h.state.records.size,0);
+test('a definitively disabled gate preserves legacy dispatch without an interpretation call',async t=>{
+ const h=await harness(t,news('Monitor news about Gucci.','Gucci'),{disabled:true});assert.equal(h.controller.usesAutomaticReview(),false);assert.equal(await h.run(),false);assert.equal(h.state.calls.length,1);assert.equal(h.state.records.size,0);
+});
+test('automatic review waits for eligibility and coalesces submissions without an opt-in',async t=>{
+ const h=await harness(t,news('Monitor news about Gucci.','Gucci'),{deferAccess:true});
+ assert.equal(h.controller.usesAutomaticReview(),true);
+ const first=h.run(),second=h.run();await tick();
+ assert.equal(h.state.calls.length,1);assert.equal(h.review(),null);assert.equal(h.state.rpcCount,0);
+ h.state.accessHold.resolve();assert.deepEqual(await Promise.all([first,second]),[true,true]);
+ assert.equal(h.controller.usesAutomaticReview(),true);assert.match(h.review().textContent,/Gucci/);
+ assert.equal(h.state.calls.filter(c=>c.path.includes('interpretation.v1')).length,1);
+ assert.equal(h.state.calls.filter(c=>c.body?.action==='issue').length,1);assert.equal(h.state.rpcCount,0);
+});
+test('a request already stale before review starts leaves no busy message or interpretation',async t=>{
+ const h=await harness(t,news('Monitor news about Gucci.','Gucci'));const original=h.input.value;
+ h.input.value='Keep me updated on Jannik Sinner.';
+ assert.equal(await h.controller.run(original,h.state.language),true);assert.equal(h.error.textContent,'');assert.equal(h.review(),null);
+ assert.equal(h.input.value,'Keep me updated on Jannik Sinner.');assert.equal(h.state.calls.some(c=>c.path.includes('plan-watch')),false);assert.equal(h.state.rpcCount,0);
+});
+for(const changed of ['request','owner','language','editor'])test(`eligibility completing after a changed ${changed} cannot review or save the old request`,async t=>{
+ const h=await harness(t,news('Monitor news about Gucci.','Gucci'),{deferAccess:true});const pending=h.run();
+ if(changed==='request'){h.input.value+=' ';h.input.dispatchEvent(new h.input.ownerDocument.defaultView.Event('input'));h.input.value=h.state.interpretation.originalRequest;}
+ if(changed==='owner')h.state.owner=other;
+ if(changed==='language')h.state.language='fr';
+ if(changed==='editor')h.state.current=false;
+ h.state.accessHold.resolve();assert.equal(await pending,true);
+ assert.equal(h.review(),null);assert.equal(h.state.calls.filter(c=>c.path.includes('interpretation.v1')).length,0);
+ assert.equal(h.state.calls.some(c=>c.body?.action==='issue'),false);assert.equal(h.state.rpcCount,0);
+});
+test('temporary eligibility failure retains the request and retries without falling back',async t=>{
+ const h=await harness(t,news('Monitor news about Gucci.','Gucci'),{accessError:'STRUCTURED_PERSISTENCE_UNAVAILABLE'});
+ assert.equal(h.controller.usesAutomaticReview(),true);assert.equal(await h.run(),true);
+ assert.equal(h.input.value,h.state.interpretation.originalRequest);assert.ok(h.error.textContent);assert.equal(h.review(),null);
+ assert.equal(h.state.calls.some(c=>c.path.includes('plan-watch')),false);assert.equal(h.state.rpcCount,0);
+ h.state.accessError=null;assert.equal(await h.run(),true);assert.match(h.review().textContent,/Gucci/);
+ assert.equal(h.state.calls.filter(c=>c.path.includes('interpretation.v1')).length,1);assert.equal(h.state.rpcCount,0);
 });
 test('cancel and edit discard token/plan; changed text requires a new interpretation/review',async t=>{
  const h=await harness(t,news('Keep me updated on Jannik Sinner.'));await h.run();h.buttons()[2].click();assert.equal(h.review(),null);assert.equal(h.state.rpcCount,0);
