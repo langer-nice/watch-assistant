@@ -38,3 +38,15 @@ test('mounted creation-only API rejects structured currency/company creation bef
  const handler=createStructuredWatchMiddleware({env:{...env,STRUCTURED_WATCH_SIGNING_SECRET:'fixture-only-'.repeat(4)},creationOnly:true,authenticate:async()=>({user:{id:owner}}),serviceClient:{rpc:()=>assert.fail('No other adapter writes')}});
  for(const value of examples().slice(4)){const result=await invoke(handler,'/api/structured-watches','POST',{action:'issue',watchId:id,mutationId:id,operation:'create',expectedRevision:0,title:'Fixture',interpretation:value,plan:compileMonitoringPlan(value,{structured:true})});assert.equal(result.status,422);assert.equal(result.payload.code,'STRUCTURED_ADAPTER_CONFLICT');}
 });
+
+test('Production creation and interpretation accept ordinary authenticated users without the Preview allowlist',async()=>{
+ const config={SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',VERCEL_ENV:'production',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',VERCEL_GIT_COMMIT_REF:'master',STRUCTURED_PRODUCTION_ENABLED:'true',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true'};
+ const authenticate=async()=>({user:{id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'}});
+ const access=await invoke(createStructuredWatchMiddleware({env:config,authenticate}),'/api/structured-watches','GET');
+ assert.equal(access.status,200);assert.equal(access.payload.enabled,true);
+ const {originalRequest,...output}=examples()[1];output.evidence=output.evidence.map(({path,text})=>({path,quote:text,context:null}));let calls=0;
+ const api=createPlanWatchMiddleware({env:config,authenticate,apiKey:'synthetic',fetchImpl:async()=>{calls++;return Response.json({output_text:JSON.stringify(output)});}});
+ assert.equal((await invoke(api,'/api/plan-watch?mode=interpretation.v1','POST',{request:originalRequest,language:'en'})).status,200);assert.equal(calls,1);
+ const unauthenticated=async()=>{throw Object.assign(Error('auth'),{code:'AUTH_REQUIRED',statusCode:401});};
+ assert.equal((await invoke(createStructuredWatchMiddleware({env:config,authenticate:unauthenticated}),'/api/structured-watches','GET')).status,401);
+});

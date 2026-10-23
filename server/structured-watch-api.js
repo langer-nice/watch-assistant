@@ -38,7 +38,7 @@ const readBody = async request => {
   }
   const required = ['action','watchId','operation','mutationId','expectedRevision','title'];
   const payload = value.action === 'issue' ? ['interpretation','plan'] : value.action === 'confirm' ? ['token','definition'] : [];
-  const allowed = [...required,...payload,...(value.action === 'issue' ? ['category'] : [])];
+  const allowed = [...required,...payload,...(value.action === 'issue' ? ['category','whyFollowing'] : [])];
   if (!payload.length || ![...required,...payload].every(key => Object.hasOwn(value,key)) || Object.keys(value).some(key => !allowed.includes(key))
     || !uuid.test(value.watchId) || !uuid.test(value.mutationId) || !['create','update'].includes(value.operation)
     || !Number.isSafeInteger(value.expectedRevision) || (value.operation === 'create' ? value.expectedRevision !== 0 : value.expectedRevision < 1)
@@ -100,7 +100,7 @@ export const createStructuredWatchMiddleware = ({ env = process.env, authenticat
       let plan;
       try { plan = validateCompiledMonitoringPlan(body.plan,interpretation,{structured:true}); }
       catch (error) { throw authorizationError(error.code === 'MONITORING_PLAN_NOT_SUPPORTED' ? error.code : 'INVALID_MONITORING_PLAN',422); }
-      definition = createWatchDefinition(interpretation,plan,body.category === undefined ? {} : {category:body.category});
+      definition = createWatchDefinition(interpretation,plan,{...(body.category === undefined ? {} : {category:body.category}),...(body.whyFollowing === undefined ? {} : {whyFollowing:body.whyFollowing})});
       if (body.operation === 'update') {
         const {data,error} = await client.from('watches').select('watch_definition,monitoring_source,monitoring_state')
           .eq('id',body.watchId).eq('user_id',user.id).is('deleted_at',null).range(0,0);

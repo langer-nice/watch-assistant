@@ -31,7 +31,8 @@ const harness=async(t,interpretation,options={})=>{
   if(body?.action==='confirm'&&state.lose){state.lose=false;throw Error('lost response');}
   return Response.json(value,{status:response.statusCode});
  }});
- if(options.disabled){await tick();assert.equal(form.querySelector('[data-structured-opt-in]'),null);}else{await until(()=>form.querySelector('[data-structured-opt-in]'));form.querySelector('[data-structured-opt-in]').checked=true;}
+ if(options.disabled)await tick();else await until(()=>controller.isEnabled());
+ assert.equal(form.querySelector('[data-structured-opt-in]'),null);
  return {state,form,input,error,controller,review:()=>form.querySelector('[data-structured-review]'),buttons:()=>[...form.querySelectorAll('[data-structured-review] button')],run:()=>controller.run(input.value,state.language)};
 };
 for(const [language,request,label] of [['en','Keep me updated on Jannik Sinner.','Jannik Sinner'],['fr','Tiens-moi informé des actualités de Jannik Sinner.','Jannik Sinner'],['en','Monitor news about Gucci.','Gucci'],['fr','Surveille les actualités concernant Gucci.','Gucci']])test(`${language} ${label}: explicit review, one interpretation, signed confirmation, saved paused`,async t=>{
@@ -41,7 +42,7 @@ for(const [language,request,label] of [['en','Keep me updated on Jannik Sinner.'
  assert.ok(h.state.calls.every(c=>!c.path.includes('check')&&!c.path.includes('cron')));assert.equal(h.review().querySelector('a').href.includes('token'),false);
  const def=h.state.calls.find(c=>c.body?.action==='confirm').body.definition;assert.equal(watchCreationState({...def,monitoringState:'paused',lastChecked:'2026-10-12'}),'paused');assert.equal(creationConfirmationKey({...def,monitoringState:'paused'}),'detail.structuredSavedPausedCopy');
 });
-test('default gate/unselected opt-in preserves legacy dispatch and makes no interpretation calls',async t=>{
+test('disabled access preserves legacy dispatch and makes no interpretation calls',async t=>{
  const h=await harness(t,news('Monitor news about Gucci.','Gucci'),{disabled:true});assert.equal(await h.run(),false);assert.equal(h.state.calls.length,1);assert.equal(h.state.records.size,0);
 });
 test('cancel and edit discard token/plan; changed text requires a new interpretation/review',async t=>{
@@ -143,4 +144,10 @@ test('expiry preserves explicit daily choice but never activates or saves until 
 });
 test('enabled scheduling still saves paused unless the user explicitly chooses activation',async t=>{
  const h=await harness(t,news('Monitor news about Gucci.','Gucci'),{monitoring:true});await h.run();h.buttons()[0].click();await until(()=>h.review().querySelector('a'));assert.equal(h.state.rpcCount,1);assert.equal(h.state.calls.some(c=>c.body?.action==='monitoring'),false);assert.match(h.review().textContent,/Saved paused/);
+});
+
+test('non-news interpretations return to their existing route without review or persistence',async t=>{
+ const h=await harness(t,fixture('Track Jannik Sinner ticket availability.',[individual('s','Jannik Sinner','person')],[predicate('t','event',['s'],'ticket availability')],{domain:'ticket_availability',intent:'event'}));
+ assert.equal(await h.run(),false);assert.equal(h.review(),null);assert.equal(h.state.rpcCount,0);
+ assert.equal(h.state.calls.some(c=>c.body?.action==='issue'),false);
 });
