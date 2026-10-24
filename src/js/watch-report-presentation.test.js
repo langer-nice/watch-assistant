@@ -181,6 +181,8 @@ test('Home failure places the small Brief message below the timestamp row and re
   assert.equal(metadata.style.display,'grid');
   assert.equal(metadata.style.gridTemplateColumns,'auto auto');
   assert.equal(message.style.gridColumn,'1 / -1');
+  assert.equal(message.style.justifySelf,'end');
+  assert.equal(message.style.textAlign,'right');
   assert.equal(metadata.children[0],timestamp);
   assert.equal(metadata.children[2],message);
   assert.equal(message.className,'briefing-summary__readiness');
@@ -188,6 +190,8 @@ test('Home failure places the small Brief message below the timestamp row and re
   assert.equal(metadata.style.display,'');
   assert.equal(metadata.style.gridTemplateColumns,'');
   assert.equal(message.style.gridColumn,'');
+  assert.equal(message.style.justifySelf,'');
+  assert.equal(message.style.textAlign,'');
   metadata.removeAttribute('style');message.removeAttribute('style');
   assert.equal(metadata.outerHTML,before);
 });
