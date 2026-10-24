@@ -85,4 +85,9 @@ export const renderWatchLoadNotice = (language, count) => {
   retry.textContent = retrying ? copy.retrying : copy.retry;
   retry.hidden = !state.failed && !retrying;
   retry.disabled = retrying || state.loading;
+  const compactRetry = root.matches('.page--home') && (state.failed || retrying);
+  retry.className = compactRetry ? '' : 'button button--secondary';
+  retry.style.cssText = compactRetry
+    ? 'width:auto;justify-self:start;background:none;border:0;padding:0;box-shadow:none;color:var(--color-text-muted);text-decoration:underline;cursor:pointer'
+    : '';
 };

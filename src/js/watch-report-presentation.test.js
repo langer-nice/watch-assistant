@@ -165,3 +165,29 @@ test('Home loading failure retains only the short Brief line, while normal repor
     }
   }
 });
+
+
+test('Home failure places the small Brief message below the timestamp row and restores normal layout', () => {
+  const navigation = readFileSync(new URL('./navigation.js', import.meta.url), 'utf8');
+  const start = navigation.indexOf("    const readiness = document.querySelector('#homeReportReadiness');");
+  const layout = navigation.slice(start, navigation.indexOf('    generateReportButton.onclick', start));
+  const renderLayout = new Function('document', 'availability', layout);
+  const {document} = parseHTML(readFileSync(new URL('../../index.html', import.meta.url), 'utf8'));
+  const message = document.querySelector('#homeReportReadiness'), metadata = message.parentElement;
+  const timestamp = document.querySelector('#homeBriefingDate');
+  const before = metadata.outerHTML;
+  renderLayout(document,{failed:true});
+  assert.equal(timestamp.parentElement, metadata);
+  assert.equal(metadata.style.display,'grid');
+  assert.equal(metadata.style.gridTemplateColumns,'auto auto');
+  assert.equal(message.style.gridColumn,'1 / -1');
+  assert.equal(metadata.children[0],timestamp);
+  assert.equal(metadata.children[2],message);
+  assert.equal(message.className,'briefing-summary__readiness');
+  renderLayout(document,{failed:false});
+  assert.equal(metadata.style.display,'');
+  assert.equal(metadata.style.gridTemplateColumns,'');
+  assert.equal(message.style.gridColumn,'');
+  metadata.removeAttribute('style');message.removeAttribute('style');
+  assert.equal(metadata.outerHTML,before);
+});
