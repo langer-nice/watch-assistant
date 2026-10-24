@@ -2408,7 +2408,8 @@ const renderHomeSummary = () => {
     const metadata = readiness?.parentElement;
     if (metadata) {
       metadata.style.display = availability.failed ? 'grid' : '';
-      metadata.style.gridTemplateColumns = availability.failed ? 'auto auto' : '';
+      metadata.style.gridTemplateColumns = availability.failed ? 'minmax(0, 1fr) max-content' : '';
+      metadata.style.justifyItems = availability.failed ? 'end' : '';
       readiness.style.gridColumn = availability.failed ? '1 / -1' : '';
       readiness.style.justifySelf = availability.failed ? 'end' : '';
       readiness.style.textAlign = availability.failed ? 'right' : '';
