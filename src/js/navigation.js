@@ -1923,7 +1923,7 @@ const renderWatchDetail = () => {
     });
     checkNowEl.setAttribute('aria-busy', String(checkInProgress));
     checkNowEl.onclick = async () => {
-      checkFeedbackEl?.classList.remove('is-action');
+      checkFeedbackEl?.classList.remove('is-action', 'watch-error-alert');
       const issue = manualCheckIssue(getWatchById(watch.id), {
         inProgress: detailCheckInProgress || watchCheckController.isChecking(watch.id),
         preparing: isPreparing, canCheckStoredWatch: canCheckStoredMediaWatch,
@@ -1993,7 +1993,7 @@ const renderWatchDetail = () => {
   if (checkSpinnerEl) {
     checkSpinnerEl.hidden = !detailCheckInProgress;
   }
-  checkFeedbackEl?.classList.remove('is-action');
+  checkFeedbackEl?.classList.remove('is-action', 'watch-error-alert');
   const checkResultsEl=document.querySelector('#watchCheckResults');
   if(checkResultsEl){checkResultsEl.hidden=true;checkResultsEl.replaceChildren();}
   const feedBaselineNoticeEl = document.querySelector('#watchFeedBaselineNotice');
@@ -2015,6 +2015,8 @@ const renderWatchDetail = () => {
       const reasonMessage = t(getMonitoringFailureMessageKey(watch.lastCheckAttempt?.code));
       checkFeedbackEl.textContent = `${t('detail.checkFailedStatus')} — ${reasonMessage}`;
       checkFeedbackEl.dataset.state = 'error';
+      checkFeedbackEl.classList.toggle('watch-error-alert', isCompanyWatch(watch)
+        && getMonitoringFailureMessageKey(watch.lastCheckAttempt?.code) === 'detail.checkFailure.persistence');
       checkFeedbackEl.hidden = false;
     } else if (watch.currencyEvaluation && currencyCriteriaFor(watch)) {
       checkFeedbackEl.textContent = currencySummary(watch.currencyEvaluation, getLanguage());
