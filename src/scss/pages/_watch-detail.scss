@@ -1241,6 +1241,34 @@ body.is-watch-edit-open {
   color: var(--color-text); background: var(--color-action-tint); border-radius: var(--radius-input);
 }
 .detail-overview .watch-fact-check__feedback[data-state='error'] { color: var(--color-error, #a32d32); background: #fff0ef; }
+// Shared presentation for the two approved error alerts only.
+.detail-overview .watch-fact-check__feedback.watch-error-alert:not([hidden]),
+#watchLoadNotice > p.watch-error-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid #ffe0e0;
+  border-radius: var(--radius-input);
+  background: #fff1f1;
+  color: #b91c33;
+  font-size: 1rem;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+
+  &::before {
+    content: '';
+    flex: 0 0 1.75rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    margin-top: .125rem;
+    border-radius: 50%;
+    background-color: currentColor;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m8 8 8 8m0-8-8 8' fill='none' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-size: 100% 100%;
+  }
+}
 .detail-overview #watchFeedBaselineNotice { font-size: .8125rem; font-weight: 400; color: var(--color-text-muted); background: transparent; padding: 0; }
 .detail-developments__body { padding: var(--space-lg); }
 .detail-development-list { list-style: none; margin: 0; padding: 0; }

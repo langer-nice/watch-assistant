@@ -81,6 +81,7 @@ export const renderWatchLoadNotice = (language, count) => {
     ? state.failed ? copy.unavailable : [state.loading ? copy.loading : '', state.cached ? copy.stale : ''].filter(Boolean).join(' ')
     : state.incompatible ? copy.incompatible : copy.empty;
   notice.querySelector('p').style.whiteSpace = !retrying && state.uncertain && state.failed ? 'pre-line' : '';
+  notice.querySelector('p').classList.toggle('watch-error-alert', !retrying && state.uncertain && state.failed);
   const retry = notice.querySelector('button');
   retry.textContent = retrying ? copy.retrying : copy.retry;
   retry.hidden = !state.failed && !retrying;
