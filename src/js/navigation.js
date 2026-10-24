@@ -2404,6 +2404,13 @@ const renderHomeSummary = () => {
     renderReportReadiness({ button: generateReportButton,
       message: document.querySelector('#homeReportReadiness'),
       availability, generating, hasWatches: hasLocalUserCreatedWatches }, t);
+    const readiness = document.querySelector('#homeReportReadiness');
+    const metadata = readiness?.parentElement;
+    if (metadata) {
+      metadata.style.display = availability.failed ? 'grid' : '';
+      metadata.style.gridTemplateColumns = availability.failed ? 'auto auto' : '';
+      readiness.style.gridColumn = availability.failed ? '1 / -1' : '';
+    }
     generateReportButton.onclick = runHomeReportGeneration;
   }
 

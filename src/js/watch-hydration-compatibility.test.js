@@ -24,6 +24,7 @@ test('supported recurring and newer persisted currency definitions cannot poison
  notices.renderWatchLoadNotice('fr',2);assert.equal(notices.getWatchListAvailability().partial,true);assert.equal(document.getElementById('exampleWatches').hidden,true);
  const notice=document.getElementById('watchLoadNotice'),button=notice.querySelector('button');
  assert.deepEqual(notices.getWatchListAvailability().codes,['DATABASE_ERROR']);
+ document.querySelector('main').className='page--home';
  for(const language of ['fr','en']){
   notices.renderWatchLoadNotice(language,2);
   assert.equal(notice.querySelector('p').textContent,language==='fr'
@@ -31,14 +32,18 @@ test('supported recurring and newer persisted currency definitions cannot poison
    :'Unable to load your Watches right now.\nPlease try again in a few moments.');
   assert.equal(notice.querySelector('p').style.whiteSpace,'pre-line');
   assert.equal(button.textContent,language==='fr'?'Réessayer':'Try again');
-  assert.equal(button.className,'button button--secondary');
+  assert.equal(button.className,'');
+  assert.equal(button.style.width,'auto');
+  assert.equal(button.style.padding,'0');
+  assert.equal(button.style.textDecoration,'underline');
+  assert.equal(button.style.justifySelf,'start');
   assert.equal(button.disabled,false);
   assert.equal(button.hidden,false);
  }
  notices.renderWatchLoadNotice('fr',2);
  // Retry fails, becomes actionable again, then succeeds. Concurrent clicks coalesce.
  held=true;const before=calls.length;button.click();button.click();await tick();assert.equal(button.disabled,true);assert.match(button.textContent,/tentative/);assert.equal(calls.length-before,2);held=false;releases.splice(0).forEach(r=>r());await tick();await tick();assert.equal(button.disabled,false);assert.match(notice.textContent,/Impossible/);
- failing=false;button.click();await tick();await tick();assert.equal(notices.getWatchListAvailability().failed,false);assert.equal(notice.hidden,false);assert.match(notice.textContent,/lecture seule/);assert.equal(notice.querySelector('p').style.whiteSpace,'');assert.equal(button.hidden,true);assert.equal(document.getElementById('exampleWatches').hidden,false);assert.ok(calls.every(c=>c.method==='GET'));
+ failing=false;button.click();await tick();await tick();assert.equal(notices.getWatchListAvailability().failed,false);assert.equal(notice.hidden,false);assert.match(notice.textContent,/lecture seule/);assert.equal(notice.querySelector('p').style.whiteSpace,'');assert.equal(button.hidden,true);assert.equal(button.className,'button button--secondary');assert.equal(button.style.cssText,'');assert.equal(document.getElementById('exampleWatches').hidden,false);assert.ok(calls.every(c=>c.method==='GET'));
  // Late reads cannot repopulate another account or resurrect a signed-out list.
  held=true;const pending=ms.synchronizeMediaWatches({readOnly:true});await tick();state={status:'anonymous'};subscribers.forEach(f=>f(state));held=false;releases.splice(0).forEach(r=>r());await pending;assert.deepEqual(ms.getMediaServerWatches(),[]);assert.equal(notices.getWatchListAvailability().active,false);
 });
