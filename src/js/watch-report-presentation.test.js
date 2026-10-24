@@ -137,3 +137,31 @@ test('report control is disabled before auth initializes, then explains hydratio
     if(state.key)assert.equal(message.textContent,{en,fr}[language].home[state.key]);
   }
 });
+
+
+test('Home loading failure retains only the short Brief line, while normal report notices are unchanged', async () => {
+  const {renderReportReadiness} = await import('./watch-report-presentation.js');
+  const navigation = readFileSync(new URL('./navigation.js', import.meta.url), 'utf8');
+  const noticeBlock = navigation.slice(navigation.indexOf('  if(reportNotice){'), navigation.indexOf('  if (briefingDate) {', navigation.indexOf('  if(reportNotice){')));
+  const renderNotice = new Function('reportNotice', 'availability', 'homeReport', 'reportSyncState', 't', noticeBlock);
+  const {document} = parseHTML('<button></button><p id="readiness"></p><p id="notice"></p>');
+  const button=document.querySelector('button'), message=document.querySelector('#readiness'), reportNotice=document.querySelector('#notice');
+  for(const language of ['fr','en']){
+    const t=translate(language);
+    for(const partial of [true,false])for(const reportSyncState of ['ready','unavailable']){
+      const homeReport={report:{origin:'automatic',partial}};
+      renderReportReadiness({button,message,availability:{uncertain:true,failed:true},generating:false,hasWatches:true},t);
+      renderNotice(reportNotice,{failed:true},homeReport,reportSyncState,t);
+      assert.equal(message.hidden,false);
+      assert.equal(message.textContent,language==='fr'
+        ?'Rapport indisponible : réessayez le chargement des Watches.'
+        :'Report unavailable: try loading your Watches again.');
+      assert.equal(reportNotice.hidden,true);
+      renderReportReadiness({button,message,availability:{uncertain:false,failed:false},generating:false,hasWatches:true},t);
+      renderNotice(reportNotice,{failed:false},homeReport,reportSyncState,t);
+      assert.equal(message.hidden,true);
+      assert.equal(reportNotice.hidden,!partial&&reportSyncState!=='unavailable');
+      assert.equal(reportNotice.textContent,partial?t('home.reportPartial'):reportSyncState==='unavailable'?t('home.reportSyncUnavailable'):'');
+    }
+  }
+});
