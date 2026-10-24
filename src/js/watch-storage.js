@@ -319,14 +319,20 @@ export function markUpdatesAsRead(watchId, updateIds) {
 }
 
 export function deleteWatch(id) {
-  queueMediaWatchDeletion(getWatchById(id));
-  const stored = getStoredWatches().filter((watch) => watch.id !== id);
-  saveWatches(stored);
-
-  const deletedIds = new Set(getDeletedWatchIds());
-  deletedIds.add(id);
-  saveDeletedWatchIds([...deletedIds]);
-  notifyWatchStorageChanged();
+  const watch = getWatchById(id), owner = getAccountOwner();
+  if (!watch) throw Object.assign(new Error('Watch unavailable'), { code: 'WATCH_NOT_FOUND' });
+  const deletion = queueMediaWatchDeletion(watch);
+  const cleanup = () => {
+    if (getAccountOwner() !== owner) throw Object.assign(new Error('Account changed'), { code: 'AUTH_SESSION_CHANGED' });
+    const stored = getStoredWatches().filter((watch) => watch.id !== id);
+    saveWatches(stored);
+    const deletedIds = new Set(getDeletedWatchIds());
+    deletedIds.add(id);
+    saveDeletedWatchIds([...deletedIds]);
+    notifyWatchStorageChanged();
+  };
+  if (deletion?.then) return deletion.then(cleanup);
+  cleanup();
 }
 
 export function getWatchById(id) {

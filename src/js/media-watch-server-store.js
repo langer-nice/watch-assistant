@@ -139,17 +139,47 @@ export const prepareMediaWatch = (watch, previous, { claimExistingLocal = false 
 
 export const queueMediaWatchDeletion = (watch) => {
   if (watch?.serverReadOnly) throw Object.assign(new Error('Read-only Watch definition'), { code: 'UNSUPPORTED_WATCH_VERSION' });
+  const confirmDeletion = isMediaWatch(watch) && !hasDefinitionVersion(watch) && !currencyCriteriaFor(watch);
   const user = owner();
-  if (!user || watch?.mediaPersistence?.ownerId !== user) return;
+  if (!user || watch?.mediaPersistence?.ownerId !== user) {
+    if (confirmDeletion) throw Object.assign(new Error('Deletion requires the current owner'), { code: 'AUTH_REQUIRED' });
+    return;
+  }
   const existing = read(user, watch.id);
   const remote = rows.find((row) => row.id === watch.id);
-  if (!existing && !remote) return;
+  if (!existing && !remote) {
+    if (confirmDeletion) throw Object.assign(new Error('Deletion state unavailable'), { code: 'DELETE_NOT_CONFIRMED' });
+    return;
+  }
   // Retain a tombstone even when creation is still in flight.
   write(user, watch.id, {
     definition: existing?.definition || mediaWatchDefinition(watch),
     revision: existing?.revision ?? Number(remote?.media_revision ?? 0),
     mutation: crypto.randomUUID(), baseMutation: existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: true,
+    ...(confirmDeletion ? { confirmDeletion: true } : {}),
   });
+  if (confirmDeletion) {
+    const epoch = generation, mutation = read(user, watch.id).mutation;
+    return (async () => {
+      let result = await synchronizeMediaWatches();
+      let job = read(user, watch.id);
+      // A joined in-flight read may not have included the newly queued deletion.
+      if (owner() === user && generation === epoch && result?.ok && job?.pending && !job.errorCode && !job.conflict) {
+        result = await synchronizeMediaWatches();
+        job = read(user, watch.id);
+      }
+      if (owner() !== user || generation !== epoch) throw Object.assign(new Error('Account changed'), { code: 'AUTH_SESSION_CHANGED' });
+      const confirmed = rows.find(row => row.id === watch.id && row.user_id === user
+        && row.media_mutation_id === mutation && typeof row.deleted_at === 'string' && Number.isFinite(Date.parse(row.deleted_at)));
+      if (job?.mutation === mutation && confirmed) {
+        job = { ...job, pending: false, errorCode: null, confirmedDeletedAt: confirmed.deleted_at };
+        write(user, watch.id, job);
+      }
+      if (job?.mutation !== mutation || !job.confirmedDeletedAt || job.pending) {
+        throw Object.assign(new Error('Deletion was not confirmed'), { code: job?.errorCode || result?.code || 'DELETE_NOT_CONFIRMED' });
+      }
+    })();
+  }
   queueMicrotask(() => { void synchronizeMediaWatches(); });
 };
 
@@ -203,7 +233,7 @@ export const mergeMediaWatches = (local) => {
   const merged = new Map(visible.map((watch) => [watch.id, watch]));
   for (const row of (user && user === identity ? rows : [])) {
     const saved = read(user, row.id);
-    if (saved?.deleted || row.deleted_at) { merged.delete(row.id); continue; }
+    if ((saved?.deleted && (!saved.confirmDeletion || saved.confirmedDeletedAt)) || row.deleted_at) { merged.delete(row.id); continue; }
     if ((saved?.pending || saved?.localOnly) && merged.has(row.id)) continue;
     const remote = getMediaServerWatches().find((watch) => watch.id === row.id);
     // Never replace a local Watch with uncertain ownership.
@@ -303,9 +333,13 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
             const { watch } = await request(token, { method: 'POST', body: JSON.stringify(job) });
             if (!watch || !Number.isSafeInteger(Number(watch.media_revision))) throw Object.assign(new Error('Invalid sync response.'), { code: 'INVALID_PERSISTED_WATCH' });
             if (!fresh()) return { ok: false, code: 'AUTH_SESSION_CHANGED' };
+            if (job.confirmDeletion && (watch.id !== job.definition.id || watch.user_id !== user
+              || watch.media_mutation_id !== job.mutation || typeof watch.deleted_at !== 'string' || !Number.isFinite(Date.parse(watch.deleted_at)))) {
+              throw Object.assign(new Error('Deletion was not confirmed'), { code: 'DELETE_NOT_CONFIRMED' });
+            }
             const current = read(user, job.definition.id);
             if (current?.mutation === job.mutation) {
-              write(user, job.definition.id, { ...current, revision: Number(watch.media_revision), pending: false, errorCode: null });
+              write(user, job.definition.id, { ...current, revision: Number(watch.media_revision), pending: false, errorCode: null, ...(job.confirmDeletion ? { confirmedDeletedAt: watch.deleted_at } : {}) });
             } else if (current && current.revision === job.revision && current.baseMutation === job.mutation) {
               write(user, job.definition.id, { ...current, revision: Number(watch.media_revision), baseMutation: null });
             }
