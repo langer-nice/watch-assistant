@@ -2119,6 +2119,33 @@ const renderWatchDetail = () => {
   if (deleteConfirmEl) {
     deleteConfirmEl.onclick = async (event) => {
       event.preventDefault();
+      if (isMediaWatch(watch) && !watch.definitionVersion && !currencyCriteriaFor(watch)) {
+        if (deleteConfirmEl.disabled) return;
+        deleteConfirmEl.disabled = true;
+        const form = deleteDialogEl.querySelector('form');
+        let error = form.querySelector('[data-delete-error]');
+        if (error) error.hidden = true;
+        try {
+          await deleteWatch(watch.id);
+          deleteDialogEl.close();
+          window.location.href = 'watches.html';
+        } catch {
+          if (!error) {
+            error = document.createElement('p');
+            error.dataset.deleteError = '';
+            error.className = 'form-error';
+            error.setAttribute('role', 'alert');
+            form.insertBefore(error, form.querySelector('.watch-delete-dialog__actions'));
+          }
+          error.textContent = getLanguage() === 'fr'
+            ? 'La suppression a échoué. La Watch reste visible. Réessayez.'
+            : 'Deletion failed. The Watch is still visible. Try again.';
+          error.hidden = false;
+        } finally {
+          deleteConfirmEl.disabled = false;
+        }
+        return;
+      }
       if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
         await deleteServerCompanyWatch(watch.id);
       } else {
