@@ -114,7 +114,7 @@
     },
     "updatedAt": "Updated at",
     "reportPreparing": "Loading your account and Watches…",
-    "reportPreparationFailed": "Report unavailable: retry loading your Watches.",
+    "reportPreparationFailed": "Report unavailable: try loading your Watches again.",
     "noReport": "No report available on this device.",
     "briefingTimeUnavailable": "Briefing time unavailable",
     "generateReport": "Generate report",

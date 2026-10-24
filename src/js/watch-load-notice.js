@@ -6,7 +6,7 @@ const labels = {
     loading: 'Loading your Watches…', retrying: 'Retrying…',
     incompatible: 'Some saved Watches require another application version and are shown read-only. Other Watches have loaded.',
     partial: 'Some Watch sources could not be loaded. Available Watches remain visible.',
-    unavailable: 'We couldn’t load your Watches right now. A loading error does not delete your Watches.',
+    unavailable: 'Unable to load your Watches right now.\nPlease try again in a few moments.',
     stale: 'Showing the last saved copy for this account. It may be out of date.',
     empty: 'You don’t have any Watches yet.', retry: 'Try again',
   },
@@ -14,7 +14,7 @@ const labels = {
     loading: 'Chargement de vos Watches…', retrying: 'Nouvelle tentative…',
     incompatible: 'Certaines Watches enregistrées nécessitent une autre version de l’application et sont affichées en lecture seule. Les autres Watches sont chargées.',
     partial: 'Certaines sources de Watches n’ont pas pu être chargées. Les Watches disponibles restent visibles.',
-    unavailable: 'Impossible de charger vos Watches pour le moment. Une erreur de chargement ne supprime pas vos Watches.',
+    unavailable: 'Impossible de charger vos Watches pour le moment.\nRéessayez dans quelques instants.',
     stale: 'La dernière copie enregistrée pour ce compte est affichée. Elle peut être ancienne.',
     empty: 'Vous n’avez pas encore de Watch.', retry: 'Réessayer',
   },
@@ -78,8 +78,9 @@ export const renderWatchLoadNotice = (language, count) => {
   notice.hidden = !state.active || (!retrying && !state.incompatible && (silentRead || (!state.uncertain && count > 0)));
   notice.setAttribute('aria-busy', String(retrying || state.loading));
   notice.querySelector('p').textContent = retrying ? copy.loading : state.uncertain
-    ? [state.failed ? [copy.unavailable, state.partial ? copy.partial : '', state.codes.length ? `(${state.codes.join(', ')})` : ''].filter(Boolean).join(' ') : state.loading ? copy.loading : '', state.cached ? copy.stale : ''].filter(Boolean).join(' ')
+    ? state.failed ? copy.unavailable : [state.loading ? copy.loading : '', state.cached ? copy.stale : ''].filter(Boolean).join(' ')
     : state.incompatible ? copy.incompatible : copy.empty;
+  notice.querySelector('p').style.whiteSpace = !retrying && state.uncertain && state.failed ? 'pre-line' : '';
   const retry = notice.querySelector('button');
   retry.textContent = retrying ? copy.retrying : copy.retry;
   retry.hidden = !state.failed && !retrying;
