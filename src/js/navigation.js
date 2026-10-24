@@ -2410,6 +2410,8 @@ const renderHomeSummary = () => {
       metadata.style.display = availability.failed ? 'grid' : '';
       metadata.style.gridTemplateColumns = availability.failed ? 'auto auto' : '';
       readiness.style.gridColumn = availability.failed ? '1 / -1' : '';
+      readiness.style.justifySelf = availability.failed ? 'end' : '';
+      readiness.style.textAlign = availability.failed ? 'right' : '';
     }
     generateReportButton.onclick = runHomeReportGeneration;
   }
