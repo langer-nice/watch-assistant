@@ -12,6 +12,19 @@ all **0 observed**. Shadow errors: **0 observed**, not proof of error-free execu
 No disagreement sample exists to inspect. No live human-reference labels are available;
 live precision/recall are not measured.
 
+Deployment-time read-only check, 2026-10-26 19:57:23 UTC: Preview
+`dpl_3jHdVMTFETdrQULrJt7mA22Raqqj` is READY, target=null (Preview), branch
+`codex/story-following-shadow-staging`, implementation commit
+`c6d49afff93e7ac07c45568762f5babdf09aba92`.
+URL: https://watch-assistant-qma9l2z3p-david-lang.vercel.app
+Runtime log query for this deployment, Preview, event `story-following-shadow`,
+19:47:23–19:57:23 UTC returned no records. Counts above remain zero observations.
+This checks log availability, not invocation/evaluator success.
+Production remains READY on unchanged deployment
+`dpl_9epBsVLCGBY8GD3g3LtNbTdDFSkQ`, master
+`fb8c9c0c1ad7d28574eed5c8d85500665a30e016`.
+No monitoring, UI check action, notification or email was triggered for this report.
+
 The new Preview has no existing cron traffic, no copied cron secret, and scheduled
 execution/delivery disabled. Existing Staging routing is deliberately untouched.
 Therefore zero samples do not demonstrate that recording or scheduled hooks work in
