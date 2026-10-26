@@ -82,3 +82,10 @@ scope; and actual scheduler primary RPC/output equality with a failing observer.
 unchanged. Build passes (existing Sass/chunk-size warnings only).
 
 No live monitoring, AI, email, Watch creation/edit/deletion or corpus modification.
+
+Subsequent authorized clean-Preview verification (26 October, 20:26 UTC) reused this
+same application build and existing Staging infrastructure. OTP/list loading succeeded;
+one existing Jannik Sinner Check now produced 20 natural comparison rows, all shadow
+abstentions, with no shadow error and unchanged notification count. Only the ordinary
+authoritative check updated its Staging snapshot/results. See the dated evaluation
+update; no matcher, application code, delivery flag or schedule was changed.

@@ -3,7 +3,7 @@
 Version `story-shadow.v1`; 26 October 2026. This initial report separates local
 verification from live operational evidence. It does not replace corpus v1.4.
 
-## Initial available sample
+## Initial available sample at 19:57 UTC
 
 No natural comparisons collected at report preparation: **0**.
 Current MATCH, shadow MATCH, agreements, disagreements, current MATCH/shadow NO_MATCH,
@@ -52,3 +52,62 @@ Recommendation: **revise shadow integration/activation plan before operational
 evaluation**. Agree a safe way to observe existing Staging traffic without changing
 primary behavior or delivery, then continue bounded shadow observation. Do not merge,
 make shadow authoritative, alter consent or enable Production based on these tests.
+
+## Clean Preview reuse and authorized natural sample — 20:26 UTC
+
+Inspection preceded execution. Current remote master remains
+`fb8c9c0c1ad7d28574eed5c8d85500665a30e016`; PR #70 base is that commit and head
+before this documentation update is `b678f005694dc404549a2638f56d6654b1cf9ed6`.
+No rebase is necessary. The READY Preview above has exactly the same application
+code as the PR head; the intervening commit changes this report only. No redundant
+deployment or configuration adjustment was necessary to reuse this clean Preview.
+
+Old Staging ref `codex/structured-interpretation-v1` points to `1c04e0340e1550a8a7f75c0c09a92e7380572a02`.
+Its tree differs from current master in 23 files, including approved notes, deletion,
+Home and error-presentation corrections. No old branch commits/patches were imported.
+Existing infrastructure alone is reused: Supabase `tseexvbwhrtofcsrvcqc`, its existing
+account and OTP. The public auth settings return 200 with email OTP enabled; the
+user completed OTP and authenticated media/company list requests returned 200.
+Branch-only Staging database/auth/Structured gates and shadow flag were verified;
+delivery, notification-intent and scheduled-execution flags remain OFF. Existing
+old Staging configuration, scheduling and Production were not changed.
+
+One existing Staging Watch, Jannik Sinner (`672a8533-c48f-4dd4-aab4-2064f0eb6702`),
+was checked once through its existing authenticated Check now UI. No new Watch,
+account, infrastructure, recurring job, extra article-body fetch or AI was used.
+Request `srntp-1793046359608-2e3827133044` produced 20 shadow rows at
+2026-10-26T20:26:01.603Z–20:26:01.610Z. Logs became searchable after a short indexing
+delay; the first immediate empty query was not evidence of failed execution.
+
+| Observation | Count |
+|---|---:|
+| Candidates | 20 |
+| Current MATCH / NO_MATCH | 15 / 5 |
+| Shadow MATCH / NO_MATCH / INSUFFICIENT_EVIDENCE | 0 / 0 / 20 |
+| Exact three-label agreements / differences | 0 / 20 |
+| Current MATCH / shadow NO_MATCH | 0 |
+| Current NO_MATCH / shadow MATCH | 0 |
+| Current MATCH / shadow INSUFFICIENT_EVIDENCE | 15 |
+| Current NO_MATCH / shadow INSUFFICIENT_EVIDENCE | 5 |
+| Shadow errors | 0 |
+| Category person | 20 |
+
+All abstentions used REQUIRED_LOCAL_PROOF_MISSING. No performance/accuracy victory
+is inferred: no human-reference labels exist for this live sample. Bounded manual
+review of three displayed accepted candidates (hires a coach; comeback date announced;
+to return at Six Kings Slam) confirms the person rule's narrow phrase coverage leaves
+these unclassified. This is a port-coverage limitation, not a proven lack of article
+evidence and not proof the current matcher is correct. No rule was tuned here.
+
+The current matcher alone persisted its ordinary check results: last_checked_at
+advanced from 11:00:58.863 UTC to 20:26:00.802 UTC, revision stayed 2, and UI displayed
+12 new updates. Shadow did not choose or modify them. Notification rows for this
+Watch remained 23 before/after. Stored email consent remains unchanged (the UI may
+show On); deployment delivery gates remain OFF. No notification delivery/email was
+invoked, and no schedule was changed. No Production data/configuration was touched.
+
+Focused shadow tests rerun once: 16/16; build PASS. No broad suite rerun.
+Initial manual-path observation/recording now works; scheduled-path and cross-pattern
+operational coverage remain untested. Recommendation: **revise integration** under
+separate approval to address the partial person-rule port before claiming semantic
+coverage; no new test Watch is needed and no Production rollout is justified.
