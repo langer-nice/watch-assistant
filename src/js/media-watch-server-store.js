@@ -10,6 +10,13 @@ import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
 import { hasDefinitionVersion } from './watch-definition.js';
 
 const PREFIX = 'watchAssistant.mediaSync.';
+// One approved legacy cleanup; no other journal or revision is eligible.
+const canReconcileRoyalDeletion = (row, job, user) => row?.id === '4d387267-a8ee-44e9-a46c-0bb1237b8eb8'
+  && row.user_id === user && !row.deleted_at && Number(row.media_revision) === 3
+  && !hasDefinitionVersion(row.watch_definition) && job?.definition?.id === row.id
+  && job.revision === 1 && job.pending === true && job.deleted === true
+  && job.conflict === true && job.errorCode === 'MEDIA_CONFLICT'
+  && job.mutation === 'ce8fdcc3-83de-4d2e-998f-46b9639b2911';
 let authSource;
 let unsubscribe;
 let generation = 0;
@@ -151,11 +158,15 @@ export const queueMediaWatchDeletion = (watch) => {
     if (confirmDeletion) throw Object.assign(new Error('Deletion state unavailable'), { code: 'DELETE_NOT_CONFIRMED' });
     return;
   }
+  const reconcileRoyal = canReconcileRoyalDeletion(remote, existing, user);
   // Retain a tombstone even when creation is still in flight.
   write(user, watch.id, {
-    definition: existing?.definition || mediaWatchDefinition(watch),
-    revision: existing?.revision ?? Number(remote?.media_revision ?? 0),
-    mutation: crypto.randomUUID(), baseMutation: existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: true,
+    definition: reconcileRoyal ? mediaWatchDefinition({ ...remote.watch_definition, id: remote.id,
+      title: remote.title, monitoringSource: remote.monitoring_source,
+      isStory: remote.watch_definition.inputType === 'url',
+      status: remote.monitoring_state === 'paused' ? 'paused' : 'watching' }) : existing?.definition || mediaWatchDefinition(watch),
+    revision: reconcileRoyal ? Number(remote.media_revision) : existing?.revision ?? Number(remote?.media_revision ?? 0),
+    mutation: crypto.randomUUID(), baseMutation: !reconcileRoyal && existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: true,
     ...(confirmDeletion ? { confirmDeletion: true } : {}),
   });
   if (confirmDeletion) {
@@ -233,7 +244,8 @@ export const mergeMediaWatches = (local) => {
   const merged = new Map(visible.map((watch) => [watch.id, watch]));
   for (const row of (user && user === identity ? rows : [])) {
     const saved = read(user, row.id);
-    if ((saved?.deleted && (!saved.confirmDeletion || saved.confirmedDeletedAt)) || row.deleted_at) { merged.delete(row.id); continue; }
+    if ((saved?.deleted && (!saved.confirmDeletion || saved.confirmedDeletedAt)
+      && !canReconcileRoyalDeletion(row, saved, user)) || row.deleted_at) { merged.delete(row.id); continue; }
     if ((saved?.pending || saved?.localOnly) && merged.has(row.id)) continue;
     const remote = getMediaServerWatches().find((watch) => watch.id === row.id);
     // Never replace a local Watch with uncertain ownership.

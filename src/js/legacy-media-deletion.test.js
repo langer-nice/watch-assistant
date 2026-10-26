@@ -14,13 +14,13 @@ const source=await readFile(new URL('./navigation.js',import.meta.url),'utf8');
 // Execute the real confirmation handler with its existing closure, without booting unrelated page services.
 const handlerSource=source.slice(source.indexOf('  if (deleteConfirmEl) {'),source.indexOf('  if (confirmationEl) {'));
 let n=0;
-async function setup(t,{mode='success',context='owned',language='en',currency=false}={}){
+async function setup(t,{mode='success',context='owned',language='en',currency=false,recovery=false}={}){
  const original=Object.fromEntries(['localStorage','window','document','fetch','Event'].map(k=>[k,globalThis[k]]));
  const {window,document}=parseHTML(await readFile(new URL('../../watch-detail.html',import.meta.url),'utf8'));
  window.location={href:'https://synthetic.test/watch-detail.html?id=fixture'};
  const storage={};Object.defineProperties(storage,{getItem:{value:k=>storage[k]??null},setItem:{value:(k,v)=>storage[k]=String(v)},removeItem:{value:k=>delete storage[k]}});
  Object.assign(globalThis,{window,document,Event:window.Event,localStorage:storage});
- const owner='delete-owner-'+(++n),id='11111111-1111-4111-8111-111111111111';
+ const owner='delete-owner-'+(++n),id=recovery?'4d387267-a8ee-44e9-a46c-0bb1237b8eb8':'11111111-1111-4111-8111-111111111111';
  let state={status:'authenticated',session:{user:{id:owner},access_token:'synthetic'}},held,posts=0;
  const auth={getState:()=>state,subscribe:()=>()=>{}};configureAccountStorage(auth);
  let row={id,user_id:owner,title:'Gucci',created_at:'2026-09-13T10:00:00Z',monitoring_state:'monitoring',current_status:'watching',media_revision:3,deleted_at:null,watch_definition:{inputType:'text',request:'Monitor news about Gucci.',category:'news',mediaMention:{subjects:['Gucci'],matchMode:'all'}},monitoring_source:{type:'feed',url:'https://news.google.com/rss/search?q=Gucci'}};
@@ -28,6 +28,7 @@ async function setup(t,{mode='success',context='owned',language='en',currency=fa
  globalThis.fetch=async(_path,options={})=>{
   if(options.method!=='POST')return Response.json({watches:context==='journal-missing'?[]:[row],emailEnabled:false});
   posts++;const job=JSON.parse(options.body);assert.equal(job.deleted,true);assert.equal(job.definition.id,id);
+  if(recovery){assert.equal(job.revision,3);assert.equal(job.confirmDeletion,true);assert.equal(job.definition.title,row.title);assert.notEqual(job.mutation,'ce8fdcc3-83de-4d2e-998f-46b9639b2911');}
   await new Promise(r=>{held=r;});
   if(mode==='server')return Response.json({code:'DATABASE_ERROR'},{status:503});
   if(mode==='network')throw new TypeError('offline');
@@ -38,6 +39,10 @@ async function setup(t,{mode='success',context='owned',language='en',currency=fa
   return Response.json({watch:row});
  };
  await media.configureMediaWatchServerStore(auth);
+ if(recovery)localStorage.setItem(`watchAssistant.mediaSync.${owner}.${id}`,JSON.stringify({
+  definition:{id,title:'Stale local title',watch_definition:row.watch_definition,monitoring_source:row.monitoring_source,monitoring_state:'monitoring'},
+  revision:1,pending:true,deleted:true,conflict:true,errorCode:'MEDIA_CONFLICT',mutation:'ce8fdcc3-83de-4d2e-998f-46b9639b2911'
+ }));
  const storageModule=await import('./watch-storage.js');
  let watch=context==='journal-missing'?{...row.watch_definition,id,title:row.title,monitoringSource:row.monitoring_source,mediaPersistence:{ownerId:owner},createdAt:row.created_at,status:'watching'}:storageModule.getWatchById(id);
  if(context==='owner-missing')watch={...watch,mediaPersistence:undefined};
@@ -48,7 +53,7 @@ async function setup(t,{mode='success',context='owned',language='en',currency=fa
  new Function('watch','deleteConfirmEl','deleteDialogEl','deleteWatch','window','document','isMediaWatch','currencyCriteriaFor','isCompanyWatch','isCompanyWatchServerMode','deleteServerCompanyWatch','getLanguage',handlerSource)(watch,confirm,dialog,storageModule.deleteWatch,window,document,isMediaWatch,currencyCriteriaFor,()=>false,()=>false,()=>assert.fail('Not a company deletion'),()=>language);
  if(context==='session-missing')state={status:'anonymous'};
  t.after(async()=>{await media.configureMediaWatchServerStore(null);configureAccountStorage(null);for(const[k,v]of Object.entries(original)){if(v===undefined)delete globalThis[k];else globalThis[k]=v;}});
- return {storageModule,id,confirm,dialog,storage,title:()=>document.querySelector('#watchTitle').textContent,visible:()=>Boolean(storageModule.getWatchById(id)),closed:()=>closed,location:()=>window.location.href,posts:()=>posts,release:()=>held(),started:()=>Boolean(held),setMode:v=>{mode=v;held=null;},run:()=>confirm.onclick({preventDefault(){}})};
+ return {owner,storageModule,id,confirm,dialog,storage,title:()=>document.querySelector('#watchTitle').textContent,visible:()=>Boolean(storageModule.getWatchById(id)),closed:()=>closed,location:()=>window.location.href,posts:()=>posts,release:()=>held(),started:()=>Boolean(held),setMode:v=>{mode=v;held=null;},run:()=>confirm.onclick({preventDefault(){}})};
 }
 test('legacy deletion stays visible and does not redirect until matching server soft-delete confirmation',async t=>{
  const f=await setup(t),pending=f.run();await until(f.started);assert(f.visible());assert(!f.closed());assert.match(f.location(),/watch-detail/);assert(f.confirm.disabled);
@@ -74,4 +79,15 @@ test('currency keeps its existing queued delete contract and Structured remains 
  const f=await setup(t,{currency:true});assert.throws(()=>media.queueMediaWatchDeletion({serverReadOnly:true}),e=>e.code==='UNSUPPORTED_WATCH_VERSION');
  await f.run();assert.equal(f.location(),'watches.html');assert(!f.visible());assert.deepEqual(f.storageModule.getStoredWatches(),[]);
  await until(f.started);f.release();await media.synchronizeMediaWatches();assert.equal(f.posts(),1);
+});
+
+test('only the approved Royal deletion is shown and retries revision 3 with server confirmation',async t=>{
+ const f=await setup(t,{recovery:true});assert(f.visible());assert.equal(f.posts(),0);
+ const pending=f.run();await until(f.started);assert(f.visible());assert(!f.closed());
+ f.release();await pending;assert(!f.visible());assert(f.closed());assert.equal(f.posts(),1);
+});
+test('an unrelated old deletion marker remains unchanged',async t=>{
+ const f=await setup(t),key=`watchAssistant.mediaSync.${f.owner}.${f.id}`;
+ const job=JSON.stringify({definition:{id:f.id},revision:1,pending:true,deleted:true,conflict:true,errorCode:'MEDIA_CONFLICT',mutation:'ce8fdcc3-83de-4d2e-998f-46b9639b2911'});
+ f.storage.setItem(key,job);assert(!f.visible());assert.equal(f.storage.getItem(key),job);assert.equal(f.posts(),0);
 });
