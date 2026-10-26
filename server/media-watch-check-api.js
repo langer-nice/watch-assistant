@@ -1,3 +1,4 @@
+import {observeStoryShadow} from './story-following-shadow.js';
 import {stagingLegacyEnabled,legacyStagingOwner} from './staging-legacy-notifications.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import {structuredMediaNotificationIntentsEnabled} from './structured-media-notification-gates.js';
@@ -109,6 +110,7 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
         ? 'complete_staging_legacy_media_check' : 'complete_manual_media_watch_check', completionParams);
     if (completion.error) throw Object.assign(new Error('Check not saved'), { code: 'PERSISTENCE_UNAVAILABLE' });
     if (completion.data?.status !== 'completed') return send(409, { code: 'MEDIA_CONFLICT' });
+    observeStoryShadow({env:options.env||process.env,ownerId:user.id,watch,items,matchingItems:completionParams.p_notification_items});
     const accepted = new Set(completion.data.matchedItems.map(item => item.id));
     const canonical = item => ({ ...item, id: item.identityKeys[0] });
     // The database's durable identity ledger decides which articles are unseen.
