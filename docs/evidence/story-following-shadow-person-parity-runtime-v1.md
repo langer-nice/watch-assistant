@@ -1,6 +1,6 @@
 # Shadow person parity runtime v1
 
-Classification: **B. PARITY READY — BUDGET APPROVAL REQUIRED**. No live check is authorized or performed.
+Current classification: **A. SHADOW RUNTIME READY** under the subsequently approved 40 ms budget. The original 8 ms evaluation and the later single authorized control are recorded separately below.
 
 ## Mapping and scope
 
@@ -86,3 +86,50 @@ Preview deployment dpl_Gn8UPYVoiwjWJdqv2mfzavBrqzCt is READY, explicit API targe
 The new origin requires the user's existing OTP login before the authorized check. No Check now has yet been run. Notification-count verification is not yet available: the managed Node fetch failed; automatic review rejected temporary credential-file persistence and credential transfer into an unsandboxed terminal. No secret was written/transmitted by those rejected operations. No credential rotation or security bypass attempted.
 
 Read-only fallback succeeded through the existing authenticated Supabase dashboard, project watch-assistant-staging (tseexvbwhrtofcsrvcqc), using a SELECT scoped to the authorized Watch only: notification_count=23, sent_count=18 before the controlled check. No Watch/notification row changed. No credential was needed in the SQL editor. OTP login on the new Preview origin remains pending; zero controlled checks performed so far.
+
+## Single authorized Staging control — 2026-10-26 21:56 UTC
+
+Final classification: **A. SHADOW RUNTIME READY** for continued bounded Staging observation only. This supersedes the earlier 8 ms classification and pending-OTP status above. No Production accuracy or rollout claim.
+
+After the user completed OTP on the new origin, exactly one Check now was submitted for existing Watch 672a8533-c48f-4dd4-aab4-2064f0eb6702. POST /api/media-watches request `kz69w-1793051761078-21540d946b1a` ran on deployment dpl_Gn8UPYVoiwjWJdqv2mfzavBrqzCt, runtime commit c6a60f7, Node 24, Preview, region cdg1. All 20 comparison records use story-shadow.person-parity.v2. No second check, cron, new Watch, manual email or extra article-body retrieval.
+
+| Observation | Result |
+|---|---:|
+| Candidates | 20 |
+| Current MATCH / NO_MATCH | 17 / 3 |
+| Shadow MATCH / NO_MATCH / INSUFFICIENT_EVIDENCE | 9 / 5 / 6 |
+| Exact three-label agreements / disagreements | 9 / 11 |
+| Shadow errors / budget timeouts | 0 / 0 |
+| Notifications before / after | 23 / 23 |
+| Previously sent notification rows before / after | 18 / 18 |
+
+The candidate set changed: 14 candidate hashes overlap the frozen 20-title fixture, with **14/14 exact shadow-label parity**; 6 candidates are different. The actual 9/5/6 distribution is therefore not forced to 11/5/4. The current matcher is a comparison, not human truth. Live accuracy remains unmeasured.
+
+Records span 21:56:03.187Z–21:56:03.220Z (33 ms). This is a wall-clock diagnostic timestamp span, **not a precise observer duration**; no duration instrumentation exists. All candidates completed with no budget error under the unchanged approved 40 ms gate. No assertion about Vercel cold-start latency beyond this first observation is made. Local cold/warm/p50/p95 results remain those above.
+
+The existing authoritative check persisted its ordinary result and the UI displayed “3 new updates found” with LAST SUCCESSFUL CHECK “Just now”. This expected check effect is distinct from shadow observation: no UI behavior was added or selected by shadow. Current matcher remains authoritative. Read-only SELECT counts in the existing Staging dashboard show unchanged notification and sent counts. Delivery/scheduling gates remain OFF, consent unchanged; no email was sent by this test.
+
+| Candidate hash | Current | Shadow |
+|---|---|---|
+| `67a73fd74ec5ffbc6f46efd4cae0fc1077a5a41eb543bbbd20aefe27fd7b9bf9` | MATCH | MATCH |
+| `d67940d076bde1bfd9861d1a3d60f55f7e80ae7a1f92715a1c716123780c5e30` | MATCH | INSUFFICIENT_EVIDENCE |
+| `be68544facc9120edcbe6360516697ed6bcfc0b0985561647b4c3880606152b3` | MATCH | NO_MATCH |
+| `4b4f79150a96814ebf9a7d74e09e7636675311bead66c5a5310d3b32f396eec6` | MATCH | MATCH |
+| `59d2fb85e2d346e153a82b5918b88ebaaa50de067b5660157a4ee11d43a1a8b7` | MATCH | MATCH |
+| `11e23d966d4f0a135b5be6b8278999e792d70ad09b41d918ed789ae731368171` | MATCH | MATCH |
+| `c8c4883f7d10b356cc4c96a020ae04799ccb547d15d85634fbca663969b0b7a2` | MATCH | INSUFFICIENT_EVIDENCE |
+| `da60a628b94f9c1a0685801c282134ee84f3f0791d25c804fca8898e79f7c045` | NO_MATCH | NO_MATCH |
+| `3051e91d22492503345d833aea9ffda0fab88074f57a2b23b84985efb1ab5cd8` | MATCH | INSUFFICIENT_EVIDENCE |
+| `88e2b33c454bcee7fc626441de8d6972b1212ac780dd629495f4945f2fd74917` | MATCH | NO_MATCH |
+| `753d20c642cc6063859856d324e91603a11abbbcf9f88106a500928cfc00bab3` | MATCH | NO_MATCH |
+| `f09ecf150994c72f2f28e333d4208cf36343223191584bec7aba3bcef8ca60b9` | MATCH | NO_MATCH |
+| `e3b7b1e2310edcbad94b66997f45a490fffc5f0eb560ae4c4094cc496438ab67` | NO_MATCH | INSUFFICIENT_EVIDENCE |
+| `18f01e88a1bcab5e69115a915e728a4e55ac08e596d57fa5bd5e4be8365e240b` | MATCH | INSUFFICIENT_EVIDENCE |
+| `c945f87d34ea47f345848ff26d05a92cb887f15b07a60e33e10a7a318092a350` | NO_MATCH | MATCH |
+| `a594066c914fc92d446ae8476b34921f2977df22846c27105bace29492a79f3c` | MATCH | MATCH |
+| `eb297642044b573e367c16782a6cc15c20378b5bd8ceb88d76ed9da335c7dff2` | MATCH | MATCH |
+| `319128bb70a5e4e498174e9ecbeb8e82ad4746fa49357d9a1cb20027c9ff00ac` | MATCH | MATCH |
+| `238d0ea35a95fcea78e0d89bea548213ea44861710be38bd6e0d1ad322e02473` | MATCH | INSUFFICIENT_EVIDENCE |
+| `7762f1bad738fc32175fc307732ba797ce616be9cdec306df6b30e0711c86388` | MATCH | MATCH |
+
+Only this evidence document changed after the controlled check. No further runtime/rule/configuration changes. PR #70 remains draft/unmerged; Production/master unchanged. Recommendation: continue bounded shadow observation only with separately authorized traffic; do not make shadow authoritative or merge based on this single sample.
