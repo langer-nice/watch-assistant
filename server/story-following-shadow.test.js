@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {observeStoryShadow,storyShadowEnabled} from './story-following-shadow.js';
-import {evaluateStoryShadow,storyShadowContext} from './story-following-shadow-matcher.js';
+import {evaluateStoryShadow,storyShadowContext,classifyShadowPerson} from './story-following-shadow-matcher.js';
 const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',id='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const env={VERCEL_ENV:'preview',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',VERCEL_GIT_COMMIT_REF:'codex/story-following-shadow-staging',SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',STORY_FOLLOWING_SHADOW_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner};
 const watch={id,interpretation:{schemaVersion:'interpretation.v1',domain:'media_news',ambiguities:[],unresolvedRequirements:[],subjects:[{id:'person',kind:'individual',type:'person',label:'Casey Morrow'}],conditions:[{op:'predicate',kind:'news_about',subjects:['person'],value:null}],topics:[],geographic:[],exclusions:[]}};
@@ -117,4 +117,126 @@ test('real scheduler persists its current result before observer; storage failur
  assert.deepEqual(enabled,disabled);assert.equal(enabled.summary.changed,1);assert.equal(enabled.summary.failed,0);
  assert.deepEqual(enabled.calls.map(c=>c.name),['claim_structured_media_checks','finish_structured_media_check']);
  assert.equal(enabled.calls[1].args.p_matching[0].id,candidate.id);
+});
+
+const personFixture=JSON.parse(readFileSync(new URL('./test-support/story-shadow-person-parity.json',import.meta.url)));
+{
+const classifyPerson=classifyShadowPerson;
+const context={name:'Jannik Sinner',profession:'tennis',allowSurname:true};
+const cases=[
+ ['Sinner returns after injury','MATCH'],
+ ['Sinner withdraws from a tournament','MATCH'],
+ ['Jannik Sinner announces tournament withdrawal','MATCH'],
+ ['Sinner hires a new coach','MATCH'],
+ ['Sinner announces participation in a tournament','MATCH'],
+ ['Jannik Sinner injury improves after medical treatment','MATCH'],
+ ['Jannik Sinner: World number one ends season early with knee injury','MATCH'],
+ ['Sinner parts ways with his coach','MATCH'],
+ ["Jannik Sinner's coach leaves the team",'MATCH'],
+ ['Sinner reaches the tournament final','MATCH'],
+ ['Jannik Sinner announces a medical update','MATCH'],
+ ['Toni Nadal says he would coach Sinner','NO_MATCH'],
+ ['Sinner urged to hire another coach','INSUFFICIENT_EVIDENCE'],
+ ['Bublik reacts to fan remark about Sinner','NO_MATCH'],
+ ['Opinion: comparing Sinner and Alcaraz','NO_MATCH'],
+ ['The Italian champion is absent','INSUFFICIENT_EVIDENCE'],
+ ['A sinner seeks forgiveness in a religious essay','NO_MATCH'],
+ ['Alex Sinner returns from injury','NO_MATCH'],
+ ['Sinner may return after injury','INSUFFICIENT_EVIDENCE'],
+ ['Sinner is not returning to the tournament','INSUFFICIENT_EVIDENCE'],
+ ['Sinner denies he will withdraw from the tournament','MATCH'],
+ ['Jannik Sinner faces a test amid ongoing knee issues','INSUFFICIENT_EVIDENCE'],
+ ['Jannik Sinner receives an injury boost','INSUFFICIENT_EVIDENCE'],
+ ['Other Player hires a coach while Jannik Sinner watches','INSUFFICIENT_EVIDENCE'],
+ ['Jannik Sinner watches while another coach leaves','INSUFFICIENT_EVIDENCE'],
+ ['Italian tennis player announces comeback — The article names Lorenzo Musetti as the player concerned.','NO_MATCH']
+];
+for(const [title,expected] of cases)test(title,()=>assert.equal(classifyPerson({title},context).label,expected));
+test('P02 own packet resolves initial, no external alias memory',()=>{
+ assert.equal(classifyPerson({title:'J. Sinner changes his training schedule',ownedText:'The article names Jannik Sinner and describes a training change.'},context).label,'MATCH');
+});
+test('P03 own reference requires explicit same-packet name',()=>{
+ assert.equal(classifyPerson({title:'The Italian player delays his return',ownedText:'The preceding paragraph names Jannik Sinner and states that this return date concerns him.'},context).label,'MATCH');
+ assert.equal(classifyPerson({title:'The Italian player delays his return'},context).label,'INSUFFICIENT_EVIDENCE');
+});
+test('unattributable excerpt cannot repair missing identity',()=>{
+ assert.equal(classifyPerson({title:'The player returns — Extrait conservé : Jannik Sinner returns from injury'},context).label,'INSUFFICIENT_EVIDENCE');
+});
+test('parameterized identity, no fixed-title allowlist',()=>{
+ assert.equal(classifyPerson({title:'Avery Moss hires a new coach'},{name:'Avery Moss',profession:'tennis'}).label,'MATCH');
+});
+test('denial retains denial status instead of asserting withdrawal',()=>{
+ const r=classifyPerson({title:'Sinner denies he will withdraw from the tournament'},context);
+ assert.equal(r.status,'ATTRIBUTED_DENIAL');assert.equal(r.development,'PROFESSIONAL_STATEMENT');
+});
+test('H013: existing wrong-story proof outranks rumors',()=>{
+ const title=personFixture.h013;
+ const frozen={exclude:personFixture.exclusions};
+ const r=classifyPerson({title},{...context,exclusions:frozen.exclude});
+ assert.equal(r.label,'NO_MATCH');assert.equal(r.reason,'EXPLICIT_FIXED_SCOPE_EXCLUSION');
+});
+test('A/E: affirmative different-story evidence outranks rumor, speculation and opinion',()=>{
+ const c={...context,exclusions:['football story']};
+ for(const prefix of ['Rumors:','Speculation:','Opinion:']){
+  const r=classifyPerson({title:prefix+' a football story may develop'},c);
+  assert.equal(r.label,'NO_MATCH');assert.equal(r.status,'OUTSIDE_SCOPE');
+ }
+});
+test('B: explicitly named different person outranks speculation',()=>{
+ const r=classifyPerson({title:'An athlete may return — The article names Marco Bellini as the player concerned.'},context);
+ assert.equal(r.label,'NO_MATCH');assert.equal(r.reason,'OTHER_PERSON_IS_SUBJECT');
+});
+test('C: monitored-person rumor stays insufficient even with other-story background',()=>{
+ const c={...context,exclusions:['football story']};
+ for(const title of ['Jannik Sinner may hire a new coach','Jannik Sinner might return after injury amid football story rumors']){
+  const r=classifyPerson({title},c);assert.equal(r.label,'INSUFFICIENT_EVIDENCE');assert.equal(r.status,'SPECULATION');
+ }
+});
+test('D: existing monitored-person opinion and recommendation handling unchanged',()=>{
+ assert.equal(classifyPerson({title:'Opinion: Jannik Sinner should hire another coach'},context).label,'NO_MATCH');
+ assert.equal(classifyPerson({title:'Jannik Sinner urged to hire another coach'},context).label,'INSUFFICIENT_EVIDENCE');
+});
+test('absence of a wrong-story fact cannot turn uncertainty into rejection',()=>{
+ const c={...context,exclusions:['football story']};
+ assert.equal(classifyPerson({title:'No football story is reported; an unnamed player may return'},c).label,'INSUFFICIENT_EVIDENCE');
+});
+
+}
+
+const personWatch={...watch,interpretation:{...watch.interpretation,subjects:[{id:'person',kind:'individual',type:'person',label:'Jannik Sinner'}]}};
+test('20 frozen offline v2 decisions: exact core metadata and runtime adapter parity, order independent',()=>{
+ const context=storyShadowContext(personWatch),counts={};
+ for(const row of personFixture.items){
+  const input=personFixture.inputs.find(i=>i.title===row.title);
+  const {id,title,...expected}=row;
+  assert.deepEqual(classifyShadowPerson(input,context.person),expected,id);
+  const r=evaluateStoryShadow({item:input,context});
+  assert.equal(r.result,expected.label,id);assert.deepEqual(r.reasonCodes,[expected.reason]);
+  counts[r.result]=(counts[r.result]||0)+1;
+ }
+ assert.deepEqual(counts,{MATCH:11,INSUFFICIENT_EVIDENCE:4,NO_MATCH:5});
+ for(const row of [...personFixture.inputs].reverse())assert.equal(evaluateStoryShadow({item:row,context}).result,personFixture.items.find(i=>i.title===row.title).label);
+});
+test('person observer uses bounded source and quarantines unowned excerpts; other people keep existing policy',()=>{
+ assert.equal(storyShadowContext(watch).person,undefined);
+ const rows=[];
+ call({watch:personWatch,items:personFixture.inputs.map((i,n)=>({...i,id:String(n)})),record:r=>rows.push(r)});
+ assert.equal(rows.length,20);assert.ok(rows.every(r=>!r.shadow_error));
+ assert.deepEqual(rows.map(r=>r.shadow_result),personFixture.items.map(i=>i.label));
+ assert.equal(evaluateStoryShadow({context:storyShadowContext(personWatch),item:{title:'The player returns',excerpt:'Jannik Sinner returns from injury'}}).result,'INSUFFICIENT_EVIDENCE');
+});
+
+test('optimized Unicode boundaries preserve full-name and action boundaries',()=>{
+ const c={name:'Avery Moss',profession:'tennis'};
+ for(const title of ['Avery Mossé hires a coach','Avery Moss𐐀 hires a coach'])assert.notEqual(classifyShadowPerson({title},c).label,'MATCH',title);
+ for(const title of ['éAvery Moss hires a coach','𐐀Avery Moss hires a coach','—Avery Moss hires a coach','😀Avery Moss hires a coach','xAvery Moss hires a coach; Avery Moss hires a coach'])assert.equal(classifyShadowPerson({title},c).label,'MATCH',title);
+ assert.equal(classifyShadowPerson({title:'News'},{name:'\u0301'}).label,'INSUFFICIENT_EVIDENCE');
+});
+
+test('exact frozen H042/F08/J07 packets retain their protected abstentions',()=>{
+ for(const row of personFixture.protected){
+  const [title,excerpt]=row.text.split(' — Extrait conservé :');
+  const context=row.id==='J07'?{category:'ev_strategy',identities:['Jaguar'],requiredTopics:[],geography:[]}:{category:'evolving_story',identities:['students'],requiredTopics:[],geography:['France']};
+  assert.equal(evaluateStoryShadow({context,item:{title,excerpt}}).result,row.expected,row.id);
+ }
 });

@@ -33,7 +33,7 @@ export const observeStoryShadow = ({env=process.env,ownerId,watch,items,matching
     if(now()-start>8){record({...base,shadow_result:null,category:context?.category||'unknown',reason_codes:['SHADOW_BUDGET_EXCEEDED'],shadow_error:true});break;}
     // Copy only bounded input fields. Never expose the mutable Watch or candidates
     // to evaluator/recorder, and never write raw content, URLs or provider metadata.
-    const input=Object.freeze({title:typeof item.title==='string'?item.title:'',excerpt:typeof item.excerpt==='string'?item.excerpt:'',
+    const input=Object.freeze({source:typeof item.source==='string'?item.source.slice(0,300):undefined,title:typeof item.title==='string'?item.title:'',excerpt:typeof item.excerpt==='string'?item.excerpt:'',
      url:typeof item.url==='string'?item.url:'',excerptProvenance:item.excerptProvenance?Object.freeze({...item.excerptProvenance}):undefined});
     const decision=evaluator({item:input,context:context?structuredClone(context):null});
     if(!['MATCH','NO_MATCH','INSUFFICIENT_EVIDENCE'].includes(decision?.result))throw Error('Invalid shadow result');
