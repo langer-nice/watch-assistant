@@ -50,7 +50,7 @@ test('owner isolation and invalid watch/candidate identifiers fail closed',()=>{
  for(const override of [{ownerId:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'},{ownerId:'invalid'},{watch:{...watch,id:'invalid'}}])call({...override,record:()=>assert.fail('No cross-owner observation')});
 });
 test('bounded CPU budget records a safe error and does not interrupt',()=>{
- const logs=[];let n=0;assert.doesNotThrow(()=>call({now:()=>n++?20:0,evaluator:()=>assert.fail('Over budget'),record:r=>logs.push(r)}));
+ const logs=[];let n=0;assert.doesNotThrow(()=>call({now:()=>n++?41:0,evaluator:()=>assert.fail('Over budget'),record:r=>logs.push(r)}));
  assert.deepEqual(logs[0].reason_codes,['SHADOW_BUDGET_EXCEEDED']);
 });
 test('H042-style multi-headline excerpt cannot complete a candidate title',()=>{
@@ -239,4 +239,9 @@ test('exact frozen H042/F08/J07 packets retain their protected abstentions',()=>
   const context=row.id==='J07'?{category:'ev_strategy',identities:['Jaguar'],requiredTopics:[],geography:[]}:{category:'evolving_story',identities:['students'],requiredTopics:[],geography:['France']};
   assert.equal(evaluateStoryShadow({context,item:{title,excerpt}}).result,row.expected,row.id);
  }
+});
+
+test('authorized shadow budget permits 40 ms and still preserves authoritative results',()=>{
+ const rows=[];let n=0;call({now:()=>n++?40:0,record:r=>rows.push(r)});
+ assert.equal(rows.length,1);assert.equal(rows[0].shadow_error,false);assert.equal(rows[0].current_result,'NO_MATCH');
 });

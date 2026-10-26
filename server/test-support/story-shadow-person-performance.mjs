@@ -22,7 +22,7 @@ if(process.argv[2]==='child'){
  samples.sort((a,b)=>a-b);
  console.log(JSON.stringify({moduleMs,cold,completed,warm:samples[0],p50:samples[29],p95:samples[56],warmCompleted:observerRows.filter(r=>!r.shadow_error).length}));
 }else{
- const report={node:process.version,budgetMs:8,batchSize:20,samplesPerProcess:60,coldProcesses:8};
+ const report={node:process.version,budgetMs:40,batchSize:20,samplesPerProcess:60,coldProcesses:8};
  for(const mode of ['direct','observer','observerFull']){
   const samples=[];
   for(let n=0;n<8;n++){

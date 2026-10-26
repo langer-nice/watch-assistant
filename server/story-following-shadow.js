@@ -30,7 +30,7 @@ export const observeStoryShadow = ({env=process.env,ownerId,watch,items,matching
     watch_id:watch.id,owner_key:hash(ownerId),candidate_key:hash(candidate),
     current_result:matched.has(item.id)?'MATCH':'NO_MATCH',created_at:clock()};
    try{
-    if(now()-start>8){record({...base,shadow_result:null,category:context?.category||'unknown',reason_codes:['SHADOW_BUDGET_EXCEEDED'],shadow_error:true});break;}
+    if(now()-start>40){record({...base,shadow_result:null,category:context?.category||'unknown',reason_codes:['SHADOW_BUDGET_EXCEEDED'],shadow_error:true});break;}
     // Copy only bounded input fields. Never expose the mutable Watch or candidates
     // to evaluator/recorder, and never write raw content, URLs or provider metadata.
     const input=Object.freeze({source:typeof item.source==='string'?item.source.slice(0,300):undefined,title:typeof item.title==='string'?item.title:'',excerpt:typeof item.excerpt==='string'?item.excerpt:'',
