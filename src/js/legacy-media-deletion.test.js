@@ -28,7 +28,7 @@ async function setup(t,{mode='success',context='owned',language='en',currency=fa
  globalThis.fetch=async(_path,options={})=>{
   if(options.method!=='POST')return Response.json({watches:context==='journal-missing'?[]:[row],emailEnabled:false});
   posts++;const job=JSON.parse(options.body);assert.equal(job.deleted,true);assert.equal(job.definition.id,id);
-  if(recovery){assert.equal(job.revision,3);assert.equal(job.confirmDeletion,true);assert.equal(job.definition.title,row.title);assert.notEqual(job.mutation,'ce8fdcc3-83de-4d2e-998f-46b9639b2911');}
+  if(recovery){assert.equal(job.revision,3);assert.equal(job.confirmDeletion,true);assert.equal(job.definition.title,row.title);assert.notEqual(job.mutation,'ec8fdcc3-83de-4d2e-998f-46b9639b2911');}
   await new Promise(r=>{held=r;});
   if(mode==='server')return Response.json({code:'DATABASE_ERROR'},{status:503});
   if(mode==='network')throw new TypeError('offline');
@@ -41,7 +41,7 @@ async function setup(t,{mode='success',context='owned',language='en',currency=fa
  await media.configureMediaWatchServerStore(auth);
  if(recovery)localStorage.setItem(`watchAssistant.mediaSync.${owner}.${id}`,JSON.stringify({
   definition:{id,title:'Stale local title',watch_definition:row.watch_definition,monitoring_source:row.monitoring_source,monitoring_state:'monitoring'},
-  revision:1,pending:true,deleted:true,conflict:true,errorCode:'MEDIA_CONFLICT',mutation:'ce8fdcc3-83de-4d2e-998f-46b9639b2911'
+  revision:1,pending:true,deleted:true,conflict:true,errorCode:'MEDIA_CONFLICT',mutation:'ec8fdcc3-83de-4d2e-998f-46b9639b2911'
  }));
  const storageModule=await import('./watch-storage.js');
  let watch=context==='journal-missing'?{...row.watch_definition,id,title:row.title,monitoringSource:row.monitoring_source,mediaPersistence:{ownerId:owner},createdAt:row.created_at,status:'watching'}:storageModule.getWatchById(id);
@@ -88,6 +88,6 @@ test('only the approved Royal deletion is shown and retries revision 3 with serv
 });
 test('an unrelated old deletion marker remains unchanged',async t=>{
  const f=await setup(t),key=`watchAssistant.mediaSync.${f.owner}.${f.id}`;
- const job=JSON.stringify({definition:{id:f.id},revision:1,pending:true,deleted:true,conflict:true,errorCode:'MEDIA_CONFLICT',mutation:'ce8fdcc3-83de-4d2e-998f-46b9639b2911'});
+ const job=JSON.stringify({definition:{id:f.id},revision:1,pending:true,deleted:true,conflict:true,errorCode:'MEDIA_CONFLICT',mutation:'ec8fdcc3-83de-4d2e-998f-46b9639b2911'});
  f.storage.setItem(key,job);assert(!f.visible());assert.equal(f.storage.getItem(key),job);assert.equal(f.posts(),0);
 });

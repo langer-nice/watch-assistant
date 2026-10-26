@@ -16,7 +16,7 @@ const canReconcileRoyalDeletion = (row, job, user) => row?.id === '4d387267-a8ee
   && !hasDefinitionVersion(row.watch_definition) && job?.definition?.id === row.id
   && job.revision === 1 && job.pending === true && job.deleted === true
   && job.conflict === true && job.errorCode === 'MEDIA_CONFLICT'
-  && job.mutation === 'ce8fdcc3-83de-4d2e-998f-46b9639b2911';
+  && job.mutation === 'ec8fdcc3-83de-4d2e-998f-46b9639b2911';
 let authSource;
 let unsubscribe;
 let generation = 0;
