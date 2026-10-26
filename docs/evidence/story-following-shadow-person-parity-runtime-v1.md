@@ -72,3 +72,17 @@ The current timer is a soft check between candidates, not preemptive cancellatio
 Only the existing two runtime presentation-free shadow files, focused test file, parity fixture, local benchmark and this report changed. Current matcher, non-person rules, hooks, notifications/emails, UI, schema, Watch data, cron and configuration unchanged. Existing offline prototypes/corpora untouched. No Check now, monitoring, cron, AI, retrieval, email or new Staging traffic. No deployment; existing Preview still runs its previous code. PR #70 remains draft/unmerged; master/Production untouched.
 
 Next step: request explicit approval for the proposed 40 ms budget, or further narrowly scoped performance work. **Not ready for a live Staging check under the current 8 ms budget.**
+
+## Authorized 40 ms budget and controlled-check preparation
+
+The user explicitly authorized increasing only observeStoryShadow() from 8 to 40 ms, one Preview deployment, and exactly one existing Jannik Sinner Staging check. No rule, other timeout, gate or delivery setting changed. Commit c6a60f7.
+
+58/58 focused tests PASS; exact 20-title parity remains 11 MATCH / 5 NO_MATCH / 4 INSUFFICIENT_EVIDENCE. H013 NO_MATCH; H042/F08/J07 unchanged. The updated fail-safe test uses 41 ms to prove safe truncation; exactly 40 ms remains permitted. Build PASS. No further optimization.
+
+Real 40 ms observer, 8 fresh processes × 60 warm batches: cold median 26.179 ms (maximum 26.520), warm 0.470 ms, p50 0.505, p95 0.838. Every cold and warm batch completed 20/20. The 40 ms budget is sufficient for this local sample; the soft between-candidate limitation remains.
+
+Preview deployment dpl_Gn8UPYVoiwjWJdqv2mfzavBrqzCt is READY, explicit API target staging, exact branch/commit c6a60f706a6bf929c67885b45d03fcd0f4166e0b, URL https://watch-assistant-31avwxpml-david-lang.vercel.app. Existing project and branch-specific Staging database reused. Read-only flag inspection confirms all Watch/media/Structured email gates, notification intents and scheduled execution OFF; shadow ON. No configuration changed.
+
+The new origin requires the user's existing OTP login before the authorized check. No Check now has yet been run. Notification-count verification is not yet available: the managed Node fetch failed; automatic review rejected temporary credential-file persistence and credential transfer into an unsandboxed terminal. No secret was written/transmitted by those rejected operations. No credential rotation or security bypass attempted.
+
+Read-only fallback succeeded through the existing authenticated Supabase dashboard, project watch-assistant-staging (tseexvbwhrtofcsrvcqc), using a SELECT scoped to the authorized Watch only: notification_count=23, sent_count=18 before the controlled check. No Watch/notification row changed. No credential was needed in the SQL editor. OTP login on the new Preview origin remains pending; zero controlled checks performed so far.
