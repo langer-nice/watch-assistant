@@ -161,7 +161,7 @@ const pointer = (value, path, reject = rejectFor('validateInterpretation')) => {
   return value;
 };
 
-export const reconstructInterpretation = (output, request) => {
+export const reconstructInterpretation = (output, request, { canonicalize } = {}) => {
   const reject = rejectFor('reconstructInterpretation');
   if (typeof request !== 'string' || !conforms(output, interpretationOutputSchema)) rejectSchema('reconstructInterpretation', output, interpretationOutputSchema, typeof request === 'string');
   // Computed only after the existing lookup rejects; never log evidence contents.
@@ -207,7 +207,7 @@ export const reconstructInterpretation = (output, request) => {
       return raw;
     }).sort();
   }
-  return validateInterpretation(value, request);
+  return validateInterpretation(canonicalize ? canonicalize(value, request) : value, request);
 };
 
 export const validateInterpretation = (value, request = value?.originalRequest) => {

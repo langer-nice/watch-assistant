@@ -1,6 +1,7 @@
 import {roleDevelopmentIntent,validRoleResolution} from '../src/js/role-development.js';
 import {resolveCurrentRole} from './role-development.js';
 import { requestStructuredOutput } from './request-clarification-api.js';
+import { canonicalizeWatchInterpretation } from './watch-interpretation-canonicalizer.js';
 import { interpretationOutputSchema, reconstructInterpretation } from '../src/js/watch-interpretation.js';
 
 const error = (code, statusCode, failureCategory) => Object.assign(new Error(code), { code, statusCode, ...(failureCategory ? {failureCategory} : {}) });
@@ -59,7 +60,7 @@ export const interpretWatchRequest = async (request, {
     phase = 'shape';
     if (!output || typeof output !== 'object' || Array.isArray(output) || Object.hasOwn(output, 'originalRequest')) throw error('INTERPRETATION_FAILED', 502);
     phase = 'validation';
-    const interpretation = reconstructInterpretation(output, request);
+    const interpretation = reconstructInterpretation(output, request, { canonicalize: canonicalizeWatchInterpretation });
     let roleResolution;
     const intent=roleDevelopmentIntent(interpretation);
     if(intent && interpretation.unresolvedRequirements.every(r=>r.reason==='CURRENT_ROLE_HOLDER_UNVERIFIED')){
