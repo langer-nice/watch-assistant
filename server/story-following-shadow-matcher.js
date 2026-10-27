@@ -1,5 +1,5 @@
 // Deterministic observation only. No providers, persistence or corpus IDs.
-export const STORY_SHADOW_VERSION = 'story-shadow.person-parity.v2';
+export const STORY_SHADOW_VERSION = 'story-shadow.person-human-fixes.v1';
 const fold = value => String(value || '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[’]/g, "'").replace(/[\u2010-\u2014]/g, '-');
 const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const phrase = (text, value) => new RegExp(`(^|[^\\p{L}\\p{N}])${escape(fold(value))}(?=$|[^\\p{L}\\p{N}])`, 'u').test(text);
@@ -136,10 +136,10 @@ export const evaluateStoryShadow = ({item,context}) => {
  return result;
 };
 
-// Namespaced pure offline v2 core; no fixture or evaluation-result imports.
+// Namespaced validated offline person core; no fixture or evaluation-result imports.
 export const classifyShadowPerson = (() => {
 // Isolated deterministic person experiment. No application imports, I/O, corpus IDs or learned state.
-const PERSON_VERSION = 'person-parity.v2';
+const PERSON_VERSION = 'person-human-fixes.v1';
 const norm = s => String(s||'').normalize('NFKD').replace(/\p{M}/gu,'').replace(/[’]/g,"'").toLowerCase();
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 // Reuse one Unicode-letter check instead of compiling its character table
@@ -200,6 +200,12 @@ function classifyPerson({title='',ownedText='',source=null},{name,profession='te
  // A proven other subject is not made relevant by an uncertainty marker.
  // Keep normal status/event ordering when the monitored person may be present.
  if(identity==='MISSING'&&!short){const outside=hardOutsideScope();if(outside)return outside;}
+ // Bounded attributed framing; no nickname expansion or implied event facts.
+ const framingTitle=title.replace(/^[“‘"'][^”’"']{1,80}[”’"']\s*[–—-]\s*/,'');
+ const lead=/^([A-Z][a-z]+(?: [A-Z][a-z]+){0,3})(?::\s*|\s+(?:issues|gives|offers|sends|says whether)\b)/.exec(framingTitle);
+ const thirdParty=Boolean(lead&&norm(lead[1])!==norm(name)&&norm(lead[1])!==norm(surname));
+ const concreteChange=/\b(?:announc\w*|confirm\w*|return\w*|comeback|withdraw\w*|injur\w*|medical|surgery|diagnos\w*|hires?|hired|hiring|appoint\w*|joins?|parts?|resum\w*|wins?|loses?|reaches?|qualif\w*|climbs?|rises?|falls?|enters?|misses?|defend\w*|decid\w*|decision|ruled out)\b/.test(t);
+ if(thirdParty&&identity!=='MISSING'&&!concreteChange&&/\bsays whether (?:he|she|they) would(?: ever)? consider coaching\b/.test(t))return result('NO_MATCH',identity,null,'HYPOTHETICAL','EXPLICIT_THIRD_PARTY_HYPOTHETICAL_COACHING');
  const hypothetical=/\bwould coach\b|\bif he would\b/.test(text);
  const fan=/\bfan\b.{0,65}\b(?:remark|comment|doping)\b/.test(t);
  if(hypothetical||fan)return result('NO_MATCH',identity,null,hypothetical?'HYPOTHETICAL':'FAN_REMARK','THIRD_PARTY_OR_HYPOTHETICAL');
@@ -218,12 +224,17 @@ function classifyPerson({title='',ownedText='',source=null},{name,profession='te
   ['INJURY_HEALTH_CHANGE','(?:is injured|suffers?\\b.{0,35}injur|injur(?:y|ies) (?:worsens?|improves?)|injures?\\b|(?:is |has been )?ruled out\\b|ends? (?:his )?season\\b.{0,65}(?:injur|knee)|announces?\\b.{0,30}medical update)'],
   ['RETURN_COMEBACK','(?:has |will |to )?returns?\\b.{0,80}(?:injur|tournament|competition|training|slam|tennis)|comeback date (?:is |was )?announced\\b|(?:to |will )?start(?:s)? comeback\\b.{0,70}(?:slam|tournament|competition)|resumes? (?:training|competition)\\b|delays? (?:his )?return\\b'],
   ['PARTICIPATION','(?:will |to )?(?:plays?|enters?|misses?)\\b.{0,65}(?:tournament|competition|slam|tennis)|announces? participation\\b.{0,65}(?:tournament|competition|slam|tennis)'],
+  ['PARTICIPATION','(?:will |to )?defend(?:s)? (?:his |the )?.{0,50}\\b(?:tennis|tournament|slam|wimbledon|atp)(?: singles| doubles)? title\\b'],
   ['TRAINING_CHANGE','changes? (?:his )?training schedule\\b'],
   ['COMPETITION_RANKING','(?:wins?|loses?|reaches?|qualifies for|climbs|rises to)\\b.{0,65}(?:tournament|final|ranking|round|competition|atp)']
  ];
  if(identity!=='MISSING'&&!negated)for(const [development,pattern] of patterns){
   if(fact(pattern))return result('MATCH',identity,development,/\b(?:will|to return|to play|announced|report:)\b/.test(t)?'REPORTED_OR_SCHEDULED':'ASSERTED','IDENTITY_AND_PERSONAL_DEVELOPMENT');
  }
+ const verdict=/\b(?:issues|gives|offers) (?:an? |his |her )?(?:honest |clear |personal )?(?:verdict|opinion|reaction|comparison) (?:on|about|of)\b/.test(t);
+ const rankingMessage=/\bsends (?:a )?(?:clear |honest )?message (?:over|about)\b/.test(t)&&/\branking debate\b/.test(t);
+ const dominanceExplanation=/:\s*why (?:we(?:'re| are)|i(?:'m| am))\b/.test(norm(framingTitle))&&/\b(?:dominance|stronghold)\b/.test(t);
+ if(thirdParty&&!concreteChange&&((identity!=='MISSING'&&(verdict||rankingMessage))||dominanceExplanation))return result('NO_MATCH',identity,null,'ATTRIBUTED_OPINION_OR_REACTION','EXPLICIT_THIRD_PARTY_COMMENTARY');
  const indirect=/\bdisagrees with (?:the )?claim\b|\bsends (?:a )?message to\b|\bpraises\b/.test(t)
   ||/\b(?:olympian|third.party)\b.{0,45}\b(?:message|opinion|react)\b/.test(t);
  if(indirect)return result('NO_MATCH',identity,null,'ATTRIBUTED_OPINION_OR_REACTION','INDIRECT_OR_OTHER_STORY');

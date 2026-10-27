@@ -204,7 +204,7 @@ test('absence of a wrong-story fact cannot turn uncertainty into rejection',()=>
 }
 
 const personWatch={...watch,interpretation:{...watch.interpretation,subjects:[{id:'person',kind:'individual',type:'person',label:'Jannik Sinner'}]}};
-test('20 frozen offline v2 decisions: exact core metadata and runtime adapter parity, order independent',()=>{
+test('20 frozen titles: exact validated offline core metadata and runtime adapter parity, order independent',()=>{
  const context=storyShadowContext(personWatch),counts={};
  for(const row of personFixture.items){
   const input=personFixture.inputs.find(i=>i.title===row.title);
@@ -244,4 +244,50 @@ test('exact frozen H042/F08/J07 packets retain their protected abstentions',()=>
 test('authorized shadow budget permits 40 ms and still preserves authoritative results',()=>{
  const rows=[];let n=0;call({now:()=>n++?40:0,record:r=>rows.push(r)});
  assert.equal(rows.length,1);assert.equal(rows[0].shadow_error,false);assert.equal(rows[0].current_result,'NO_MATCH');
+});
+
+{
+const classifyPerson=classifyShadowPerson;
+const context={name:'Jannik Sinner',profession:'tennis',allowSurname:true};
+const added=[
+ ['Ben Shelton issues honest verdict on Jannik Sinner','NO_MATCH'],
+ ['Daniil Medvedev sends clear message over Jannik Sinner in No 1 ranking debate','NO_MATCH'],
+ ["Medvedev: Why We're Not Snapping Sincaraz Stronghold",'NO_MATCH'],
+ ['Toni Nadal says whether he would ever consider coaching Jannik Sinner','NO_MATCH'],
+ ['Avery Reed gives his personal opinion about Jannik Sinner','NO_MATCH'],
+ ['Sinner to defend Vienna tournament title','MATCH'],
+ ['Sinner to defend Wimbledon title','MATCH'],
+ ['Sinner to defend Vienna title','INSUFFICIENT_EVIDENCE'],
+ ['Jannik Sinner to defend a property title','INSUFFICIENT_EVIDENCE'],
+ ['Sinner to defend a religious title','INSUFFICIENT_EVIDENCE'],
+ ['A sinner seeks forgiveness while defending a religious title','NO_MATCH'],
+ ['Alex Sinner to defend Wimbledon title','NO_MATCH'],
+ ['Sinner may defend Wimbledon title','INSUFFICIENT_EVIDENCE'],
+ ['Sinner will not defend Wimbledon title','INSUFFICIENT_EVIDENCE'],
+ ['Jannik Sinner hires a new coach','MATCH'],
+ ['Jannik Sinner rises to number one in the ATP ranking','MATCH'],
+ ['Jannik Sinner returns from injury to the tournament','MATCH'],
+ ['Ben Shelton issues verdict: Jannik Sinner will return from injury','MATCH'],
+ ['Toni Nadal says whether he would ever consider coaching someone; Jannik Sinner hires a new coach','MATCH'],
+ ['Medvedev: Why Jannik Sinner enters the tournament','MATCH'],
+ ['Ben Shelton issues verdict on Jannik Sinner medical diagnosis','INSUFFICIENT_EVIDENCE'],
+ ['Jannik Sinner sends clear message over his tournament withdrawal','INSUFFICIENT_EVIDENCE'],
+ ['Jannik Sinner says whether he would ever consider coaching someone','INSUFFICIENT_EVIDENCE'],
+ ['Coach issues verdict on an unnamed tennis player','INSUFFICIENT_EVIDENCE']
+];
+for(const [title,expected] of added)test('human-fix safety: '+title,()=>assert.equal(classifyPerson({title},context).label,expected));
+
+}
+
+test('human-fix runtime adapter exactly matches ten new offline decisions without changing human labels',()=>{
+ const context=storyShadowContext(personWatch),results=[];
+ for(const row of personFixture.humanCases){
+  const item={title:row.title};
+  assert.deepEqual(classifyShadowPerson(item,context.person),row.decision,row.id);
+  const r=evaluateStoryShadow({item,context});
+  assert.equal(r.result,row.decision.label,row.id);assert.deepEqual(r.reasonCodes,[row.decision.reason],row.id);
+  results.push({id:row.id,correct:r.result===row.human});
+ }
+ assert.equal(results.filter(r=>r.correct).length,9);
+ assert.deepEqual(results.filter(r=>!r.correct).map(r=>r.id),['98391a5fde0a1bfe51c0f4b1e3d39ff44b654b79f6097cbadafc625fe7c49901']);
 });
