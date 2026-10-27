@@ -89,3 +89,57 @@ test('successful handler still returns review without logging or persistence; lo
  assert.equal(rejected.status,502);assert.equal(rejected.body.code,'INTERPRETATION_FAILED');
  assert(!Object.hasOwn(rejected.body,'validation'));
 });
+
+// Existing synthetic Microsoft fixture; no provider calls or production replay.
+for (const [name, quote, context, quoteCount, contextCount, scope] of [
+ ['quote missing', 'absent-evidence', null, 0, null, 'request'],
+ ['quote duplicated', 'in', null, 3, null, 'request'],
+ ['context missing', 'absent', 'absent context', 1, 0, 'context'],
+ ['context duplicated', 'in', 'in', 1, 3, 'context'],
+ ['multiple relationships fail', 'absent-evidence', 'in', 0, 3, 'context'],
+ ['quote duplicated inside unique context', 'in', request, 3, 1, 'context'],
+]) test('unique quote occurrence diagnostic: '+name,()=>{
+ const value=output(valid());value.evidence[0]={...value.evidence[0],quote,context};
+ assert.throws(()=>reconstructInterpretation(value,request),error=>{
+  assert.equal(error.code,'INTERPRETATION_FAILED');assert.equal(error.statusCode,502);
+  assert.equal(error.message,'Structured interpretation failed validation.');
+  const diagnostic=safeValidationDiagnostic(error);
+  assert.equal(diagnostic.predicate,'evidence.unique_quote');
+  assert.deepEqual(diagnostic.actual,{
+   quoteLength:quote.length,contextPresent:context!==null,contextLength:context?.length??null,
+   quoteOccurrenceCount:quoteCount,contextOccurrenceCount:contextCount,quoteSearchScope:scope,
+   contextFoundExactlyOnce:contextCount===null?null:contextCount===1,quoteFoundExactlyOnce:quoteCount===1,
+  });
+  assert(!Object.hasOwn(diagnostic.actual,'quote'));
+  assert(!Object.hasOwn(diagnostic.actual,'context'));
+  assert(!JSON.stringify(diagnostic).includes(request));return true;
+ });
+});
+
+test('unique context can disambiguate a globally repeated quote without failure',()=>{
+ const value=output(valid());value.evidence.push({path:'/conditions/0',quote:'in',context:'earnings'});
+ const reconstructed=reconstructInterpretation(value,request);
+ assert.equal(reconstructed.evidence.at(-1).text,'in');
+ assert.equal(reconstructed.evidence.at(-1).start,request.indexOf('earnings')+4);
+});
+
+test('unique quote occurrence counting preserves overlapping rejection',()=>{
+ const original='aaa '+request;
+ const value=output(fixture(original,[individual('microsoft','Microsoft')],[predicate('news','news_about',['microsoft'])]));
+ value.evidence[0].quote='aa';
+ assert.throws(()=>reconstructInterpretation(value,original),error=>{
+  assert.equal(safeValidationDiagnostic(error).predicate,'evidence.unique_quote');
+  assert.equal(safeValidationDiagnostic(error).actual.quoteOccurrenceCount,2);return true;
+ });
+});
+
+test('Production warning carries occurrence counts without evidence content or HTTP changes',async()=>{
+ const value=output(valid());value.evidence[0].quote=privateValue;
+ const result=await call({value});
+ assert.equal(result.status,502);
+ assert.deepEqual(result.body,{mode:'interpretation.v1',executable:false,code:'INTERPRETATION_FAILED',failureCategory:'STRUCTURED_VALIDATION'});
+ const {actual}=result.logs[0][1].validation;
+ assert.equal(actual.quoteOccurrenceCount,0);assert.equal(actual.contextPresent,false);
+ assert.equal(actual.quoteLength,privateValue.length);
+ assert(!JSON.stringify(result).includes(privateValue));assert(!JSON.stringify(result).includes(request));
+});
