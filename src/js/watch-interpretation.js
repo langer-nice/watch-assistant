@@ -76,8 +76,58 @@ const compiledPlanSchema = object({ schemaVersion: enumeration('monitoring-plan.
 });
 export const monitoringPlanSchema = { anyOf: [pendingPlanSchema, compiledPlanSchema] };
 
-const fail = reason => { throw Object.assign(new Error('Structured interpretation failed validation.'),
-  { code: 'INTERPRETATION_FAILED', statusCode: 502, ...(reason ? { reason } : {}) }); };
+// Temporary server-log metadata. Only this module can register trusted diagnostics.
+const validationDiagnostics = new WeakMap();
+export const safeValidationDiagnostic = error => validationDiagnostics.get(error);
+const fail = (reason, diagnostic) => {
+  const error = Object.assign(new Error('Structured interpretation failed validation.'),
+    { code: 'INTERPRETATION_FAILED', statusCode: 502, ...(reason ? { reason } : {}) });
+  if (diagnostic) {
+    const metadata = Object.freeze(diagnostic);
+    validationDiagnostics.set(error, metadata);
+    Object.defineProperty(error, 'validationDiagnostic', { value: metadata });
+  }
+  throw error;
+};
+const validationFailure = (validator, predicate, expected, actual = { conditionSatisfied: false }, reason) =>
+  fail(reason, { category: 'STRUCTURED_VALIDATION', validator,
+    stage: validator === 'reconstructInterpretation' ? 'reconstruction' : 'validation', predicate, expected, actual });
+const rejectFor = validator => (predicate, expected, actual, reason) =>
+  validationFailure(validator, predicate, expected, actual, reason);
+const valueType = value => value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+// Invoked only after the unchanged boolean schema check rejects. Never copy model
+// keys or scalar contents: paths and missing keys come exclusively from our schema.
+const schemaFailure = (value, schema, path = '$') => {
+  const result = (predicate, expected, actual) => ({ predicate, expected, actual: { path, ...actual } });
+  if (schema.anyOf) return result('schema.any_of', 'one declared alternative must match', {
+    type: valueType(value), alternatives: schema.anyOf.map(candidate => schemaFailure(value, candidate, path)),
+  });
+  if (schema.enum && !schema.enum.includes(value)) return result('schema.enum', 'declared enum member', { type: valueType(value), allowed: schema.enum });
+  if (valueType(value) !== schema.type && !(schema.type === 'integer' && Number.isSafeInteger(value)))
+    return result('schema.type', schema.type, { type: valueType(value) });
+  if (schema.type === 'object') {
+    const missing = schema.required.filter(key => !Object.hasOwn(value, key));
+    if (Object.keys(value).length !== schema.required.length || missing.length)
+      return result('schema.object_keys', 'exact required keys', { missing, keyCount: Object.keys(value).length, expectedKeyCount: schema.required.length });
+    for (const key of schema.required) if (!conforms(value[key], schema.properties[key]))
+      return schemaFailure(value[key], schema.properties[key], `${path}.${key}`);
+  } else if (schema.type === 'array') {
+    if (value.length < schema.minItems || value.length > schema.maxItems)
+      return result('schema.array_length', 'within declared bounds', { length: value.length, min: schema.minItems, max: schema.maxItems });
+    for (let i = 0; i < value.length; i++) if (!conforms(value[i], schema.items))
+      return schemaFailure(value[i], schema.items, `${path}[${i}]`);
+  } else if (schema.type === 'string') {
+    if (value.trim().length < (schema.minLength ?? 0) || value.length > (schema.maxLength ?? Infinity))
+      return result('schema.string_length', 'within declared bounds', { length: value.length, trimmedLength: value.trim().length });
+    if (schema.pattern && !new RegExp(schema.pattern, 'u').test(value))
+      return result('schema.string_pattern', 'declared lexical pattern', { length: value.length });
+  } else if (schema.type === 'integer') return result('schema.integer_range', 'safe integer within declared bounds', { type: valueType(value), safeInteger: Number.isSafeInteger(value) });
+  return result('schema.constraint', 'declared schema', { type: valueType(value) });
+};
+const rejectSchema = (validator, value, schema, requestValid = true) => {
+  const diagnostic = requestValid ? schemaFailure(value, schema) : { predicate: 'request.identity', expected: 'original request string unchanged', actual: { conditionSatisfied: false } };
+  validationFailure(validator, diagnostic.predicate, diagnostic.expected, diagnostic.actual);
+};
 const conforms = (value, schema) => {
   if (schema.anyOf) return schema.anyOf.some(candidate => conforms(value, candidate));
   if (schema.enum && !schema.enum.includes(value)) return false;
@@ -102,25 +152,26 @@ const fold = text => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().
 const countryWords = { IT: ['italian', 'italians', 'italien', 'italiens', 'italienne', 'italiennes'],
   FR: ['french', 'francais', 'francaise', 'francaises'], GB: ['british', 'britannique', 'britanniques'],
   US: ['american', 'americain', 'americaine', 'americains', 'americaines'] };
-const pointer = (value, path) => {
-  if (!/^\/(?:[a-zA-Z]+|\d+)(?:\/(?:[a-zA-Z]+|\d+))*$/u.test(path)) fail();
+const pointer = (value, path, reject = rejectFor('validateInterpretation')) => {
+  if (!/^\/(?:[a-zA-Z]+|\d+)(?:\/(?:[a-zA-Z]+|\d+))*$/u.test(path)) reject('evidence.pointer_syntax', 'valid evidence pointer syntax');
   for (const key of path.slice(1).split('/')) {
-    if (value == null || !Object.hasOwn(value, key)) fail();
+    if (value == null || !Object.hasOwn(value, key)) reject('evidence.pointer_exists', 'evidence pointer resolves');
     value = value[key];
   }
   return value;
 };
 
 export const reconstructInterpretation = (output, request) => {
-  if (typeof request !== 'string' || !conforms(output, interpretationOutputSchema)) fail();
+  const reject = rejectFor('reconstructInterpretation');
+  if (typeof request !== 'string' || !conforms(output, interpretationOutputSchema)) rejectSchema('reconstructInterpretation', output, interpretationOutputSchema, typeof request === 'string');
   const locate = (text, source) => {
     const start = source.indexOf(text);
-    if (start < 0 || source.indexOf(text, start + 1) >= 0) fail();
+    if (start < 0 || source.indexOf(text, start + 1) >= 0) reject('evidence.unique_quote', 'quote and context occur exactly once');
     return start;
   };
   const value = { ...structuredClone(output), originalRequest: request };
   value.evidence = output.evidence.map(({ path, quote, context }) => {
-    pointer(value, path);
+    pointer(value, path, reject);
     const start = context === null ? locate(quote, request) : locate(context, request) + locate(quote, context);
     return { path, text: quote, start, end: start + quote.length };
   });
@@ -142,11 +193,12 @@ export const reconstructInterpretation = (output, request) => {
 };
 
 export const validateInterpretation = (value, request = value?.originalRequest) => {
-  if (!conforms(value, interpretationSchema) || value.originalRequest !== request) fail();
+  const reject = rejectFor('validateInterpretation');
+  if (!conforms(value, interpretationSchema) || value.originalRequest !== request) rejectSchema('validateInterpretation', value, interpretationSchema, value?.originalRequest === request);
   const subjects = new Map(value.subjects.map(s => [s.id, s]));
   const nodes = new Map(value.conditions.map(n => [n.id, n]));
   if (subjects.size !== value.subjects.length || nodes.size !== value.conditions.length
-    || [...subjects.keys()].some(key => nodes.has(key))) fail();
+    || [...subjects.keys()].some(key => nodes.has(key))) reject('identity.unique_ids', 'unique disjoint subject and condition IDs');
   // Meaning consistency only, never capability approval or domain rewriting.
   const predicates = value.conditions.filter(n => n.op === 'predicate');
   const news = predicates.some(n => ['news_about', 'mentions_together'].includes(n.kind));
@@ -156,55 +208,55 @@ export const validateInterpretation = (value, request = value?.originalRequest) 
     || (news && value.domain !== 'media_news')
     || (value.domain === 'official_company' && (!['event', 'change'].includes(value.intent) || !official))
     || (value.domain === 'currency' && (value.intent !== 'numeric_condition' || !predicates.some(n => n.kind === 'numeric')))
-    || (value.domain === 'ticket_availability' && value.intent !== 'event')) fail('DOMAIN_PREDICATE_CONFLICT');
+    || (value.domain === 'ticket_availability' && value.intent !== 'event')) reject('domain.predicate_consistency', 'domain, intent and predicates agree', { intent: value.intent, domain: value.domain }, 'DOMAIN_PREDICATE_CONFLICT');
   for (const evidence of value.evidence) {
     pointer(value, evidence.path);
-    if (evidence.end <= evidence.start || request.slice(evidence.start, evidence.end) !== evidence.text) fail();
+    if (evidence.end <= evidence.start || request.slice(evidence.start, evidence.end) !== evidence.text) reject('evidence.exact_span', 'positive span reproduces original text');
   }
   const grounded = path => value.evidence.some(e => e.path === path);
   value.subjects.forEach((s, index) => {
     if (!grounded(`/subjects/${index}/label`)
-      || !value.evidence.some(e => e.path === `/subjects/${index}/label` && fold(e.text) === fold(s.label))) fail();
+      || !value.evidence.some(e => e.path === `/subjects/${index}/label` && fold(e.text) === fold(s.label))) reject('subject.label_grounding', 'label matches grounded evidence', { subjectIndex: index, labelMatched: false });
     if (!unique(s.members) || s.members.some(key => !subjects.has(key) || key === s.id)
-      || s.members.some(key => subjects.get(key).kind !== 'individual')) fail();
-    if (s.kind === 'individual' && (s.members.length || s.membership.length || s.quantifier !== null)) fail();
-    if (s.kind !== 'individual' && (!s.quantifier || (s.kind === 'open_group' ? !s.membership.length : (!s.members.length || s.membership.length)))) fail();
+      || s.members.some(key => subjects.get(key).kind !== 'individual')) reject('subject.member_references', 'unique existing individual member references');
+    if (s.kind === 'individual' && (s.members.length || s.membership.length || s.quantifier !== null)) reject('subject.individual_shape', 'individual has no group properties');
+    if (s.kind !== 'individual' && (!s.quantifier || (s.kind === 'open_group' ? !s.membership.length : (!s.members.length || s.membership.length)))) reject('subject.group_shape', 'group has required quantifier and membership');
     if (s.canonicalCode && (s.type !== 'currency' || !new RegExp(s.canonicalCode === 'GBP'
       ? '^(?:gbp|pounds?(?: sterling)?|sterling|livres?(?: sterling)?|£)$'
-      : '^(?:eur|euros?|€)$', 'u').test(fold(s.label)))) fail();
+      : '^(?:eur|euros?|€)$', 'u').test(fold(s.label)))) reject('subject.currency_label', 'canonical currency matches type and lexical label');
     s.membership.forEach((m, i) => {
       const path = `/subjects/${index}/membership/${i}`;
-      if (!grounded(path) || !unique(m.values) || (m.operator === 'eq' && m.values.length !== 1)) fail();
+      if (!grounded(path) || !unique(m.values) || (m.operator === 'eq' && m.values.length !== 1)) reject('membership.structure', 'grounded unique values and correct eq cardinality');
       const spans = value.evidence.filter(e => e.path === path).map(e => e.text).join(' ');
       const words = fold(spans).match(/[\p{L}\p{N}]+/gu) || [];
       if (['nationality', 'country_association'].includes(m.attribute) && m.values.some(code =>
         !/^[A-Z]{2}$/u.test(code) || (!new RegExp(`(?:^|[^\\p{L}\\p{N}])${code}(?:$|[^\\p{L}\\p{N}])`, 'u').test(spans)
-          && !(countryWords[code] || []).some(word => words.includes(word))))) fail();
+          && !(countryWords[code] || []).some(word => words.includes(word))))) reject('membership.country_grounding', 'country code supported by evidence');
       if (['sport', 'tour', 'industry'].includes(m.attribute) && m.values.some(v =>
-        !words.includes(fold(v)) && !(m.attribute === 'industry' && v === 'fashion' && words.includes('mode')))) fail();
+        !words.includes(fold(v)) && !(m.attribute === 'industry' && v === 'fashion' && words.includes('mode')))) reject('membership.value_grounding', 'membership value supported by evidence');
     });
-    if (!unique(s.membership.map(m => m.attribute))) fail();
-    if (s.membership.some(m => m.attribute === 'other') && !value.unresolvedRequirements.length) fail();
+    if (!unique(s.membership.map(m => m.attribute))) reject('membership.unique_attributes', 'membership attributes unique');
+    if (s.membership.some(m => m.attribute === 'other') && !value.unresolvedRequirements.length) reject('membership.other_unresolved', 'other membership has unresolved requirement');
   });
   const visiting = new Set(), reached = new Set();
   const walk = (key, depth = 0) => {
-    if (!nodes.has(key) || depth > 8 || visiting.has(key)) fail();
+    if (!nodes.has(key) || depth > 8 || visiting.has(key)) reject('condition.graph_reference', 'existing acyclic graph within depth limit');
     if (reached.has(key)) return;
     visiting.add(key);
     const node = nodes.get(key);
     if (node.op !== 'predicate') {
-      if (!unique(node.args)) fail();
+      if (!unique(node.args)) reject('condition.unique_args', 'boolean arguments unique');
       node.args.forEach(child => walk(child, depth + 1));
       // Reject direct A AND NOT A, and A OR NOT A (a silently universal scope).
       const negated = node.args.filter(child => nodes.get(child)?.op === 'not').map(child => nodes.get(child).args[0]);
-      if (negated.some(child => node.args.includes(child))) fail();
+      if (negated.some(child => node.args.includes(child))) reject('condition.direct_negation', 'no direct condition and its negation');
     }
     visiting.delete(key); reached.add(key);
   };
   if (value.condition) walk(value.condition);
   value.exclusions.forEach(key => walk(key));
-  if (!unique(value.exclusions) || (value.condition && value.exclusions.includes(value.condition)) || reached.size !== nodes.size) fail();
-  if ((!value.condition || !value.subjects.length) && !value.ambiguities.length && !value.unresolvedRequirements.length) fail();
+  if (!unique(value.exclusions) || (value.condition && value.exclusions.includes(value.condition)) || reached.size !== nodes.size) reject('condition.graph_coverage', 'valid exclusions and all graph nodes reachable');
+  if ((!value.condition || !value.subjects.length) && !value.ambiguities.length && !value.unresolvedRequirements.length) reject('intent.required_context', 'root and subject or explicit ambiguity/unresolved requirement');
   if (value.recurrence !== 'unspecified') {
     const cues = {
       once: /\b(?:once|one time|une seule fois)\b/iu,
@@ -212,73 +264,73 @@ export const validateInterpretation = (value, request = value?.originalRequest) 
       per_observation: /\b(?:each observation|every observation|every published rate|chaque observation|chaque publication)\b/iu,
       per_new_item: /\b(?:each new article|every new article|each new item|chaque nouvel article|chaque nouvelle publication)\b/iu,
     };
-    if (!value.evidence.some(e => e.path === '/recurrence' && cues[value.recurrence].test(e.text))) fail();
+    if (!value.evidence.some(e => e.path === '/recurrence' && cues[value.recurrence].test(e.text))) reject('recurrence.grounded_cue', 'recurrence supported by its evidence cue', { recurrence: value.recurrence, cueMatched: false });
   }
   if (value.domain === 'currency' && /\b(?:whenever|each time|every time|chaque fois)\b/iu.test(request)
-    && value.recurrence === 'unspecified' && !value.ambiguities.some(a => a.field === 'recurrence')) fail();
+    && value.recurrence === 'unspecified' && !value.ambiguities.some(a => a.field === 'recurrence')) reject('recurrence.currency_ambiguity', 'currency recurrence specified or ambiguity retained');
   // Obvious negative qualifiers cannot disappear even when an AI returns valid JSON.
   if (/\b(?:excluding|except|without|sauf|sans|hors)\b/iu.test(request)
     && !value.exclusions.length && !value.conditions.some(n => n.op === 'not')
-    && !value.unresolvedRequirements.length && !value.ambiguities.length) fail();
+    && !value.unresolvedRequirements.length && !value.ambiguities.length) reject('exclusion.negative_qualifier', 'negative qualifier retained or explicitly unresolved');
   value.conditions.forEach((n, index) => {
-    if (!grounded(`/conditions/${index}`)) fail();
+    if (!grounded(`/conditions/${index}`)) reject('condition.grounded', 'condition has evidence', { conditionIndex: index, evidencePresent: false });
     if (n.op !== 'predicate') return;
-    if (!n.subjects.length || !unique(n.subjects) || n.subjects.some(key => !subjects.has(key))) fail();
-    if (n.kind === 'news_about' && n.subjects.length !== 1) fail();
-    if (n.kind === 'news_about' && n.value !== null) fail();
+    if (!n.subjects.length || !unique(n.subjects) || n.subjects.some(key => !subjects.has(key))) reject('condition.subject_references', 'nonempty unique existing subject references');
+    if (n.kind === 'news_about' && n.subjects.length !== 1) reject('news.subject_count', 'news_about has one subject');
+    if (n.kind === 'news_about' && n.value !== null) reject('news.null_value', 'news_about value is null');
     if (['news_about', 'mentions_together', 'relationship'].includes(n.kind)
       && n.subjects.some(key => !value.evidence.some(e => e.path === `/conditions/${index}`
-        && fold(e.text).includes(fold(subjects.get(key).label))))) fail('CONDITION_EVIDENCE_MISMATCH');
+        && fold(e.text).includes(fold(subjects.get(key).label))))) reject('condition.subject_grounding', 'condition evidence includes subject labels', undefined, 'CONDITION_EVIDENCE_MISMATCH');
     if (n.kind === 'event' && officialEvents.has(n.value)) {
       // An organization name alone never establishes an official-source request.
       const spans = value.evidence.filter(e => e.path === `/conditions/${index}`).map(e => e.text).join(' ');
-      if (!/\b(?:official|officiels?|officielles?|issuer|emetteur|registry|registre|bodacc)\b/u.test(fold(spans))) fail('OFFICIAL_SOURCE_UNGROUNDED');
-      if (n.subjects.some(key => subjects.get(key).type !== 'organization')) fail('DOMAIN_PREDICATE_CONFLICT');
+      if (!/\b(?:official|officiels?|officielles?|issuer|emetteur|registry|registre|bodacc)\b/u.test(fold(spans))) reject('official.source_grounding', 'official event evidence includes official source cue', undefined, 'OFFICIAL_SOURCE_UNGROUNDED');
+      if (n.subjects.some(key => subjects.get(key).type !== 'organization')) reject('official.organization_subject', 'official event subjects are organizations', undefined, 'DOMAIN_PREDICATE_CONFLICT');
     }
     if (n.kind === 'numeric') {
-      if (!n.operator || !n.amount || !n.unit || (value.domain === 'currency' && Number(n.amount) <= 0)) fail();
+      if (!n.operator || !n.amount || !n.unit || (value.domain === 'currency' && Number(n.amount) <= 0)) reject('numeric.required_fields', 'numeric operator amount unit and positive currency amount', { conditionIndex: index, hasOperator: Boolean(n.operator), hasAmount: Boolean(n.amount), hasUnit: Boolean(n.unit) });
       const span = value.evidence.filter(e => e.path === `/conditions/${index}`).map(e => e.text).join(' ');
       const normalize = number => number.replace(',', '.').replace(/^0+(?=\d)/u, '').replace(/(\.\d*?)0+$/u, '$1').replace(/\.$/u, '');
-      if (!(span.match(/-?\d+(?:[.,]\d+)?/gu) || []).some(number => normalize(number) === normalize(n.amount))) fail();
+      if (!(span.match(/-?\d+(?:[.,]\d+)?/gu) || []).some(number => normalize(number) === normalize(n.amount))) reject('numeric.amount_grounding', 'amount occurs in evidence');
       const comparisonText = fold(span);
       const strictAbove = /\b(?:above|greater than|more than|depasse|depassent|superieur a)\b|(?<![>=])>(?!=)/u.test(comparisonText);
       const atLeast = /\b(?:at least|au moins)\b|>=|≥/u.test(comparisonText);
       const strictBelow = /\b(?:below|less than|inferieur a)\b|(?<![<=])<(?!=)/u.test(comparisonText);
       if ((strictAbove && !atLeast && n.operator !== 'gt') || (atLeast && !strictAbove && n.operator !== 'gte')
-        || (strictBelow && n.operator !== 'lt')) fail();
+        || (strictBelow && n.operator !== 'lt')) reject('numeric.operator_grounding', 'operator matches explicit comparison');
       if (value.domain === 'currency' && (n.subjects.length !== 2 || n.unit !== subjects.get(n.subjects[1]).canonicalCode
         || n.subjects.some(key => !subjects.get(key).canonicalCode)
-        || subjects.get(n.subjects[0]).canonicalCode === subjects.get(n.subjects[1]).canonicalCode || n.value !== 'exchange_rate')) fail();
+        || subjects.get(n.subjects[0]).canonicalCode === subjects.get(n.subjects[1]).canonicalCode || n.value !== 'exchange_rate')) reject('currency.pair_consistency', 'distinct canonical currencies and quote unit agree');
       if (value.domain === 'currency') {
         const amountAt = comparisonText.search(/\d/u);
         const baseAt = comparisonText.indexOf(fold(subjects.get(n.subjects[0]).label));
         const quoteAt = comparisonText.indexOf(fold(subjects.get(n.subjects[1]).label));
         // For explicit "base ... amount quote" wording, reject inverted pairs.
-        if (amountAt >= 0 && quoteAt >= 0 && quoteAt < amountAt && baseAt > amountAt) fail();
+        if (amountAt >= 0 && quoteAt >= 0 && quoteAt < amountAt && baseAt > amountAt) reject('currency.pair_order', 'explicit base and quote are not inverted');
       }
-    } else if (n.operator !== null || n.amount !== null || n.unit !== null) fail();
-    if (['event', 'relationship', 'topic', 'temporal', 'geographic'].includes(n.kind) && !n.value) fail();
-    if (['mentions_together', 'relationship'].includes(n.kind) && n.subjects.length < 2) fail();
+    } else if (n.operator !== null || n.amount !== null || n.unit !== null) reject('predicate.non_numeric_fields', 'non-numeric operator amount and unit are null');
+    if (['event', 'relationship', 'topic', 'temporal', 'geographic'].includes(n.kind) && !n.value) reject('predicate.required_value', 'predicate kind has required value');
+    if (['mentions_together', 'relationship'].includes(n.kind) && n.subjects.length < 2) reject('predicate.relationship_count', 'relationship or mention has at least two subjects');
   });
   for (const key of ['topics', 'temporal', 'geographic', 'unresolvedRequirements']) {
-    value[key].forEach((_, index) => { if (!grounded(`/${key}/${index}`)) fail(); });
+    value[key].forEach((_, index) => { if (!grounded(`/${key}/${index}`)) reject('detail.grounded', 'each detail entry has evidence', { collection: key, index, evidencePresent: false }); });
   }
-  if (value.topics.some(t => /^(?:news|updates|actualites?|informations?)$/u.test(fold(t.label)))) fail();
+  if (value.topics.some(t => /^(?:news|updates|actualites?|informations?)$/u.test(fold(t.label)))) reject('topic.non_generic', 'topic is not generic news or updates');
   if (value.topics.some(t => t.role === 'required' && value.subjects.some(s => s.membership.some(m =>
-    m.values.some(v => fold(v) === fold(t.label)))))) fail();
+    m.values.some(v => fold(v) === fold(t.label)))))) reject('topic.membership_overlap', 'required topic does not duplicate membership filter');
   for (const [key, field] of [['geographic', 'label'], ['temporal', 'text'], ['unresolvedRequirements', 'text']]) {
     value[key].forEach((entry, i) => {
-      if (!value.evidence.some(e => e.path === `/${key}/${i}` && fold(e.text).includes(fold(entry[field])))) fail();
+      if (!value.evidence.some(e => e.path === `/${key}/${i}` && fold(e.text).includes(fold(entry[field])))) reject('detail.text_grounding', 'detail text occurs in evidence');
     });
   }
-  if (value.temporal.some(t => t.start && t.end && t.start > t.end)) fail();
+  if (value.temporal.some(t => t.start && t.end && t.start > t.end)) reject('temporal.range_order', 'start does not exceed end');
   // Satisfiability for conjunctions of simple numeric predicates on the same metric.
   const positiveLeaves = key => {
     const n = nodes.get(key);
     return n?.op === 'and' ? n.args.flatMap(positiveLeaves) : n?.op === 'predicate' ? [n] : [];
   };
   const constraints = new Map();
-  if (value.condition && positiveLeaves(value.condition).some(n => value.exclusions.includes(n.id))) fail();
+  if (value.condition && positiveLeaves(value.condition).some(n => value.exclusions.includes(n.id))) reject('condition.excluded_positive', 'positive conjunction leaf not excluded');
   for (const n of value.condition ? positiveLeaves(value.condition) : []) {
     if (n.kind !== 'numeric') continue;
     const key = JSON.stringify([n.subjects, n.value, n.unit]);
@@ -290,7 +342,7 @@ export const validateInterpretation = (value, request = value?.originalRequest) 
     const lows = list.filter(n => ['gt', 'gte', 'eq'].includes(n.operator));
     const highs = list.filter(n => ['lt', 'lte', 'eq'].includes(n.operator));
     if (lows.some(low => highs.some(high => decimal(low.amount) > decimal(high.amount)
-      || (decimal(low.amount) === decimal(high.amount) && (low.operator === 'gt' || high.operator === 'lt'))))) fail();
+      || (decimal(low.amount) === decimal(high.amount) && (low.operator === 'gt' || high.operator === 'lt'))))) reject('numeric.satisfiable_bounds', 'conjoined bounds satisfiable');
   }
   return structuredClone(value);
 };

@@ -1,3 +1,4 @@
+import { safeValidationDiagnostic } from '../src/js/watch-interpretation.js';
 import { structuredCreationEnabled, requireStructuredCreationAccess } from './structured-creation-access.js';
 import { safeInterpretationFailureCategory } from './watch-interpreter.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
@@ -76,7 +77,13 @@ export const createPlanWatchMiddleware = (options = {}) => (
         const diagnostic = ['preview', 'production'].includes(env.VERCEL_ENV) && structuredCreationEnabled(env)
           ? {failureCategory:safeInterpretationFailureCategory(error)} : {};
         if (diagnostic.failureCategory) {
-          try { (options.logger || console).warn('structured_interpretation_failed', {code,...diagnostic,...(code === 'INTERPRETATION_FAILED' && reasons.has(error.reason) ? {reason:error.reason} : {})}); }
+          try {
+            const validation = code === 'INTERPRETATION_FAILED' && diagnostic.failureCategory === 'STRUCTURED_VALIDATION'
+              ? safeValidationDiagnostic(error) : undefined;
+            (options.logger || console).warn('structured_interpretation_failed', {code,...diagnostic,
+              ...(code === 'INTERPRETATION_FAILED' && reasons.has(error.reason) ? {reason:error.reason} : {}),
+              ...(validation ? {validation} : {})});
+          }
           catch { /* Diagnostics must never change the response contract. */ }
         }
         sendJson(response, codes.has(error.code) ? error.statusCode : 400, { mode: 'interpretation.v1', executable: false, code, ...diagnostic,
