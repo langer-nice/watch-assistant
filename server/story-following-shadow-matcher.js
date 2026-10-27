@@ -1,5 +1,5 @@
 // Deterministic observation only. No providers, persistence or corpus IDs.
-export const STORY_SHADOW_VERSION = 'story-shadow.person-human-fixes.v1';
+export const STORY_SHADOW_VERSION = 'story-shadow.person-human-fixes.v2';
 const fold = value => String(value || '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[’]/g, "'").replace(/[\u2010-\u2014]/g, '-');
 const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const phrase = (text, value) => new RegExp(`(^|[^\\p{L}\\p{N}])${escape(fold(value))}(?=$|[^\\p{L}\\p{N}])`, 'u').test(text);
@@ -139,7 +139,7 @@ export const evaluateStoryShadow = ({item,context}) => {
 // Namespaced validated offline person core; no fixture or evaluation-result imports.
 export const classifyShadowPerson = (() => {
 // Isolated deterministic person experiment. No application imports, I/O, corpus IDs or learned state.
-const PERSON_VERSION = 'person-human-fixes.v1';
+const PERSON_VERSION = 'person-human-fixes.v2';
 const norm = s => String(s||'').normalize('NFKD').replace(/\p{M}/gu,'').replace(/[’]/g,"'").toLowerCase();
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 // Reuse one Unicode-letter check instead of compiling its character table
@@ -168,7 +168,10 @@ function classifyPerson({title='',ownedText='',source=null},{name,profession='te
  const t=norm(title),body=norm(ownedText),text=t+'\n'+body;
  const parts=name.trim().split(/\s+/),surname=parts.at(-1),first=parts[0];
  const full=has(text,name),short=has(t,surname);
- const tennis=/\b(?:tennis|tournament|slam|atp|wimbledon|coach|training|ranking|competition|injur\w*|knee)\b/.test(t);
+ // Only the explicitly requested affirmative date-setting form supplies a
+ // professional return cue; generic surname/comeback speculation does not.
+ const setComebackDate=new RegExp(`^(?:${esc(norm(name))}|${esc(norm(surname))}) sets (?:his |her )?comeback date[.!]?$`,'u').test(t);
+ const tennis=/\b(?:tennis|tournament|slam|atp|wimbledon|coach|training|ranking|competition|injur\w*|knee)\b/.test(t)||setComebackDate;
  const conflicting=new RegExp(`\\b([A-Z][a-z]+) ${esc(surname)}\\b`).exec(title);
  const conflict=Boolean(conflicting&&norm(conflicting[1])!==norm(first));
  const religious=/\b(?:religious essay|forgiveness|repentance|common noun|sermon)\b/.test(text)&&!has(t,name);
@@ -213,9 +216,19 @@ function classifyPerson({title='',ownedText='',source=null},{name,profession='te
  if(explicitOpinion)return result('NO_MATCH',identity,null,'OPINION','EXPLICIT_COMMENTARY');
  if(/\burged to\b|\bshould (?:hire|appoint|change)\b|\badvised to\b|\btold to hire\b/.test(t))return result('INSUFFICIENT_EVIDENCE',identity,null,'RECOMMENDATION','NO_ACTUAL_CHANGE_IN_RECOMMENDATION');
  if(/\bcomments prove why\b|\bnot the right man to coach\b/.test(t))return result('INSUFFICIENT_EVIDENCE',identity,null,'ANALYSIS','ATTRIBUTED_COMMENT_DETAILS_MISSING');
+ // A closed role-bound departure fact survives a separate successor question.
+ // The coach name is candidate-local grammar, never an external identity map.
+ const namedCoach="[A-Z][a-z]+(?: [A-Z][a-z]+){1,3}";
+ const successor=new RegExp(`^[Ww]ho (?:[Ww]ill|[Cc]ould|[Mm]ight|[Mm]ay) [Cc]oach (?:${esc(name)}|${esc(surname)}) [Aa]fter ${namedCoach}['’]s (?:[Cc]onfirmed )?(?:[Ee]xit|[Dd]eparture)\\?$`,'u').test(title);
+ const departure=new RegExp(`^(?:${esc(name)}|${esc(surname)})['’]s coach ${namedCoach} (?:has )?(?:left|leaves|departed|departs|quit|quits) (?:his|her|their|the) (?:coaching )?team[.!]?$`,'u').test(title);
+ if(identity!=='MISSING'&&(successor||departure))return result('MATCH',identity,'COACHING_CHANGE','ASSERTED','EXPLICIT_ROLE_BOUND_COACH_DEPARTURE');
  if(/\b(?:could|might|may|rumou?rs?|possibly|hypothetical)\b/.test(t))return result('INSUFFICIENT_EVIDENCE',identity,null,'SPECULATION','NO_ASSERTED_DEVELOPMENT');
  if(fact('denies?\\b.{0,80}(?:injur|withdraw|coach|tournament|return)')&&identity!=='MISSING')return result('MATCH',identity,'PROFESSIONAL_STATEMENT','ATTRIBUTED_DENIAL','DENIAL_REPORTED_NOT_EVENT_CONFIRMED');
  const negated=/\b(?:not|never|cannot)\b|\bwill not\b|\bwon't\b/.test(t);
+ // Active, watched-actor return announcement with its own bounded context.
+ // No other actor, rumor, hope, prediction, negation or question is supplied.
+ const returnAnnouncement=fact('(?:has )?(?:announces|announced|confirms|confirmed|sets|reveals) (?:his |her )?(?:comeback|return)(?: date)? (?:after|from|following|to|at|for) (?:[a-z-]+ ){0,4}(?:injury|absence|tournament|competition|slam|tennis)[.!]?$');
+ if(identity!=='MISSING'&&!negated&&!/\b(?:rumou?red|possible|potential|hope\w*|predict\w*|discuss\w*|if)\b|\?/.test(t)&&(setComebackDate||returnAnnouncement))return result('MATCH',identity,'RETURN_COMEBACK','ASSERTED','EXPLICIT_PERSON_RETURN_ANNOUNCEMENT');
  const patterns=[
   ['COACHING_CHANGE','(?:has )?(?:hires?|hired|appoints?|appointed|names?|announces?|announced)\\b.{0,65}\\bcoach\\b'],
   ['COACHING_CHANGE','(?:has )?parts? (?:ways )?with (?:his |the )?coach\\b|coach (?:leaves|departs|quits)\\b'],

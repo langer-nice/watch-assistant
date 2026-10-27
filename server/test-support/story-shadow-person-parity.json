@@ -8,7 +8,7 @@
       "development": "COACHING_CHANGE",
       "status": "ASSERTED",
       "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "238d0ea35a95fcea78e0d89bea548213ea44861710be38bd6e0d1ad322e02473",
@@ -18,7 +18,7 @@
       "development": null,
       "status": "UNRESOLVED",
       "reason": "NO_CONCRETE_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "eb297642044b573e367c16782a6cc15c20378b5bd8ceb88d76ed9da335c7dff2",
@@ -28,7 +28,7 @@
       "development": "RETURN_COMEBACK",
       "status": "REPORTED_OR_SCHEDULED",
       "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "a594066c914fc92d446ae8476b34921f2977df22846c27105bace29492a79f3c",
@@ -38,7 +38,7 @@
       "development": "RETURN_COMEBACK",
       "status": "REPORTED_OR_SCHEDULED",
       "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "c945f87d34ea47f345848ff26d05a92cb887f15b07a60e33e10a7a318092a350",
@@ -48,7 +48,7 @@
       "development": "RETURN_COMEBACK",
       "status": "REPORTED_OR_SCHEDULED",
       "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "da60a628b94f9c1a0685801c282134ee84f3f0791d25c804fca8898e79f7c045",
@@ -58,7 +58,7 @@
       "development": null,
       "status": "ASSERTED",
       "reason": "OTHER_PERSON_IS_SUBJECT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "319128bb70a5e4e498174e9ecbeb8e82ad4746fa49357d9a1cb20027c9ff00ac",
@@ -68,7 +68,7 @@
       "development": "TEAM_CHANGE",
       "status": "ASSERTED",
       "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "753d20c642cc6063859856d324e91603a11abbbcf9f88106a500928cfc00bab3",
@@ -78,7 +78,7 @@
       "development": null,
       "status": "ATTRIBUTED_OPINION_OR_REACTION",
       "reason": "INDIRECT_OR_OTHER_STORY",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "88e2b33c454bcee7fc626441de8d6972b1212ac780dd629495f4945f2fd74917",
@@ -88,7 +88,7 @@
       "development": null,
       "status": "ATTRIBUTED_OPINION_OR_REACTION",
       "reason": "INDIRECT_OR_OTHER_STORY",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "710f9a1298c648665a0372e668ea670dfc91064c267e70f4b04db2836f9f3e4d",
@@ -98,7 +98,7 @@
       "development": null,
       "status": "ATTRIBUTED_OPINION_OR_REACTION",
       "reason": "INDIRECT_OR_OTHER_STORY",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "11e23d966d4f0a135b5be6b8278999e792d70ad09b41d918ed789ae731368171",
@@ -108,7 +108,7 @@
       "development": "COACHING_CHANGE",
       "status": "ASSERTED",
       "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "4b4f79150a96814ebf9a7d74e09e7636675311bead66c5a5310d3b32f396eec6",
@@ -118,7 +118,7 @@
       "development": "RETURN_COMEBACK",
       "status": "REPORTED_OR_SCHEDULED",
       "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "f09ecf150994c72f2f28e333d4208cf36343223191584bec7aba3bcef8ca60b9",
@@ -128,7 +128,7 @@
       "development": null,
       "status": "ATTRIBUTED_OPINION_OR_REACTION",
       "reason": "INDIRECT_OR_OTHER_STORY",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "3d9f90affb62939c3d7f48e9b73f7594411c797c880441a5eb00d173c1806b7b",
@@ -138,7 +138,7 @@
       "development": null,
       "status": "UNRESOLVED",
       "reason": "PERSON_IDENTITY_UNRESOLVED",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "d67940d076bde1bfd9861d1a3d60f55f7e80ae7a1f92715a1c716123780c5e30",
@@ -148,7 +148,7 @@
       "development": null,
       "status": "SPECULATION",
       "reason": "NO_ASSERTED_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "67a73fd74ec5ffbc6f46efd4cae0fc1077a5a41eb543bbbd20aefe27fd7b9bf9",
@@ -158,7 +158,7 @@
       "development": "RETURN_COMEBACK",
       "status": "ASSERTED",
       "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "8a5321f2a6161b85168ecb0d16f0218fc6bbbc951f7482f419fd9b1dde7f645b",
@@ -168,7 +168,7 @@
       "development": null,
       "status": "UNRESOLVED",
       "reason": "PERSON_IDENTITY_UNRESOLVED",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "40ab336efbee5b5dbac265cec83ae52508664ec0e2021fd7449e2a519b5de396",
@@ -178,7 +178,7 @@
       "development": "RETURN_COMEBACK",
       "status": "ASSERTED",
       "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "006bc90f72f652307ee6b4b98e3ecb87dff5b096f336aad071fa71817afb8ad1",
@@ -188,7 +188,7 @@
       "development": "RETURN_COMEBACK",
       "status": "REPORTED_OR_SCHEDULED",
       "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     },
     {
       "id": "81889c4660bd8c90b5b5b867620f8058eb2c582665b23d6371a187cdfeea5679",
@@ -198,7 +198,7 @@
       "development": "INJURY_HEALTH_CHANGE",
       "status": "ASSERTED",
       "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
-      "version": "person-human-fixes.v1"
+      "version": "person-human-fixes.v2"
     }
   ],
   "inputs": [
@@ -332,13 +332,21 @@
       "title": "Jannik Sinner receives injury boost as ‘decisive’ Darren Cahill talks emerge – report",
       "human": "INSUFFICIENT_EVIDENCE",
       "oldShadow": "INSUFFICIENT_EVIDENCE",
-      "decision": {
+      "previousOffline": {
         "label": "INSUFFICIENT_EVIDENCE",
         "identity": "FULL_NAME",
         "development": null,
         "status": "UNRESOLVED",
         "reason": "NO_CONCRETE_DEVELOPMENT",
         "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "INSUFFICIENT_EVIDENCE",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "UNRESOLVED",
+        "reason": "NO_CONCRETE_DEVELOPMENT",
+        "version": "person-human-fixes.v2"
       }
     },
     {
@@ -347,13 +355,21 @@
       "title": "Sinner to return from injury with appearance at Six Kings Slam",
       "human": "MATCH",
       "oldShadow": "MATCH",
-      "decision": {
+      "previousOffline": {
         "label": "MATCH",
         "identity": "SURNAME_IN_PROFESSIONAL_CONTEXT",
         "development": "RETURN_COMEBACK",
         "status": "REPORTED_OR_SCHEDULED",
         "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
         "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "MATCH",
+        "identity": "SURNAME_IN_PROFESSIONAL_CONTEXT",
+        "development": "RETURN_COMEBACK",
+        "status": "REPORTED_OR_SCHEDULED",
+        "reason": "IDENTITY_AND_PERSONAL_DEVELOPMENT",
+        "version": "person-human-fixes.v2"
       }
     },
     {
@@ -362,13 +378,21 @@
       "title": "‘Sad for tennis’ – Ben Shelton issues honest verdict on Carlos Alcaraz and Jannik Sinner",
       "human": "NO_MATCH",
       "oldShadow": "INSUFFICIENT_EVIDENCE",
-      "decision": {
+      "previousOffline": {
         "label": "NO_MATCH",
         "identity": "FULL_NAME",
         "development": null,
         "status": "ATTRIBUTED_OPINION_OR_REACTION",
         "reason": "EXPLICIT_THIRD_PARTY_COMMENTARY",
         "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "NO_MATCH",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "ATTRIBUTED_OPINION_OR_REACTION",
+        "reason": "EXPLICIT_THIRD_PARTY_COMMENTARY",
+        "version": "person-human-fixes.v2"
       }
     },
     {
@@ -377,13 +401,21 @@
       "title": "Toni Nadal says whether he would ever consider coaching Carlos Alcaraz or Jannik Sinner",
       "human": "NO_MATCH",
       "oldShadow": "INSUFFICIENT_EVIDENCE",
-      "decision": {
+      "previousOffline": {
         "label": "NO_MATCH",
         "identity": "FULL_NAME",
         "development": null,
         "status": "HYPOTHETICAL",
         "reason": "EXPLICIT_THIRD_PARTY_HYPOTHETICAL_COACHING",
         "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "NO_MATCH",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "HYPOTHETICAL",
+        "reason": "EXPLICIT_THIRD_PARTY_HYPOTHETICAL_COACHING",
+        "version": "person-human-fixes.v2"
       }
     },
     {
@@ -392,13 +424,21 @@
       "title": "Jannik Sinner sends message to Kimi Antonelli with the Italian on the verge of history",
       "human": "NO_MATCH",
       "oldShadow": "NO_MATCH",
-      "decision": {
+      "previousOffline": {
         "label": "NO_MATCH",
         "identity": "FULL_NAME",
         "development": null,
         "status": "ATTRIBUTED_OPINION_OR_REACTION",
         "reason": "INDIRECT_OR_OTHER_STORY",
         "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "NO_MATCH",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "ATTRIBUTED_OPINION_OR_REACTION",
+        "reason": "INDIRECT_OR_OTHER_STORY",
+        "version": "person-human-fixes.v2"
       }
     },
     {
@@ -407,13 +447,21 @@
       "title": "Medvedev: Why We’re Not Snapping Sincaraz Stronghold",
       "human": "NO_MATCH",
       "oldShadow": "INSUFFICIENT_EVIDENCE",
-      "decision": {
+      "previousOffline": {
         "label": "NO_MATCH",
         "identity": "MISSING",
         "development": null,
         "status": "ATTRIBUTED_OPINION_OR_REACTION",
         "reason": "EXPLICIT_THIRD_PARTY_COMMENTARY",
         "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "NO_MATCH",
+        "identity": "MISSING",
+        "development": null,
+        "status": "ATTRIBUTED_OPINION_OR_REACTION",
+        "reason": "EXPLICIT_THIRD_PARTY_COMMENTARY",
+        "version": "person-human-fixes.v2"
       }
     },
     {
@@ -422,13 +470,21 @@
       "title": "Famous Italian Olympian has message for Jannik Sinner: I paid the consequences",
       "human": "NO_MATCH",
       "oldShadow": "NO_MATCH",
-      "decision": {
+      "previousOffline": {
         "label": "NO_MATCH",
         "identity": "FULL_NAME",
         "development": null,
         "status": "ATTRIBUTED_OPINION_OR_REACTION",
         "reason": "INDIRECT_OR_OTHER_STORY",
         "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "NO_MATCH",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "ATTRIBUTED_OPINION_OR_REACTION",
+        "reason": "INDIRECT_OR_OTHER_STORY",
+        "version": "person-human-fixes.v2"
       }
     },
     {
@@ -437,13 +493,21 @@
       "title": "Daniil Medvedev sends clear message over Alexander Zverev and Jannik Sinner in No 1 ranking debate",
       "human": "NO_MATCH",
       "oldShadow": "INSUFFICIENT_EVIDENCE",
-      "decision": {
+      "previousOffline": {
         "label": "NO_MATCH",
         "identity": "FULL_NAME",
         "development": null,
         "status": "ATTRIBUTED_OPINION_OR_REACTION",
         "reason": "EXPLICIT_THIRD_PARTY_COMMENTARY",
         "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "NO_MATCH",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "ATTRIBUTED_OPINION_OR_REACTION",
+        "reason": "EXPLICIT_THIRD_PARTY_COMMENTARY",
+        "version": "person-human-fixes.v2"
       }
     },
     {
@@ -452,13 +516,21 @@
       "title": "Jannik Sinner’s surprise U-turn just cost a 20-year-old American a huge payday",
       "human": "INSUFFICIENT_EVIDENCE",
       "oldShadow": "INSUFFICIENT_EVIDENCE",
-      "decision": {
+      "previousOffline": {
         "label": "INSUFFICIENT_EVIDENCE",
         "identity": "FULL_NAME",
         "development": null,
         "status": "UNRESOLVED",
         "reason": "NO_CONCRETE_DEVELOPMENT",
         "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "INSUFFICIENT_EVIDENCE",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "UNRESOLVED",
+        "reason": "NO_CONCRETE_DEVELOPMENT",
+        "version": "person-human-fixes.v2"
       }
     },
     {
@@ -467,13 +539,136 @@
       "title": "Sinner to defend Vienna title",
       "human": "MATCH",
       "oldShadow": "INSUFFICIENT_EVIDENCE",
-      "decision": {
+      "previousOffline": {
         "label": "INSUFFICIENT_EVIDENCE",
         "identity": "MISSING",
         "development": null,
         "status": "UNRESOLVED",
         "reason": "PERSON_IDENTITY_UNRESOLVED",
         "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "INSUFFICIENT_EVIDENCE",
+        "identity": "MISSING",
+        "development": null,
+        "status": "UNRESOLVED",
+        "reason": "PERSON_IDENTITY_UNRESOLVED",
+        "version": "person-human-fixes.v2"
+      }
+    },
+    {
+      "number": 11,
+      "id": "514e937f85a28c344847dbbd527f766002aaee1f52908ae51f123d7c311f44a2",
+      "title": "Injury, Alcaraz rivalry, sacrifices: Sinner opens up",
+      "human": "INSUFFICIENT_EVIDENCE",
+      "oldShadow": "INSUFFICIENT_EVIDENCE",
+      "previousOffline": {
+        "label": "INSUFFICIENT_EVIDENCE",
+        "identity": "SURNAME_IN_PROFESSIONAL_CONTEXT",
+        "development": null,
+        "status": "UNRESOLVED",
+        "reason": "NO_CONCRETE_DEVELOPMENT",
+        "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "INSUFFICIENT_EVIDENCE",
+        "identity": "SURNAME_IN_PROFESSIONAL_CONTEXT",
+        "development": null,
+        "status": "UNRESOLVED",
+        "reason": "NO_CONCRETE_DEVELOPMENT",
+        "version": "person-human-fixes.v2"
+      }
+    },
+    {
+      "number": 12,
+      "id": "f09ecf150994c72f2f28e333d4208cf36343223191584bec7aba3bcef8ca60b9",
+      "title": "Ben Shelton disagrees with the claim that Carlos Alcaraz and Jannik Sinner’s dominance is fading, ‘that’s unfair’",
+      "human": "NO_MATCH",
+      "oldShadow": "NO_MATCH",
+      "previousOffline": {
+        "label": "NO_MATCH",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "ATTRIBUTED_OPINION_OR_REACTION",
+        "reason": "INDIRECT_OR_OTHER_STORY",
+        "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "NO_MATCH",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "ATTRIBUTED_OPINION_OR_REACTION",
+        "reason": "INDIRECT_OR_OTHER_STORY",
+        "version": "person-human-fixes.v2"
+      }
+    },
+    {
+      "number": 13,
+      "id": "3c43340bda55fde9ab3d041004c25801ce1930004b7315dab0203d926ad76377",
+      "title": "Jannik Sinner announces comeback date after lengthy knee injury",
+      "human": "MATCH",
+      "oldShadow": "INSUFFICIENT_EVIDENCE",
+      "previousOffline": {
+        "label": "INSUFFICIENT_EVIDENCE",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "UNRESOLVED",
+        "reason": "NO_CONCRETE_DEVELOPMENT",
+        "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "MATCH",
+        "identity": "FULL_NAME",
+        "development": "RETURN_COMEBACK",
+        "status": "ASSERTED",
+        "reason": "EXPLICIT_PERSON_RETURN_ANNOUNCEMENT",
+        "version": "person-human-fixes.v2"
+      }
+    },
+    {
+      "number": 14,
+      "id": "fde9d4567c66f3263aae2a5c7f9605def5d95664255d1a43a626a44b34e81612",
+      "title": "Jannik Sinner reacts to Six Kings Slam news as ATP star set to miss out on £1.2m payday",
+      "human": "INSUFFICIENT_EVIDENCE",
+      "oldShadow": "INSUFFICIENT_EVIDENCE",
+      "previousOffline": {
+        "label": "INSUFFICIENT_EVIDENCE",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "UNRESOLVED",
+        "reason": "NO_CONCRETE_DEVELOPMENT",
+        "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "INSUFFICIENT_EVIDENCE",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "UNRESOLVED",
+        "reason": "NO_CONCRETE_DEVELOPMENT",
+        "version": "person-human-fixes.v2"
+      }
+    },
+    {
+      "number": 15,
+      "id": "2a29f307cf4da29980e3a2162c7866a781a1f4d47c2b74a22155336f534f58f9",
+      "title": "Who Will Coach Jannik Sinner After Darren Cahill’s Exit?",
+      "human": "MATCH",
+      "oldShadow": "INSUFFICIENT_EVIDENCE",
+      "previousOffline": {
+        "label": "INSUFFICIENT_EVIDENCE",
+        "identity": "FULL_NAME",
+        "development": null,
+        "status": "UNRESOLVED",
+        "reason": "NO_CONCRETE_DEVELOPMENT",
+        "version": "person-human-fixes.v1"
+      },
+      "decision": {
+        "label": "MATCH",
+        "identity": "FULL_NAME",
+        "development": "COACHING_CHANGE",
+        "status": "ASSERTED",
+        "reason": "EXPLICIT_ROLE_BOUND_COACH_DEPARTURE",
+        "version": "person-human-fixes.v2"
       }
     }
   ]

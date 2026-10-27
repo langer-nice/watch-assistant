@@ -279,7 +279,7 @@ for(const [title,expected] of added)test('human-fix safety: '+title,()=>assert.e
 
 }
 
-test('human-fix runtime adapter exactly matches ten new offline decisions without changing human labels',()=>{
+test('human-fix runtime adapter exactly matches fifteen new offline decisions without changing human labels',()=>{
  const context=storyShadowContext(personWatch),results=[];
  for(const row of personFixture.humanCases){
   const item={title:row.title};
@@ -288,6 +288,50 @@ test('human-fix runtime adapter exactly matches ten new offline decisions withou
   assert.equal(r.result,row.decision.label,row.id);assert.deepEqual(r.reasonCodes,[row.decision.reason],row.id);
   results.push({id:row.id,correct:r.result===row.human});
  }
- assert.equal(results.filter(r=>r.correct).length,9);
+ assert.equal(results.filter(r=>r.correct).length,14);
  assert.deepEqual(results.filter(r=>!r.correct).map(r=>r.id),['98391a5fde0a1bfe51c0f4b1e3d39ff44b654b79f6097cbadafc625fe7c49901']);
 });
+
+{
+const classifyPerson=classifyShadowPerson;
+const context={name:"Jannik Sinner",profession:"tennis",allowSurname:true};
+// Only the two authorized micro rules and their local ownership/polarity guards.
+const microCases=[
+ ['Jannik Sinner announces comeback date after lengthy knee injury','MATCH','RETURN_COMEBACK'],
+ ['Jannik Sinner announces comeback date after knee injury','MATCH','RETURN_COMEBACK'],
+ ['Sinner confirms return after injury','MATCH','RETURN_COMEBACK'],
+ ['Sinner sets comeback date','MATCH','RETURN_COMEBACK'],
+ ['Jannik Sinner reveals return to tennis','MATCH','RETURN_COMEBACK'],
+ ['Sinner could return next month',null],
+ ['Rumours over Sinner comeback',null],
+ ['Fans hope Sinner returns',null],
+ ['Sinner discusses possible comeback',null],
+ ['Coach predicts Sinner return',null],
+ ['Opinion: Jannik Sinner announces comeback date after injury',null],
+ ['Sinner announces a rumored comeback after injury',null],
+ ['Jannik Sinner confirms possible return after injury',null],
+ ['Jannik Sinner does not announce comeback date after injury',null],
+ ['Jannik Sinner announces Alcaraz’s return after injury',null],
+ ['Alex Sinner sets comeback date',null],
+ ['Who Will Coach Jannik Sinner After Darren Cahill’s Exit?','MATCH','COACHING_CHANGE'],
+ ['Who could coach Sinner after Marco Rossi’s confirmed departure?','MATCH','COACHING_CHANGE'],
+ ["Jannik Sinner's coach Marco Rossi has left his coaching team",'MATCH','COACHING_CHANGE'],
+ ['Could Darren Cahill leave Sinner?',null],
+ ['Who should replace Cahill if he leaves?',null],
+ ['Rumours Cahill may exit',null],
+ ['Toni Nadal says he would coach Sinner',null],
+ ['Sinner urged to hire another coach',null],
+ ['Who will coach Jannik Sinner after Darren Cahill’s possible exit?',null],
+ ['Rumours: Who will coach Jannik Sinner after Darren Cahill’s exit?',null],
+ ['Who will coach Jannik Sinner after Darren Cahill’s exit from Alcaraz’s team?',null],
+ ['Who will coach Carlos Alcaraz after Darren Cahill’s exit? Jannik Sinner reacts',null],
+ ["Jannik Sinner's coach Marco Rossi has not left his coaching team",null],
+ ["Jannik Sinner's coach Marco Rossi could leave his team",null]
+];
+for(const [title,label,development] of microCases)test('micro-v2: '+title,()=>{
+ const r=classifyPerson({title},context);
+ if(label) {assert.equal(r.label,label);assert.equal(r.development,development);}
+ else assert.notEqual(r.label,'MATCH');
+});
+
+}
