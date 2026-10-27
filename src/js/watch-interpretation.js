@@ -164,15 +164,33 @@ const pointer = (value, path, reject = rejectFor('validateInterpretation')) => {
 export const reconstructInterpretation = (output, request) => {
   const reject = rejectFor('reconstructInterpretation');
   if (typeof request !== 'string' || !conforms(output, interpretationOutputSchema)) rejectSchema('reconstructInterpretation', output, interpretationOutputSchema, typeof request === 'string');
-  const locate = (text, source) => {
+  // Computed only after the existing lookup rejects; never log evidence contents.
+  const uniqueQuoteDiagnostic = (quote, context) => {
+    const count = (text, source) => {
+      let occurrences = 0, position = source.indexOf(text);
+      while (position >= 0) {
+        occurrences++;
+        position = source.indexOf(text, position + 1);
+      }
+      return occurrences;
+    };
+    const contextPresent = context !== null;
+    const quoteOccurrenceCount = count(quote, contextPresent ? context : request);
+    const contextOccurrenceCount = contextPresent ? count(context, request) : null;
+    return { quoteLength: quote.length, contextPresent, contextLength: contextPresent ? context.length : null,
+      quoteOccurrenceCount, contextOccurrenceCount, quoteSearchScope: contextPresent ? 'context' : 'request',
+      contextFoundExactlyOnce: contextPresent ? contextOccurrenceCount === 1 : null,
+      quoteFoundExactlyOnce: quoteOccurrenceCount === 1 };
+  };
+  const locate = (text, source, quote, context) => {
     const start = source.indexOf(text);
-    if (start < 0 || source.indexOf(text, start + 1) >= 0) reject('evidence.unique_quote', 'quote and context occur exactly once');
+    if (start < 0 || source.indexOf(text, start + 1) >= 0) reject('evidence.unique_quote', 'quote and context occur exactly once', uniqueQuoteDiagnostic(quote, context));
     return start;
   };
   const value = { ...structuredClone(output), originalRequest: request };
   value.evidence = output.evidence.map(({ path, quote, context }) => {
     pointer(value, path, reject);
-    const start = context === null ? locate(quote, request) : locate(context, request) + locate(quote, context);
+    const start = context === null ? locate(quote, request, quote, context) : locate(context, request, quote, context) + locate(quote, context, quote, context);
     return { path, text: quote, start, end: start + quote.length };
   });
   // Only lexical/canonical equivalents are normalized, never semantic shapes.
