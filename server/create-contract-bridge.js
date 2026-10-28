@@ -19,6 +19,7 @@ export function createWatchContractFromInterpretation(output, request, createCor
   let check='request';
   const predicateDiagnostics=[];
   let finalRejectionPredicate=null;
+  let triggerPathContent;
   // Bridge-local, text-free snapshots. Never alter the predicate's result.
   const diagnose=(predicate,result,binding,detail={})=>{
     if(!createCoreTrace)return result;
@@ -71,6 +72,24 @@ export function createWatchContractFromInterpretation(output, request, createCor
     const bind=(field,path,value,exact=false)=>{
       check='evidence_binding';
       const span=spans.find(e=>e.path===path&&(exact?e.text===value:e.text.includes(value)));
+      if(createCoreTrace&&!span&&field==='trigger'&&path==='/conditions/0'
+        &&request==='Tell me when there are important new developments about Manchester City.'){
+        // Flat summary fields survive Node's hosted console inspection depth.
+        const atPath=spans.filter(e=>e.path===path);
+        const contentMatches=spans.filter(e=>e.text.includes(value));
+        const both=atPath.filter(e=>e.text.includes(value));
+        triggerPathContent={binding:'trigger',expectedEvidencePath:path,candidateEvidenceCount:spans.length,
+          availableEvidencePaths:[...new Set(spans.map(e=>e.path))],
+          expectedPathPresent:atPath.length>0,expectedPathMatchCount:atPath.length,
+          contentMatchAnyPath:contentMatches.length>0,contentMatchCountAnyPath:contentMatches.length,
+          expectedPathContentMatch:both.length>0,expectedPathContentMatchCount:both.length,
+          samePathDifferentContentCount:atPath.length-both.length,
+          sameContentDifferentPathCount:contentMatches.length-both.length,sourceKind:'request',
+          quotePresentCount:output.evidence.filter(e=>typeof e.quote==='string'&&e.quote.length>0).length,
+          contextPresentCount:output.evidence.filter(e=>typeof e.context==='string'&&e.context.length>0).length,
+          spanPresentCount:spans.filter(e=>Number.isInteger(e.start)&&Number.isInteger(e.end)).length,
+          finalPredicate:'binding_source_span_match'};
+      }
       if(!diagnose('binding_source_span_match',!!span,
         field.startsWith('subject/')?'subject':field.startsWith('constraints/')?'constraint':field.startsWith('time_scope/')?'time_scope':field,createCoreTrace?{
           evidenceReferencePresent:spans.some(e=>e.path===path),evidenceReferenceResolved:spans.some(e=>e.path===path),
@@ -132,7 +151,7 @@ export function createWatchContractFromInterpretation(output, request, createCor
     if(e.code==='CREATE_CLARIFICATION_REQUIRED'||e.code==='INVALID_CREATE_CONTRACT')throw e;
     invalid();
   }
-  },()=>({check,...summarizeCreateExtraction(output),predicateDiagnostics:predicateDiagnostics.slice(0,64),finalRejectionPredicate}));
+  },()=>({check,...summarizeCreateExtraction(output),predicateDiagnostics:predicateDiagnostics.slice(0,64),finalRejectionPredicate,...triggerPathContent}));
 }
 
 export function reviewCreateExtraction(output, request, createCoreTrace) {
