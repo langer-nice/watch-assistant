@@ -1,6 +1,7 @@
 // Slice 1: pure, offline semantic normalization. No model, transport or storage.
 import { normalizeDecimal } from '../src/js/currency-watch.js';
 import { canonicalJSON, contentFingerprint } from '../src/js/structured-fingerprint.js';
+import { traceCreateStage } from './create-core-trace.js';
 
 export const WATCH_CONTRACT_VERSION = 'watch-contract.v1';
 const fail = reason => { throw Object.assign(new Error('Invalid Watch Contract'), { code: 'INVALID_WATCH_CONTRACT', reason }); };
@@ -17,7 +18,8 @@ const anySource = () => ({ policy: 'any', urls: [], official: false });
  * context.request, if supplied, is authoritative. Technical hints are ignored,
  * never used to choose domain/adapter. Supported vocabulary is deliberately small.
  */
-export function normalizeWatchContract(candidate, context = {}) {
+export function normalizeWatchContract(candidate, context = {}, createCoreTrace) {
+  if(createCoreTrace)return traceCreateStage(createCoreTrace,'normalizer',()=>normalizeWatchContract(candidate,context));
   keys(context, ['request']);
   keys(candidate, ['version','user_intent_text','subject','trigger','constraints','time_scope',
     'source_preference','input_source','evidence','capability_status','technical']);

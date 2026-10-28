@@ -45,7 +45,7 @@ const isMonacoCompanyRequest = (request, companyRequest) => {
 export const planWatch = async (request, options = {}) => {
   if (options.mode === 'create-core.v1') {
     // New-Create only; no legacy source discovery or URL story suggestion.
-    if (isExactCreateUrl(request)) return reviewCreateExtraction(null, request);
+    if (isExactCreateUrl(request)) return reviewCreateExtraction(null, request, options.createCoreTrace);
     return interpretWatchRequest(request, {...options,rawOutputHandler:reviewCreateExtraction});
   }
   if (options.mode === 'interpretation.v1') return interpretWatchRequest(request, options);

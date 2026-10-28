@@ -1,4 +1,5 @@
 import { parseCurrencyRequest } from '../src/js/currency-watch.js';
+import { traceCreateAsyncStage } from './create-core-trace.js';
 const ENDPOINT = '/api/request-clarification';
 const MAX_BODY_BYTES = 4_096;
 const MAX_REQUEST_LENGTH = 500;
@@ -44,18 +45,25 @@ const sendJson = (response, statusCode, body) => {
 // Shared server-side transport. Callers supply their own non-executing schema.
 export const requestStructuredOutput = async ({ apiKey, model = 'gpt-5.6-luna',
   fetchImpl = fetch, signal, instructions, input, reasoning, max_output_tokens, text,
-  maxOutputBytes = Infinity,
+  maxOutputBytes = Infinity, createCoreTrace,
 }) => {
   if (!apiKey) throw Object.assign(new Error('AI service is not configured.'), { statusCode: 503 });
+  let providerStatus;
+  const response = await traceCreateAsyncStage(createCoreTrace,'provider_call',async()=>{
   const response = await fetchImpl('https://api.openai.com/v1/responses', {
     method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     ...(signal ? { signal } : {}),
     body: JSON.stringify({ model, store: false, instructions, input, reasoning, max_output_tokens, text }),
   });
+  providerStatus=response.status;
   if (!response.ok) throw Object.assign(new Error(`OpenAI request failed with status ${response.status}.`), { statusCode: 502, providerStatus: response.status });
+  return response;
+  },()=>({providerStatus}));
+  return traceCreateAsyncStage(createCoreTrace,'provider_output_parse',async()=>{
   const output = extractOutputText(await response.json()) || '';
   if (typeof output !== 'string' || Buffer.byteLength(output) > maxOutputBytes) throw new SyntaxError('Invalid structured response.');
   return JSON.parse(output);
+  });
 };
 
 export const generateRequestClarification = async ({

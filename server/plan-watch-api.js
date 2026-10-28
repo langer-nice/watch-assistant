@@ -4,6 +4,7 @@ import { safeInterpretationFailureCategory } from './watch-interpreter.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
 import { createPlannerDecision, planWatch } from './watch-planner.js';
 import { createCoreReviewEnabled } from './create-contract-capability.js';
+import { createCoreTrace } from './create-core-trace.js';
 
 const ENDPOINT = '/api/plan-watch';
 const MAX_BODY_BYTES = 4_096;
@@ -37,9 +38,14 @@ export const createPlanWatchMiddleware = (options = {}) => (
       return;
     }
     const mode = new URL(request.url || '/', 'http://localhost').searchParams.get('mode');
+    const traceEnv=options.env||process.env;
+    const trace=mode==='create-core.v1'&&['development','test','preview'].includes(traceEnv.VERCEL_ENV)
+      ?createCoreTrace(options.logger||console):undefined;
+    trace?.start('request_received');
     if (request.method !== 'POST') {
       response.setHeader('Allow', 'POST');
       if (mode !== null) {
+        trace?.finish(405,{code:'METHOD_NOT_ALLOWED'});
         sendJson(response, 405, { mode: mode === 'create-core.v1' ? mode : 'interpretation.v1', executable: false, code: 'METHOD_NOT_ALLOWED' });
         return;
       }
@@ -50,7 +56,9 @@ export const createPlanWatchMiddleware = (options = {}) => (
     }
     try {
       const body = await readJsonBody(request);
+      trace?.pass('request_received');
       if (mode !== null) {
+        trace?.start('create_core_route_selected');
         if (!['interpretation.v1','create-core.v1'].includes(mode)) throw Object.assign(new Error('Invalid interpretation mode.'), { code: 'INVALID_INTERPRETATION_REQUEST', statusCode: 400 });
         const env = options.env || process.env;
         if (mode === 'create-core.v1' && !createCoreReviewEnabled(env)) throw Object.assign(new Error('Unavailable'),{code:'STRUCTURED_FEATURE_UNAVAILABLE',statusCode:404});
@@ -61,7 +69,9 @@ export const createPlanWatchMiddleware = (options = {}) => (
           || typeof body.request !== 'string' || !body.request.trim() || body.request.length>500
           || !['en','fr','mixed','und'].includes(body.language??'und')
           || Object.keys(body).some(key=>!['request','language','operation'].includes(key)))) throw Object.assign(new Error('New Create only'),{code:'INVALID_INTERPRETATION_REQUEST',statusCode:400});
-        sendJson(response, 200, await planWatch(body.request, { ...options, mode, language: body.language ?? 'und' }));
+        trace?.pass('create_core_route_selected');
+        sendJson(response, 200, await planWatch(body.request, { ...options, mode, language: body.language ?? 'und',createCoreTrace:trace }));
+        trace?.finish(200);
         return;
       }
       const scope = new URL(request.url || '/', 'http://localhost').searchParams.get('scope');
@@ -79,6 +89,7 @@ export const createPlanWatchMiddleware = (options = {}) => (
             'INVALID_INTERPRETATION_REQUEST','INTERPRETATION_FAILED','AI_SERVICE_UNAVAILABLE','AI_TIMEOUT',
             'INVALID_CREATE_CONTRACT','CREATE_CLARIFICATION_REQUIRED']);
           const code=allowed.has(error.code)?error.code:'INVALID_CREATE_CONTRACT';
+          trace?.finish(allowed.has(error.code)?error.statusCode||422:422,error);
           sendJson(response,allowed.has(error.code)?error.statusCode||422:422,{mode,executable:false,code});
           return;
         }

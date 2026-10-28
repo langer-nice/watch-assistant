@@ -2,6 +2,7 @@
 import { interpretationOutputSchema, matchesStructuredSchema } from '../src/js/watch-interpretation.js';
 import { normalizeWatchContract } from './watch-contract.js';
 import { resolveWatchContractCapability } from './create-contract-capability.js';
+import { traceCreateStage, summarizeCreateExtraction } from './create-core-trace.js';
 
 const invalid = () => { throw Object.assign(new Error('Invalid Create extraction'),{code:'INVALID_CREATE_CONTRACT',statusCode:422}); };
 export const isExactCreateUrl = request => {
@@ -14,7 +15,9 @@ export const isExactCreateUrl = request => {
  * Domain/intent and model event-family hints never select the downstream plan.
  * This adapter intentionally admits only the bounded Slice 1 semantic vocabulary.
  */
-export function createWatchContractFromInterpretation(output, request) {
+export function createWatchContractFromInterpretation(output, request, createCoreTrace) {
+  let check='request';
+  return traceCreateStage(createCoreTrace,'contract_bridge',()=>{
   try {
     if (typeof request !== 'string' || !request || request.length>500) invalid();
     if (isExactCreateUrl(request)) {
@@ -22,18 +25,23 @@ export function createWatchContractFromInterpretation(output, request) {
       const evidence=['subject/0','trigger'].map(field=>({field,source_id:'request',start:0,end:request.length,text:request}));
       return normalizeWatchContract({user_intent_text:request,subject:[{kind:'resource',value:request}],
         trigger:{kind:'resource_change',target:request,comparison:null},constraints:[],time_scope:[],
-        source_preference:{policy:'only',urls:[request],official:false},evidence},{request});
+        source_preference:{policy:'only',urls:[request],official:false},evidence},{request},createCoreTrace);
     }
     // Keep extraction shape safety, not its model-sensitive technical semantics.
+    check='output_schema';
     if (!matchesStructuredSchema(output,interpretationOutputSchema)) invalid();
+    check='ambiguity';
     if (output.ambiguities.length) throw Object.assign(new Error('Clarification required'),{code:'CREATE_CLARIFICATION_REQUIRED',statusCode:422});
+    check='bounded_shape';
     if (output.subjects.some(s=>s.kind!=='individual') || output.geographic.length || output.exclusions.length
       || output.unresolvedRequirements.length || output.recurrence!=='unspecified'
       || output.conditions.length!==1 || output.conditions[0].op!=='predicate') invalid();
+    check='references';
     const node=output.conditions[0],subjects=output.subjects;
     if (new Set(subjects.map(s=>s.id)).size!==subjects.length || subjects.some(s=>s.id===node.id)
       || output.condition!==node.id || new Set(node.subjects).size!==node.subjects.length
       || node.subjects.length!==subjects.length || node.subjects.some(id=>!subjects.some(s=>s.id===id))) invalid();
+    check='evidence_source';
     const paths=new Set([...subjects.map((_,i)=>`/subjects/${i}/label`),'/conditions/0',
       ...output.topics.map((_,i)=>`/topics/${i}`),...output.temporal.map((_,i)=>`/temporal/${i}`)]);
     const spans=output.evidence.map(e=>{
@@ -46,12 +54,14 @@ export function createWatchContractFromInterpretation(output, request) {
     });
     const evidence=[];
     const bind=(field,path,value,exact=false)=>{
+      check='evidence_binding';
       const span=spans.find(e=>e.path===path&&(exact?e.text===value:e.text.includes(value)));
       if(!span)invalid();
       const start=span.start+span.text.indexOf(value);
       evidence.push({field,source_id:'request',start,end:start+value.length,text:value});
     };
     const c={user_intent_text:request,subject:[],trigger:null,constraints:[],time_scope:[],evidence};
+    check='subject_trigger';
     const rate=/^Tell me when (GBP\/EUR|EUR\/GBP) goes (above|at least|below) (\d{1,12}(?:[.,]\d{1,12})?)\.$/u.exec(request);
     if(rate){
       const ordered=node.subjects.map(id=>subjects.find(s=>s.id===id));
@@ -80,26 +90,30 @@ export function createWatchContractFromInterpretation(output, request) {
         c.trigger={kind:'development',target:phrase,comparison:null};bind('trigger','/conditions/0',phrase);
       }
     }
+    check='constraints';
     output.topics.forEach((t,i)=>{
       c.constraints.push({kind:'topic',value:t.label,role:t.role==='coverage_focus'?'focus':t.role});
       bind(`constraints/${i}`,`/topics/${i}`,t.label);
     });
+    check='temporal';
     output.temporal.forEach((t,i)=>{
       if(t.start!==null||t.end!==null||t.timezone!==null||t.relation!=='unspecified')invalid();
       c.time_scope.push({kind:'period',value:t.text,basis:'unspecified'});bind(`time_scope/${i}`,`/temporal/${i}`,t.text);
     });
-    return normalizeWatchContract(c,{request});
+    check='normalization';
+    return normalizeWatchContract(c,{request},createCoreTrace);
   }catch(e){
     if(e.code==='CREATE_CLARIFICATION_REQUIRED'||e.code==='INVALID_CREATE_CONTRACT')throw e;
     invalid();
   }
+  },()=>({check,...summarizeCreateExtraction(output)}));
 }
 
-export function reviewCreateExtraction(output, request) {
-  const contract=createWatchContractFromInterpretation(output,request);
-  const resolved=resolveWatchContractCapability(contract),{projection}=resolved;
-  return {mode:'create-core.v1',executable:false,status:'interpreted',contract,
+export function reviewCreateExtraction(output, request, createCoreTrace) {
+  const contract=createWatchContractFromInterpretation(output,request,createCoreTrace);
+  const resolved=resolveWatchContractCapability(contract,createCoreTrace),{projection}=resolved;
+  return traceCreateStage(createCoreTrace,'review_response',()=>({mode:'create-core.v1',executable:false,status:'interpreted',contract,
     capabilityStatus:projection.capability_status.toLowerCase(),interpretation:projection.interpretation,
     projectionStatus:projection.status,assessment:projection.assessment,
-    capability:{status:resolved.status,adapter:resolved.adapter,unmetRequirements:resolved.unmetRequirements,saveEligible:resolved.saveEligible}};
+    capability:{status:resolved.status,adapter:resolved.adapter,unmetRequirements:resolved.unmetRequirements,saveEligible:resolved.saveEligible}}));
 }
