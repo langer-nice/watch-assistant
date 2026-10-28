@@ -9,7 +9,7 @@ const failureCategories = new Set(['INVALID_INPUT','PROVIDER_CONFIGURATION','PRO
 export const safeInterpretationFailureCategory = cause => failureCategories.has(cause?.failureCategory)
   ? cause.failureCategory : 'APPLICATION_EXCEPTION';
 export const interpretWatchRequest = async (request, {
-  apiKey, model, fetchImpl = fetch, language = 'und', timeoutMs = 15000, roleResolver = resolveCurrentRole,
+  apiKey, model, fetchImpl = fetch, language = 'und', timeoutMs = 15000, roleResolver = resolveCurrentRole, rawOutputHandler,
 } = {}) => {
   if (typeof request !== 'string' || !request.trim() || request.length > 500
     || !['en', 'fr', 'mixed', 'und'].includes(language)) throw error('INVALID_INTERPRETATION_REQUEST', 400, 'INVALID_INPUT');
@@ -60,6 +60,8 @@ export const interpretWatchRequest = async (request, {
     phase = 'shape';
     if (!output || typeof output !== 'object' || Array.isArray(output) || Object.hasOwn(output, 'originalRequest')) throw error('INTERPRETATION_FAILED', 502);
     phase = 'validation';
+    // Opt-in new-Create mode only. Default interpretation/reconstruction is unchanged.
+    if (rawOutputHandler) return rawOutputHandler(output, request);
     const interpretation = reconstructInterpretation(output, request, { canonicalize: canonicalizeWatchInterpretation });
     let roleResolution;
     const intent=roleDevelopmentIntent(interpretation);
@@ -79,6 +81,7 @@ export const interpretWatchRequest = async (request, {
       status: interpretation.ambiguities.length ? 'ambiguous' : interpretation.unresolvedRequirements.length ? 'unresolved' : 'interpreted',
       interpretation };
   } catch (cause) {
+    if (rawOutputHandler && ['INVALID_CREATE_CONTRACT','CREATE_CLARIFICATION_REQUIRED'].includes(cause?.code)) throw cause;
     if (cause?.code === 'INTERPRETATION_FAILED') {
       cause.failureCategory = phase === 'shape' ? 'OUTPUT_SHAPE' : 'STRUCTURED_VALIDATION';
       throw cause;

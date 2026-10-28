@@ -9,6 +9,8 @@ import { validateInterpretation } from '../src/js/watch-interpretation.js';
 import { validateCompiledMonitoringPlan } from './watch-capabilities.js';
 import { createWatchDefinition, validateWatchDefinition, structuredMonitoringSource } from '../src/js/watch-definition.js';
 import { authorizationError, authorizationConfiguration, authorizationBindings, issuePlanAuthorization, verifyPlanAuthorization } from './structured-watch-authorization.js';
+import { createCoreReviewEnabled, resolveWatchContractCapability } from './create-contract-capability.js';
+import { canonicalJSON } from '../src/js/structured-fingerprint.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MAX_BODY_BYTES = 98304;
@@ -38,7 +40,7 @@ const readBody = async request => {
   }
   const required = ['action','watchId','operation','mutationId','expectedRevision','title'];
   const payload = value.action === 'issue' ? ['interpretation','plan'] : value.action === 'confirm' ? ['token','definition'] : [];
-  const allowed = [...required,...payload,...(value.action === 'issue' ? ['category','whyFollowing'] : [])];
+  const allowed = [...required,...payload,...(value.action === 'issue' ? ['category','whyFollowing','createContract'] : [])];
   if (!payload.length || ![...required,...payload].every(key => Object.hasOwn(value,key)) || Object.keys(value).some(key => !allowed.includes(key))
     || !uuid.test(value.watchId) || !uuid.test(value.mutationId) || !['create','update'].includes(value.operation)
     || !Number.isSafeInteger(value.expectedRevision) || (value.operation === 'create' ? value.expectedRevision !== 0 : value.expectedRevision < 1)
@@ -62,7 +64,8 @@ export const createStructuredWatchMiddleware = ({ env = process.env, authenticat
   try {
     const { user, client } = await authenticate(request,{env,...options});
     requireStructuredCreationAccess(user,env);
-    if (request.method === 'GET') return send(200,{enabled:true,monitoringEnabled:env.STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true'});
+    if (request.method === 'GET') return send(200,{enabled:true,monitoringEnabled:env.STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true',
+      ...(createCoreReviewEnabled(env)?{createCoreEnabled:true}:{})});
     const body = await readBody(request);
     if (body.action === 'monitoring') {
       // Authenticated owner and the exact Staging rollout gates are authoritative.
@@ -87,6 +90,15 @@ export const createStructuredWatchMiddleware = ({ env = process.env, authenticat
     if (creationOnly && body.operation !== 'create') throw authorizationError('INVALID_BODY',400);
     let definition;
     if (body.action === 'issue') {
+      if (Object.hasOwn(body,'createContract')) {
+        if (!createCoreReviewEnabled(env)||body.operation!=='create') throw authorizationError('STRUCTURED_FEATURE_UNAVAILABLE',404);
+        let resolved;
+        try {resolved=resolveWatchContractCapability(body.createContract);}
+        catch {throw authorizationError('INVALID_WATCH_DEFINITION',422);}
+        if (!resolved.saveEligible) throw authorizationError('MONITORING_PLAN_NOT_SUPPORTED',422);
+        if (canonicalJSON(body.interpretation)!==canonicalJSON(resolved.projection.interpretation)
+          ||canonicalJSON(body.plan)!==canonicalJSON(resolved.projection.plan)) throw authorizationError('INVALID_WATCH_DEFINITION',422);
+      }
       let interpretation;
       try { interpretation = validateInterpretation(body.interpretation); }
       catch { throw authorizationError('INVALID_STRUCTURED_INTERPRETATION',422); }

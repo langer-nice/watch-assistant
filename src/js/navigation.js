@@ -4698,6 +4698,7 @@ export function initForm() {
       watchError.textContent = '';
     }
 
+    if (!isEditMode && await structuredCreation?.runCreateCore?.(originalRequest, getLanguage())) return;
     synchronizeInferredFields(request);
     if (!isEditMode && parseCurrencyRequest(request)) {
       await savePlainTextWatch(request, whyFollowing, { preserveOriginalWording: true });

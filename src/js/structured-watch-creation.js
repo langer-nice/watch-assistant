@@ -46,7 +46,7 @@ export const structuredCreationError = (code,language) => {
 };
 
 export const initStructuredWatchCreation = ({form,input,noteInput,error,getLanguage,listen,isCurrent=()=>true,fetchImpl=(...args)=>fetch(...args),uuid=()=>crypto.randomUUID()}) => {
- let enabled=false, monitoringEnabled=false, generation=0, pending=null, busy=false, panel, reviewNote='';
+ let enabled=false, monitoringEnabled=false, createCoreEnabled=false, generation=0, pending=null, busy=false, panel, reviewNote='';
  const message=text=>{if(error)error.textContent=text;const inline=panel?.querySelector('.structured-review-error');if(inline)inline.textContent=text;};
  const labels=()=>copy[getLanguage()==='fr'?'fr':'en'];
  const clear=()=>{generation++;pending=null;panel?.remove();panel=null;form.classList.remove('is-reviewing');};
@@ -76,6 +76,8 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   if(!activeSession())return;
   const accessOwner=activeSession()?.user?.id;
   try {const result=await request('/api/structured-watches');if(!isCurrent()||activeSession()?.user?.id!==accessOwner||result.enabled!==true)return;enabled=true;monitoringEnabled=result.monitoringEnabled===true;
+   createCoreEnabled=result.createCoreEnabled===true;
+   if(createCoreEnabled)monitoringEnabled=false;
   }catch{/* Default/public flow stays unchanged. No AI or persistence request. */}
  };
  const invalidateInput=()=>{if(busy||pending||panel){clear();message(labels().stale);}};
@@ -92,8 +94,19 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
    // Refresh a rejected, expired review without another AI call when its role evidence is still current.
    const reusable=revalidation?.interpreted;
    const interpreted=reusable&&(!reusable.roleResolution||Date.now()-Date.parse(reusable.roleResolution.verifiedAt)<3600000)
-    ? reusable : await request('/api/plan-watch?mode=interpretation.v1',{request:original,language});
+    ? reusable : await request(createCoreEnabled?'/api/plan-watch?mode=create-core.v1':'/api/plan-watch?mode=interpretation.v1',
+      {request:original,language,...(createCoreEnabled?{operation:'create'}:{})});
    if(!ready(epoch,owner,original,language))return true;
+   if(createCoreEnabled){
+    if(interpreted.mode!=='create-core.v1'||interpreted.contract?.user_intent_text!==original
+      ||!['SUPPORTED','UNSUPPORTED','PARTIALLY_SUPPORTED'].includes(interpreted.capability?.status))throw Object.assign(Error('review'),{code:'INVALID_WATCH_DEFINITION'});
+    if(interpreted.capability.status!=='SUPPORTED'){
+     const details=[{label:c.original,value:original},...new Set((interpreted.capability.unmetRequirements||[]).map(i=>limitations[i.code]?.[language==='fr'?1:0]||c.otherAdapter))];
+     show(interpreted.capability.status==='PARTIALLY_SUPPORTED'?c.clarify:c.unsupported,details);
+     button(c.edit,edit);button(c.cancel,clear);message('');return true;
+    }
+    if(interpreted.capability.saveEligible!==true)throw Object.assign(Error('review'),{code:'INVALID_WATCH_DEFINITION'});
+   }
    const interpretation=validateInterpretation(interpreted.interpretation);
    if(interpretation.domain!=='media_news'){message('');return false;}
    if(interpretation.originalRequest!==original)throw Object.assign(Error('request'),{code:'INVALID_WATCH_DEFINITION'});
@@ -112,7 +125,8 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
    }
    if(assessed.plan.adapter!=='google_news_literal_v1'){show(c.unsupported,[c.otherAdapter]);button(c.edit,edit);button(c.cancel,clear);message('');return true;}
    const identity=revalidation?.identity||{watchId:uuid(),mutationId:uuid(),operation:'create',expectedRevision:0,title:structuredWatchObjective({plan:assessed.plan},language)?.title||assessed.plan.criteria.subjects.join(' + ').slice(0,200)};
-   const issued=await request('/api/structured-watches',{action:'issue',...identity,interpretation,plan:assessed.plan,...(reviewNote?{whyFollowing:reviewNote}:{})});
+   const issued=await request('/api/structured-watches',{action:'issue',...identity,interpretation,plan:assessed.plan,...(reviewNote?{whyFollowing:reviewNote}:{}),
+    ...(createCoreEnabled?{createContract:interpreted.contract}:{})});
    if(!ready(epoch,owner,original,language))return true;
    const definition=validateWatchDefinition(issued.definition,issued.source);
    if(canonicalJSON(definition)!==canonicalJSON(createWatchDefinition(interpretation,assessed.plan,{whyFollowing:reviewNote}))||typeof issued.token!=='string')throw Object.assign(Error('review'),{code:'INVALID_WATCH_DEFINITION'});
@@ -178,5 +192,9 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   return true;
  };
  const accessReady=access();
- return {run,invalidate:clear,isEnabled:()=>enabled};
+ return {run,invalidate:clear,isEnabled:()=>enabled,runCreateCore:async(original,language)=>{
+  await accessReady;
+  if(!createCoreEnabled)return false;
+  return run(original,language);
+ }};
 };
