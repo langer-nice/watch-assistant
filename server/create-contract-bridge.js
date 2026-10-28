@@ -17,6 +17,19 @@ export const isExactCreateUrl = request => {
  */
 export function createWatchContractFromInterpretation(output, request, createCoreTrace) {
   let check='request';
+  const predicateDiagnostics=[];
+  let finalRejectionPredicate=null;
+  // Bridge-local, text-free snapshots. Never alter the predicate's result.
+  const diagnose=(predicate,result,binding,detail={})=>{
+    if(!createCoreTrace)return result;
+    const condition=output?.conditions?.[0];
+    predicateDiagnostics.push({binding,predicate,predicateResult:result,
+      conditionPresent:!!condition,conditionValuePresent:!!condition&&Object.hasOwn(condition,'value'),
+      conditionValueIsNull:condition?.value===null,
+      candidateEvidenceCount:Math.min(10000,output?.evidence?.length||0),sourceKind:'request',...detail});
+    if(!result)finalRejectionPredicate=predicate;
+    return result;
+  };
   return traceCreateStage(createCoreTrace,'contract_bridge',()=>{
   try {
     if (typeof request !== 'string' || !request || request.length>500) invalid();
@@ -38,17 +51,19 @@ export function createWatchContractFromInterpretation(output, request, createCor
       || output.conditions.length!==1 || output.conditions[0].op!=='predicate') invalid();
     check='references';
     const node=output.conditions[0],subjects=output.subjects;
-    if (new Set(subjects.map(s=>s.id)).size!==subjects.length || subjects.some(s=>s.id===node.id)
+    if (!diagnose('condition_subject_references_valid',!(new Set(subjects.map(s=>s.id)).size!==subjects.length || subjects.some(s=>s.id===node.id)
       || output.condition!==node.id || new Set(node.subjects).size!==node.subjects.length
-      || node.subjects.length!==subjects.length || node.subjects.some(id=>!subjects.some(s=>s.id===id))) invalid();
+      || node.subjects.length!==subjects.length || node.subjects.some(id=>!subjects.some(s=>s.id===id))),'condition',{
+        evidenceReferencePresent:!!output.condition&&node.subjects.length>0,
+        evidenceReferenceResolved:output.condition===node.id&&node.subjects.every(id=>subjects.some(s=>s.id===id))})) invalid();
     check='evidence_source';
     const paths=new Set([...subjects.map((_,i)=>`/subjects/${i}/label`),'/conditions/0',
       ...output.topics.map((_,i)=>`/topics/${i}`),...output.temporal.map((_,i)=>`/temporal/${i}`)]);
     const spans=output.evidence.map(e=>{
-      if(!paths.has(e.path))invalid();
+      if(!diagnose('evidence_path_allowed',paths.has(e.path),'evidence',{evidenceReferencePresent:!!e.path,evidenceReferenceResolved:paths.has(e.path)}))invalid();
       const context=e.context??e.quote;
       const at=request.indexOf(context),relative=context.indexOf(e.quote);
-      if(at<0||relative<0)invalid();
+      if(!diagnose('evidence_context_and_quote_source_match',at>=0&&relative>=0,'evidence',{exactMatchFound:at>=0&&relative>=0,contextInRequest:at>=0,quoteInContext:relative>=0}))invalid();
       const start=at+relative;
       return {path:e.path,start,end:start+e.quote.length,text:e.quote};
     });
@@ -56,7 +71,12 @@ export function createWatchContractFromInterpretation(output, request, createCor
     const bind=(field,path,value,exact=false)=>{
       check='evidence_binding';
       const span=spans.find(e=>e.path===path&&(exact?e.text===value:e.text.includes(value)));
-      if(!span)invalid();
+      if(!diagnose('binding_source_span_match',!!span,
+        field.startsWith('subject/')?'subject':field.startsWith('constraints/')?'constraint':field.startsWith('time_scope/')?'time_scope':field,createCoreTrace?{
+          evidenceReferencePresent:spans.some(e=>e.path===path),evidenceReferenceResolved:spans.some(e=>e.path===path),
+          exactMatchFound:!!span,matchMode:exact?'equal':'contains',
+          matchingEvidenceCount:Math.min(10000,spans.filter(e=>e.path===path&&(exact?e.text===value:e.text.includes(value))).length),
+        }:{}))invalid();
       const start=span.start+span.text.indexOf(value);
       evidence.push({field,source_id:'request',start,end:start+value.length,text:value});
     };
@@ -86,7 +106,13 @@ export function createWatchContractFromInterpretation(output, request, createCor
         bind('trigger','/conditions/0',event[0].slice(0,-1));
       }else{
         const phrase=/\b(important new developments|new developments|news|updates) about /u.exec(request)?.[1];
-        if(node.kind!=='news_about'||node.value!==null||!phrase)invalid();
+        if(!diagnose('news_condition_kind_null_value_and_phrase',node.kind==='news_about'&&node.value===null&&!!phrase,'condition',{
+          kindIsNewsAbout:node.kind==='news_about',phrasePresent:!!phrase,
+          exactMatchFound:!!phrase&&spans.some(e=>e.path==='/conditions/0'&&e.text.includes(phrase)),
+          evidenceReferencePresent:spans.some(e=>e.path==='/conditions/0'),
+          evidenceReferenceResolved:spans.some(e=>e.path==='/conditions/0'),
+          matchingEvidenceCount:Math.min(10000,spans.filter(e=>e.path==='/conditions/0'&&!!phrase&&e.text.includes(phrase)).length),
+        }))invalid();
         c.trigger={kind:'development',target:phrase,comparison:null};bind('trigger','/conditions/0',phrase);
       }
     }
@@ -106,7 +132,7 @@ export function createWatchContractFromInterpretation(output, request, createCor
     if(e.code==='CREATE_CLARIFICATION_REQUIRED'||e.code==='INVALID_CREATE_CONTRACT')throw e;
     invalid();
   }
-  },()=>({check,...summarizeCreateExtraction(output)}));
+  },()=>({check,...summarizeCreateExtraction(output),predicateDiagnostics:predicateDiagnostics.slice(0,64),finalRejectionPredicate}));
 }
 
 export function reviewCreateExtraction(output, request, createCoreTrace) {
