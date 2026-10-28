@@ -11,6 +11,7 @@ import { reviewCreateExtraction } from './create-contract-bridge.js';
 import { watchContractSemanticFingerprint } from './watch-contract.js';
 import { configureStructuredWatchCreation, initStructuredWatchCreation } from '../src/js/structured-watch-creation.js';
 import { fixture, individual, predicate } from './test-support/watch-interpretation-fixtures.js';
+import { cleanCreateExtraction } from './test-support/create-semantic-fixtures.js';
 
 const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',other='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const uuid=n=>`cccccccc-cccc-4ccc-8ccc-${String(n).padStart(12,'0')}`;
@@ -50,7 +51,7 @@ async function harness(t,index=0,run=1,{core=true}={}){
   const form=document.querySelector('form'),input=form.querySelector('textarea'),error=form.querySelector('#error');
   input.value=requests[index];
   const state={owner,clock:Date.UTC(2026,9,28,14),calls:[],receipts:new Map(),writes:0,rpcCalls:0,plan:null,
-    provider:raw(index,run),lose:false,persistenceError:false};
+    provider:core?cleanCreateExtraction(index,run):raw(index,run),lose:false,persistenceError:false};
   const env={VERCEL_ENV:'test',SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',
     CREATE_CORE_REPLACEMENT_ENABLED:core?'true':'false',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',
     STRUCTURED_WATCH_TEST_USER_IDS:owner+','+other,STRUCTURED_WATCH_SIGNING_SECRET:'isolated-local-fixture-secret-'.repeat(2),

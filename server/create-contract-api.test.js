@@ -7,6 +7,7 @@ import { createWatchContractFromInterpretation, reviewCreateExtraction } from '.
 import { normalizeWatchContract, watchContractSemanticFingerprint } from './watch-contract.js';
 import { fixture, individual, predicate } from './test-support/watch-interpretation-fixtures.js';
 import { compileMonitoringPlan } from '../src/js/watch-capabilities.js';
+import { cleanCreateExtraction } from './test-support/create-semantic-fixtures.js';
 
 const owner='11111111-1111-4111-8111-111111111111';
 const env={VERCEL_ENV:'test',SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',
@@ -69,11 +70,14 @@ test('15 real loopback HTTP planning attempts: five frozen cases, three changing
     for(let index=0;index<5;index++){
       let first;
       for(let run=1;run<=3;run++){
-        current=index===4?null:extraction(index,run);
+        current=cleanCreateExtraction(index,run);
+        const beforeCalls=providerCalls;
         const timestamp=new Date().toISOString();
         const response=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},
           body:JSON.stringify({operation:'create',request:requests[index],language:'en'})});
         const result=await response.json();assert.equal(response.status,200,JSON.stringify(result));
+        assert.equal(providerCalls-beforeCalls,index===4?0:1);
+        assert.equal(result.capability.status,['SUPPORTED','UNSUPPORTED','SUPPORTED','PARTIALLY_SUPPORTED','UNSUPPORTED'][index]);
         assert.equal(result.mode,'create-core.v1');assert.equal(result.status,'interpreted');assert.equal(result.executable,false);
         assert.deepEqual(normalizeWatchContract(result.contract),result.contract);
         assert.equal(result.contract.user_intent_text,requests[index]);assert.deepEqual(result.contract.constraints,[]);

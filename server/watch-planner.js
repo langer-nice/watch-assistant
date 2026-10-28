@@ -3,7 +3,7 @@ import { parseCompanyWatchRequest } from '../src/js/company-watch-request.js';
 import { parseMediaStoryRequest } from '../src/js/media-story-request.js';
 import { discoverTextMonitoringSource } from './monitoring-source-api.js';
 import { interpretWatchRequest } from './watch-interpreter.js';
-import { isExactCreateUrl, reviewCreateExtraction } from './create-contract-bridge.js';
+import { planCreateSemantics } from './create-semantic-planner.js';
 
 const UNKNOWN_QUESTION = 'What would you like to monitor?';
 const COMPANY_QUESTIONS = {
@@ -45,8 +45,7 @@ const isMonacoCompanyRequest = (request, companyRequest) => {
 export const planWatch = async (request, options = {}) => {
   if (options.mode === 'create-core.v1') {
     // New-Create only; no legacy source discovery or URL story suggestion.
-    if (isExactCreateUrl(request)) return reviewCreateExtraction(null, request);
-    return interpretWatchRequest(request, {...options,rawOutputHandler:reviewCreateExtraction});
+    return planCreateSemantics(request, options);
   }
   if (options.mode === 'interpretation.v1') return interpretWatchRequest(request, options);
   if (options.mode != null) throw Object.assign(new Error('Invalid interpretation mode.'), { code: 'INVALID_INTERPRETATION_REQUEST', statusCode: 400 });
