@@ -16,6 +16,21 @@ const identity = value => {
   }
 };
 
+// The schema supplies plain claims/spans, not typed alternatives. Never treat
+// mere substring membership as proof of ambiguity. Request uncertainty is
+// conservative: all claims remain blocking when such evidence is present.
+export function isGroundedCreateAmbiguity(request,claim) {
+  if(typeof request!=='string'||typeof claim!=='string'||!claim)return true;
+  if(isExactSemanticUrl(request))return false;
+  if(/\b(?:and|or|either|versus|vs|whether|unsure|uncertain|unclear|maybe|perhaps)\b|\bnot sure\b/iu.test(request))return true;
+  if(/(?:\babout|^Tell me when|^Monitor)\s+(?:it|they|them|he|she|him|her|this|that|these|those|the former|the latter|the company|the team|the player)(?=[\s.,;!?]|$)/iu.test(request))return true;
+  if(/\b(?:above|at least)\b/iu.test(request)&&/\b(?:below|at most)\b/iu.test(request))return true;
+  if(new Set(request.match(/\bQ[1-4] \d{4}\b/gu)||[]).size>1)return true;
+  // Only complete, already-supported grammatical forms can disprove a claim.
+  // Unknown/literal requests retain uncertainty rather than guessing a meaning.
+  return !/^(?:(?:Tell me when there are|Keep me updated on) (?:important new developments|new developments|news|updates) about .+|Tell me when .+ (?:publishes|releases|announces) its Q[1-4] \d{4} earnings (?:results|report)|Tell me when (?:GBP\/EUR|EUR\/GBP) goes (?:above|at least|below) \d{1,12}(?:[.,]\d{1,12})?)\.$/u.test(request);
+}
+
 /** Pure Slice A handoff. Slice B alone may pass result.candidate to normalizer. */
 export function groundCreateSemantics(request,extraction,trace) {
   return cleanStage(trace,'grounding',()=>{
@@ -23,10 +38,17 @@ export function groundCreateSemantics(request,extraction,trace) {
     ||/\u0000|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(request))fail('request');
   const url=isExactSemanticUrl(request);
   const e=cleanStage(trace,'semantic_validation',()=>validateCreateSemanticExtraction(extraction,{requiresSubject:!url}),extractionSummary);
-  if(e.ambiguity.length){
-    if(e.ambiguity.some(value=>!request.includes(value)))fail('ungrounded_ambiguity');
+  const groundedAmbiguity=e.ambiguity.filter(claim=>isGroundedCreateAmbiguity(request,claim));
+  if(groundedAmbiguity.length){
+    trace?.ambiguity?.(e.ambiguity.length,groundedAmbiguity.length,0);
     throw semanticError('explicit_ambiguity',true);
   }
+  // No claim is discarded until ALL unchanged semantic/role checks pass.
+  // Unsupported/mismatched semantics still reject; never repair or replace them.
+  const handoff=()=>{
+    trace?.ambiguity?.(e.ambiguity.length,0,e.ambiguity.length);
+    return cleanStage(trace,'watch_contract',()=>({candidate,ambiguity:[]}),v=>contractSummary(v.candidate));
+  };
   const evidence=[];
   const anchor=(field,start,end)=>{
     if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end<=start||end>request.length)fail('span');
@@ -43,7 +65,7 @@ export function groundCreateSemantics(request,extraction,trace) {
     candidate.trigger={kind:'resource_change',target:request,comparison:null};
     candidate.source_preference={policy:'only',urls:[request],official:false};
     for(const field of ['subject/0','trigger','source_preference','input_source'])anchor(field,0,request.length);
-    return cleanStage(trace,'watch_contract',()=>({candidate,ambiguity:[]}),v=>contractSummary(v.candidate));
+    return handoff();
   }
 
   const development=/^(?:Tell me when there are|Keep me updated on) (?<trigger>important new developments|new developments|news|updates) about (?<subject>.+?)\.$/du.exec(request);
@@ -106,6 +128,6 @@ export function groundCreateSemantics(request,extraction,trace) {
   if(!same(actualConstraints,expectedConstraints))fail('constraint_mismatch');
   if(!same(e.time_scope,expectedPeriods))fail('period_mismatch');
   if(e.source_preference!==expectedSource)fail('source_preference_mismatch');
-  return cleanStage(trace,'watch_contract',()=>({candidate,ambiguity:[]}),v=>contractSummary(v.candidate));
+  return handoff();
   },groundingSummary);
 }

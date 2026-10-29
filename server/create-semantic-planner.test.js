@@ -36,8 +36,9 @@ test('old graph output and model technical authority are rejected, never reconst
   }
 });
 test('grounded uncertainty is typed clarification; fabricated semantics stay rejected',async()=>{
-  const uncertain={...cleanCreateExtraction(0),ambiguity:['Manchester City']};
-  await assert.rejects(planCreateSemantics(cleanCreateRequests[0],options(uncertain)),{code:'CREATE_CLARIFICATION_REQUIRED',statusCode:422});
+  const request='Tell me when there are important new developments about Manchester City or Liverpool.';
+  const uncertain={...cleanCreateExtraction(0),subject:'Manchester City or Liverpool',ambiguity:['Manchester City or Liverpool']};
+  await assert.rejects(planCreateSemantics(request,options(uncertain)),{code:'CREATE_CLARIFICATION_REQUIRED',statusCode:422});
   const invented={...cleanCreateExtraction(0),constraints:[{kind:'topic',value:'transfers',role:'required'}]};
   await assert.rejects(planCreateSemantics(cleanCreateRequests[0],options(invented)),{code:'INVALID_CREATE_CONTRACT',statusCode:422});
 });

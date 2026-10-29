@@ -48,8 +48,6 @@ const badCases=[
   ['malformed quarter',1,v=>v.time_scope=['Q5 2026']],
   ['missing required subject',0,v=>v.subject=null],
   ['missing required field',0,v=>delete v.trigger],
-  ['ambiguous claim',0,v=>v.ambiguity=['Manchester City']],
-  ['fabricated ambiguity',0,v=>v.ambiguity=['not in this request']],
   ['source-backed but invented trigger topic',0,v=>v.constraints.push({kind:'topic',value:'important new developments',role:'required'})],
   ['URL substituted source',4,v=>v.source_preference='https://example.com/'],
   ['numeric model unit field forbidden',3,v=>v.constraints[0].unit='GBP'],

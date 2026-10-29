@@ -26,6 +26,11 @@ export function createCleanCreateTrace(logger=console){
     try{logger.info('clean_create_trace',JSON.stringify({correlation_id,mode:'create-core.v1',stage,status,...extra}));}catch{/* Logging cannot change behavior. */}
   };
   return {
+    ambiguity(extracted,grounded,discarded){
+      const bounded=n=>Number.isSafeInteger(n)&&n>=0&&n<=4?n:null;
+      emit('grounding','START',{event:'ambiguity_filter',safe_summary:{ambiguity_extracted_count:bounded(extracted),
+        ambiguity_grounded_count:bounded(grounded),ambiguity_discarded_count:bounded(discarded)}});
+    },
     start(stage){if(stages.has(stage)){active.push(stage);emit(stage,'START');}},
     pass(stage,summary){const i=active.lastIndexOf(stage);if(i>=0)active.splice(i,1);last_pass_stage=stage;emit(stage,'PASS',summary?{safe_summary:summary}:{});},
     fail(stage,error){const detail={category:stage,...safeError(error)};if(!first)first={stage,last_pass_stage,...detail};
