@@ -1,11 +1,13 @@
+import { cleanStage,projectionSummary,contractSummary } from './clean-create-trace.js';
 // Temporary, pure compatibility boundary. Existing compiler/validators unchanged.
 import { normalizeWatchContract } from './watch-contract.js';
 import { validateInterpretation } from '../src/js/watch-interpretation.js';
 import { assessCapabilities, compileMonitoringPlan } from '../src/js/watch-capabilities.js';
 import { createWatchDefinition, validateWatchDefinition, structuredMonitoringSource } from '../src/js/watch-definition.js';
 
-export function projectWatchContractToLegacyPlan(input) {
-  const c = normalizeWatchContract(input);
+export function projectWatchContractToLegacyPlan(input,trace) {
+  return cleanStage(trace,'projection',()=>{
+  const c = cleanStage(trace,'normalizer',()=>normalizeWatchContract(input),contractSummary);
   const result = (status, interpretation, assessment, plan = null, definition = null, source = null) => ({
     status, capability_status: c.capability_status, interpretation, assessment, plan, definition, source,
     // Compatibility here is NOT permission to save, activate or claim API support.
@@ -54,4 +56,5 @@ export function projectWatchContractToLegacyPlan(input) {
   const source = structuredMonitoringSource(plan.criteria);
   validateWatchDefinition(definition,source);
   return result('COMPATIBLE',interpretation,assessment,plan,definition,source);
+  },projectionSummary);
 }

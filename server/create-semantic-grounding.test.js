@@ -124,7 +124,7 @@ test('helper source imports only the new semantic boundary, never old graph, dow
   const groundingSource=await readFile(new URL('./create-semantic-grounding.js',import.meta.url),'utf8');
   assert(!/^import\s/m.test(extractionSource));
   const imports=[...groundingSource.matchAll(/from '([^']+)'/gu)].map(m=>m[1]);
-  assert.deepEqual(imports,['./create-semantic-extraction.js']);
+  assert.deepEqual(imports,['./clean-create-trace.js','./create-semantic-extraction.js']);
   for(const source of [extractionSource,groundingSource]){
     assert(!/\b(?:fetch|normalizeWatchContract|compileMonitoringPlan|resolveWatchContractCapability)\s*\(/u.test(source));
   }

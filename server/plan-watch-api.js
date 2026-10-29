@@ -1,3 +1,4 @@
+import { createCleanCreateTrace } from './clean-create-trace.js';
 import { safeValidationDiagnostic } from '../src/js/watch-interpretation.js';
 import { structuredCreationEnabled, requireStructuredCreationAccess } from './structured-creation-access.js';
 import { safeInterpretationFailureCategory } from './watch-interpreter.js';
@@ -37,9 +38,12 @@ export const createPlanWatchMiddleware = (options = {}) => (
       return;
     }
     const mode = new URL(request.url || '/', 'http://localhost').searchParams.get('mode');
+    const cleanTrace=mode==='create-core.v1'?createCleanCreateTrace(options.logger||console):undefined;
+    cleanTrace?.start('request');
     if (request.method !== 'POST') {
       response.setHeader('Allow', 'POST');
       if (mode !== null) {
+        cleanTrace?.finish(405,'METHOD_NOT_ALLOWED');
         sendJson(response, 405, { mode: mode === 'create-core.v1' ? mode : 'interpretation.v1', executable: false, code: 'METHOD_NOT_ALLOWED' });
         return;
       }
@@ -61,7 +65,9 @@ export const createPlanWatchMiddleware = (options = {}) => (
           || typeof body.request !== 'string' || !body.request.trim() || body.request.length>500
           || !['en','fr','mixed','und'].includes(body.language??'und')
           || Object.keys(body).some(key=>!['request','language','operation'].includes(key)))) throw Object.assign(new Error('New Create only'),{code:'INVALID_INTERPRETATION_REQUEST',statusCode:400});
-        sendJson(response, 200, await planWatch(body.request, { ...options, mode, language: body.language ?? 'und' }));
+        cleanTrace?.pass('request');
+        sendJson(response, 200, await planWatch(body.request, { ...options, mode, language: body.language ?? 'und',cleanTrace }));
+        cleanTrace?.finish(200);
         return;
       }
       const scope = new URL(request.url || '/', 'http://localhost').searchParams.get('scope');
@@ -79,6 +85,7 @@ export const createPlanWatchMiddleware = (options = {}) => (
             'INVALID_INTERPRETATION_REQUEST','INTERPRETATION_FAILED','AI_SERVICE_UNAVAILABLE','AI_TIMEOUT',
             'INVALID_CREATE_CONTRACT','CREATE_CLARIFICATION_REQUIRED']);
           const code=allowed.has(error.code)?error.code:'INVALID_CREATE_CONTRACT';
+          cleanTrace?.finish(allowed.has(error.code)?error.statusCode||422:422,code);
           sendJson(response,allowed.has(error.code)?error.statusCode||422:422,{mode,executable:false,code});
           return;
         }

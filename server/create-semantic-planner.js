@@ -1,3 +1,4 @@
+import { cleanStage,cleanAsyncStage,extractionSummary,contractSummary } from './clean-create-trace.js';
 import { requestStructuredOutput } from './request-clarification-api.js';
 import { createSemanticExtractionSchema,createExactUrlSemanticExtraction,isExactSemanticUrl } from './create-semantic-extraction.js';
 import { groundCreateSemantics } from './create-semantic-grounding.js';
@@ -17,12 +18,13 @@ const instructions=[
 ].join(' ');
 
 export async function planCreateSemantics(request,{
-  apiKey,model,fetchImpl=fetch,language='und',timeoutMs=15000,
+  apiKey,model,fetchImpl=fetch,language='und',timeoutMs=15000,cleanTrace,
 }={}) {
   if(typeof request!=='string'||!request.trim()||request.length>500||!['en','fr','mixed','und'].includes(language)){
     throw error('INVALID_INTERPRETATION_REQUEST',400);
   }
   let extraction;
+  await cleanAsyncStage(cleanTrace,'semantic_extraction',async()=>{
   if(isExactSemanticUrl(request))extraction=createExactUrlSemanticExtraction(request);
   else{
     if(!apiKey)throw error('AI_SERVICE_UNAVAILABLE',503);
@@ -42,14 +44,17 @@ export async function planCreateSemantics(request,{
       throw error(cause instanceof SyntaxError?'INTERPRETATION_FAILED':'AI_SERVICE_UNAVAILABLE',cause instanceof SyntaxError?502:503);
     }finally{clearTimeout(timer);}
   }
+  return extraction;
+  },extractionSummary);
   let contract;
-  try{contract=normalizeWatchContract(groundCreateSemantics(request,extraction).candidate,{request});}
+  try{const grounded=groundCreateSemantics(request,extraction,cleanTrace);
+    contract=cleanStage(cleanTrace,'normalizer',()=>normalizeWatchContract(grounded.candidate,{request}),contractSummary);}
   catch(cause){
     throw error(cause.code==='CREATE_SEMANTIC_AMBIGUITY'?'CREATE_CLARIFICATION_REQUIRED':'INVALID_CREATE_CONTRACT',422);
   }
-  const resolved=resolveWatchContractCapability(contract),{projection}=resolved;
-  return {mode:'create-core.v1',executable:false,status:'interpreted',contract,
+  const resolved=resolveWatchContractCapability(contract,cleanTrace),{projection}=resolved;
+  return cleanStage(cleanTrace,'review',()=>({mode:'create-core.v1',executable:false,status:'interpreted',contract,
     capabilityStatus:projection.capability_status.toLowerCase(),interpretation:projection.interpretation,
     projectionStatus:projection.status,assessment:projection.assessment,
-    capability:{status:resolved.status,adapter:resolved.adapter,unmetRequirements:resolved.unmetRequirements,saveEligible:resolved.saveEligible}};
+    capability:{status:resolved.status,adapter:resolved.adapter,unmetRequirements:resolved.unmetRequirements,saveEligible:resolved.saveEligible}}),v=>({review_constructed:true,response_category:v.status,http_status:200}));
 }

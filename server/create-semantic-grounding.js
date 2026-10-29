@@ -1,3 +1,4 @@
+import { cleanStage,extractionSummary,groundingSummary,contractSummary } from './clean-create-trace.js';
 import { validateCreateSemanticExtraction, isExactSemanticUrl, semanticError } from './create-semantic-extraction.js';
 
 const fail = reason => {throw semanticError(reason);};
@@ -16,11 +17,12 @@ const identity = value => {
 };
 
 /** Pure Slice A handoff. Slice B alone may pass result.candidate to normalizer. */
-export function groundCreateSemantics(request,extraction) {
+export function groundCreateSemantics(request,extraction,trace) {
+  return cleanStage(trace,'grounding',()=>{
   if(typeof request!=='string'||!request||request.length>500||request.trim()!==request
     ||/\u0000|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(request))fail('request');
   const url=isExactSemanticUrl(request);
-  const e=validateCreateSemanticExtraction(extraction,{requiresSubject:!url});
+  const e=cleanStage(trace,'semantic_validation',()=>validateCreateSemanticExtraction(extraction,{requiresSubject:!url}),extractionSummary);
   if(e.ambiguity.length){
     if(e.ambiguity.some(value=>!request.includes(value)))fail('ungrounded_ambiguity');
     throw semanticError('explicit_ambiguity',true);
@@ -41,7 +43,7 @@ export function groundCreateSemantics(request,extraction) {
     candidate.trigger={kind:'resource_change',target:request,comparison:null};
     candidate.source_preference={policy:'only',urls:[request],official:false};
     for(const field of ['subject/0','trigger','source_preference','input_source'])anchor(field,0,request.length);
-    return {candidate,ambiguity:[]};
+    return cleanStage(trace,'watch_contract',()=>({candidate,ambiguity:[]}),v=>contractSummary(v.candidate));
   }
 
   const development=/^(?:Tell me when there are|Keep me updated on) (?<trigger>important new developments|new developments|news|updates) about (?<subject>.+?)\.$/du.exec(request);
@@ -104,5 +106,6 @@ export function groundCreateSemantics(request,extraction) {
   if(!same(actualConstraints,expectedConstraints))fail('constraint_mismatch');
   if(!same(e.time_scope,expectedPeriods))fail('period_mismatch');
   if(e.source_preference!==expectedSource)fail('source_preference_mismatch');
-  return {candidate,ambiguity:[]};
+  return cleanStage(trace,'watch_contract',()=>({candidate,ambiguity:[]}),v=>contractSummary(v.candidate));
+  },groundingSummary);
 }

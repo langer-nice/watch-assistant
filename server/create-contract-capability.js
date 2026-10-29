@@ -1,3 +1,4 @@
+import { cleanStage,capabilitySummary,contractSummary } from './clean-create-trace.js';
 import { normalizeWatchContract } from './watch-contract.js';
 import { projectWatchContractToLegacyPlan } from './create-contract-projection.js';
 
@@ -12,9 +13,10 @@ export const createCoreReviewEnabled = env => env.CREATE_CORE_REPLACEMENT_ENABLE
         'VITE_MEDIA_WATCH_DAILY_DIGEST_ENABLED'].every(key => env[key] === 'false')));
 
 // Resolve execution only; never narrow or rewrite the already-grounded meaning.
-export function resolveWatchContractCapability(input) {
-  const contract=normalizeWatchContract(input);
-  const projection=projectWatchContractToLegacyPlan(contract);
+export function resolveWatchContractCapability(input,trace) {
+  return cleanStage(trace,'capability',()=>{
+  const contract=cleanStage(trace,'normalizer',()=>normalizeWatchContract(input),contractSummary);
+  const projection=projectWatchContractToLegacyPlan(contract,trace);
   const {assessment}=projection;
   const status=assessment.status==='supported'?'SUPPORTED'
     :assessment.status==='clarification_required'?'PARTIALLY_SUPPORTED':'UNSUPPORTED';
@@ -22,4 +24,5 @@ export function resolveWatchContractCapability(input) {
     unmetRequirements:[...(assessment.issues||[]),...(assessment.clarifications||[])],
     saveEligible:status==='SUPPORTED'&&projection.status==='COMPATIBLE'
       &&projection.plan.adapter==='google_news_literal_v1',projection};
+  },capabilitySummary);
 }
