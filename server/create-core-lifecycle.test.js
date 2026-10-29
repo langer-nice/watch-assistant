@@ -11,7 +11,7 @@ import { reviewCreateExtraction } from './create-contract-bridge.js';
 import { watchContractSemanticFingerprint } from './watch-contract.js';
 import { configureStructuredWatchCreation, initStructuredWatchCreation } from '../src/js/structured-watch-creation.js';
 import { fixture, individual, predicate } from './test-support/watch-interpretation-fixtures.js';
-import { cleanCreateExtraction } from './test-support/create-semantic-fixtures.js';
+import { createFrameFixture as cleanCreateExtraction } from './test-support/create-frame-fixtures.js';
 
 const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',other='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const uuid=n=>`cccccccc-cccc-4ccc-8ccc-${String(n).padStart(12,'0')}`;
@@ -153,10 +153,14 @@ test('unsupported/partial contracts and fabricated support cannot obtain save to
   for(const index of [1,3,4]){
     const h=await harness(t,index);try{
       await h.run();const news=reviewCreateExtraction(raw(0),requests[0]);
-      const contract=structuredClone(h.state.plan.contract);contract.capability_status='SUPPORTED';
+      const contract=structuredClone(h.state.plan.contract);
+      const intact=await h.dispatch('/api/structured-watches',{action:'issue',operation:'create',watchId:uuid(900),mutationId:uuid(901),
+        expectedRevision:0,title:'Rejected',createContract:contract,interpretation:news.interpretation,plan:news.assessment.plan});
+      assert.equal(intact.body.code,'MONITORING_PLAN_NOT_SUPPORTED');assert.equal(intact.body.token,undefined);
+      contract.capability_status='SUPPORTED';
       const result=await h.dispatch('/api/structured-watches',{action:'issue',operation:'create',watchId:uuid(900),mutationId:uuid(901),
         expectedRevision:0,title:'Rejected',createContract:contract,interpretation:news.interpretation,plan:news.assessment.plan});
-      assert.equal(result.body.code,'MONITORING_PLAN_NOT_SUPPORTED');assert.equal(result.body.token,undefined);assert.equal(h.state.rpcCalls,0);
+      assert.equal(result.body.code,'INVALID_WATCH_DEFINITION');assert.equal(result.body.token,undefined);assert.equal(h.state.rpcCalls,0);
     }finally{h.close();}
   }
 });

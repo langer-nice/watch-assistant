@@ -5,7 +5,7 @@ import { format } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { createCleanCreateTrace,cleanStage } from './clean-create-trace.js';
 import { createPlanWatchMiddleware } from './plan-watch-api.js';
-import { cleanCreateExtraction,cleanCreateRequests } from './test-support/create-semantic-fixtures.js';
+import { createFrameFixture as cleanCreateExtraction,frameRequests as cleanCreateRequests } from './test-support/create-frame-fixtures.js';
 import { normalizeWatchContract } from './watch-contract.js';
 import { projectWatchContractToLegacyPlan } from './create-contract-projection.js';
 
@@ -28,7 +28,7 @@ const first=r=>r.events.find(e=>e.status==='FAIL');
 test('successful clean request records actual nested stages and serialized safe summaries',async()=>{
   const r=await invoke();assert.equal(r.status,200);
   assert.deepEqual(r.events.filter(e=>e.status==='PASS'&&!e.event).map(e=>e.stage),[
-    'request','semantic_extraction','semantic_validation','watch_contract','grounding','normalizer','normalizer','normalizer','projection','capability','review']);
+    'request','semantic_extraction','semantic_validation','grounding','identity_resolution','watch_contract','normalizer','normalizer','normalizer','projection','capability','review']);
   assert.equal(new Set(r.events.map(e=>e.correlation_id)).size,1);
   assert.deepEqual(r.events.at(-1),{correlation_id:r.events[0].correlation_id,mode:'create-core.v1',stage:'review',status:'PASS',
     event:'response',http_status:200,last_pass_stage:'review',first_fail_stage:null});
@@ -44,22 +44,22 @@ test('semantic extraction provider/parse failures identify extraction and unchan
 test('semantic validation retains exact shape code/field before API wrapping',async()=>{
   const v=cleanCreateExtraction(0);delete v.subject;const r=await invoke(v);
   assert.equal(r.status,422);assert.equal(r.body.code,'INVALID_CREATE_CONTRACT');
-  assert.equal(first(r).stage,'semantic_validation');assert.equal(first(r).code,'INVALID_CREATE_SEMANTICS');assert.equal(first(r).reason,'shape');
+  assert.equal(first(r).stage,'semantic_validation');assert.equal(first(r).code,'INVALID_CREATE_SEMANTIC_FRAME');assert.equal(first(r).reason,'schema');
   assert.equal(r.events.at(-1).last_pass_stage,'semantic_extraction');
 });
 test('grounding wrong identity and invented constraint preserve first stage/reason',async()=>{
-  for(const [v,reason]of [[{...cleanCreateExtraction(0),subject:'Liverpool'},'subject_mismatch'],
-    [{...cleanCreateExtraction(0),constraints:[{kind:'topic',value:'transfers',role:'required'}]},'constraint_mismatch']]){
+  for(const [v,reason]of [[{...cleanCreateExtraction(0),subject:{kind:'named_entity',value:'Liverpool'}},'ungrounded_value'],
+    [{...cleanCreateExtraction(0),constraints:[{value:'transfers',role:'required',support:cleanCreateRequests[0]}]},'ungrounded_value']]){
     const r=await invoke(v);assert.equal(r.status,422);assert.equal(first(r).stage,'grounding');assert.equal(first(r).reason,reason);
     assert.equal(r.events.at(-1).last_pass_stage,'semantic_validation');
   }
 });
 test('normalizer real rejection is distinct from successful grounding/handoff',async()=>{
   const request='Tell me when GBP/EUR goes above 0.';
-  const v={...cleanCreateExtraction(3),constraints:[{kind:'numeric',comparator:'gt',value:'0'}]};
+  const v=cleanCreateExtraction(3);v.monitoring_goal.support=request;v.comparison={operator:'gt',value:'0',support:'above 0'};
   const r=await invoke(v,{}, {operation:'create',request});assert.equal(r.status,422);
   assert.equal(first(r).stage,'normalizer');assert.equal(first(r).reason,'amount_conflict');
-  assert.equal(r.events.at(-1).last_pass_stage,'grounding');
+  assert.equal(r.events.at(-1).last_pass_stage,'identity_resolution');
 });
 test('unsupported and partial capability are successful technical traces, not failures',async()=>{
   for(const index of [1,3,4]){
@@ -110,5 +110,5 @@ test('legacy mode emits no clean trace; responses with tracing equal untraced pl
 test('provider transport limits and semantic schema remain fixed',async()=>{
   const current=await readFile(new URL('./create-semantic-planner.js',import.meta.url),'utf8');
   assert(current.includes("max_output_tokens:1600,maxOutputBytes:16000"));
-  assert(current.includes("schema:createSemanticExtractionSchema"));
+  assert(current.includes("schema:createSemanticFrameSchema"));
 });

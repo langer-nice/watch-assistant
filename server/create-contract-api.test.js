@@ -7,7 +7,7 @@ import { createWatchContractFromInterpretation, reviewCreateExtraction } from '.
 import { normalizeWatchContract, watchContractSemanticFingerprint } from './watch-contract.js';
 import { fixture, individual, predicate } from './test-support/watch-interpretation-fixtures.js';
 import { compileMonitoringPlan } from '../src/js/watch-capabilities.js';
-import { cleanCreateExtraction } from './test-support/create-semantic-fixtures.js';
+import { createFrameFixture as cleanCreateExtraction } from './test-support/create-frame-fixtures.js';
 
 const owner='11111111-1111-4111-8111-111111111111';
 const env={VERCEL_ENV:'test',SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',

@@ -5,6 +5,7 @@ import { createExactUrlSemanticExtraction } from './create-semantic-extraction.j
 import { createCleanCreateTrace } from './clean-create-trace.js';
 import { planCreateSemantics } from './create-semantic-planner.js';
 import { cleanCreateExtraction,cleanCreateRequests } from './test-support/create-semantic-fixtures.js';
+import { createFrameFixture } from './test-support/create-frame-fixtures.js';
 
 const capture=()=>{
   const events=[];return {events,trace:createCleanCreateTrace({info:(_,json)=>events.push(JSON.parse(json))})};
@@ -80,10 +81,14 @@ test('no ambiguity and exact URL semantics retain original handoff; URL bytes ar
 });
 test('all five frozen planner outcomes unchanged with false ambiguity and numeric/URL preservation',async()=>{
   for(let i=0;i<5;i++){
-    const e=cleanCreateExtraction(i),opts=value=>({apiKey:'offline',fetchImpl:async()=>Response.json({output_text:JSON.stringify(value)})});
+    const e=createFrameFixture(i),opts=value=>({apiKey:'offline',fetchImpl:async()=>Response.json({output_text:JSON.stringify(value)})});
     const baseline=await planCreateSemantics(cleanCreateRequests[i],opts(e));
-    const actual=await planCreateSemantics(cleanCreateRequests[i],opts(e?{...e,ambiguity:['unsupported uncertainty']}:null));
-    assert.deepEqual(actual,baseline);
+    const actual=await planCreateSemantics(cleanCreateRequests[i],opts(e?{...e,ambiguity:[{field:'subject',reason:'unresolved_reference',support:'unsupported uncertainty',alternatives:[]}]}:null));
+    // Original extraction/provenance is retained in the transient recognition
+    // envelope; compare canonical downstream semantics rather than raw input.
+    const semantic=c=>{const {recognition,...rest}=c;return rest;};
+    assert.deepEqual(semantic(actual.contract),semantic(baseline.contract));
+    assert.deepEqual(actual.capability,baseline.capability);
     assert.equal(actual.capability.status,['SUPPORTED','UNSUPPORTED','SUPPORTED','PARTIALLY_SUPPORTED','UNSUPPORTED'][i]);
     if(i===3)assert.deepEqual(actual.contract.trigger.comparison,{comparator:'gt',value:'1.17',unit:'EUR'});
     if(i===4)assert.equal(actual.contract.input_source.submitted_url,cleanCreateRequests[4]);

@@ -13,10 +13,10 @@ export const createCoreReviewEnabled = env => env.CREATE_CORE_REPLACEMENT_ENABLE
         'VITE_MEDIA_WATCH_DAILY_DIGEST_ENABLED'].every(key => env[key] === 'false')));
 
 // Resolve execution only; never narrow or rewrite the already-grounded meaning.
-export function resolveWatchContractCapability(input,trace) {
+export function resolveWatchContractCapability(input,trace,context={}) {
   return cleanStage(trace,'capability',()=>{
-  const contract=cleanStage(trace,'normalizer',()=>normalizeWatchContract(input),contractSummary);
-  const projection=projectWatchContractToLegacyPlan(contract,trace);
+  const contract=cleanStage(trace,'normalizer',()=>normalizeWatchContract(input,context),contractSummary);
+  const projection=projectWatchContractToLegacyPlan(contract,trace,context);
   const {assessment}=projection;
   const status=assessment.status==='supported'?'SUPPORTED'
     :assessment.status==='clarification_required'?'PARTIALLY_SUPPORTED':'UNSUPPORTED';

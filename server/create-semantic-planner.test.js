@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { planCreateSemantics } from './create-semantic-planner.js';
-import { cleanCreateExtraction,cleanCreateRequests } from './test-support/create-semantic-fixtures.js';
+import { createFrameFixture as cleanCreateExtraction,frameRequests as cleanCreateRequests } from './test-support/create-frame-fixtures.js';
 import { fixture,individual,predicate } from './test-support/watch-interpretation-fixtures.js';
 
 function options(value=cleanCreateExtraction(0)){
@@ -11,15 +11,15 @@ function options(value=cleanCreateExtraction(0)){
     calls.push({url,body:JSON.parse(init.body)});return Response.json({output_text:JSON.stringify(value)});
   }};
 }
-test('one semantic transport call uses six-field schema and existing default model, then deterministic downstream',async()=>{
+test('one semantic transport call uses small semantic frame and existing default model, then deterministic downstream',async()=>{
   const opts=options();const r=await planCreateSemantics(cleanCreateRequests[0],opts);
   assert.equal(r.capability.status,'SUPPORTED');assert.equal(opts.calls.length,1);
   const {body,url}=opts.calls[0];assert.equal(url,'https://api.openai.com/v1/responses');
-  assert.equal(body.store,false);assert.equal(body.model,'gpt-5.6-luna');assert.equal(body.text.format.name,'create_semantic_v1');
-  assert.deepEqual(Object.keys(body.text.format.schema.properties),['subject','trigger','constraints','time_scope','source_preference','ambiguity']);
+  assert.equal(body.store,false);assert.equal(body.model,'gpt-5.6-luna');assert.equal(body.text.format.name,'create_semantic_frame_v1');
+  assert.deepEqual(Object.keys(body.text.format.schema.properties),['subject','monitoring_goal','comparison','constraints','time_scope','source_preference','ambiguity','unrepresented_requirements']);
   assert.equal(JSON.parse(body.input).request,cleanCreateRequests[0]);
   assert.equal(body.text.format.strict,true);
-  const numeric=body.text.format.schema.properties.constraints.items.anyOf[0].properties.value.pattern;
+  const numeric=body.text.format.schema.properties.comparison.anyOf[0].properties.value.pattern;
   assert(new RegExp(numeric).test('1.17'));assert(!new RegExp(numeric).test('1e2'));
   assert.equal(r.token,undefined);assert.equal(r.receipt,undefined);assert.equal(r.executable,false);
 });
@@ -37,9 +37,9 @@ test('old graph output and model technical authority are rejected, never reconst
 });
 test('grounded uncertainty is typed clarification; fabricated semantics stay rejected',async()=>{
   const request='Tell me when there are important new developments about Manchester City or Liverpool.';
-  const uncertain={...cleanCreateExtraction(0),subject:'Manchester City or Liverpool',ambiguity:['Manchester City or Liverpool']};
+  const uncertain={...cleanCreateExtraction(0),subject:{kind:'named_entity',value:'Manchester City or Liverpool'},monitoring_goal:{kind:'ongoing_developments',support:request,event:null},ambiguity:[{field:'subject',reason:'competing_values',support:'Manchester City or Liverpool',alternatives:['Manchester City','Liverpool']}]};
   await assert.rejects(planCreateSemantics(request,options(uncertain)),{code:'CREATE_CLARIFICATION_REQUIRED',statusCode:422});
-  const invented={...cleanCreateExtraction(0),constraints:[{kind:'topic',value:'transfers',role:'required'}]};
+  const invented={...cleanCreateExtraction(0),constraints:[{value:'transfers',role:'required',support:cleanCreateRequests[0]}]};
   await assert.rejects(planCreateSemantics(cleanCreateRequests[0],options(invented)),{code:'INVALID_CREATE_CONTRACT',statusCode:422});
 });
 test('provider HTTP/network/parse failures remain bounded typed errors with no retries',async()=>{

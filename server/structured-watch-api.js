@@ -93,7 +93,7 @@ export const createStructuredWatchMiddleware = ({ env = process.env, authenticat
       if (Object.hasOwn(body,'createContract')) {
         if (!createCoreReviewEnabled(env)||body.operation!=='create') throw authorizationError('STRUCTURED_FEATURE_UNAVAILABLE',404);
         let resolved;
-        try {resolved=resolveWatchContractCapability(body.createContract);}
+        try {resolved=resolveWatchContractCapability(body.createContract,undefined,body.createContract?.recognition?{verifiedIdentityLookup:options.verifiedIdentityLookup}:{});}
         catch {throw authorizationError('INVALID_WATCH_DEFINITION',422);}
         if (!resolved.saveEligible) throw authorizationError('MONITORING_PLAN_NOT_SUPPORTED',422);
         if (canonicalJSON(body.interpretation)!==canonicalJSON(resolved.projection.interpretation)

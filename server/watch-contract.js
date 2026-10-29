@@ -1,6 +1,7 @@
 // Slice 1: pure, offline semantic normalization. No model, transport or storage.
 import { normalizeDecimal } from '../src/js/currency-watch.js';
 import { canonicalJSON, contentFingerprint } from '../src/js/structured-fingerprint.js';
+import { isSemanticWatchContract, normalizeSemanticWatchContract } from './semantic-watch-contract.js';
 
 export const WATCH_CONTRACT_VERSION = 'watch-contract.v1';
 const fail = reason => { throw Object.assign(new Error('Invalid Watch Contract'), { code: 'INVALID_WATCH_CONTRACT', reason }); };
@@ -18,6 +19,7 @@ const anySource = () => ({ policy: 'any', urls: [], official: false });
  * never used to choose domain/adapter. Supported vocabulary is deliberately small.
  */
 export function normalizeWatchContract(candidate, context = {}) {
+  if(isSemanticWatchContract(candidate))return normalizeSemanticWatchContract(candidate,context);
   keys(context, ['request']);
   keys(candidate, ['version','user_intent_text','subject','trigger','constraints','time_scope',
     'source_preference','input_source','evidence','capability_status','technical']);
@@ -165,8 +167,8 @@ export function normalizeWatchContract(candidate, context = {}) {
 }
 
 // Semantic equality excludes source wording, spans and capability annotations.
-export function watchContractSemanticFingerprint(input) {
-  const c = normalizeWatchContract(input);
+export function watchContractSemanticFingerprint(input,context={}) {
+  const c = normalizeWatchContract(input,context);
   return contentFingerprint({subject:c.subject.map(({kind,identity})=>({kind,identity})),trigger:c.trigger,
     constraints:c.constraints,time_scope:c.time_scope,source_preference:c.source_preference});
 }

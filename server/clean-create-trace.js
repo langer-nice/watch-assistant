@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-const stages=new Set(['request','semantic_extraction','semantic_validation','grounding','watch_contract','normalizer','capability','projection','review']);
-const codes=new Set(['INVALID_CREATE_SEMANTICS','CREATE_SEMANTIC_AMBIGUITY','INVALID_WATCH_CONTRACT','INVALID_CREATE_CONTRACT',
+const stages=new Set(['request','semantic_extraction','semantic_validation','identity_resolution','grounding','watch_contract','normalizer','capability','projection','review']);
+const codes=new Set(['INVALID_CREATE_SEMANTIC_FRAME','CREATE_FRAME_CLARIFICATION_REQUIRED','INVALID_CREATE_SEMANTICS','CREATE_SEMANTIC_AMBIGUITY','INVALID_WATCH_CONTRACT','INVALID_CREATE_CONTRACT',
   'CREATE_CLARIFICATION_REQUIRED','INTERPRETATION_FAILED','INVALID_INTERPRETATION_REQUEST','AI_SERVICE_UNAVAILABLE','AI_TIMEOUT',
   'STRUCTURED_FEATURE_UNAVAILABLE','AUTH_REQUIRED','INVALID_SESSION','AUTH_UNAVAILABLE','METHOD_NOT_ALLOWED',
   'MONITORING_PLAN_NOT_SUPPORTED','INVALID_WATCH_DEFINITION']);
-const reasons=new Set(['shape','subject','trigger','source_preference','constraints','numeric_constraint','topic_constraint','constraint_kind',
+const reasons=new Set(['constraint_conflict','schema','comparison_goal','event_goal','subject_goal','source_text','ungrounded_value','value_support','grounded_ambiguity','identity_unresolved','identity_ambiguous','identity_input','identity_reference','pair','comparison_mismatch','multiple_periods','period','date','source_policy','invented_official','unrepresented_requirements','recognition_shape','semantic_contract_mismatch','shape','subject','trigger','source_preference','constraints','numeric_constraint','topic_constraint','constraint_kind',
   'time_scope','ambiguity','subject_required','multiple_subjects','request','url','url_semantics','span','unsupported_clause',
   'subject_mismatch','trigger_mismatch','constraint_mismatch','period_mismatch','source_preference_mismatch','ambiguous_subject',
   'ambiguous_binding','explicit_ambiguity','ungrounded_ambiguity','constraint_clause','version','capability_status','request_mismatch',
@@ -54,9 +54,9 @@ export async function cleanAsyncStage(trace,stage,fn,summary){
   try{const value=await fn();trace.pass(stage,safeSummary(()=>summary?.(value)));return value;}
   catch(error){trace.fail(stage,error);throw error;}
 }
-export const extractionSummary=v=>({subject_present:typeof v?.subject==='string',trigger_present:typeof v?.trigger==='string',
+export const extractionSummary=v=>({subject_present:typeof v?.subject==='string'||typeof v?.subject?.value==='string',trigger_present:typeof v?.trigger==='string'||typeof v?.monitoring_goal?.kind==='string',
   constraint_count:count(v?.constraints),time_scope_count:count(v?.time_scope),source_preference_present:v?.source_preference!=null,
-  ambiguity_count:count(v?.ambiguity),fields:v&&typeof v==='object'?Object.keys(v).filter(k=>['subject','trigger','constraints','time_scope','source_preference','ambiguity'].includes(k)):[]});
+  ambiguity_count:count(v?.ambiguity),fields:v&&typeof v==='object'?Object.keys(v).filter(k=>['subject','trigger','monitoring_goal','comparison','constraints','time_scope','source_preference','ambiguity','unrepresented_requirements'].includes(k)):[]});
 export const groundingSummary=v=>({subject_grounded:!!v?.candidate?.subject?.length,trigger_grounded:!!v?.candidate?.trigger,
   constraints_grounded_count:count(v?.candidate?.constraints),time_scope_grounded_count:count(v?.candidate?.time_scope),
   source_grounded:v?.candidate?.source_preference?.policy!=='any'});
