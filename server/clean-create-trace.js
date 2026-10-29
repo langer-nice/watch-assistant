@@ -13,7 +13,7 @@ const reasons=new Set(['constraint_conflict','schema','comparison_goal','event_g
   'subject_conflict','trigger_conflict','invented_constraint','period_required','period_conflict','pair_conflict','comparison_conflict',
   'amount_conflict','unit_conflict','extra_constraint','extra_time','source_preference_conflict','input_source_conflict',
   'unrepresented_meaning','constraint_cue','vocabulary_not_supported','duplicate_constraint','derived_evidence','array','text',
-  'role_conflict','verifier_invalid','fidelity_rejected']);
+  'role_conflict','verifier_invalid','fidelity_rejected','model_call_limit']);
 const safeError=e=>({code:codes.has(e?.code)?e.code:e instanceof SyntaxError?'SYNTAX_ERROR':'UNCLASSIFIED_ERROR',
   ...(Array.isArray(e?.fidelity?.reasons)?{fidelity_reasons:e.fidelity.reasons.filter(r=>['MISSING_REQUIREMENT','WRONG_ROLE','INVENTED_REQUIREMENT','UNRESOLVED_AMBIGUITY'].includes(r)).slice(0,4)}:{}),
   ...(reasons.has(e?.reason)||/^evidence_missing:(?:subject\/[0-7]|trigger(?:\/comparison)?|constraints\/[0-7]|time_scope\/[0-3]|source_preference)$/u.test(e?.reason||'')?{reason:e.reason}:{})});
@@ -21,13 +21,18 @@ const count=v=>Array.isArray(v)?Math.min(v.length,10000):null;
 const known=(v,values)=>values.includes(v)?v:'OTHER';
 const safeSummary=fn=>{try{return fn?.();}catch{return undefined;}};
 
-export function createCleanCreateTrace(logger=console){
+export function createCleanCreateTrace(logger=console,mode='create-core.v1'){
   const correlation_id=randomUUID(),active=[];let last_pass_stage=null,first=null;
+  let model_calls=null;const provider_http={};
   const emit=(stage,status,extra={})=>{
     // Serialize ourselves: nested summaries must survive hosted console depth.
-    try{logger.info('clean_create_trace',JSON.stringify({correlation_id,mode:'create-core.v1',stage,status,...extra}));}catch{/* Logging cannot change behavior. */}
+    try{logger.info('clean_create_trace',JSON.stringify({correlation_id,mode,stage,status,
+      ...(model_calls?{model_calls}:{}),...(Object.keys(provider_http).length?{provider_http}:{}),...extra}));}catch{/* Logging cannot change behavior. */}
   };
   return {
+    modelCalls(c){if(c&&Number.isInteger(c.extraction)&&Number.isInteger(c.verification)&&c.extraction>=0&&c.extraction<=1
+      &&c.verification>=0&&c.verification<=1&&c.total===c.extraction+c.verification)model_calls={...c};},
+    providerStatus(stage,status){if(['extraction','verification'].includes(stage)&&Number.isInteger(status)&&status>=100&&status<=599)provider_http[stage]=status;},
     structure(record){emit('grounding','START',{event:'semantic_frame_structure',safe_summary:record});},
     ambiguity(extracted,grounded,discarded){
       const bounded=n=>Number.isSafeInteger(n)&&n>=0&&n<=4?n:null;
@@ -42,7 +47,8 @@ export function createCleanCreateTrace(logger=console){
       if(http_status>=300&&!first)this.fail(active.at(-1)||'request',{code:response_code});
       emit(first?.stage||'review',first?'FAIL':'PASS',{event:'response',http_status,
         last_pass_stage:first?first.last_pass_stage:last_pass_stage,first_fail_stage:first?.stage||null,
-        ...(first?{category:first.category,code:first.code,...(first.reason?{reason:first.reason}:{})}:{}),
+        ...(first?{category:first.category,code:first.code,...(first.reason?{reason:first.reason}:{}),
+          ...(first.fidelity_reasons?{fidelity_reasons:first.fidelity_reasons}:{})}:{}),
         ...(codes.has(response_code)?{response_code}:{})});
     },
   };

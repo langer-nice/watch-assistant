@@ -5,6 +5,7 @@ import { safeInterpretationFailureCategory } from './watch-interpreter.js';
 import { authenticateSupabaseRequest } from './supabase-user.js';
 import { createPlannerDecision, planWatch } from './watch-planner.js';
 import { createCoreReviewEnabled } from './create-contract-capability.js';
+import { CREATE_AB_MODE,createABEntryEnabled } from './create-role-access.js';
 
 const ENDPOINT = '/api/plan-watch';
 const MAX_BODY_BYTES = 4_096;
@@ -38,13 +39,14 @@ export const createPlanWatchMiddleware = (options = {}) => (
       return;
     }
     const mode = new URL(request.url || '/', 'http://localhost').searchParams.get('mode');
-    const cleanTrace=mode==='create-core.v1'?createCleanCreateTrace(options.logger||console):undefined;
+    const cleanMode=mode==='create-core.v1'||mode===CREATE_AB_MODE;
+    const cleanTrace=cleanMode?createCleanCreateTrace(options.logger||console,mode):undefined;
     cleanTrace?.start('request');
     if (request.method !== 'POST') {
       response.setHeader('Allow', 'POST');
       if (mode !== null) {
         cleanTrace?.finish(405,'METHOD_NOT_ALLOWED');
-        sendJson(response, 405, { mode: mode === 'create-core.v1' ? mode : 'interpretation.v1', executable: false, code: 'METHOD_NOT_ALLOWED' });
+        sendJson(response, 405, { mode: cleanMode ? mode : 'interpretation.v1', executable: false, code: 'METHOD_NOT_ALLOWED' });
         return;
       }
       sendJson(response, 405, createPlannerDecision({
@@ -55,18 +57,19 @@ export const createPlanWatchMiddleware = (options = {}) => (
     try {
       const body = await readJsonBody(request);
       if (mode !== null) {
-        if (!['interpretation.v1','create-core.v1'].includes(mode)) throw Object.assign(new Error('Invalid interpretation mode.'), { code: 'INVALID_INTERPRETATION_REQUEST', statusCode: 400 });
+        if (!['interpretation.v1','create-core.v1',CREATE_AB_MODE].includes(mode)) throw Object.assign(new Error('Invalid interpretation mode.'), { code: 'INVALID_INTERPRETATION_REQUEST', statusCode: 400 });
         const env = options.env || process.env;
         if (mode === 'create-core.v1' && !createCoreReviewEnabled(env)) throw Object.assign(new Error('Unavailable'),{code:'STRUCTURED_FEATURE_UNAVAILABLE',statusCode:404});
+        if (mode === CREATE_AB_MODE && !createABEntryEnabled(env)) throw Object.assign(new Error('Unavailable'),{code:'STRUCTURED_FEATURE_UNAVAILABLE',statusCode:404});
         if (!structuredCreationEnabled(env)) throw Object.assign(new Error('Unavailable'),{code:'STRUCTURED_FEATURE_UNAVAILABLE',statusCode:404});
         const { user } = await (options.authenticate || authenticateSupabaseRequest)(request,{...options,env});
         requireStructuredCreationAccess(user,env);
-        if (mode === 'create-core.v1' && (body.operation !== 'create'
+        if (cleanMode && (body.operation !== 'create'
           || typeof body.request !== 'string' || !body.request.trim() || body.request.length>500
           || !['en','fr','mixed','und'].includes(body.language??'und')
           || Object.keys(body).some(key=>!['request','language','operation'].includes(key)))) throw Object.assign(new Error('New Create only'),{code:'INVALID_INTERPRETATION_REQUEST',statusCode:400});
         cleanTrace?.pass('request');
-        sendJson(response, 200, await planWatch(body.request, { ...options, mode, language: body.language ?? 'und',cleanTrace }));
+        sendJson(response, 200, await planWatch(body.request, { ...options,...(mode===CREATE_AB_MODE?{env}:{}),mode, language: body.language ?? 'und',cleanTrace }));
         cleanTrace?.finish(200);
         return;
       }
@@ -80,7 +83,7 @@ export const createPlanWatchMiddleware = (options = {}) => (
       }));
     } catch (error) {
       if (mode !== null) {
-        if (mode === 'create-core.v1') {
+        if (cleanMode) {
           const allowed=new Set(['STRUCTURED_FEATURE_UNAVAILABLE','AUTH_REQUIRED','INVALID_SESSION','AUTH_UNAVAILABLE',
             'INVALID_INTERPRETATION_REQUEST','INTERPRETATION_FAILED','AI_SERVICE_UNAVAILABLE','AI_TIMEOUT',
             'INVALID_CREATE_CONTRACT','CREATE_CLARIFICATION_REQUIRED']);
