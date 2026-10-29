@@ -161,9 +161,9 @@ test('determinism: 25 repetitions of eight fixtures preserve semantics, provenan
     assert.deepEqual(c.e,before);
   }
 });
-test('isolated source has no imports, sentence templates, transport, old graph or downstream execution',async()=>{
+test('isolated source imports only observational metadata, never transport, old graph or downstream execution',async()=>{
   const source=await readFile(new URL('./create-semantic-frame.js',import.meta.url),'utf8');
-  assert(!/^import\s/m.test(source));
+  assert.deepEqual([...source.matchAll(/from '([^']+)'/gu)].map(m=>m[1]),['./semantic-frame-structure.js']);
   for(const name of ['fetch','normalizeWatchContract','compileMonitoringPlan','resolveWatchContractCapability','groundCreateSemantics'])assert(!new RegExp(`\\b${name}\\s*\\(`,'u').test(source));
   for(const phrase of ['Manchester City','Man City','Keep me informed','Tell me when','I want news','Let me know'])assert(!source.includes(phrase));
 });

@@ -4,6 +4,7 @@ import { createSemanticFrameSchema,createSemanticFrameInstructions,createExactUr
 import { isExactSemanticUrl } from './create-semantic-extraction.js';
 import { normalizeSemanticWatchContract } from './semantic-watch-contract.js';
 import { resolveWatchContractCapability } from './create-contract-capability.js';
+import { withSemanticFrameStructure } from './semantic-frame-structure.js';
 
 const error=(code,statusCode)=>Object.assign(new Error(code),{code,statusCode});
 export async function extractCreateSemanticFrame(request,{
@@ -43,9 +44,11 @@ export async function planCreateSemantics(request,options={}) {
   const extraction=await extractCreateSemanticFrame(request,options);
   let contract;
   try{
-    cleanStage(cleanTrace,'semantic_validation',()=>validateCreateSemanticFrame(extraction),extractionSummary);
-    contract=cleanStage(cleanTrace,'normalizer',()=>normalizeSemanticWatchContract({version:'create-frame.v1',request,frame:extraction},
-      {verifiedIdentityLookup,cleanTrace}),contractSummary);
+    contract=withSemanticFrameStructure(request,extraction,cleanTrace,()=>{
+      cleanStage(cleanTrace,'semantic_validation',()=>validateCreateSemanticFrame(extraction),extractionSummary);
+      return cleanStage(cleanTrace,'normalizer',()=>normalizeSemanticWatchContract({version:'create-frame.v1',request,frame:extraction},
+        {verifiedIdentityLookup,cleanTrace}),contractSummary);
+    });
   }catch(cause){
     throw error(['CREATE_FRAME_CLARIFICATION_REQUIRED','CREATE_SEMANTIC_AMBIGUITY'].includes(cause.code)?'CREATE_CLARIFICATION_REQUIRED':'INVALID_CREATE_CONTRACT',422);
   }

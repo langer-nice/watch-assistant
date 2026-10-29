@@ -26,6 +26,7 @@ export function createCleanCreateTrace(logger=console){
     try{logger.info('clean_create_trace',JSON.stringify({correlation_id,mode:'create-core.v1',stage,status,...extra}));}catch{/* Logging cannot change behavior. */}
   };
   return {
+    structure(record){emit('grounding','START',{event:'semantic_frame_structure',safe_summary:record});},
     ambiguity(extracted,grounded,discarded){
       const bounded=n=>Number.isSafeInteger(n)&&n>=0&&n<=4?n:null;
       emit('grounding','START',{event:'ambiguity_filter',safe_summary:{ambiguity_extracted_count:bounded(extracted),

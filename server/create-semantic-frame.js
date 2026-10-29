@@ -1,4 +1,5 @@
 // Offline recognition boundary. No transport, API, old graph or downstream imports.
+import { semanticFrameDiagnostic } from './semantic-frame-structure.js';
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
 const text={type:'string',minLength:1,maxLength:500};
 const enumeration=values=>({type:'string',enum:values});
@@ -70,15 +71,16 @@ const boundary=(s,start,end)=>!/[\p{L}\p{N}_]/u.test(s[start-1]||' ')
  * remains probabilistic: quotes prove source binding, not arbitrary entailment.
  * Restriction/value coverage is fail-closed for the initial bounded vocabulary. */
 export function normalizeCreateSemanticFrame(request,extraction,{resolveIdentity}={}){
+  const diagnostic=semanticFrameDiagnostic(extraction);
   if(!validText(request))fail('request');
   const v=validateCreateSemanticFrame(extraction),provenance=[];
-  const quote=(value,field,type='USER_TEXT_EXACT')=>{
-    if(!validText(value))fail('source_text');
+  const quote=(value,field,type='USER_TEXT_EXACT',itemIndex=null)=>{
+    if(!validText(value)){diagnostic?.quote(field,itemIndex,type,value,false,'source_text');fail('source_text');}
     let start=request.indexOf(value);
     while(start>=0&&!boundary(request,start,start+value.length))start=request.indexOf(value,start+1);
-    if(start<0)fail('ungrounded_value');
+    if(start<0){diagnostic?.quote(field,itemIndex,type,value,false,'ungrounded_value');fail('ungrounded_value');}
     const span={start,end:start+value.length,text:request.slice(start,start+value.length)};
-    provenance.push({field,type,span});return span;
+    provenance.push({field,type,span});diagnostic?.quote(field,itemIndex,type,value,true);return span;
   };
   const requireInside=(value,support)=>{if(!support.includes(value))fail('value_support');};
   quote(v.monitoring_goal.support,'monitoring_goal',v.subject?.kind==='resource_url'?'USER_TEXT_EXACT':'USER_TEXT_SEMANTIC');
@@ -128,14 +130,15 @@ export function normalizeCreateSemanticFrame(request,extraction,{resolveIdentity
     provenance.push({field:'comparison.normalized_value',type:'SERVER_DERIVED',rule:'exact_decimal.v1'});
     provenance.push({field:'comparison.unit',type:'SERVER_DERIVED',rule:'ordered_pair_quote_unit.v1'});represented.push(c.support);
   }
-  for(const c of v.constraints){
-    quote(c.support,'constraints','USER_TEXT_SEMANTIC');quote(c.value,'constraints.value');requireInside(c.value,c.support);
+  for(const [itemIndex,c] of v.constraints.entries()){
+    quote(c.support,'constraints','USER_TEXT_SEMANTIC',itemIndex);quote(c.value,'constraints.value','USER_TEXT_EXACT',itemIndex);requireInside(c.value,c.support);
     const cue=c.role==='excluded'?/\b(?:excluding|except|without)\b/iu:c.role==='required'?/\bonly\b/iu:/\b(?:including|focus)\b/iu;
-    if(!cue.test(c.support))fail('invented_constraint');
+    const rolePassed=cue.test(c.support);diagnostic?.role('constraints',itemIndex,rolePassed);
+    if(!rolePassed)fail('invented_constraint');
     frame.constraints.push({role:c.role,value:c.value});represented.push(c.support);exactRequirements.push(c.value);
   }
-  for(const t of v.time_scope){
-    quote(t.support,'time_scope','USER_TEXT_SEMANTIC');quote(t.value,'time_scope.value');requireInside(t.value,t.support);
+  for(const [itemIndex,t] of v.time_scope.entries()){
+    quote(t.support,'time_scope','USER_TEXT_SEMANTIC',itemIndex);quote(t.value,'time_scope.value','USER_TEXT_EXACT',itemIndex);requireInside(t.value,t.support);
     if(t.kind==='quarter'){
       if(!/^Q[1-4] \d{4}$/u.test(t.value))fail('period');
       frame.time_scope.push({kind:'quarter',value:`${t.value.slice(3)}-${t.value.slice(0,2)}`});
@@ -151,10 +154,10 @@ export function normalizeCreateSemanticFrame(request,extraction,{resolveIdentity
     const s=v.source_preference;quote(s.support,'source_preference','USER_TEXT_SEMANTIC');
     if(!/\b(?:from|source|sources|via)\b/iu.test(s.support)||!s.sources.length&&!s.official)fail('source_policy');
     if(s.official&&!/\bofficial\b/iu.test(s.support))fail('invented_official');
-    for(const value of s.sources){quote(value,'source_preference.sources');requireInside(value,s.support);exactRequirements.push(value);}
+    for(const [itemIndex,value] of s.sources.entries()){quote(value,'source_preference.sources','USER_TEXT_EXACT',itemIndex);requireInside(value,s.support);exactRequirements.push(value);}
     frame.source_preference={policy:'only',sources:[...s.sources].sort(),official:s.official};represented.push(s.support);
   }
-  for(const residual of v.unrepresented_requirements)quote(residual,'unrepresented_requirements');
+  for(const [itemIndex,residual] of v.unrepresented_requirements.entries())quote(residual,'unrepresented_requirements','USER_TEXT_EXACT',itemIndex);
   if(v.unrepresented_requirements.length)fail('unrepresented_requirements',true,v.unrepresented_requirements);
   // Independently inventory value/restriction cues. No whole-sentence grammar.
   // Unsupported temporal/conditional/delivery requirements cannot be dropped.
@@ -181,7 +184,8 @@ export function normalizeCreateSemanticFrame(request,extraction,{resolveIdentity
   for(const field of ['monitor_over_time','surface_meaningful_changes','relevance',...(defaults.source_policy==='any'?['source_policy']:[])]){
     provenance.push({field:`defaults.${field}`,type:'PRODUCT_DEFAULT',rule:'create_defaults.v1'});
   }
-  return {frame,identity,defaults,provenance,discarded_ambiguity_count:discarded};
+  const result={frame,identity,defaults,provenance,discarded_ambiguity_count:discarded};
+  diagnostic?.normalized(result);return result;
 }
 
 export const canonicalCreateSemanticMeaning=normalized=>({
