@@ -113,7 +113,7 @@ test('A+B role matrix: three valid richer contracts retained; fifteen fidelity F
   for(const which of ['multi','exclusion','condition']){
     const r=await h.create(roleRequests[which],roleComplex(which));assert.equal(r.status,200,JSON.stringify(r.body));
     assert.equal(r.body.capability.status,'UNSUPPORTED');assert.equal(r.body.capability.saveEligible,false);assert.equal(r.body.contract,null);
-    assert.deepEqual(r.body.semanticContract.semantic,roleComplex(which));assert.equal(r.calls.length,2);
+    const {monitoring_goal,...roles}=r.body.semanticContract.semantic;assert.deepEqual(roles,roleComplex(which));assert.equal(monitoring_goal,which==='condition'?'event_occurrence':'ongoing_developments');assert.equal(r.calls.length,2);
     assert(!r.trace.some(e=>['capability','projection'].includes(e.stage)));
     rows.push({name:which,http:r.status,verdict:'PASS',capability:r.body.capability.status,rolesPreserved:true});
   }

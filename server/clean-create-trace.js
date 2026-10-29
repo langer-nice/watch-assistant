@@ -13,7 +13,7 @@ const reasons=new Set(['constraint_conflict','schema','comparison_goal','event_g
   'subject_conflict','trigger_conflict','invented_constraint','period_required','period_conflict','pair_conflict','comparison_conflict',
   'amount_conflict','unit_conflict','extra_constraint','extra_time','source_preference_conflict','input_source_conflict',
   'unrepresented_meaning','constraint_cue','vocabulary_not_supported','duplicate_constraint','derived_evidence','array','text',
-  'role_conflict','verifier_invalid','fidelity_rejected','model_call_limit']);
+  'role_conflict','unadmitted_roles','verifier_invalid','fidelity_rejected','model_call_limit']);
 const safeError=e=>({code:codes.has(e?.code)?e.code:e instanceof SyntaxError?'SYNTAX_ERROR':'UNCLASSIFIED_ERROR',
   ...(Array.isArray(e?.fidelity?.reasons)?{fidelity_reasons:e.fidelity.reasons.filter(r=>['MISSING_REQUIREMENT','WRONG_ROLE','INVENTED_REQUIREMENT','UNRESOLVED_AMBIGUITY'].includes(r)).slice(0,4)}:{}),
   ...(reasons.has(e?.reason)||/^evidence_missing:(?:subject\/[0-7]|trigger(?:\/comparison)?|constraints\/[0-7]|time_scope\/[0-3]|source_preference)$/u.test(e?.reason||'')?{reason:e.reason}:{})});

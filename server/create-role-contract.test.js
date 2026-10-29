@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRoleContractSchema,normalizeCreateRoleContract,createExactUrlRoleContract } from './create-role-contract.js';
+import { deriveCreateMonitoringGoal,createRoleContractSchema,normalizeCreateRoleContract,createExactUrlRoleContract } from './create-role-contract.js';
 import { createFidelityInput,validateCreateFidelity } from './create-fidelity-verifier.js';
 import { roleRequests,roleFrozen,roleComplex,roleNews,roleLiteral,fidelityNegativeFixtures } from './test-support/create-role-fixtures.js';
 import { frameRequests } from './test-support/create-frame-fixtures.js';
@@ -54,11 +54,40 @@ test('source occurrence is preserved and selectors cannot silently bind another 
   const g=normalizeCreateRoleContract(request,c);assert.equal(g.provenance[0].span.start,10);
   c.subjects[0].selection={first:1,last:1};assert.throws(()=>normalizeCreateRoleContract(request,c));
 });
-test('schema is flat, bounded, strict and has twelve semantic fields without model support/IDs',()=>{
-  assert.equal(Object.keys(createRoleContractSchema.properties).length,12);
+test('schema is flat, bounded, strict and has eleven model fields without model support/IDs',()=>{
+  assert.equal(Object.keys(createRoleContractSchema.properties).length,11);
+  assert(!Object.hasOwn(createRoleContractSchema.properties,'monitoring_goal'));
   assert.equal(createRoleContractSchema.additionalProperties,false);
   const schema=JSON.stringify(createRoleContractSchema);assert(!/"(?:support|id|edges|nodes|adapter|provider|capability)"/u.test(schema));
   assert(Object.isFrozen(createRoleContractSchema));
+});
+test('server derives all four goals only from source-validated immutable primary roles',()=>{
+  const expected=['ongoing_developments','event_occurrence','ongoing_developments','threshold_crossing','source_change'];
+  for(let i=0;i<5;i++){
+    const c=normalizeCreateRoleContract(frameRequests[i],roleFrozen(i));
+    assert.equal(c.semantic.monitoring_goal,expected[i]);assert.equal(deriveCreateMonitoringGoal(c.semantic),expected[i]);
+    assert(Object.isFrozen(c.semantic));assert(Object.isFrozen(c.semantic.subjects));
+    assert.deepEqual(c.provenance.find(p=>p.field==='monitoring_goal').type,'SERVER_DERIVED');
+    assert.throws(()=>deriveCreateMonitoringGoal(roleFrozen(i)),{reason:'unadmitted_roles'});
+    assert.throws(()=>deriveCreateMonitoringGoal(structuredClone(c.semantic)),{reason:'unadmitted_roles'});
+  }
+});
+test('unadmitted/invalid event and comparison cannot authorize goal derivation',()=>{
+  for(const i of [1,3]){
+    const c=roleFrozen(i),field=i===1?'event':'comparison';c[field].value='invented absent literal';
+    assert.throws(()=>normalizeCreateRoleContract(frameRequests[i],c),{reason:'ungrounded_value'});
+    assert.throws(()=>deriveCreateMonitoringGoal(c),{reason:'unadmitted_roles'});
+  }
+  const c=roleFrozen(3);c.comparison.operator='lt';
+  assert.throws(()=>normalizeCreateRoleContract(frameRequests[3],c),{reason:'comparison_conflict'});
+  const e=roleFrozen(1);e.event.kind='invented';
+  assert.throws(()=>normalizeCreateRoleContract(frameRequests[1],e),{reason:'schema'});
+});
+test('four Stage A fixtures and unrelated subject identities derive ongoing without name logic',()=>{
+  for(const subject of ['Manchester City','Manchester United','PSG','SpaceX','Unrelated Example']){
+    const r=`Tell me when there are important new developments about ${subject}.`;
+    assert.equal(normalizeCreateRoleContract(r,roleNews(r,subject)).semantic.monitoring_goal,'ongoing_developments');
+  }
 });
 test('determinism: 25 repetitions of eight fixtures preserve semantics, provenance, defaults and selectors',()=>{
   const cases=[...frameRequests.map((request,i)=>({request,c:roleFrozen(i)})),...['multi','exclusion','condition'].map(which=>({request:roleRequests[which],c:roleComplex(which)}))];

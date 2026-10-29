@@ -17,15 +17,15 @@ export function selectionFor(request,value,occurrence=0){
 }
 export const roleLiteral=(request,role,value,extra={})=>({role,value,selection:selectionFor(request,value),...extra});
 export function roleNews(request,subject){
-  return {subjects:[roleLiteral(request,'subject',subject,{kind:'named_entity'})],monitoring_goal:'ongoing_developments',
+  return {subjects:[roleLiteral(request,'subject',subject,{kind:'named_entity'})],
     target:null,event:null,conditions:[],exclusions:[],constraints:[],comparison:null,time_scope:[],source_preference:null,ambiguity:[],unrepresented_requirements:[]};
 }
 export function roleFrozen(index){
   const r=frameRequests[index];if(index===4)return createExactUrlRoleContract(r);
   const c=roleNews(r,['Manchester City','Microsoft','Jannik Sinner','GBP/EUR'][index]);
-  if(index===1){c.monitoring_goal='event_occurrence';c.event=roleLiteral(r,'event','earnings results',{kind:'publication'});
+  if(index===1){c.event=roleLiteral(r,'event','earnings results',{kind:'publication'});
     c.time_scope=[roleLiteral(r,'time_scope','Q3 2026',{kind:'quarter'})];}
-  if(index===3){c.subjects[0].kind='metric_pair';c.monitoring_goal='threshold_crossing';
+  if(index===3){c.subjects[0].kind='metric_pair';
     c.comparison=roleLiteral(r,'comparison','1.17',{operator:'gt',relation:roleLiteral(r,'direction','above')});}
   return c;
 }
@@ -34,7 +34,7 @@ export function roleComplex(which){
   if(which==='multi')c.subjects.push(roleLiteral(r,'subject','Chanel',{kind:'named_entity'}));
   if(which==='multi'||which==='exclusion')c.target=roleLiteral(r,'target','new products',{relation:'from'});
   if(which==='exclusion')c.exclusions=[roleLiteral(r,'exclusion','perfumes')];
-  if(which==='condition'){c.monitoring_goal='event_occurrence';c.event=roleLiteral(r,'event','released',{kind:'occurrence'});
+  if(which==='condition'){c.event=roleLiteral(r,'event','released',{kind:'occurrence'});
     c.conditions=[roleLiteral(r,'condition','available in France',{relation:'prerequisite'})];}
   return c;
 }
@@ -49,9 +49,9 @@ export function fidelityNegativeFixtures(){
     make('omitted exclusion','exclusion',c=>c.exclusions=[],'MISSING_REQUIREMENT'),
     make('omitted condition','condition',c=>c.conditions=[],'MISSING_REQUIREMENT'),
     make('omitted period',1,c=>c.time_scope=[],'MISSING_REQUIREMENT'),
-    make('omitted event',1,c=>{c.event=null;c.monitoring_goal='ongoing_developments';},'MISSING_REQUIREMENT'),
+    make('omitted event',1,c=>{c.event=null;},'MISSING_REQUIREMENT'),
     make('subject placed as target','multi',c=>{const s=c.subjects.shift();c.target={...s,role:'target',relation:'from'};delete c.target.kind;},'WRONG_ROLE'),
-    make('event placed as condition',1,c=>{const e=c.event;c.event=null;c.monitoring_goal='ongoing_developments';c.conditions=[{role:'condition',value:e.value,selection:e.selection,relation:'prerequisite'}];},'WRONG_ROLE'),
+    make('event placed as condition',1,c=>{const e=c.event;c.event=null;c.conditions=[{role:'condition',value:e.value,selection:e.selection,relation:'prerequisite'}];},'WRONG_ROLE'),
     make('invented source restriction',0,(c,r)=>{c.source_preference=roleLiteral(r,'source_preference',r,{policy:'only',official:true});},'INVENTED_REQUIREMENT'),
     make('invented focus',0,(c,r)=>{c.constraints=[roleLiteral(r,'constraint','important new developments',{kind:'focus'})];},'INVENTED_REQUIREMENT'),
     make('false ambiguity',0,(c,r)=>{c.ambiguity=[roleLiteral(r,'ambiguity',r,{reason:'unresolved_reference'})];},'INVENTED_REQUIREMENT'),

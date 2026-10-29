@@ -1,6 +1,6 @@
 import { cleanStage,cleanAsyncStage,contractSummary } from './clean-create-trace.js';
 import { createRoleSource,createRoleContractSchema,createRoleExtractionInstructions,normalizeCreateRoleContract,
-  createExactUrlRoleContract,isExactRoleUrl,validateCreateRoleStructure } from './create-role-contract.js';
+  createExactUrlRoleContract,isExactRoleUrl,validateCreateRoleStructure,resolveRoleSelection } from './create-role-contract.js';
 import { createFidelitySchema,createFidelityInstructions,createFidelityInput,validateCreateFidelity } from './create-fidelity-verifier.js';
 import { handoffCreateRoleContract } from './create-role-compatibility.js';
 import { resolveWatchContractCapability } from './create-contract-capability.js';
@@ -36,16 +36,20 @@ export async function planRoleAwareCreate(request,options={}){
   const candidate=await cleanAsyncStage(cleanTrace,'semantic_extraction',()=>url?createExactUrlRoleContract(request)
     :completeOnce(roleAwareLocalTransport,'extraction',createRoleExtractionInstructions,
       {request,source_tokens:source.tokens.map(({index,text})=>({index,text}))},createRoleContractSchema,timeoutMs,budget,cleanTrace),
-    c=>({subject_count:Array.isArray(c?.subjects)?Math.min(c.subjects.length,8):null}));
+    c=>({subject_count:Array.isArray(c?.subjects)?Math.min(c.subjects.length,8):null,event_present:c?.event!=null,
+      subjects:Array.isArray(c?.subjects)?c.subjects.slice(0,8).map(s=>{
+        try{const span=resolveRoleSelection(source,s.selection);return span.text===s.value?span.text:null;}catch{return null;}
+      }):[]}));
   cleanStage(cleanTrace,'semantic_validation',()=>validateCreateRoleStructure(candidate),c=>({subject_count:c.subjects.length}));
   const grounded=cleanStage(cleanTrace,'grounding',()=>normalizeCreateRoleContract(request,candidate),
-    c=>({subject_count:c.semantic.subjects.length,represented_literals:c.coverage.represented_literals}));
+    c=>({subject_count:c.semantic.subjects.length,represented_literals:c.coverage.represented_literals,
+      derived_goal:c.semantic.monitoring_goal,event_present:!!c.semantic.event,event_source_valid:!!c.semantic.event}));
   const fidelity=await cleanAsyncStage(cleanTrace,'fidelity_verification',async()=>{
     const result=url?{verdict:'PASS',reasons:[]}:validateCreateFidelity(await completeOnce(roleAwareLocalTransport,'verification',
       createFidelityInstructions,createFidelityInput(grounded),createFidelitySchema,timeoutMs,budget,cleanTrace));
     if(result.verdict!=='PASS')throw Object.assign(error('CREATE_CLARIFICATION_REQUIRED',422,'fidelity_rejected'),{fidelity:result});
     return result;
-  },r=>({verdict:r.verdict,reasons:r.reasons,method:url?'exact_url':'independent_verifier'}));
+  },r=>({verdict:r.verdict,reasons:r.reasons,event_admitted:!!grounded.semantic.event,method:url?'exact_url':'independent_verifier'}));
   // A faithfully represented ambiguity/residual still cannot become an
   // executable Watch merely because the verifier judged the representation.
   if(grounded.semantic.ambiguity.length||grounded.semantic.unrepresented_requirements.length)throw error('CREATE_CLARIFICATION_REQUIRED',422,'unrepresented_meaning');

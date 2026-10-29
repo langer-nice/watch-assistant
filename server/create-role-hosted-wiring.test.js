@@ -29,10 +29,24 @@ test('real hosted handler selects explicit A+B mode and two constrained provider
   const r=await dispatch();assert.equal(r.status,200,JSON.stringify(r.body));assert.equal(r.body.mode,CREATE_AB_MODE);
   assert.equal(r.body.capability.status,'SUPPORTED');assert.equal(r.calls.length,2);
   assert.equal(r.calls[0].text.format.name,'create_role_v1');assert.equal(r.calls[1].text.format.name,'create_fidelity_v1');
+  assert(!Object.hasOwn(r.calls[0].text.format.schema.properties,'monitoring_goal'));
+  assert.equal(JSON.parse(r.calls[1].input).proposed_contract.monitoring_goal,'ongoing_developments');
+  assert.equal(r.trace.find(x=>x.stage==='grounding'&&x.status==='PASS').safe_summary.derived_goal,'ongoing_developments');
   assert.deepEqual(Object.keys(JSON.parse(r.calls[1].input)),['request','proposed_contract','provenance_summary']);
   assert.deepEqual(r.trace.at(-1).model_calls,{extraction:1,verification:1,total:2});
   assert.deepEqual(r.trace.at(-1).provider_http,{extraction:200,verification:200});assert.equal(r.trace.at(-1).mode,CREATE_AB_MODE);
   assert(!JSON.stringify(r.trace).includes('fixture-only'));assert(!JSON.stringify(r.trace).includes(roleRequests.news));
+});
+test('source-present invented event remains a proposal and B rejection stops downstream',async()=>{
+  const c=roleFrozen(0),value='important new developments';
+  const {roleLiteral}=await import('./test-support/create-role-fixtures.js');
+  c.event=roleLiteral(roleRequests.news,'event',value,{kind:'occurrence'});
+  const r=await dispatch({candidate:c,verdict:fidelityFail('INVENTED_REQUIREMENT')});
+  assert.equal(r.status,422);assert.equal(r.calls.length,2);
+  assert.equal(JSON.parse(r.calls[1].input).proposed_contract.monitoring_goal,'event_occurrence');
+  assert.equal(r.trace.at(-1).first_fail_stage,'fidelity_verification');
+  assert.deepEqual(r.trace.at(-1).fidelity_reasons,['INVENTED_REQUIREMENT']);
+  assert(!r.trace.some(x=>['review','normalizer','capability','projection'].includes(x.stage)));
 });
 test('verifier FAIL blocks downstream, without a third provider call',async()=>{
   const r=await dispatch({verdict:fidelityFail('MISSING_REQUIREMENT')});assert.equal(r.status,422);assert.equal(r.calls.length,2);
