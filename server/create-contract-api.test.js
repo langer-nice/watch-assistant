@@ -171,13 +171,13 @@ test('URL uses the unified exact-resource branch without legacy discovery or a m
 });
 
 test('Preview preparation gate requires the exact branch, Staging backend and every delivery gate disabled',async()=>{
-  const opts=options(null);opts.env={...env,VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'codex/create-core-slice3',
+  const opts=options(null);opts.env={...env,VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'codex/create-clean-slice-b',
     STRUCTURED_PRODUCTION_ENABLED:'false',STRUCTURED_MEDIA_SCHEDULED_ENABLED:'false',STRUCTURED_MEDIA_NOTIFICATION_INTENTS_ENABLED:'false',
     WATCH_EMAIL_NOTIFICATIONS_ENABLED:'false',MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED:'false',STRUCTURED_MEDIA_EMAIL_NOTIFICATIONS_ENABLED:'false',
     STRUCTURED_MEDIA_STAGING_EMAIL_TEST_ENABLED:'false',MEDIA_WATCH_DAILY_DIGEST_ENABLED:'false',VITE_MEDIA_WATCH_DAILY_DIGEST_ENABLED:'false'};
   const body={operation:'create',request:requests[4]};
   assert.equal((await call(body,opts)).statusCode,200);
-  for(const change of [{VERCEL_ENV:'production'},{VERCEL_GIT_COMMIT_REF:'master'},{SUPABASE_URL:'https://example.supabase.co'},
+  for(const change of [{VERCEL_ENV:'production'},{VERCEL_GIT_COMMIT_REF:'master'},{VERCEL_GIT_COMMIT_REF:'codex/create-core-slice3'},{SUPABASE_URL:'https://example.supabase.co'},
     {WATCH_EMAIL_NOTIFICATIONS_ENABLED:'true'},{STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true'},{CREATE_CORE_REPLACEMENT_ENABLED:'false'}])
     assert.equal((await call(body,{...opts,env:{...opts.env,...change}})).statusCode,404);
 });

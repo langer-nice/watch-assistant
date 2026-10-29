@@ -3,7 +3,7 @@ import { projectWatchContractToLegacyPlan } from './create-contract-projection.j
 
 export const createCoreReviewEnabled = env => env.CREATE_CORE_REPLACEMENT_ENABLED === 'true'
   && (['development','test'].includes(env.VERCEL_ENV)
-    || (env.VERCEL_ENV === 'preview' && env.VERCEL_GIT_COMMIT_REF === 'codex/create-core-slice3'
+    || (env.VERCEL_ENV === 'preview' && env.VERCEL_GIT_COMMIT_REF === 'codex/create-clean-slice-b'
       && env.SUPABASE_URL === 'https://tseexvbwhrtofcsrvcqc.supabase.co'
       && ['STRUCTURED_PRODUCTION_ENABLED','STRUCTURED_MEDIA_SCHEDULED_ENABLED',
         'STRUCTURED_MEDIA_NOTIFICATION_INTENTS_ENABLED','WATCH_EMAIL_NOTIFICATIONS_ENABLED',
