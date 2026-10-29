@@ -5,6 +5,7 @@ import { isExactSemanticUrl } from './create-semantic-extraction.js';
 import { normalizeSemanticWatchContract } from './semantic-watch-contract.js';
 import { resolveWatchContractCapability } from './create-contract-capability.js';
 import { withSemanticFrameStructure } from './semantic-frame-structure.js';
+import { planRoleAwareCreate } from './create-role-planner.js';
 
 const error=(code,statusCode)=>Object.assign(new Error(code),{code,statusCode});
 export async function extractCreateSemanticFrame(request,{
@@ -40,6 +41,7 @@ export async function extractCreateSemanticFrame(request,{
 }
 
 export async function planCreateSemantics(request,options={}) {
+  if(options.roleAwareLocalTransport)return planRoleAwareCreate(request,options);
   const {cleanTrace,verifiedIdentityLookup}=options;
   const extraction=await extractCreateSemanticFrame(request,options);
   let contract;

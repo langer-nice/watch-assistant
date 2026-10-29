@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-const stages=new Set(['request','semantic_extraction','semantic_validation','identity_resolution','grounding','watch_contract','normalizer','capability','projection','review']);
+const stages=new Set(['request','semantic_extraction','semantic_validation','fidelity_verification','identity_resolution','grounding','watch_contract','normalizer','capability','projection','review']);
 const codes=new Set(['INVALID_CREATE_SEMANTIC_FRAME','CREATE_FRAME_CLARIFICATION_REQUIRED','INVALID_CREATE_SEMANTICS','CREATE_SEMANTIC_AMBIGUITY','INVALID_WATCH_CONTRACT','INVALID_CREATE_CONTRACT',
   'CREATE_CLARIFICATION_REQUIRED','INTERPRETATION_FAILED','INVALID_INTERPRETATION_REQUEST','AI_SERVICE_UNAVAILABLE','AI_TIMEOUT',
   'STRUCTURED_FEATURE_UNAVAILABLE','AUTH_REQUIRED','INVALID_SESSION','AUTH_UNAVAILABLE','METHOD_NOT_ALLOWED',
@@ -12,8 +12,10 @@ const reasons=new Set(['constraint_conflict','schema','comparison_goal','event_g
   'input_size','technical_hint','evidence_span','subject_kind','identity_conflict','duplicate_subject','url_subject','url_trigger',
   'subject_conflict','trigger_conflict','invented_constraint','period_required','period_conflict','pair_conflict','comparison_conflict',
   'amount_conflict','unit_conflict','extra_constraint','extra_time','source_preference_conflict','input_source_conflict',
-  'unrepresented_meaning','constraint_cue','vocabulary_not_supported','duplicate_constraint','derived_evidence','array','text']);
+  'unrepresented_meaning','constraint_cue','vocabulary_not_supported','duplicate_constraint','derived_evidence','array','text',
+  'role_conflict','verifier_invalid','fidelity_rejected']);
 const safeError=e=>({code:codes.has(e?.code)?e.code:e instanceof SyntaxError?'SYNTAX_ERROR':'UNCLASSIFIED_ERROR',
+  ...(Array.isArray(e?.fidelity?.reasons)?{fidelity_reasons:e.fidelity.reasons.filter(r=>['MISSING_REQUIREMENT','WRONG_ROLE','INVENTED_REQUIREMENT','UNRESOLVED_AMBIGUITY'].includes(r)).slice(0,4)}:{}),
   ...(reasons.has(e?.reason)||/^evidence_missing:(?:subject\/[0-7]|trigger(?:\/comparison)?|constraints\/[0-7]|time_scope\/[0-3]|source_preference)$/u.test(e?.reason||'')?{reason:e.reason}:{})});
 const count=v=>Array.isArray(v)?Math.min(v.length,10000):null;
 const known=(v,values)=>values.includes(v)?v:'OTHER';
