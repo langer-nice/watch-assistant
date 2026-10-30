@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "codex/structured-interpretation-v1": false
+      "codex/structured-interpretation-v1": false,
+      "codex/story-following-shadow-staging": false
     }
   },
   "functions": {

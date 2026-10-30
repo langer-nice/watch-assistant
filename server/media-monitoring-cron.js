@@ -1,3 +1,4 @@
+import {observeStoryShadow} from './story-following-shadow.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { hasDefinitionVersion } from '../src/js/watch-definition.js';
 import { googleNewsSource, validateMediaQuery } from '../src/js/media-provider-query.js';
@@ -56,6 +57,7 @@ export const runMediaMonitoring = async ({ client, env = process.env, fetchFeed 
     const { data, error } = await withinMediaDeadline(() => client.rpc(isCurrency ? 'complete_currency_watch_check' : mediaDailyDigestEnabled(env) ? 'complete_media_check_with_digest' : 'complete_scheduled_media_watch_check', { p_watch_id: row.id, p_expected_revision: row.media_revision, p_checked_at: result.changes.monitoringSnapshot.checkedAt, p_source_title: result.changes.monitoringSnapshot.source?.title, p_source_url: result.changes.monitoringSnapshot.source?.url, p_item_ids: result.changes.monitoringSnapshot.itemIds, p_items: result.changes.monitoringSnapshot.items, p_expected_checked_at: prior?.checked_at || null, p_expected_items: prior?.items || null, p_outcome: result.outcome, ...(isCurrency ? { p_evaluation: result.changes.currencyEvaluation } : {}), p_notification_items: result.matchedItems, p_enqueue_notifications: emailNotificationsEnabled(env, 'MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED') }), deadline);
     if (error) throw Object.assign(new Error('Media persistence failed.'), { code: 'DATABASE_ERROR' });
     if (data === 'changed') changedCount += 1; else if (data === 'skipped') skippedCount += 1; else unchangedCount += 1;
+    if(!isCurrency&&prior&&data!=='skipped')observeStoryShadow({env,ownerId:row.user_id,watch,items:result.changes.monitoringSnapshot.items,matchingItems:result.matchedItems});
   } catch (error) { failedCount += 1;
     // Query-backed media failures retain the last successful retrieval, just as
     // manual checks do. Other monitoring types retain their existing behavior.

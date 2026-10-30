@@ -1,3 +1,4 @@
+import {observeStoryShadow} from './story-following-shadow.js';
 import {productionExecutionEnabled,productionWatchOwners} from './structured-production-access.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { structuredCreationEnabled } from './structured-creation-access.js';
@@ -43,6 +44,7 @@ export const runStructuredMediaMonitoring = async ({client,env=process.env,sched
    if(completed.data?.status==='skipped')summary.skipped++;
    else if(completed.data?.status!=='completed')throw Error('Invalid structured completion');
    else if(completed.data.outcome==='matching-items')summary.changed++;else summary.unchanged++;
+   if(completed.data?.status==='completed')observeStoryShadow({env,ownerId:row.user_id,watch,items,matchingItems:finish.p_matching});
   }catch(error){
    summary.failed++;
    // Late/unknown commits are fenced by the lease token. A committed result
