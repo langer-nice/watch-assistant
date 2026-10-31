@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {PGlite} from '@electric-sql/pglite';import {readFile,readdir} from 'node:fs/promises';
-import {PILOT_OWNER,PILOT_SPECS,pilotSource,preparePilot,evaluatePilot,PILOT_ENGINE} from './v3-pilot.js';
+import {PILOT_OWNER,PILOT_SPECS,pilotSource,preparePilot,evaluatePilot,PILOT_ENGINE,connectorCurrencyRequest} from './v3-pilot.js';
 const understanding=(text)=>({capture_id:'capture',intent:{canonical_text:text,references:[],explicit_constraints:[],unresolved_ambiguities:[]},decision:{status:'READY_TO_MONITOR'}});
 test('private pilot SQL: auth, atomic slots, baseline, fence, outbox and pause',async()=>{
  const db=new PGlite();try{
@@ -17,7 +17,7 @@ test('private pilot SQL: auth, atomic slots, baseline, fence, outbox and pause',
  assert.equal((await role('service_role','select public.create_v3_pilot($1,$2,$3) id',args)).rows[0].id,id);
  }
  assert.equal((await db.query('select count(*)::int n from public.watches')).rows[0].n,4);
- let claimed=(await role('service_role','select public.claim_v3_pilot_checks() rows')).rows[0].rows;assert.equal(claimed.length,4);
+ let claimed=(await role('service_role','select public.claim_v3_pilot_checks() rows')).rows[0].rows;assert.equal(claimed.length,4);assert.deepEqual(claimed.find(r=>r.slot===2).criteria,{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'});
  const results=claimed.map((r,i)=>({evidence:{id:'baseline-'+i,title:'Baseline',content:'Known development',source:'Test',url:'https://example.test/feed'},items:[{id:'baseline-'+i,title:'Known development',url:'https://example.test/article',publishedAt:'2026-10-31T00:00:00Z'}],judgment:null,article:null}));
  for(let i=0;i<claimed.length;i++)assert.equal((await role('service_role','select public.finish_v3_pilot_check($1,$2,$3) ok',[claimed[i].id,claimed[i].token,results[i]])).rows[0].ok,true);
  assert.equal((await db.query('select count(*)::int n from public.media_watch_notifications')).rows[0].n,0);
@@ -44,7 +44,7 @@ const readyModel=async req=>({intent:{canonical_text:req.input.capture.raw_input
 test('all four exact captures reach the validated Intent boundary once without resource invention',async()=>{
  for(const spec of PILOT_SPECS){let calls=0;const r=await preparePilot(spec.instruction,{model:async req=>{calls++;assert.equal(req.input.capture.raw_input,spec.instruction);return readyModel(req);}});assert.equal(calls,1);assert.equal(r.instruction,spec.instruction);assert.equal(r.understanding.intent.explicit_constraints[0].text,spec.instruction);assert.ok(r.understanding.intent.references.every(x=>!x.exact_url));}
 });
-const rowFor=async slot=>({slot,user_id:PILOT_OWNER,engine:PILOT_ENGINE,instruction:PILOT_SPECS[slot-1].instruction,understanding:(await preparePilot(PILOT_SPECS[slot-1].instruction,{model:readyModel})).understanding,baseline_at:'2026-10-30T00:00:00Z',prior_state:{entries:[]}});
+const rowFor=async slot=>({slot,criteria:slot===2?{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'}:null,user_id:PILOT_OWNER,engine:PILOT_ENGINE,instruction:PILOT_SPECS[slot-1].instruction,understanding:(await preparePilot(PILOT_SPECS[slot-1].instruction,{model:readyModel})).understanding,baseline_at:'2026-10-30T00:00:00Z',prior_state:{entries:[]}});
 const modelFor=(action,status,reason)=>async req=>({action,evidence_status:status,reason,novelty_summary:action==='ALERT'?'A new development':null,condition_check:null,evidence_refs:req.input.evidence.segments.filter(x=>x.role==='CLAIM'||x.role==='MEASUREMENT').map(x=>x.id),provenance_refs:req.input.evidence.segments.filter(x=>x.role==='PROVENANCE').map(x=>x.id)});
 const feedFor=(title,excerpt,source='Apple Newsroom')=>async()=>({source:{title:source,url:'https://example.test/feed'},checkedAt:'2026-10-31T00:00:00Z',items:[{id:'article-1',title,excerpt,url:'https://example.test/article',source,publishedAt:'2026-10-31T00:00:00Z'}]});
 test('news adapter preserves refs, confirmed/duplicate actions and announcement scope without extra calls',async()=>{
@@ -53,7 +53,7 @@ test('news adapter preserves refs, confirmed/duplicate actions and announcement 
 });
 test('currency comparison is exact: 1.169 and equality cannot alert; 1.171 can',async()=>{
  for(const rate of ['1.169','1.170','1.171']){
- const currency=async()=>({criteria:{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'},observation:{base:'GBP',quote:'EUR',rate,date:'2026-10-31'},checkedAt:'2026-10-31T00:00:00Z'});
+ const currency=async request=>{assert.equal(request,'GBP > 1.17 EUR');return {criteria:{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'},observation:{base:'GBP',quote:'EUR',rate,date:'2026-10-31'},checkedAt:'2026-10-31T00:00:00Z'};};
  const expected=rate==='1.171'?'ALERT':'NO_ALERT';
  const r=await evaluatePilot(await rowFor(2),{currency,model:modelFor(expected,'CONFIRMED','The exact comparison and prior state determine this observation.')});assert.equal(r.judgment.action,expected);assert.equal(!!r.article,expected==='ALERT');
  if(expected==='NO_ALERT')await assert.rejects(evaluatePilot(await rowFor(2),{currency,model:modelFor('ALERT','CONFIRMED','Attempted invalid alert.')}),/Numeric condition/);
@@ -79,4 +79,14 @@ test('pilot creation capability is private and scoped to the authenticated owner
  assert.equal(res.statusCode,200);assert.equal(body.v3Pilot===true,id===PILOT_OWNER);assert.ok(!JSON.stringify(body).includes(PILOT_OWNER));
  }
  const browserCode=await readFile(new URL('../src/js/structured-watch-creation.js',import.meta.url),'utf8');assert.ok(!browserCode.includes(PILOT_OWNER));for(const spec of PILOT_SPECS)assert.ok(!browserCode.includes(spec.instruction));
+});
+
+test('typed currency bridge uses the real ECB parser without rewriting Capture',async()=>{
+ const {fetchCurrencyRate}=await import('./currency-rate.js');
+ const {parseCurrencyRequest}=await import('../src/js/currency-watch.js');
+ assert.equal(parseCurrencyRequest(PILOT_SPECS[1].instruction),null);
+ const row=await rowFor(2);row.baseline_at=null;let requests=0;
+ const result=await evaluatePilot(row,{currency:request=>fetchCurrencyRate(request,{now:()=>new Date('2026-10-31T18:00:00Z'),fetchImpl:async()=>{requests++;return new Response('<Envelope><Cube><Cube time="2026-10-30"><Cube currency="GBP" rate="0.83380"/></Cube></Cube></Envelope>',{status:200});}}),model:()=>assert.fail('Baseline must not call Brain')});
+ assert.equal(requests,1);assert.equal(result.evaluation.operator,'gt');assert.equal(result.evaluation.target,'1.17');assert.equal(result.evaluation.met,true);assert.equal(result.article,null);assert.equal(row.understanding.intent.canonical_text,PILOT_SPECS[1].instruction);
+ assert.throws(()=>connectorCurrencyRequest({base:'GBP',quote:'EUR',operator:'lt',target:'1.17'}),/criteria/);
 });

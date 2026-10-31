@@ -11,9 +11,10 @@ export default async function handler(req,res){
   if(!body||Object.keys(body).join()!=='instruction'||typeof body.instruction!=='string')throw Error('Invalid body');
   const slot=PILOT_SPECS.findIndex(s=>s.instruction===body.instruction);if(slot<0){res.statusCode=200;res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({pilot:false}));}
   const client=createSupabaseServiceClient({});
-  const existing=await client.from('v3_pilot_watches').select('watch_id').eq('user_id',user.id).eq('slot',slot+1).maybeSingle();if(existing.error)throw Error('Pilot unavailable');
+  const existing=await client.from('v3_pilot_watches').select('watch_id,baseline_at').eq('user_id',user.id).eq('slot',slot+1).maybeSingle();if(existing.error)throw Error('Pilot unavailable');
   let id=existing.data?.watch_id;
-  if(!id){const prepared=await preparePilot(body.instruction,{model:pilotIntentModel(process.env)});const saved=await client.rpc('create_v3_pilot',{p_slot:slot+1,p_understanding:prepared.understanding,p_source:pilotSource(PILOT_SPECS[slot])});if(saved.error)throw Error('Pilot persistence failed');id=saved.data;const baseline=await runPilotMonitoring({client,env:process.env,schedulerAuthorized:true});if(baseline.failed)throw Error('Pilot baseline incomplete');}
+  if(!id){const prepared=await preparePilot(body.instruction,{model:pilotIntentModel(process.env)});const saved=await client.rpc('create_v3_pilot',{p_slot:slot+1,p_understanding:prepared.understanding,p_source:pilotSource(PILOT_SPECS[slot])});if(saved.error)throw Error('Pilot persistence failed');id=saved.data;}
+  if(!existing.data?.baseline_at){const baseline=await runPilotMonitoring({client,env:process.env,schedulerAuthorized:true});if(baseline.failed)throw Error('Pilot baseline incomplete');const verified=await client.from('v3_pilot_watches').select('baseline_at').eq('watch_id',id).single();if(verified.error||!verified.data?.baseline_at)throw Error('Pilot baseline incomplete');}
   res.statusCode=200;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({pilot:true,id}));
  }catch(e){res.statusCode=e.statusCode||422;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({error:'Pilot creation could not complete. No retry was attempted.'}));}
 }

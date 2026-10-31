@@ -6,7 +6,7 @@ import {judgeReferenceEvidence} from './v3-brain-lab/evidence-ref-candidate/cand
 import {toBrainInput} from './v3-brain-lab/end-to-end-mini/adapter.mjs';
 import {fetchAndNormalizeFeed} from './check-watch-api.js';
 import {fetchCurrencyRate} from './currency-rate.js';
-import {evaluateCurrencyRate} from '../src/js/currency-watch.js';
+import {evaluateCurrencyRate,parseCurrencyRequest,sameCurrencyCriteria} from '../src/js/currency-watch.js';
 export const PILOT_OWNER='b4757e02-fc75-4984-b50e-8d933ae7ec04';
 export const PILOT_ENGINE='wa-v3-evidence-refs-pilot.v1';
 export const PILOT_SPECS=Object.freeze([
@@ -30,11 +30,17 @@ export function feedEvidence(feed){
  const items=feed.items.slice(0,20);if(!items.length)throw Error('No supplied evidence');
  return {id:hash(JSON.stringify(items)),title:feed.source?.title||'News feed',content:items.map(i=>[i.title,i.excerpt||'',`Source: ${i.sourceTitle||i.source||feed.source?.title||'unspecified'}`,`URL: ${i.url||''}`,`Published: ${i.publishedAt||'unspecified'}`].join('\n')).join('\n\n'),source:feed.source?.title||'RSS feed',url:feed.source.url,retrieved_at:feed.checkedAt||new Date().toISOString()};
 }
+export function connectorCurrencyRequest(criteria){
+ if(!criteria||!['gt','gte'].includes(criteria.operator))throw Error('Invalid connector criteria');
+ const request=`${criteria.base} ${criteria.operator==='gt'?'>':'>='} ${criteria.target} ${criteria.quote}`;
+ if(!sameCurrencyCriteria(parseCurrencyRequest(request),criteria))throw Error('Invalid connector criteria');
+ return request;
+}
 export async function evaluatePilot(row,{feed=fetchAndNormalizeFeed,currency=fetchCurrencyRate,model}={}){
  const spec=PILOT_SPECS[row.slot-1];if(!spec||row.user_id!==PILOT_OWNER||row.engine!==PILOT_ENGINE||row.instruction!==spec.instruction)throw Error('Pilot identity mismatch');
  let evidence,items,evaluation;
  if(spec.currency){
-  const rate=await currency(spec.instruction);evaluation=evaluateCurrencyRate(rate.criteria,rate.observation);
+  const rate=await currency(connectorCurrencyRequest(row.criteria));evaluation=evaluateCurrencyRate(rate.criteria,rate.observation);
   const quote=`GBP/EUR ${evaluation.observedRate}`;
   evidence={id:hash(JSON.stringify(rate.observation)),title:'ECB GBP/EUR reference observation',content:`${quote} (display truncated at 12 decimal places). Source observation: ${rate.observation.base}/${rate.observation.quote} ${rate.observation.rate}. Exact rational comparison GBP/EUR > 1.17: ${evaluation.met}.`,measurement:{metric:'GBP/EUR',value:String(evaluation.observedRate),quote},source:'ECB',url:pilotSource(spec).url,published_at:rate.observation.date+'T00:00:00Z',retrieved_at:rate.checkedAt};
   items=[{id:evidence.id,title:evidence.title,excerpt:quote,url:evidence.url,publishedAt:evidence.published_at,source:'ECB'}];
