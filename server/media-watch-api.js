@@ -1,3 +1,5 @@
+import {PILOT_OWNER,pilotDatabaseMatches,pilotReadRows} from './v3-pilot.js';
+import {createSupabaseServiceClient} from './supabase-service.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { validateMediaQuery } from '../src/js/media-provider-query.js';
 import { createMediaWatchCheckMiddleware } from './media-watch-check-api.js';
@@ -33,6 +35,10 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
         watches.push(...data);
         if (data.length < 100) break;
       }
+      if(user.id===PILOT_OWNER&&pilotDatabaseMatches(options.env||process.env)){
+        const service=options.serviceClient||createSupabaseServiceClient(options);
+        watches.splice(0,watches.length,...await pilotReadRows(watches,user.id,{client:service,env:options.env||process.env}));
+      }
       return send(200, { watches, emailEnabled: Boolean(getMediaWatchEmailConfig(options.env || process.env)) });
     }
     if (request.method !== 'POST') return send(405, { code: 'METHOD_NOT_ALLOWED' });
@@ -45,6 +51,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
       }
       raw = JSON.parse(body);
     }
+    if(raw?.definition?.watch_definition?.v3Engine) return send(422,{code:'INVALID_MEDIA_DEFINITION'});
     if (!raw || Buffer.byteLength(JSON.stringify(raw)) > 12000 || !Number.isSafeInteger(raw.revision) || raw.revision < 0
       || typeof raw.deleted !== 'boolean' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw.mutation)) return send(400, { code: 'INVALID_BODY' });
     const input = raw.definition;

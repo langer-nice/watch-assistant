@@ -44,7 +44,15 @@ export const parseCurrencyRequest = (request) => {
     return { base, quote, operator, target: normalizeDecimal(match[3]) };
   } catch { return null; }
 };
-export const currencyCriteriaFor = (watch) => !Object.hasOwn(watch || {}, 'definitionVersion') && watch?.inputType === 'text' ? parseCurrencyRequest(watch.request) : null;
+export const currencyCriteriaFor = (watch) => {
+  if(Object.hasOwn(watch||{},'definitionVersion')||watch?.inputType!=='text')return null;
+  if(watch.v3Engine==='wa-v3-evidence-refs-pilot.v1'&&watch.monitoringSource?.type==='currency'){
+    const c=watch.currencyCriteria,op={gt:'>',gte:'>='}[c?.operator];
+    const parsed=op?parseCurrencyRequest(`${c.base} ${op} ${c.target} ${c.quote}`):null;
+    return sameCurrencyCriteria(parsed,c)?parsed:null;
+  }
+  return parseCurrencyRequest(watch.request);
+};
 export const sameCurrencyCriteria = (left, right) => left == null || right == null
   ? left == null && right == null
   : ['base', 'quote', 'operator', 'target'].every(key => left[key] === right[key]);

@@ -58,7 +58,7 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
       const q = {
         select(fields) { snapshots = fields.includes('media_watch_snapshots'); return q; },
         eq(column, value) { assert.ok(['id','user_id','type','monitoring_state','status','watch_id'].includes(column)); args.push(value); conditions.push(`w.${column}=$${args.length}`); return q; },
-        is(column, value) { assert.equal(column, 'deleted_at'); assert.equal(value, null); conditions.push('w.deleted_at is null'); return q; },
+        is(column, value) { assert.equal(value, null); if(column==='watches.watch_definition->>definitionVersion')conditions.push("exists(select 1 from public.watches owner_watch where owner_watch.id=w.watch_id and owner_watch.watch_definition->>'definitionVersion' is null)");else{assert.equal(column,'deleted_at');conditions.push('w.deleted_at is null');}return q; },
         order(column, options) { assert.ok(['id','last_checked_at','created_at','watch_id','article_position'].includes(column)); ordering.push(`w.${column}${options?.nullsFirst ? ' nulls first' : ''}`); return q; },
         or(value) { const cutoff=value.split('claimed_at.lt.')[1]; args.push(cutoff); conditions.push(`(w.claim_token is null or w.claimed_at < $${args.length}::timestamptz)`); return q; },
         async range(start, end) {
@@ -145,14 +145,14 @@ test('authenticated browser persistence → PostgreSQL RLS → scheduled media p
     await t.test('Home does not treat a report fixture as proof of a successful first check', async () => {
       const {selectHomeReport}=await import('../src/js/home-report.js');
       const row=(await db.query('select created_at from public.watches where id=$1',[watch.id])).rows[0];
-      const now=new Date(new Date(row.created_at).getTime()+3*60*1000);
       const hydrated=watches.getWatchById(watch.id);
+      const now=new Date(Math.max(new Date(row.created_at).getTime(),new Date(hydrated.createdAt).getTime())+3*60*1000);
       assert.equal(new Date(hydrated.createdAt).getTime(),new Date(row.created_at).getTime());
       const report={entries:[{watchId:watch.id,title:watch.title,category:'news',classification:'watching'}],attempts:[{watchId:watch.id,status:'succeeded'}],counts:{completed:1}};
       const result=selectHomeReport({report,watches:watches.getWatches(),serverWatches:store.getMediaServerWatches(),now});
-      assert.deepEqual(result.newlyCreatedWatches,[]);
+      assert.deepEqual(result.newlyCreatedWatches.map(w=>w.id),[watch.id]); // Saved/new is not proof of a completed check.
       assert.deepEqual(result.quietWatches,[]);
-      assert.deepEqual(result.attentionWatches.map(w=>w.id),[watch.id]);
+      assert.deepEqual(result.attentionWatches,[]);
       assert.equal(result.totalChecked,0); // No completedAt: this fixture is not a usable report.
       await store.configureMediaWatchServerStore(auth);await flush();
       assert.deepEqual(selectHomeReport({report,watches:watches.getWatches(),serverWatches:store.getMediaServerWatches(),now}),result);
