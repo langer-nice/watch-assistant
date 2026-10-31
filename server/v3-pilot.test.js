@@ -68,3 +68,14 @@ test('baseline makes no judgment call and bad refs cannot reach delivery',async(
  const row=await rowFor(3);row.baseline_at=null;const result=await evaluatePilot(row,{feed:feedFor('Known Mac','Existing product.'),model:()=>{throw Error('Model must not run');}});assert.equal(result.judgment,null);assert.equal(result.article,null);
  row.baseline_at='2026-10-30T00:00:00Z';await assert.rejects(evaluatePilot(row,{feed:feedFor('New Mac','Apple introduced a Mac.'),model:async()=>({action:'ALERT',evidence_status:'CONFIRMED',reason:'New Mac.',evidence_refs:['invented'],provenance_refs:[]})}),/reference/i);
 });
+
+test('pilot creation capability is private and scoped to the authenticated owner',async()=>{
+ const {createStructuredWatchMiddleware}=await import('./structured-watch-api.js');
+ const env={V3_PILOT_ENABLED:'true',VERCEL_ENV:'production',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',VERCEL_GIT_COMMIT_REF:'master',SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',STRUCTURED_PRODUCTION_ENABLED:'true',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true'};
+ for(const id of [PILOT_OWNER,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']){
+ let body;const res={setHeader(){},end(text){body=JSON.parse(text);}};
+ await createStructuredWatchMiddleware({env,authenticate:async()=>({user:{id},client:{}})})({method:'GET',url:'/api/structured-watches'},res);
+ assert.equal(res.statusCode,200);assert.equal(body.v3Pilot===true,id===PILOT_OWNER);assert.ok(!JSON.stringify(body).includes(PILOT_OWNER));
+ }
+ const browserCode=await readFile(new URL('../src/js/structured-watch-creation.js',import.meta.url),'utf8');assert.ok(!browserCode.includes(PILOT_OWNER));for(const spec of PILOT_SPECS)assert.ok(!browserCode.includes(spec.instruction));
+});

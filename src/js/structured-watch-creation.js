@@ -46,7 +46,7 @@ export const structuredCreationError = (code,language) => {
 };
 
 export const initStructuredWatchCreation = ({form,input,noteInput,error,getLanguage,listen,isCurrent=()=>true,fetchImpl=(...args)=>fetch(...args),uuid=()=>crypto.randomUUID()}) => {
- let enabled=false, monitoringEnabled=false, generation=0, pending=null, busy=false, panel, reviewNote='';
+ let enabled=false, monitoringEnabled=false, pilotOwner=null, generation=0, pending=null, busy=false, panel, reviewNote='';
  const message=text=>{if(error)error.textContent=text;const inline=panel?.querySelector('.structured-review-error');if(inline)inline.textContent=text;};
  const labels=()=>copy[getLanguage()==='fr'?'fr':'en'];
  const clear=()=>{generation++;pending=null;panel?.remove();panel=null;form.classList.remove('is-reviewing');};
@@ -75,7 +75,7 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
  const access=async()=>{
   if(!activeSession())return;
   const accessOwner=activeSession()?.user?.id;
-  try {const result=await request('/api/structured-watches');if(!isCurrent()||activeSession()?.user?.id!==accessOwner||result.enabled!==true)return;enabled=true;monitoringEnabled=result.monitoringEnabled===true;
+  try {const result=await request('/api/structured-watches');if(!isCurrent()||activeSession()?.user?.id!==accessOwner||result.enabled!==true)return;enabled=true;pilotOwner=result.v3Pilot===true?accessOwner:null;monitoringEnabled=result.monitoringEnabled===true;
   }catch{/* Default/public flow stays unchanged. No AI or persistence request. */}
  };
  const invalidateInput=()=>{if(busy||pending||panel){clear();message(labels().stale);}};
@@ -86,16 +86,11 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   if(busy)return true;
   if(!enabled){const epoch=generation;busy=true;try{await accessReady;}finally{busy=false;}if(epoch!==generation)return true;}
   if(!enabled)return false;
-  if(activeSession()?.user?.id==='b4757e02-fc75-4984-b50e-8d933ae7ec04' && [
-   'Keep me updated on important new developments concerning Manchester City.',
-   'Tell me when GBP/EUR goes above 1.17.',
-   'Tell me when Apple announces a new Mac product.',
-   'Tell me when there are credible new reports that Metallica may announce concerts or tour dates in Europe for 2027, even before official confirmation.'
-  ].includes(original)){
+  if(pilotOwner&&pilotOwner===activeSession()?.user?.id){
    busy=true;message(labels().busy);
-   try{const result=await request('/api/v3-pilot',{instruction:original});if(isCurrent())window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);}
-   catch{message('Pilot creation could not complete. Your instruction has been kept.');}
-   finally{busy=false;}return true;
+   try{const result=await request('/api/v3-pilot',{instruction:original});if(result.pilot===true){if(isCurrent())window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);return true;}}
+   catch{message('Pilot creation could not complete. Your instruction has been kept.');return true;}
+   finally{busy=false;}
   }
   clear();reviewNote=(noteInput?.value||'').trim();busy=true;const epoch=generation,owner=activeSession()?.user?.id,c=labels();
   message(c.busy);
