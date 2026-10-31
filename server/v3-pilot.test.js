@@ -120,3 +120,11 @@ test('Morning Brief reuses pilot read metadata without changing stored snapshots
  await generateMorningReport({client,env,schedulerAuthorized:true,at:Date.parse('2026-10-31T07:10:00Z')});
  assert.ok(saved.watchIdsConsidered.includes(id));assert.ok(saved.entries.some(e=>e.watchId===id));assert.equal(saved.sourceRevision,'unchanged-source-revision');assert.deepEqual(row,original);
 });
+
+test('pilot acquisition cannot consume the legacy Structured deadline before legacy work starts',async()=>{
+ const {runStructuredMediaMonitoring}=await import('./structured-media-scheduler.js');
+ const env={V3_PILOT_ENABLED:'true',VERCEL_ENV:'production',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',VERCEL_GIT_COMMIT_REF:'master',SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',STRUCTURED_PRODUCTION_ENABLED:'true',STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true',CRON_SECRET:'fixture-only'};
+ let release;const held=new Promise(resolve=>release=resolve);const calls=[];
+ const client={rpc:async name=>{calls.push(name);if(name==='claim_v3_pilot_checks')return held;if(name==='production_watch_owners')return {data:[PILOT_OWNER]};if(name==='claim_structured_media_checks'){release({data:[]});return {data:[]};}assert.fail(name);}};
+ const result=await runStructuredMediaMonitoring({client,env,schedulerAuthorized:true});assert.equal(result.status,'success');assert.ok(calls.includes('claim_structured_media_checks'));
+});

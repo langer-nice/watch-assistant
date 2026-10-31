@@ -18,8 +18,8 @@ export const runStructuredMediaMonitoring = async ({client,env=process.env,sched
  if(!schedulerAuthorized || typeof env.CRON_SECRET!=='string' || !env.CRON_SECRET.trim())return {...summary,status:'unauthorized'};
  const production=productionExecutionEnabled(env);
  if(!production&&!structuredCreationEnabled(env))return {...summary,status:'environment-blocked'};
- const pilot=await runPilotMonitoring({client,env,schedulerAuthorized}).catch(()=>({status:'unavailable',claimed:0}));
- if(pilot.claimed)summary.pilot=pilot;
+ const pilotTask=runPilotMonitoring({client,env,schedulerAuthorized}).catch(()=>({status:'unavailable',claimed:0}));
+ try {
  const enqueue = structuredMediaNotificationIntentsEnabled(env);
  const owners=production?await productionWatchOwners(client):String(env.STRUCTURED_WATCH_TEST_USER_IDS||'').split(',').map(x=>x.trim()).filter(x=>/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(x));
  if(!owners.length)return {...summary,status:'unauthorized'};
@@ -54,4 +54,5 @@ export const runStructuredMediaMonitoring = async ({client,env=process.env,sched
   }
  }));
  if(summary.failed)summary.status='partial-success';return summary;
+ } finally {const pilot=await pilotTask;if(pilot.claimed)summary.pilot=pilot;}
 };
