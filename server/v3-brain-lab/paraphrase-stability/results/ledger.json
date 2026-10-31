@@ -1,0 +1,898 @@
+[
+  {
+    "id": "P1",
+    "repetition": 1,
+    "key": "paraphrase-P1",
+    "stage": "paraphrase",
+    "origin": "A4",
+    "source_type": "synthetic",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:30:41.335Z",
+    "wire_input_sha256": "841e75376244db42b7233eacd5dcfa12b0f283ede5c65fe6fd93f5fe3ed4b9b0",
+    "judgment": {
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "Company B entered insolvency, satisfying the either/or trigger.",
+      "evidence_basis": [
+        {
+          "quote": "Court records confirm Company B entered insolvency."
+        }
+      ],
+      "novelty_summary": "New event; no prior entries.",
+      "condition_check": {
+        "required_state": "Company A or Company B enters insolvency",
+        "observed_state": "Company B entered insolvency",
+        "condition_satisfied": true
+      }
+    },
+    "raw": {
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "Company B entered insolvency, satisfying the either/or trigger.",
+      "evidence_basis": [
+        {
+          "quote": "Court records confirm Company B entered insolvency."
+        }
+      ],
+      "novelty_summary": "New event; no prior entries.",
+      "condition_check": {
+        "required_state": "Company A or Company B enters insolvency",
+        "observed_state": "Company B entered insolvency",
+        "condition_satisfied": true
+      }
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 961,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 152,
+        "output_tokens_details": {
+          "reasoning_tokens": 48
+        },
+        "total_tokens": 1113
+      },
+      "latency_ms": 3234
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "id": "P2",
+    "repetition": 1,
+    "key": "paraphrase-P2",
+    "stage": "paraphrase",
+    "origin": "A5",
+    "source_type": "synthetic",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:30:44.576Z",
+    "wire_input_sha256": "667b7aade549399e86467a8446fb8277405a0e49557c8683d963c1be3a911356",
+    "judgment": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "Company B entered insolvency, but Company A remains solvent; both companies must have entered insolvency.",
+      "evidence_basis": [
+        {
+          "quote": "Court records confirm Company B entered insolvency. Company A continues operating solvently."
+        }
+      ],
+      "condition_check": {
+        "required_state": "Company A and Company B have each entered insolvency",
+        "observed_state": "Company B entered insolvency; Company A continues operating solvently",
+        "condition_satisfied": false
+      }
+    },
+    "raw": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "Company B entered insolvency, but Company A remains solvent; both companies must have entered insolvency.",
+      "evidence_basis": [
+        {
+          "quote": "Court records confirm Company B entered insolvency. Company A continues operating solvently."
+        }
+      ],
+      "novelty_summary": null,
+      "condition_check": {
+        "required_state": "Company A and Company B have each entered insolvency",
+        "observed_state": "Company B entered insolvency; Company A continues operating solvently",
+        "condition_satisfied": false
+      }
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 963,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 121,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 1084
+      },
+      "latency_ms": 1801
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "id": "P3",
+    "repetition": 1,
+    "key": "paraphrase-P3",
+    "stage": "paraphrase",
+    "origin": "A7",
+    "source_type": "synthetic",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:30:46.384Z",
+    "wire_input_sha256": "96f94a3c387f84baabff85ca6cd5545034d13c4f8e98e430a6be34b168dc5303",
+    "judgment": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The evidence confirms a new Gucci perfume launch, but perfumes are explicitly excluded.",
+      "evidence_basis": [
+        {
+          "quote": "Gucci officially launched a new perfume today. This announcement concerns only that fragrance."
+        },
+        {
+          "field": "source"
+        }
+      ],
+      "condition_check": {
+        "required_state": "New Gucci product that is not a perfume",
+        "observed_state": "New Gucci perfume only",
+        "condition_satisfied": false
+      }
+    },
+    "raw": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The evidence confirms a new Gucci perfume launch, but perfumes are explicitly excluded.",
+      "evidence_basis": [
+        {
+          "quote": "Gucci officially launched a new perfume today. This announcement concerns only that fragrance."
+        },
+        {
+          "field": "source"
+        }
+      ],
+      "novelty_summary": null,
+      "condition_check": {
+        "required_state": "New Gucci product that is not a perfume",
+        "observed_state": "New Gucci perfume only",
+        "condition_satisfied": false
+      }
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 988,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 110,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 1098
+      },
+      "latency_ms": 2774
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "id": "P4",
+    "repetition": 1,
+    "key": "paraphrase-P4",
+    "stage": "paraphrase",
+    "origin": "A6",
+    "source_type": "synthetic",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:30:49.162Z",
+    "wire_input_sha256": "c6d0877a25d0cf8647df5d831f8b9868b473c7b3d215399dd6795d62f94c2606",
+    "judgment": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The third daily close was 1.169, not strictly above 1.17, so the required three-consecutive-close condition was not met.",
+      "evidence_basis": [
+        {
+          "quote": "Audited daily closes: 2026-09-28 GBP/EUR 1.171; 2026-09-29 GBP/EUR 1.172; 2026-09-30 GBP/EUR 1.169."
+        }
+      ],
+      "condition_check": {
+        "required_state": "3 consecutive daily closes strictly above 1.17",
+        "observed_state": "Two closes above 1.17, followed by a close at 1.169",
+        "condition_satisfied": false
+      }
+    },
+    "raw": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The third daily close was 1.169, not strictly above 1.17, so the required three-consecutive-close condition was not met.",
+      "evidence_basis": [
+        {
+          "quote": "Audited daily closes: 2026-09-28 GBP/EUR 1.171; 2026-09-29 GBP/EUR 1.172; 2026-09-30 GBP/EUR 1.169."
+        }
+      ],
+      "novelty_summary": null,
+      "condition_check": {
+        "required_state": "3 consecutive daily closes strictly above 1.17",
+        "observed_state": "Two closes above 1.17, followed by a close at 1.169",
+        "condition_satisfied": false
+      }
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 997,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 230,
+        "output_tokens_details": {
+          "reasoning_tokens": 58
+        },
+        "total_tokens": 1227
+      },
+      "latency_ms": 2635
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "id": "P5",
+    "repetition": 1,
+    "key": "paraphrase-P5",
+    "stage": "paraphrase",
+    "origin": "A8",
+    "source_type": "synthetic",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:30:51.805Z",
+    "wire_input_sha256": "c0539e036a2bd6c048c6be180437a7431611ec239456ca481ebef0ffba8dd9fc",
+    "judgment": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The official evidence confirms a US release but explicitly states Product X is not yet available for purchase in France, so the required condition is unmet.",
+      "evidence_basis": [
+        {
+          "quote": "Product X has been released in the United States. It is not yet available for purchase in France."
+        },
+        {
+          "field": "source"
+        }
+      ],
+      "condition_check": {
+        "required_state": "Product X released and available for purchase in France",
+        "observed_state": "Released in the US; not yet available for purchase in France",
+        "condition_satisfied": false
+      }
+    },
+    "raw": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The official evidence confirms a US release but explicitly states Product X is not yet available for purchase in France, so the required condition is unmet.",
+      "evidence_basis": [
+        {
+          "quote": "Product X has been released in the United States. It is not yet available for purchase in France."
+        },
+        {
+          "field": "source"
+        }
+      ],
+      "novelty_summary": null,
+      "condition_check": {
+        "required_state": "Product X released and available for purchase in France",
+        "observed_state": "Released in the US; not yet available for purchase in France",
+        "condition_satisfied": false
+      }
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 1000,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 136,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 1136
+      },
+      "latency_ms": 1970
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "id": "P6",
+    "repetition": 1,
+    "key": "paraphrase-P6",
+    "stage": "paraphrase",
+    "origin": "S05",
+    "source_type": "synthetic",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:30:53.785Z",
+    "wire_input_sha256": "487b3a71bdf0448ebe3f94fd25fb0c84896ef312220dcd1094a25e585e5b644f",
+    "error": "Evidence basis must quote exact supplied claim text",
+    "raw": {
+      "action": "ALERT",
+      "evidence_status": "STRONG_UNCONFIRMED",
+      "reason": "Two independent specialist outlets report that Metallica is expected to announce European dates soon; official confirmation is still pending.",
+      "evidence_basis": [
+        {
+          "quote": "Continental Live reports that Metallica is preparing to announce European dates soon."
+        },
+        {
+          "quote": "Tour Desk independently reports that European dates are expected soon."
+        }
+      ],
+      "novelty_summary": "New independently corroborated reports since the prior state.",
+      "condition_check": null
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 1140,
+        "input_tokens_details": {
+          "cache_write_tokens": 1137,
+          "cached_tokens": 0
+        },
+        "output_tokens": 255,
+        "output_tokens_details": {
+          "reasoning_tokens": 141
+        },
+        "total_tokens": 1395
+      },
+      "latency_ms": 3095
+    },
+    "pair_correct": false,
+    "fundamental_types": [
+      "GROUNDING_CONTRACT"
+    ]
+  },
+  {
+    "id": "P7",
+    "repetition": 1,
+    "key": "paraphrase-P7",
+    "stage": "paraphrase",
+    "origin": "S04",
+    "source_type": "synthetic",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:30:56.888Z",
+    "wire_input_sha256": "2a6efde830ed92cb62bb40fccb2c621f81b950289cf978da8f939632030c46b4",
+    "judgment": {
+      "action": "NO_ALERT",
+      "evidence_status": "WEAK_UNCONFIRMED",
+      "reason": "A single anonymous, uncorroborated fan-account claim about a possible resignation is weak evidence and does not establish an important new development.",
+      "evidence_basis": [
+        {
+          "quote": "An anonymous fan account claims the Manchester City manager may resign. The claim is unconfirmed and no independent corroboration or club statement is supplied."
+        },
+        {
+          "field": "source"
+        }
+      ]
+    },
+    "raw": {
+      "action": "NO_ALERT",
+      "evidence_status": "WEAK_UNCONFIRMED",
+      "reason": "A single anonymous, uncorroborated fan-account claim about a possible resignation is weak evidence and does not establish an important new development.",
+      "evidence_basis": [
+        {
+          "quote": "An anonymous fan account claims the Manchester City manager may resign. The claim is unconfirmed and no independent corroboration or club statement is supplied."
+        },
+        {
+          "field": "source"
+        }
+      ],
+      "novelty_summary": null,
+      "condition_check": null
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 986,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 113,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 1099
+      },
+      "latency_ms": 1697
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "id": "P8",
+    "repetition": 1,
+    "key": "paraphrase-P8",
+    "stage": "paraphrase",
+    "origin": "R12",
+    "source_type": "real",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:30:58.589Z",
+    "wire_input_sha256": "30a25b41ab67ec76d873af9f97b48d78887bc51947cfd28574f0472b42fe4b24",
+    "judgment": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The evidence only repeats Haaland’s already-alerted contract through summer 2034 and reports no further contract change.",
+      "evidence_basis": [
+        {
+          "quote": "Guardiola welcomes Haaland’s new 10-year Manchester City contract through summer 2034."
+        },
+        {
+          "quote": "No further contract change is reported."
+        }
+      ],
+      "novelty_summary": "No material new development."
+    },
+    "raw": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The evidence only repeats Haaland’s already-alerted contract through summer 2034 and reports no further contract change.",
+      "evidence_basis": [
+        {
+          "quote": "Guardiola welcomes Haaland’s new 10-year Manchester City contract through summer 2034."
+        },
+        {
+          "quote": "No further contract change is reported."
+        }
+      ],
+      "novelty_summary": "No material new development.",
+      "condition_check": null
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 1325,
+        "input_tokens_details": {
+          "cache_write_tokens": 1322,
+          "cached_tokens": 0
+        },
+        "output_tokens": 129,
+        "output_tokens_details": {
+          "reasoning_tokens": 21
+        },
+        "total_tokens": 1454
+      },
+      "latency_ms": 2489
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "id": "P9",
+    "repetition": 1,
+    "key": "paraphrase-P9",
+    "stage": "paraphrase",
+    "origin": "C1",
+    "source_type": "synthetic",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:31:01.087Z",
+    "wire_input_sha256": "4c0f7301e68f298dd0c6552c20fd63e53320b45c5db3600327e10e77669f144f",
+    "judgment": {
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The exact monitored resource has a meaningful new role listing compared with its previous snapshot.",
+      "evidence_basis": [
+        {
+          "quote": "The exact monitored resource now lists a newly added permanent design role in Nice. Its previous snapshot listed no roles."
+        },
+        {
+          "field": "url"
+        }
+      ],
+      "novelty_summary": "A permanent design role in Nice was newly added."
+    },
+    "raw": {
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The exact monitored resource has a meaningful new role listing compared with its previous snapshot.",
+      "evidence_basis": [
+        {
+          "quote": "The exact monitored resource now lists a newly added permanent design role in Nice. Its previous snapshot listed no roles."
+        },
+        {
+          "field": "url"
+        }
+      ],
+      "novelty_summary": "A permanent design role in Nice was newly added.",
+      "condition_check": null
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 995,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 161,
+        "output_tokens_details": {
+          "reasoning_tokens": 59
+        },
+        "total_tokens": 1156
+      },
+      "latency_ms": 2230
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "stage": "stability",
+    "id": "S1",
+    "repetition": 2,
+    "key": "stability-S1-r2",
+    "origin": "R01",
+    "source_type": "real",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:31:47.279Z",
+    "wire_input_sha256": "9e232c5dffc25a6747a9f5fb90a913c934b46f11968860a5d298cd0aca2ef41c",
+    "judgment": {
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "Apple officially announced new iPhone models.",
+      "evidence_basis": [
+        {
+          "quote": "Apple announced iPhone 16 and iPhone 16 Plus with A18 chips and Camera Control."
+        },
+        {
+          "field": "source"
+        },
+        {
+          "field": "published_at"
+        }
+      ],
+      "novelty_summary": "New announcement; no prior alerts.",
+      "condition_check": {
+        "required_state": "Apple announces a new iPhone",
+        "observed_state": "Apple announced iPhone 16 and iPhone 16 Plus on 9 September 2024",
+        "condition_satisfied": true
+      }
+    },
+    "raw": {
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "Apple officially announced new iPhone models.",
+      "evidence_basis": [
+        {
+          "quote": "Apple announced iPhone 16 and iPhone 16 Plus with A18 chips and Camera Control."
+        },
+        {
+          "field": "source"
+        },
+        {
+          "field": "published_at"
+        }
+      ],
+      "novelty_summary": "New announcement; no prior alerts.",
+      "condition_check": {
+        "required_state": "Apple announces a new iPhone",
+        "observed_state": "Apple announced iPhone 16 and iPhone 16 Plus on 9 September 2024",
+        "condition_satisfied": true
+      }
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 1028,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 1025
+        },
+        "output_tokens": 183,
+        "output_tokens_details": {
+          "reasoning_tokens": 51
+        },
+        "total_tokens": 1211
+      },
+      "latency_ms": 2933
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "stage": "stability",
+    "id": "S2",
+    "repetition": 2,
+    "key": "stability-S2-r2",
+    "origin": "R02",
+    "source_type": "real",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:31:50.222Z",
+    "wire_input_sha256": "c6292b02be4168cfe4ebd3cda1a263bbd09fb7d91ae2f32deb2c7a986f569b3e",
+    "judgment": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The official announcement concerns iPhone 16 and iPhone 16 Plus, not Mac computers.",
+      "evidence_basis": [
+        {
+          "quote": "Apple announced iPhone 16 and iPhone 16 Plus with A18 chips and Camera Control."
+        },
+        {
+          "field": "source"
+        },
+        {
+          "field": "published_at"
+        }
+      ]
+    },
+    "raw": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The official announcement concerns iPhone 16 and iPhone 16 Plus, not Mac computers.",
+      "evidence_basis": [
+        {
+          "quote": "Apple announced iPhone 16 and iPhone 16 Plus with A18 chips and Camera Control."
+        },
+        {
+          "field": "source"
+        },
+        {
+          "field": "published_at"
+        }
+      ],
+      "novelty_summary": null,
+      "condition_check": null
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 1027,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 1024
+        },
+        "output_tokens": 98,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 1125
+      },
+      "latency_ms": 1615
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "stage": "stability",
+    "id": "S4",
+    "repetition": 2,
+    "key": "stability-S4-r2",
+    "origin": "S02",
+    "source_type": "synthetic",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:31:51.844Z",
+    "wire_input_sha256": "08d3b74beb351b2d1538037c42e316e63399cbd94eafbe320903375df33dad47",
+    "judgment": {
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "GBP/EUR is 1.171, which is above the 1.17 threshold.",
+      "evidence_basis": [
+        {
+          "quote": "GBP/EUR = 1.171"
+        }
+      ],
+      "novelty_summary": "No prior alert or entry for this condition.",
+      "condition_check": {
+        "required_state": "GBP/EUR > 1.17",
+        "observed_state": "GBP/EUR = 1.171",
+        "condition_satisfied": true
+      }
+    },
+    "raw": {
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "GBP/EUR is 1.171, which is above the 1.17 threshold.",
+      "evidence_basis": [
+        {
+          "quote": "GBP/EUR = 1.171"
+        }
+      ],
+      "novelty_summary": "No prior alert or entry for this condition.",
+      "condition_check": {
+        "required_state": "GBP/EUR > 1.17",
+        "observed_state": "GBP/EUR = 1.171",
+        "condition_satisfied": true
+      }
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 1055,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 1052
+        },
+        "output_tokens": 160,
+        "output_tokens_details": {
+          "reasoning_tokens": 45
+        },
+        "total_tokens": 1215
+      },
+      "latency_ms": 2133
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "stage": "stability",
+    "id": "S7",
+    "repetition": 2,
+    "key": "stability-S7-r2",
+    "origin": "A7",
+    "source_type": "synthetic",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:31:53.988Z",
+    "wire_input_sha256": "53b1c82dd1c84fd7a8cbfe6e717ba1ef58fb7dcce5b470f3f15f470648063c3e",
+    "judgment": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The evidence confirms a new Gucci perfume launch, but perfumes are explicitly excluded.",
+      "evidence_basis": [
+        {
+          "quote": "Gucci officially launched a new perfume today."
+        },
+        {
+          "field": "source"
+        },
+        {
+          "field": "published_at"
+        }
+      ]
+    },
+    "raw": {
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "reason": "The evidence confirms a new Gucci perfume launch, but perfumes are explicitly excluded.",
+      "evidence_basis": [
+        {
+          "quote": "Gucci officially launched a new perfume today."
+        },
+        {
+          "field": "source"
+        },
+        {
+          "field": "published_at"
+        }
+      ],
+      "novelty_summary": null,
+      "condition_check": null
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 989,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 83,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 1072
+      },
+      "latency_ms": 1636
+    },
+    "pair_correct": true,
+    "fundamental_types": []
+  },
+  {
+    "stage": "stability",
+    "id": "S8",
+    "repetition": 2,
+    "key": "stability-S8-r2",
+    "origin": "S05",
+    "source_type": "synthetic",
+    "source": "NEW",
+    "state": "FINISHED",
+    "reserved_at": "2026-10-31T13:31:55.632Z",
+    "wire_input_sha256": "e47122dd38485b7478ce4b6eef88c41001d150b656835ef0bda21a65fddbef97",
+    "error": "Evidence basis must quote exact supplied claim text",
+    "raw": {
+      "action": "ALERT",
+      "evidence_status": "STRONG_UNCONFIRMED",
+      "reason": "Two independent established specialist outlets report that Metallica is preparing to announce European dates soon; official confirmation is pending.",
+      "evidence_basis": [
+        {
+          "quote": "Continental Live ... reports that Metallica is preparing to announce European dates soon"
+        },
+        {
+          "quote": "Tour Desk ... independently reports that European dates are expected soon"
+        }
+      ],
+      "novelty_summary": "New independently corroborated reports since the prior state.",
+      "condition_check": null
+    },
+    "measurement": {
+      "model": "gpt-5.6-luna",
+      "calls": 1,
+      "http_status": 200,
+      "provider_status": "completed",
+      "usage": {
+        "input_tokens": 1140,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 1137
+        },
+        "output_tokens": 156,
+        "output_tokens_details": {
+          "reasoning_tokens": 42
+        },
+        "total_tokens": 1296
+      },
+      "latency_ms": 2401
+    },
+    "pair_correct": false,
+    "fundamental_types": [
+      "GROUNDING_CONTRACT"
+    ]
+  }
+]

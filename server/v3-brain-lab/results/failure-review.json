@@ -1,0 +1,142 @@
+[
+  {
+    "stage": "baseline-a",
+    "id": "R03",
+    "classes": [
+      "ACTION_ERROR",
+      "CONDITION_FAILURE"
+    ],
+    "analysis": "ALERT infers actual immediate French delivery from a scheduled start date in a historical announcement. Supplied evidence establishes a timetable, not observed purchase/delivery availability. Human-approved NO_ALERT label retained. Grounding itself was valid.",
+    "invented_intent": false,
+    "wrong_relation": false,
+    "exact_value_error": false,
+    "requirement_preserved": false
+  },
+  {
+    "stage": "baseline-a",
+    "id": "R05",
+    "classes": [
+      "GROUNDING_FAILURE"
+    ],
+    "analysis": "Raw action/status were correct. A title reference quotes Earnings Release FY25 Q3, which is present only in content; actual title is Public source extract and evaluator summary. The whole output is rejected despite an additional valid content reference. No semantic action error is asserted.",
+    "invented_intent": false,
+    "wrong_relation": false,
+    "exact_value_error": false,
+    "requirement_preserved": true
+  },
+  {
+    "stage": "baseline-a",
+    "id": "R06",
+    "classes": [
+      "GROUNDING_FAILURE"
+    ],
+    "analysis": "Raw NO_ALERT/CONFIRMED and Q3-versus-Q4 reasoning were correct under the approved adjudication. The title reference again quotes a heading embedded only in content, so output is rejected. No label or contract change.",
+    "invented_intent": false,
+    "wrong_relation": false,
+    "exact_value_error": false,
+    "requirement_preserved": true
+  },
+  {
+    "stage": "baseline-a",
+    "id": "R10",
+    "classes": [
+      "EVIDENCE_STATUS_ERROR",
+      "EVIDENCE_STRENGTH_ERROR"
+    ],
+    "analysis": "NO_ALERT is correct; CONFIRMED disagrees with approved INSUFFICIENT label for the requested living-organism discovery. The model describes known mission status rather than uncertainty of the requested discovery. This is a status-scope error, not a false alert or invention.",
+    "invented_intent": false,
+    "wrong_relation": false,
+    "exact_value_error": false,
+    "requirement_preserved": true
+  },
+  {
+    "stage": "track-a",
+    "id": "A1",
+    "classes": [
+      "OTHER_BOUNDED_FAILURE"
+    ],
+    "analysis": "Returned READY_TO_MONITOR for broad important Apple developments; approved label requires NEEDS_CLARIFICATION for materially unclear importance scope. No fabricated company, restriction or preference. This is an Intent decision-policy disagreement, not a Brain judgment error. Approved label retained.",
+    "expected_decision": "NEEDS_CLARIFICATION",
+    "actual_decision": "READY_TO_MONITOR"
+  },
+  {
+    "stage": "brain-dev-1",
+    "id": "R05",
+    "classes": [
+      "GROUNDING_FAILURE"
+    ],
+    "analysis": "Raw action and evidence status match the unchanged human-approved labels, but the model assigns a heading inside content to field title. The actual title is Public source extract and evaluator summary. Exact field-specific grounding correctly rejects the entire output; no fuzzy cross-field rescue, retry or repair was used.",
+    "references": [
+      {
+        "reference": {
+          "field": "title",
+          "quote": "Investor Relations | Press Release & Webcast | Earnings Release FY25 Q3"
+        },
+        "valid": false,
+        "error": "Evidence basis must quote referenced field exactly"
+      },
+      {
+        "reference": {
+          "field": "content",
+          "quote": "Microsoft published results on 30 April 2025 for the quarter ended 31 March 2025"
+        },
+        "valid": true
+      },
+      {
+        "reference": {
+          "field": "source"
+        },
+        "valid": true
+      },
+      {
+        "reference": {
+          "field": "url"
+        },
+        "valid": true
+      }
+    ],
+    "invented_intent": false,
+    "wrong_relation": false,
+    "exact_value_error": false,
+    "requirement_preserved": true
+  },
+  {
+    "stage": "brain-dev-1",
+    "id": "R06",
+    "classes": [
+      "GROUNDING_FAILURE"
+    ],
+    "analysis": "Raw action and evidence status match the unchanged human-approved labels, but the model assigns a heading inside content to field title. The actual title is Public source extract and evaluator summary. Exact field-specific grounding correctly rejects the entire output; no fuzzy cross-field rescue, retry or repair was used.",
+    "references": [
+      {
+        "reference": {
+          "field": "title",
+          "quote": "Earnings Release FY25 Q3"
+        },
+        "valid": false,
+        "error": "Evidence basis must quote referenced field exactly"
+      },
+      {
+        "reference": {
+          "field": "url"
+        },
+        "valid": true
+      }
+    ],
+    "invented_intent": false,
+    "wrong_relation": false,
+    "exact_value_error": false,
+    "requirement_preserved": true
+  },
+  {
+    "stage": "brain-dev-1",
+    "id": "R03",
+    "classes": [
+      "OTHER_BOUNDED_FAILURE"
+    ],
+    "analysis": "Action/status and the immediate-availability requirement are correct, but the reason says the announcement confirms French availability began on 12 July 2024. The supplied historical announcement establishes the scheduled start, not an observed realization. Count one bounded unsupported factual overclaim; no invented user intent, no false alert, no date-value corruption. Labels remain unchanged.",
+    "invented_intent": false,
+    "unsupported_factual_overclaim": true,
+    "requirement_preserved": true
+  }
+]

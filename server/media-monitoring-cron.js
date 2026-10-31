@@ -1,3 +1,4 @@
+import {pilotDatabaseMatches} from './v3-pilot.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { hasDefinitionVersion } from '../src/js/watch-definition.js';
 import { googleNewsSource, validateMediaQuery } from '../src/js/media-provider-query.js';
@@ -12,11 +13,11 @@ import { processMediaWatchEmailNotifications } from './media-watch-notifications
 import { runStructuredMediaMonitoring } from './structured-media-scheduler.js';
 
 const PAGE_SIZE = 50; const CONCURRENCY = 3;
-const load = async (client, pageSize, deadline) => {
+const load = async (client, pageSize, deadline, pilot=false) => {
   const rows = [];
   for (let start = 0; start < 50; start += pageSize) {
     const { data, error } = await withinMediaDeadline(() => client.from('watches')
-      .select('*, media_watch_snapshots(*)').eq('type', 'media_news').eq('monitoring_state', 'monitoring')
+      .select(pilot?'*, media_watch_snapshots(*), v3_pilot_watches(watch_id)':'*, media_watch_snapshots(*)').eq('type', 'media_news').eq('monitoring_state', 'monitoring')
       .is('deleted_at', null).order('last_checked_at', { ascending: true, nullsFirst: true }).order('id')
       .range(start, Math.min(start + pageSize, 50) - 1), deadline);
     if (error) throw Object.assign(new Error('Media watches unavailable.'), { code: 'DATABASE_ERROR' });
@@ -33,12 +34,12 @@ export const runMediaMonitoring = async ({ client, env = process.env, fetchFeed 
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50 || !Number.isInteger(concurrency) || concurrency < 1 || concurrency > 3) throw new Error('Invalid media batch configuration.');
   const deadline = Date.now() + Math.max(1, Math.min(maxRunMs, 45000));
   const structured = await runStructuredMediaMonitoring({client,env,fetchFeed,schedulerAuthorized,deadline:Math.min(deadline,Date.now()+18000)}).catch(()=>({status:'unavailable'}));
-  const rows = await load(client, pageSize, deadline); let changedCount = 0; let unchangedCount = 0; let failedCount = 0; let skippedCount = 0;
+  const rows = await load(client, pageSize, deadline,pilotDatabaseMatches(env)); let changedCount = 0; let unchangedCount = 0; let failedCount = 0; let skippedCount = 0;
   const maintenance = await withinMediaDeadline(() => client.rpc('maintain_media_watch_notifications', { p_enabled: emailNotificationsEnabled(env, 'MEDIA_WATCH_EMAIL_NOTIFICATIONS_ENABLED') }), deadline);
   if (maintenance.error) throw Object.assign(new Error('Media notification maintenance failed.'), { code: 'DATABASE_ERROR' });
   await bounded(rows, concurrency, async (row) => { try {
     if (Date.now() >= deadline) { skippedCount += 1; return; }
-    if (hasDefinitionVersion(row.watch_definition)) {
+    if (row.v3_pilot_watches?.watch_id || Array.isArray(row.v3_pilot_watches)&&row.v3_pilot_watches.length || hasDefinitionVersion(row.watch_definition)) {
       // Structured execution uses the service-only due/lease claim above.
       skippedCount += 1; return;
     }

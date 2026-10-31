@@ -1,0 +1,252 @@
+[
+  {
+    "id": "T1",
+    "capture": {
+      "id": "T1",
+      "kind": "FREE_TEXT",
+      "raw_input": "Keep me updated on important new developments concerning Manchester City.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e-E1",
+      "title": "Official club development",
+      "content": "Manchester City officially opened its expanded stadium today, increasing capacity and bringing the completed new stand into use.",
+      "source": "Controlled official-club announcement fixture",
+      "url": "https://example.com/club/stadium",
+      "published_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "E1",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "Manchester City",
+        "general important new developments"
+      ],
+      "exact_constraints": [],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "T2",
+    "capture": {
+      "id": "T2",
+      "kind": "FREE_TEXT",
+      "raw_input": "Keep me updated on new developments concerning Gucci.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e-T2",
+      "title": "Gucci product announcement",
+      "content": "Gucci officially launched a new handbag collection today. This is a new product line, not a repeat announcement.",
+      "source": "Controlled product announcement fixture",
+      "url": "https://example.com/gucci/new-collection",
+      "published_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "E5",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "Gucci",
+        "broad meaningful developments"
+      ],
+      "exact_constraints": [],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "T3",
+    "capture": {
+      "id": "T3",
+      "kind": "FREE_TEXT",
+      "raw_input": "Tell me when Apple does something important.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e-R01",
+      "title": "Public source extract and evaluator summary",
+      "content": "Official Apple release, 9 September 2024. Evaluator summary: Apple announced iPhone 16 and iPhone 16 Plus with A18 chips and Camera Control. France is among the countries scheduled for availability on 20 September. Store | Mac | iPad | iPhone | Support.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.apple.com/newsroom/2024/09/apple-introduces-iphone-16-and-iphone-16-plus/",
+      "published_at": "2024-09-09",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "E12",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "Apple",
+        "broad meaningful company developments; no material unresolved ambiguity"
+      ],
+      "exact_constraints": [],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false,
+    "expectation_authority": "Human-approved E12 overlay, version 2"
+  },
+  {
+    "id": "T4",
+    "capture": {
+      "id": "T4",
+      "kind": "FREE_TEXT",
+      "raw_input": "Keep me updated on new Metallica concerts in Europe.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e13",
+      "title": "Specialist reports on possible Metallica European dates",
+      "content": "Continental Live, an established specialist concert outlet, reports that Metallica is preparing to announce European dates soon, citing promoter-side planning contacts.\n\nTour Desk, a separate established specialist live-music outlet, independently reports that European dates are expected soon, citing different venue-side contacts rather than the first article or its sources.\n\nThe two reports are materially consistent and independently sourced. Fans are widely discussing them, but social discussion is not confirmation.\n\nNeither Metallica nor a promoter has officially confirmed European dates, a schedule or ticket sales.",
+      "source": "Controlled dossier of two independently sourced specialist reports",
+      "url": "https://example.com/brain/e13",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z"
+    },
+    "prior_state": {
+      "entries": [
+        {
+          "id": "p1",
+          "fact": "No European tour announcement was known before these reports.",
+          "date": "2026-10-30",
+          "alerted": false
+        },
+        {
+          "id": "p2",
+          "fact": "No independently corroborated reports of imminent European dates had been received.",
+          "date": "2026-10-30",
+          "alerted": false
+        }
+      ]
+    },
+    "source_case": "E7",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "ALERT",
+      "evidence_status": "STRONG_UNCONFIRMED",
+      "requirements": [
+        "Metallica",
+        "new European concert developments",
+        "no confirmation-only restriction"
+      ],
+      "exact_constraints": [
+        "Europe"
+      ],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "T5",
+    "capture": {
+      "id": "T5",
+      "kind": "FREE_TEXT",
+      "raw_input": "Keep me updated on important new developments concerning Microsoft.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e-T5",
+      "title": "Independent reports on possible Microsoft acquisition",
+      "content": "Enterprise Desk, an established specialist technology-business outlet, reports that Microsoft is preparing to announce a significant acquisition soon, citing transaction-side planning contacts.\n\nBusiness Brief, a separate established business-news outlet, independently reports that a significant Microsoft acquisition announcement is expected soon, citing different deal-side contacts rather than the first article or its sources.\n\nThe two reports are materially consistent and independently sourced. Social discussion is not confirmation.\n\nNeither Microsoft nor the prospective seller has officially confirmed an acquisition agreement or announcement.",
+      "source": "New controlled dossier of two independently sourced specialist reports; not a previously human-labeled case",
+      "url": "https://example.com/controlled/microsoft-acquisition",
+      "published_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": [
+        {
+          "id": "p1",
+          "fact": "No independently corroborated reports of an imminent significant Microsoft acquisition announcement had been received.",
+          "alerted": false
+        }
+      ]
+    },
+    "source_case": "E7",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "ALERT",
+      "evidence_status": "STRONG_UNCONFIRMED",
+      "requirements": [
+        "Microsoft",
+        "broad important new developments",
+        "credible independent corroboration may merit a qualified alert without official confirmation"
+      ],
+      "exact_constraints": [],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false,
+    "fixture_authority": "New agent-authored controlled positive using approved generic strong-unconfirmed standard; no pre-existing non-Metallica approved positive available"
+  },
+  {
+    "id": "T6",
+    "capture": {
+      "id": "T6",
+      "kind": "FREE_TEXT",
+      "raw_input": "Keep me informed of important new developments concerning Manchester City.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e10",
+      "title": "Unconfirmed manager claim",
+      "content": "An anonymous fan account claims the Manchester City manager may resign. The claim is unconfirmed and no independent corroboration or club statement is supplied.",
+      "source": "Anonymous fan account, identity unverified",
+      "url": "https://example.com/brain/e10",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "E8",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "NO_ALERT",
+      "evidence_status": "WEAK_UNCONFIRMED",
+      "requirements": [
+        "Manchester City",
+        "general important new developments"
+      ],
+      "exact_constraints": [],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false
+  }
+]
