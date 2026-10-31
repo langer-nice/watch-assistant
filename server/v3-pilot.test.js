@@ -90,3 +90,22 @@ test('typed currency bridge uses the real ECB parser without rewriting Capture',
  assert.equal(requests,1);assert.equal(result.evaluation.operator,'gt');assert.equal(result.evaluation.target,'1.17');assert.equal(result.evaluation.met,true);assert.equal(result.article,null);assert.equal(row.understanding.intent.canonical_text,PILOT_SPECS[1].instruction);
  assert.throws(()=>connectorCurrencyRequest({base:'GBP',quote:'EUR',operator:'lt',target:'1.17'}),/criteria/);
 });
+
+test('only authenticated pilot rows receive typed read compatibility; legacy parsing stays unchanged',async()=>{
+ const {createMediaWatchMiddleware}=await import('./media-watch-api.js');
+ const {mapMediaReportRow}=await import('../src/js/media-watch-row.js');
+ const {currencyCriteriaFor,parseCurrencyRequest}=await import('../src/js/currency-watch.js');
+ const {mediaWatchDefinition}=await import('../src/js/media-watch-definition.js');
+ const id='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+ const definition={inputType:'text',request:PILOT_SPECS[1].instruction,category:'finance',currencyCriteria:{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'},currencyRevision:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',currencyLanguage:'en',currencyPolicy:'crossing'};
+ const env={VERCEL_ENV:'production',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co'};
+ for(const owner of [PILOT_OWNER,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']){
+  const row={id,user_id:owner,title:'GBP/EUR > 1.17',watch_definition:definition,monitoring_source:pilotSource(PILOT_SPECS[1]),monitoring_state:'monitoring',current_status:'watching',created_at:'2026-10-31T00:00:00Z'};
+  const query={select(){return this;},eq(key,value){if(key==='user_id')assert.equal(value,owner);return this;},order(){return this;},async range(){return {data:[row],error:null};}};
+  const handler=createMediaWatchMiddleware({env,authenticate:async()=>({user:{id:owner},client:{from:()=>query}}),serviceClient:{from:()=>({select:()=>({eq:async(key,value)=>{assert.equal(key,'user_id');assert.equal(value,PILOT_OWNER);return {data:[{watch_id:id,engine:PILOT_ENGINE}],error:null};}})})}});
+  let body;const res={setHeader(){},end(text){body=JSON.parse(text);}};await handler({url:'/api/media-watches',method:'GET'},res);assert.equal(res.statusCode,200);
+  const watch=mapMediaReportRow(body.watches[0],owner);
+  if(owner===PILOT_OWNER){assert.deepEqual(currencyCriteriaFor(watch),definition.currencyCriteria);assert.equal(mediaWatchDefinition(watch).watch_definition.request,definition.request);}else assert.equal(watch.v3Engine,undefined);
+ }
+ assert.equal(parseCurrencyRequest(PILOT_SPECS[1].instruction),null);
+});

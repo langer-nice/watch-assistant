@@ -37,7 +37,7 @@ const validateRow = (row) => {
   if (!row || typeof row.id !== 'string' || typeof row.title !== 'string' || !row.watch_definition || !row.monitoring_source?.url || !['monitoring', 'paused'].includes(row.monitoring_state)) {
     throw Object.assign(new Error('Invalid media Watch list.'), { code: 'INVALID_PERSISTED_WATCHES' });
   }
-  try { mediaWatchDefinition({ ...row.watch_definition, id: row.id, title: row.title,
+  try { mediaWatchDefinition({ ...row.watch_definition, v3Engine:row.v3Engine, id: row.id, title: row.title,
     isStory: row.watch_definition.inputType === 'url', monitoringSource: row.monitoring_source,
     status: row.monitoring_state === 'paused' ? 'paused' : 'watching' });
   } catch {

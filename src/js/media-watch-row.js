@@ -14,7 +14,7 @@ const feedState = row => {
 };
 
 export const mapMediaReportRow = (row, ownerId) => ({
-  ...row.watch_definition, id: row.id, title: row.title, serverReadOnly: Boolean(row.clientReadOnly),
+  ...row.watch_definition,...(row.v3Engine?{v3Engine:row.v3Engine}:{}), id: row.id, title: row.title, serverReadOnly: Boolean(row.clientReadOnly),
   ...(row.watch_definition.inputType === 'url' ? { isStory: true } : {}),
   monitoringSource: row.monitoring_source, feedUrl: row.monitoring_source.url,
   monitoringState: row.monitoring_state,
