@@ -21,6 +21,7 @@ test('private pilot SQL: auth, atomic slots, baseline, fence, outbox and pause',
  const results=claimed.map((r,i)=>({evidence:{id:'baseline-'+i,title:'Baseline',content:'Known development',source:'Test',url:'https://example.test/feed'},items:[{id:'baseline-'+i,title:'Known development',url:'https://example.test/article',publishedAt:'2026-10-31T00:00:00Z'}],judgment:null,article:null}));
  for(let i=0;i<claimed.length;i++)assert.equal((await role('service_role','select public.finish_v3_pilot_check($1,$2,$3) ok',[claimed[i].id,claimed[i].token,results[i]])).rows[0].ok,true);
  assert.equal((await db.query('select count(*)::int n from public.media_watch_notifications')).rows[0].n,0);
+ assert.equal(new Date((await db.query('select next_due_at from public.structured_media_schedules limit 1')).rows[0].next_due_at).toISOString(),'2026-11-01T06:00:00.000Z');
  await db.exec("update public.structured_media_schedules set next_due_at='2026-10-31T07:15:00Z'");
  claimed=(await role('service_role','select public.claim_v3_pilot_checks() rows')).rows[0].rows;
  const r=claimed[0],base=results[0];

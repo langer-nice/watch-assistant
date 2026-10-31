@@ -39,7 +39,8 @@ export async function evaluatePilot(row,{feed=fetchAndNormalizeFeed,currency=fet
   evidence={id:hash(JSON.stringify(rate.observation)),title:'ECB GBP/EUR reference observation',content:`${quote} (display truncated at 12 decimal places). Source observation: ${rate.observation.base}/${rate.observation.quote} ${rate.observation.rate}. Exact rational comparison GBP/EUR > 1.17: ${evaluation.met}.`,measurement:{metric:'GBP/EUR',value:String(evaluation.observedRate),quote},source:'ECB',url:pilotSource(spec).url,published_at:rate.observation.date+'T00:00:00Z',retrieved_at:rate.checkedAt};
   items=[{id:evidence.id,title:evidence.title,excerpt:quote,url:evidence.url,publishedAt:evidence.published_at,source:'ECB'}];
  }else{const f=await feed(pilotSource(spec).url);items=f.items.slice(0,20);evidence=feedEvidence(f);}
- const input=toBrainInput(row.understanding,evidence,row.prior_state||{entries:[]});
+ const prior={entries:[...(row.prior_state?.entries||[]),...(row.baseline_at?[{id:'pilot-baseline:'+row.id,fact:'Monitoring baseline established at '+row.baseline_at,date:row.baseline_at,alerted:false}]:[])]};
+ const input=toBrainInput(row.understanding,evidence,prior);
  // Initial evidence is a baseline, never a creation alert and never a model call.
  if(!row.baseline_at)return {evidence,items,evaluation,judgment:null,article:null};
  const judgment=await judgeReferenceEvidence(input,{model});
