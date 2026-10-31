@@ -109,3 +109,14 @@ test('only authenticated pilot rows receive typed read compatibility; legacy par
  }
  assert.equal(parseCurrencyRequest(PILOT_SPECS[1].instruction),null);
 });
+
+test('Morning Brief reuses pilot read metadata without changing stored snapshots or selecting deleted rows',async()=>{
+ const {generateMorningReport}=await import('./morning-report.js');
+ const id='dddddddd-dddd-4ddd-8ddd-dddddddddddd';let saved;
+ const env={VERCEL_ENV:'production',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',VERCEL_GIT_COMMIT_REF:'master',SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',MORNING_REPORT_PRODUCTION_ENABLED:'true'};
+ const row={id,user_id:PILOT_OWNER,title:'GBP/EUR > 1.17',type:'media_news',watch_definition:{inputType:'text',request:PILOT_SPECS[1].instruction,category:'finance',currencyCriteria:{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'},currencyRevision:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',currencyPolicy:'crossing'},monitoring_source:pilotSource(PILOT_SPECS[1]),monitoring_state:'monitoring',current_status:'watching',created_at:'2026-10-30T00:00:00Z',last_checked_at:'2026-10-31T07:05:00Z',last_check_outcome:'baseline'};
+ const original=structuredClone(row);
+ const client={from:()=>({select:()=>({eq:async()=>({data:[{watch_id:id,engine:PILOT_ENGINE}],error:null})})}),rpc:async(name,p)=>{if(name==='production_watch_owners')return {data:[PILOT_OWNER]};if(name==='morning_report_context')return {data:{pending:0,exists:false,watches:[row],revision:'unchanged-source-revision'}};if(name==='save_watch_report'){saved=p.p_report;return {data:true};}assert.fail(name);}};
+ await generateMorningReport({client,env,schedulerAuthorized:true,at:Date.parse('2026-10-31T07:10:00Z')});
+ assert.ok(saved.watchIdsConsidered.includes(id));assert.ok(saved.entries.some(e=>e.watchId===id));assert.equal(saved.sourceRevision,'unchanged-source-revision');assert.deepEqual(row,original);
+});

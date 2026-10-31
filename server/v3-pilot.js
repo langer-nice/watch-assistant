@@ -17,6 +17,13 @@ export const PILOT_SPECS=Object.freeze([
 ]);
 export const pilotDatabaseMatches=env=>env.VERCEL_ENV==='production'&&env.VERCEL_PROJECT_ID==='prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF'&&env.SUPABASE_URL==='https://cztpitujsnzhhenedwjn.supabase.co';
 export const pilotEnabled=env=>env.V3_PILOT_ENABLED==='true'&&pilotDatabaseMatches(env)&&env.STRUCTURED_PRODUCTION_ENABLED==='true';
+export async function pilotReadRows(rows,owner,{client,env=process.env}={}){
+ if(owner!==PILOT_OWNER||!pilotDatabaseMatches(env))return rows;
+ const marked=await client.from('v3_pilot_watches').select('watch_id,engine').eq('user_id',owner);
+ if(marked.error)throw Error('Pilot read unavailable');
+ const engines=new Map(marked.data.map(row=>[row.watch_id,row.engine]));
+ return rows.map(row=>engines.has(row.id)?{...row,v3Engine:engines.get(row.id)}:row);
+}
 export function pilotSource(spec){if(spec.currency)return {type:'currency',provider:'ecb',url:'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml'};const u=new URL('https://news.google.com/rss/search');u.search=new URLSearchParams({q:spec.query||'',hl:'en-GB',gl:'GB',ceid:'GB:en'});return {type:'feed',url:spec.url||u.href};}
 export async function preparePilot(instruction,{model}={}){
  const slot=PILOT_SPECS.findIndex(s=>s.instruction===instruction);if(slot<0)throw Error('Not a pilot instruction');

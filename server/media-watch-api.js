@@ -1,4 +1,4 @@
-import {PILOT_OWNER,pilotDatabaseMatches} from './v3-pilot.js';
+import {PILOT_OWNER,pilotDatabaseMatches,pilotReadRows} from './v3-pilot.js';
 import {createSupabaseServiceClient} from './supabase-service.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { validateMediaQuery } from '../src/js/media-provider-query.js';
@@ -37,10 +37,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
       }
       if(user.id===PILOT_OWNER&&pilotDatabaseMatches(options.env||process.env)){
         const service=options.serviceClient||createSupabaseServiceClient(options);
-        const marked=await service.from('v3_pilot_watches').select('watch_id,engine').eq('user_id',user.id);
-        if(marked.error)throw Object.assign(Error('Pilot read unavailable'),{code:'DATABASE_ERROR'});
-        const engines=new Map(marked.data.map(row=>[row.watch_id,row.engine]));
-        for(const row of watches)if(engines.has(row.id))row.v3Engine=engines.get(row.id);
+        watches.splice(0,watches.length,...await pilotReadRows(watches,user.id,{client:service,env:options.env||process.env}));
       }
       return send(200, { watches, emailEnabled: Boolean(getMediaWatchEmailConfig(options.env || process.env)) });
     }
