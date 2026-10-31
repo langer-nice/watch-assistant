@@ -1,0 +1,1017 @@
+[
+  {
+    "id": "T1",
+    "repetition": 1,
+    "execution": "T1-r1",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T16:14:30.627Z",
+      "understanding": {
+        "capture_id": "T1",
+        "intent": {
+          "canonical_text": "Keep me updated on important new developments concerning Manchester City.",
+          "references": [
+            {
+              "label": "Manchester City",
+              "source_ref": "raw_input"
+            }
+          ],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject and requested scope are sufficiently clear to follow important new developments concerning Manchester City."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Keep me updated on important new developments concerning Manchester City.",
+          "references": [
+            {
+              "label": "Manchester City",
+              "source_ref": "raw_input",
+              "exact_url": null
+            }
+          ],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject and requested scope are sufficiently clear to follow important new developments concerning Manchester City.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 946,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 122,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1068
+        },
+        "latency_ms": 3094
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T16:14:40.566Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Keep me updated on important new developments concerning Manchester City.",
+          "references": [
+            {
+              "label": "Manchester City",
+              "source_ref": "raw_input"
+            }
+          ],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ]
+        },
+        "evidence": {
+          "id": "e-E1",
+          "title": "Official club development",
+          "content": "Manchester City officially opened its expanded stadium today, increasing capacity and bringing the completed new stand into use.",
+          "source": "Controlled official-club announcement fixture",
+          "url": "https://example.com/club/stadium",
+          "published_at": "2026-10-31"
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Manchester City officially opened its expanded stadium, a significant new club development. No prior entries indicate this is a duplicate.",
+        "novelty_summary": "New stadium expansion is now completed and in use.",
+        "condition_check": null,
+        "evidence_refs": [
+          "e4bf39426ccf39c17425c7f9d1fe6bfe7.content.1"
+        ],
+        "provenance_refs": [
+          "e4bf39426ccf39c17425c7f9d1fe6bfe7.source",
+          "e4bf39426ccf39c17425c7f9d1fe6bfe7.published_at"
+        ],
+        "evidence_basis": [
+          {
+            "id": "e4bf39426ccf39c17425c7f9d1fe6bfe7.content.1",
+            "evidence_item": "e4bf39426ccf39c17425c7f9d1fe6bfe7",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Manchester City officially opened its expanded stadium today, increasing capacity and bringing the completed new stand into use.",
+            "start": 0,
+            "end": 128
+          },
+          {
+            "id": "e4bf39426ccf39c17425c7f9d1fe6bfe7.source",
+            "evidence_item": "e4bf39426ccf39c17425c7f9d1fe6bfe7",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Controlled official-club announcement fixture",
+            "start": 0,
+            "end": 45
+          },
+          {
+            "id": "e4bf39426ccf39c17425c7f9d1fe6bfe7.published_at",
+            "evidence_item": "e4bf39426ccf39c17425c7f9d1fe6bfe7",
+            "field": "published_at",
+            "role": "PROVENANCE",
+            "text": "2026-10-31",
+            "start": 0,
+            "end": 10
+          }
+        ]
+      },
+      "raw": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Manchester City officially opened its expanded stadium, a significant new club development. No prior entries indicate this is a duplicate.",
+        "novelty_summary": "New stadium expansion is now completed and in use.",
+        "condition_check": null,
+        "evidence_refs": [
+          "e4bf39426ccf39c17425c7f9d1fe6bfe7.content.1"
+        ],
+        "provenance_refs": [
+          "e4bf39426ccf39c17425c7f9d1fe6bfe7.source",
+          "e4bf39426ccf39c17425c7f9d1fe6bfe7.published_at"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1489,
+          "input_tokens_details": {
+            "cache_write_tokens": 1486,
+            "cached_tokens": 0
+          },
+          "output_tokens": 254,
+          "output_tokens_details": {
+            "reasoning_tokens": 93
+          },
+          "total_tokens": 1743
+        },
+        "latency_ms": 3477
+      }
+    }
+  },
+  {
+    "id": "T2",
+    "repetition": 1,
+    "execution": "T2-r1",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T16:14:50.131Z",
+      "understanding": {
+        "capture_id": "T2",
+        "intent": {
+          "canonical_text": "Keep me updated on new developments concerning Gucci.",
+          "references": [],
+          "explicit_constraints": [],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject is identified as Gucci and the requested scope—new developments concerning Gucci—is sufficiently clear."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Keep me updated on new developments concerning Gucci.",
+          "references": null,
+          "explicit_constraints": null,
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject is identified as Gucci and the requested scope—new developments concerning Gucci—is sufficiently clear.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 944,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 84,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1028
+        },
+        "latency_ms": 2033
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T16:15:00.494Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Keep me updated on new developments concerning Gucci.",
+          "references": [],
+          "explicit_constraints": []
+        },
+        "evidence": {
+          "id": "e-T2",
+          "title": "Gucci product announcement",
+          "content": "Gucci officially launched a new handbag collection today. This is a new product line, not a repeat announcement.",
+          "source": "Controlled product announcement fixture",
+          "url": "https://example.com/gucci/new-collection",
+          "published_at": "2026-10-31"
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Gucci officially launched a new handbag collection, a relevant and genuinely new development.",
+        "novelty_summary": "New Gucci handbag collection launched.",
+        "condition_check": null,
+        "evidence_refs": [
+          "e713c9bbd20a2209bfbc2d8dbb828c2c9.title",
+          "e713c9bbd20a2209bfbc2d8dbb828c2c9.content.1"
+        ],
+        "provenance_refs": [
+          "e713c9bbd20a2209bfbc2d8dbb828c2c9.source",
+          "e713c9bbd20a2209bfbc2d8dbb828c2c9.url",
+          "e713c9bbd20a2209bfbc2d8dbb828c2c9.published_at"
+        ],
+        "evidence_basis": [
+          {
+            "id": "e713c9bbd20a2209bfbc2d8dbb828c2c9.title",
+            "evidence_item": "e713c9bbd20a2209bfbc2d8dbb828c2c9",
+            "field": "title",
+            "role": "CLAIM",
+            "text": "Gucci product announcement",
+            "start": 0,
+            "end": 26
+          },
+          {
+            "id": "e713c9bbd20a2209bfbc2d8dbb828c2c9.content.1",
+            "evidence_item": "e713c9bbd20a2209bfbc2d8dbb828c2c9",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Gucci officially launched a new handbag collection today. This is a new product line, not a repeat announcement.",
+            "start": 0,
+            "end": 112
+          },
+          {
+            "id": "e713c9bbd20a2209bfbc2d8dbb828c2c9.source",
+            "evidence_item": "e713c9bbd20a2209bfbc2d8dbb828c2c9",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Controlled product announcement fixture",
+            "start": 0,
+            "end": 39
+          },
+          {
+            "id": "e713c9bbd20a2209bfbc2d8dbb828c2c9.url",
+            "evidence_item": "e713c9bbd20a2209bfbc2d8dbb828c2c9",
+            "field": "url",
+            "role": "PROVENANCE",
+            "text": "https://example.com/gucci/new-collection",
+            "start": 0,
+            "end": 40
+          },
+          {
+            "id": "e713c9bbd20a2209bfbc2d8dbb828c2c9.published_at",
+            "evidence_item": "e713c9bbd20a2209bfbc2d8dbb828c2c9",
+            "field": "published_at",
+            "role": "PROVENANCE",
+            "text": "2026-10-31",
+            "start": 0,
+            "end": 10
+          }
+        ]
+      },
+      "raw": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Gucci officially launched a new handbag collection, a relevant and genuinely new development.",
+        "novelty_summary": "New Gucci handbag collection launched.",
+        "condition_check": null,
+        "evidence_refs": [
+          "e713c9bbd20a2209bfbc2d8dbb828c2c9.title",
+          "e713c9bbd20a2209bfbc2d8dbb828c2c9.content.1"
+        ],
+        "provenance_refs": [
+          "e713c9bbd20a2209bfbc2d8dbb828c2c9.source",
+          "e713c9bbd20a2209bfbc2d8dbb828c2c9.url",
+          "e713c9bbd20a2209bfbc2d8dbb828c2c9.published_at"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1455,
+          "input_tokens_details": {
+            "cache_write_tokens": 1452,
+            "cached_tokens": 0
+          },
+          "output_tokens": 236,
+          "output_tokens_details": {
+            "reasoning_tokens": 38
+          },
+          "total_tokens": 1691
+        },
+        "latency_ms": 2195
+      }
+    }
+  },
+  {
+    "id": "T3",
+    "repetition": 1,
+    "execution": "T3-r1",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T16:15:09.920Z",
+      "understanding": {
+        "capture_id": "T3",
+        "intent": {
+          "canonical_text": "Tell me when Apple does something important.",
+          "references": [],
+          "explicit_constraints": [],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject (Apple) and broad follow scope (important developments) are sufficiently identified."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Tell me when Apple does something important.",
+          "references": null,
+          "explicit_constraints": null,
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject (Apple) and broad follow scope (important developments) are sufficiently identified.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 943,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 122,
+          "output_tokens_details": {
+            "reasoning_tokens": 39
+          },
+          "total_tokens": 1065
+        },
+        "latency_ms": 2074
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T16:15:17.896Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Tell me when Apple does something important.",
+          "references": [],
+          "explicit_constraints": []
+        },
+        "evidence": {
+          "id": "e-R01",
+          "title": "Public source extract and evaluator summary",
+          "content": "Official Apple release, 9 September 2024. Evaluator summary: Apple announced iPhone 16 and iPhone 16 Plus with A18 chips and Camera Control. France is among the countries scheduled for availability on 20 September. Store | Mac | iPad | iPhone | Support.",
+          "source": "Official publisher; bounded extract with evaluator-authored summary",
+          "url": "https://www.apple.com/newsroom/2024/09/apple-introduces-iphone-16-and-iphone-16-plus/",
+          "published_at": "2024-09-09",
+          "retrieved_at": "2026-10-31"
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Apple officially announced the iPhone 16 and iPhone 16 Plus with A18 chips and Camera Control, an important development.",
+        "novelty_summary": "No prior alerts; this is a new Apple product announcement.",
+        "condition_check": null,
+        "evidence_refs": [
+          "e46c0979b76dba05e75e953e5e5a57789.content.1"
+        ],
+        "provenance_refs": [
+          "e46c0979b76dba05e75e953e5e5a57789.source",
+          "e46c0979b76dba05e75e953e5e5a57789.url",
+          "e46c0979b76dba05e75e953e5e5a57789.published_at"
+        ],
+        "evidence_basis": [
+          {
+            "id": "e46c0979b76dba05e75e953e5e5a57789.content.1",
+            "evidence_item": "e46c0979b76dba05e75e953e5e5a57789",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Official Apple release, 9 September 2024. Evaluator summary: Apple announced iPhone 16 and iPhone 16 Plus with A18 chips and Camera Control. France is among the countries scheduled for availability on 20 September. Store | Mac | iPad | iPhone | Support.",
+            "start": 0,
+            "end": 253
+          },
+          {
+            "id": "e46c0979b76dba05e75e953e5e5a57789.source",
+            "evidence_item": "e46c0979b76dba05e75e953e5e5a57789",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Official publisher; bounded extract with evaluator-authored summary",
+            "start": 0,
+            "end": 67
+          },
+          {
+            "id": "e46c0979b76dba05e75e953e5e5a57789.url",
+            "evidence_item": "e46c0979b76dba05e75e953e5e5a57789",
+            "field": "url",
+            "role": "PROVENANCE",
+            "text": "https://www.apple.com/newsroom/2024/09/apple-introduces-iphone-16-and-iphone-16-plus/",
+            "start": 0,
+            "end": 85
+          },
+          {
+            "id": "e46c0979b76dba05e75e953e5e5a57789.published_at",
+            "evidence_item": "e46c0979b76dba05e75e953e5e5a57789",
+            "field": "published_at",
+            "role": "PROVENANCE",
+            "text": "2024-09-09",
+            "start": 0,
+            "end": 10
+          }
+        ]
+      },
+      "raw": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Apple officially announced the iPhone 16 and iPhone 16 Plus with A18 chips and Camera Control, an important development.",
+        "novelty_summary": "No prior alerts; this is a new Apple product announcement.",
+        "condition_check": null,
+        "evidence_refs": [
+          "e46c0979b76dba05e75e953e5e5a57789.content.1"
+        ],
+        "provenance_refs": [
+          "e46c0979b76dba05e75e953e5e5a57789.source",
+          "e46c0979b76dba05e75e953e5e5a57789.url",
+          "e46c0979b76dba05e75e953e5e5a57789.published_at"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1501,
+          "input_tokens_details": {
+            "cache_write_tokens": 1498,
+            "cached_tokens": 0
+          },
+          "output_tokens": 244,
+          "output_tokens_details": {
+            "reasoning_tokens": 58
+          },
+          "total_tokens": 1745
+        },
+        "latency_ms": 2724
+      }
+    }
+  },
+  {
+    "id": "T4",
+    "repetition": 1,
+    "execution": "T4-r1",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T16:15:25.750Z",
+      "error": "Exact resource differs from source URL",
+      "raw": {
+        "intent": {
+          "canonical_text": "Keep me updated on new Metallica concerts in Europe.",
+          "references": null,
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "new",
+              "source_ref": "raw_input",
+              "value": "new"
+            },
+            {
+              "kind": "exact_resource",
+              "text": "Metallica",
+              "source_ref": "raw_input",
+              "value": "Metallica"
+            },
+            {
+              "kind": "condition",
+              "text": "in Europe",
+              "source_ref": "raw_input",
+              "value": "in Europe"
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject, event type, geographic scope, and request to receive updates are sufficiently clear.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 946,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 144,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1090
+        },
+        "latency_ms": 1611
+      }
+    }
+  },
+  {
+    "id": "T5",
+    "repetition": 1,
+    "execution": "T5-r1",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T16:15:47.510Z",
+      "understanding": {
+        "capture_id": "T5",
+        "intent": {
+          "canonical_text": "Keep me updated on important new developments concerning Microsoft.",
+          "references": [
+            {
+              "label": "Microsoft",
+              "source_ref": "raw_input"
+            }
+          ],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject and requested scope are sufficiently identified for future monitoring."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Keep me updated on important new developments concerning Microsoft.",
+          "references": [
+            {
+              "label": "Microsoft",
+              "source_ref": "raw_input",
+              "exact_url": null
+            }
+          ],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject and requested scope are sufficiently identified for future monitoring.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 945,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 115,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1060
+        },
+        "latency_ms": 1524
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T16:15:55.551Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Keep me updated on important new developments concerning Microsoft.",
+          "references": [
+            {
+              "label": "Microsoft",
+              "source_ref": "raw_input"
+            }
+          ],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ]
+        },
+        "evidence": {
+          "id": "e-T5",
+          "title": "Independent reports on possible Microsoft acquisition",
+          "content": "Enterprise Desk, an established specialist technology-business outlet, reports that Microsoft is preparing to announce a significant acquisition soon, citing transaction-side planning contacts.\n\nBusiness Brief, a separate established business-news outlet, independently reports that a significant Microsoft acquisition announcement is expected soon, citing different deal-side contacts rather than the first article or its sources.\n\nThe two reports are materially consistent and independently sourced. Social discussion is not confirmation.\n\nNeither Microsoft nor the prospective seller has officially confirmed an acquisition agreement or announcement.",
+          "source": "New controlled dossier of two independently sourced specialist reports; not a previously human-labeled case",
+          "url": "https://example.com/controlled/microsoft-acquisition",
+          "published_at": "2026-10-31"
+        },
+        "prior_state": {
+          "entries": [
+            {
+              "id": "p1",
+              "fact": "No independently corroborated reports of an imminent significant Microsoft acquisition announcement had been received.",
+              "alerted": false
+            }
+          ]
+        }
+      },
+      "judgment": {
+        "action": "ALERT",
+        "evidence_status": "STRONG_UNCONFIRMED",
+        "reason": "Two established outlets independently report that Microsoft is expected to announce a significant acquisition soon. This is a genuinely new, important development compared with the prior absence of independently corroborated reports, but official confirmation is pending.",
+        "novelty_summary": "Independent corroboration has emerged where none was previously available.",
+        "condition_check": {
+          "required_state": "An important new development concerning Microsoft",
+          "observed_state": "Two independent reports indicate a significant Microsoft acquisition announcement is expected soon",
+          "condition_satisfied": true
+        },
+        "evidence_refs": [
+          "e7ffb35c43c3d339cc8eb773ba0532832.title",
+          "e7ffb35c43c3d339cc8eb773ba0532832.content.1",
+          "e7ffb35c43c3d339cc8eb773ba0532832.content.2",
+          "e7ffb35c43c3d339cc8eb773ba0532832.content.3",
+          "e7ffb35c43c3d339cc8eb773ba0532832.content.4"
+        ],
+        "provenance_refs": [
+          "e7ffb35c43c3d339cc8eb773ba0532832.source",
+          "e7ffb35c43c3d339cc8eb773ba0532832.url",
+          "e7ffb35c43c3d339cc8eb773ba0532832.published_at"
+        ],
+        "evidence_basis": [
+          {
+            "id": "e7ffb35c43c3d339cc8eb773ba0532832.title",
+            "evidence_item": "e7ffb35c43c3d339cc8eb773ba0532832",
+            "field": "title",
+            "role": "CLAIM",
+            "text": "Independent reports on possible Microsoft acquisition",
+            "start": 0,
+            "end": 53
+          },
+          {
+            "id": "e7ffb35c43c3d339cc8eb773ba0532832.content.1",
+            "evidence_item": "e7ffb35c43c3d339cc8eb773ba0532832",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Enterprise Desk, an established specialist technology-business outlet, reports that Microsoft is preparing to announce a significant acquisition soon, citing transaction-side planning contacts.\n\n",
+            "start": 0,
+            "end": 195
+          },
+          {
+            "id": "e7ffb35c43c3d339cc8eb773ba0532832.content.2",
+            "evidence_item": "e7ffb35c43c3d339cc8eb773ba0532832",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Business Brief, a separate established business-news outlet, independently reports that a significant Microsoft acquisition announcement is expected soon, citing different deal-side contacts rather than the first article or its sources.\n\n",
+            "start": 195,
+            "end": 433
+          },
+          {
+            "id": "e7ffb35c43c3d339cc8eb773ba0532832.content.3",
+            "evidence_item": "e7ffb35c43c3d339cc8eb773ba0532832",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "The two reports are materially consistent and independently sourced. Social discussion is not confirmation.\n\n",
+            "start": 433,
+            "end": 542
+          },
+          {
+            "id": "e7ffb35c43c3d339cc8eb773ba0532832.content.4",
+            "evidence_item": "e7ffb35c43c3d339cc8eb773ba0532832",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Neither Microsoft nor the prospective seller has officially confirmed an acquisition agreement or announcement.",
+            "start": 542,
+            "end": 653
+          },
+          {
+            "id": "e7ffb35c43c3d339cc8eb773ba0532832.source",
+            "evidence_item": "e7ffb35c43c3d339cc8eb773ba0532832",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "New controlled dossier of two independently sourced specialist reports; not a previously human-labeled case",
+            "start": 0,
+            "end": 107
+          },
+          {
+            "id": "e7ffb35c43c3d339cc8eb773ba0532832.url",
+            "evidence_item": "e7ffb35c43c3d339cc8eb773ba0532832",
+            "field": "url",
+            "role": "PROVENANCE",
+            "text": "https://example.com/controlled/microsoft-acquisition",
+            "start": 0,
+            "end": 52
+          },
+          {
+            "id": "e7ffb35c43c3d339cc8eb773ba0532832.published_at",
+            "evidence_item": "e7ffb35c43c3d339cc8eb773ba0532832",
+            "field": "published_at",
+            "role": "PROVENANCE",
+            "text": "2026-10-31",
+            "start": 0,
+            "end": 10
+          }
+        ]
+      },
+      "raw": {
+        "action": "ALERT",
+        "evidence_status": "STRONG_UNCONFIRMED",
+        "reason": "Two established outlets independently report that Microsoft is expected to announce a significant acquisition soon. This is a genuinely new, important development compared with the prior absence of independently corroborated reports, but official confirmation is pending.",
+        "novelty_summary": "Independent corroboration has emerged where none was previously available.",
+        "condition_check": {
+          "required_state": "An important new development concerning Microsoft",
+          "observed_state": "Two independent reports indicate a significant Microsoft acquisition announcement is expected soon",
+          "condition_satisfied": true
+        },
+        "evidence_refs": [
+          "e7ffb35c43c3d339cc8eb773ba0532832.title",
+          "e7ffb35c43c3d339cc8eb773ba0532832.content.1",
+          "e7ffb35c43c3d339cc8eb773ba0532832.content.2",
+          "e7ffb35c43c3d339cc8eb773ba0532832.content.3",
+          "e7ffb35c43c3d339cc8eb773ba0532832.content.4"
+        ],
+        "provenance_refs": [
+          "e7ffb35c43c3d339cc8eb773ba0532832.source",
+          "e7ffb35c43c3d339cc8eb773ba0532832.url",
+          "e7ffb35c43c3d339cc8eb773ba0532832.published_at"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1841,
+          "input_tokens_details": {
+            "cache_write_tokens": 1838,
+            "cached_tokens": 0
+          },
+          "output_tokens": 428,
+          "output_tokens_details": {
+            "reasoning_tokens": 112
+          },
+          "total_tokens": 2269
+        },
+        "latency_ms": 4524
+      }
+    }
+  },
+  {
+    "id": "T6",
+    "repetition": 1,
+    "execution": "T6-r1",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T16:16:16.247Z",
+      "understanding": {
+        "capture_id": "T6",
+        "intent": {
+          "canonical_text": "Keep me informed of important new developments concerning Manchester City.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject and requested scope are sufficiently clear for future planning."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Keep me informed of important new developments concerning Manchester City.",
+          "references": null,
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject and requested scope are sufficiently clear for future planning.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 946,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 101,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1047
+        },
+        "latency_ms": 1399
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T16:16:25.485Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Keep me informed of important new developments concerning Manchester City.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ]
+        },
+        "evidence": {
+          "id": "e10",
+          "title": "Unconfirmed manager claim",
+          "content": "An anonymous fan account claims the Manchester City manager may resign. The claim is unconfirmed and no independent corroboration or club statement is supplied.",
+          "source": "Anonymous fan account, identity unverified",
+          "url": "https://example.com/brain/e10",
+          "published_at": "2026-10-31T10:05:00Z",
+          "retrieved_at": "2026-10-31T10:06:00Z"
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "NO_ALERT",
+        "evidence_status": "WEAK_UNCONFIRMED",
+        "reason": "An anonymous fan account's uncorroborated claim that the Manchester City manager may resign is weak and does not establish an important new development.",
+        "novelty_summary": null,
+        "condition_check": null,
+        "evidence_refs": [
+          "eacaf1f0981ed1f011c5c4f06a037c8a9.content.1"
+        ],
+        "provenance_refs": [
+          "eacaf1f0981ed1f011c5c4f06a037c8a9.source"
+        ],
+        "evidence_basis": [
+          {
+            "id": "eacaf1f0981ed1f011c5c4f06a037c8a9.content.1",
+            "evidence_item": "eacaf1f0981ed1f011c5c4f06a037c8a9",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "An anonymous fan account claims the Manchester City manager may resign. The claim is unconfirmed and no independent corroboration or club statement is supplied.",
+            "start": 0,
+            "end": 160
+          },
+          {
+            "id": "eacaf1f0981ed1f011c5c4f06a037c8a9.source",
+            "evidence_item": "eacaf1f0981ed1f011c5c4f06a037c8a9",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Anonymous fan account, identity unverified",
+            "start": 0,
+            "end": 42
+          }
+        ]
+      },
+      "raw": {
+        "action": "NO_ALERT",
+        "evidence_status": "WEAK_UNCONFIRMED",
+        "reason": "An anonymous fan account's uncorroborated claim that the Manchester City manager may resign is weak and does not establish an important new development.",
+        "novelty_summary": null,
+        "condition_check": null,
+        "evidence_refs": [
+          "eacaf1f0981ed1f011c5c4f06a037c8a9.content.1"
+        ],
+        "provenance_refs": [
+          "eacaf1f0981ed1f011c5c4f06a037c8a9.source"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1510,
+          "input_tokens_details": {
+            "cache_write_tokens": 1507,
+            "cached_tokens": 0
+          },
+          "output_tokens": 136,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1646
+        },
+        "latency_ms": 1821
+      }
+    }
+  }
+]

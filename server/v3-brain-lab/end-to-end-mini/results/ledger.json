@@ -1,0 +1,2142 @@
+[
+  {
+    "id": "E1",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:54:06.303Z",
+      "understanding": {
+        "capture_id": "E1",
+        "intent": {
+          "canonical_text": "Keep me updated on important new developments concerning Manchester City.",
+          "references": [],
+          "explicit_constraints": [],
+          "unresolved_ambiguities": [
+            "“Manchester City” could refer to the football club or the city."
+          ]
+        },
+        "decision": {
+          "status": "NEEDS_CLARIFICATION",
+          "reason": "The intended subject is ambiguous and the interpretations would materially change what is followed.",
+          "clarification_question": "Do you mean Manchester City Football Club or the city of Manchester?"
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Keep me updated on important new developments concerning Manchester City.",
+          "references": null,
+          "explicit_constraints": null,
+          "unresolved_ambiguities": [
+            "“Manchester City” could refer to the football club or the city."
+          ]
+        },
+        "decision": {
+          "status": "NEEDS_CLARIFICATION",
+          "reason": "The intended subject is ambiguous and the interpretations would materially change what is followed.",
+          "clarification_question": "Do you mean Manchester City Football Club or the city of Manchester?",
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 946,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 179,
+          "output_tokens_details": {
+            "reasoning_tokens": 68
+          },
+          "total_tokens": 1125
+        },
+        "latency_ms": 2858
+      }
+    }
+  },
+  {
+    "id": "E2",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:54:30.741Z",
+      "understanding": {
+        "capture_id": "E2",
+        "intent": {
+          "canonical_text": "Tell me when GBP/EUR goes above 1.17.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "comparator",
+              "text": "above",
+              "source_ref": "raw_input"
+            },
+            {
+              "kind": "threshold",
+              "text": "1.17",
+              "source_ref": "raw_input",
+              "value": "1.17"
+            }
+          ],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The currency pair and threshold condition are clearly specified."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Tell me when GBP/EUR goes above 1.17.",
+          "references": null,
+          "explicit_constraints": [
+            {
+              "kind": "comparator",
+              "text": "above",
+              "source_ref": "raw_input",
+              "value": null
+            },
+            {
+              "kind": "threshold",
+              "text": "1.17",
+              "source_ref": "raw_input",
+              "value": "1.17"
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The currency pair and threshold condition are clearly specified.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 948,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 163,
+          "output_tokens_details": {
+            "reasoning_tokens": 41
+          },
+          "total_tokens": 1111
+        },
+        "latency_ms": 1984
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:54:38.494Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Tell me when GBP/EUR goes above 1.17.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "comparator",
+              "text": "above",
+              "source_ref": "raw_input"
+            },
+            {
+              "kind": "threshold",
+              "text": "1.17",
+              "source_ref": "raw_input",
+              "value": "1.17"
+            }
+          ]
+        },
+        "evidence": {
+          "id": "e4",
+          "title": "Exchange-rate observation",
+          "content": "The current supplied observation is GBP/EUR = 1.171.",
+          "source": "Controlled numeric observation",
+          "url": "https://example.com/brain/e4",
+          "published_at": "2026-10-31T10:05:00Z",
+          "retrieved_at": "2026-10-31T10:06:00Z",
+          "measurement": {
+            "metric": "GBP/EUR",
+            "value": "1.171",
+            "quote": "GBP/EUR = 1.171"
+          }
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "GBP/EUR is 1.171, which is above 1.17.",
+        "novelty_summary": "New threshold-crossing observation; no prior entries.",
+        "condition_check": {
+          "required_state": "GBP/EUR > 1.17",
+          "observed_state": "GBP/EUR = 1.171",
+          "condition_satisfied": true
+        },
+        "evidence_refs": [
+          "edfffd161c3bf5f23209484cec3b08de6.content.1",
+          "edfffd161c3bf5f23209484cec3b08de6.measurement"
+        ],
+        "provenance_refs": [
+          "edfffd161c3bf5f23209484cec3b08de6.source"
+        ],
+        "evidence_basis": [
+          {
+            "id": "edfffd161c3bf5f23209484cec3b08de6.content.1",
+            "evidence_item": "edfffd161c3bf5f23209484cec3b08de6",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "The current supplied observation is GBP/EUR = 1.171.",
+            "start": 0,
+            "end": 52
+          },
+          {
+            "id": "edfffd161c3bf5f23209484cec3b08de6.measurement",
+            "evidence_item": "edfffd161c3bf5f23209484cec3b08de6",
+            "field": "measurement",
+            "role": "MEASUREMENT",
+            "text": "GBP/EUR = 1.171",
+            "start": 0,
+            "end": 15
+          },
+          {
+            "id": "edfffd161c3bf5f23209484cec3b08de6.source",
+            "evidence_item": "edfffd161c3bf5f23209484cec3b08de6",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Controlled numeric observation",
+            "start": 0,
+            "end": 30
+          }
+        ]
+      },
+      "raw": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "GBP/EUR is 1.171, which is above 1.17.",
+        "novelty_summary": "New threshold-crossing observation; no prior entries.",
+        "condition_check": {
+          "required_state": "GBP/EUR > 1.17",
+          "observed_state": "GBP/EUR = 1.171",
+          "condition_satisfied": true
+        },
+        "evidence_refs": [
+          "edfffd161c3bf5f23209484cec3b08de6.content.1",
+          "edfffd161c3bf5f23209484cec3b08de6.measurement"
+        ],
+        "provenance_refs": [
+          "edfffd161c3bf5f23209484cec3b08de6.source"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1550,
+          "input_tokens_details": {
+            "cache_write_tokens": 1547,
+            "cached_tokens": 0
+          },
+          "output_tokens": 216,
+          "output_tokens_details": {
+            "reasoning_tokens": 45
+          },
+          "total_tokens": 1766
+        },
+        "latency_ms": 3601
+      }
+    }
+  },
+  {
+    "id": "E3",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:54:48.474Z",
+      "understanding": {
+        "capture_id": "E3",
+        "intent": {
+          "canonical_text": "Alert me if Company A or Company B enters insolvency.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "if Company A or Company B enters insolvency",
+              "source_ref": "raw_input"
+            }
+          ],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The companies and insolvency condition are clearly specified."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Alert me if Company A or Company B enters insolvency.",
+          "references": null,
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "if Company A or Company B enters insolvency",
+              "source_ref": "raw_input",
+              "value": null
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The companies and insolvency condition are clearly specified.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 947,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 104,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1051
+        },
+        "latency_ms": 1615
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:54:56.217Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Alert me if Company A or Company B enters insolvency.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "if Company A or Company B enters insolvency",
+              "source_ref": "raw_input"
+            }
+          ]
+        },
+        "evidence": {
+          "id": "e-A4",
+          "title": "Candidate evidence",
+          "content": "Court records confirm Company B entered insolvency. Company A continues operating solvently.",
+          "source": "Controlled evaluation fixture",
+          "url": "https://example.com/lab/A4",
+          "published_at": "2026-10-01",
+          "retrieved_at": "2026-10-31"
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Court records confirm that Company B entered insolvency, satisfying the OR condition.",
+        "novelty_summary": "New insolvency development for Company B; no prior entries.",
+        "condition_check": {
+          "required_state": "Company A or Company B enters insolvency",
+          "observed_state": "Company B entered insolvency; Company A remains solvent",
+          "condition_satisfied": true
+        },
+        "evidence_refs": [
+          "e6e6f8b004b904dcd5b212c4a7fe1dff2.content.1"
+        ],
+        "provenance_refs": [
+          "e6e6f8b004b904dcd5b212c4a7fe1dff2.source",
+          "e6e6f8b004b904dcd5b212c4a7fe1dff2.url",
+          "e6e6f8b004b904dcd5b212c4a7fe1dff2.published_at"
+        ],
+        "evidence_basis": [
+          {
+            "id": "e6e6f8b004b904dcd5b212c4a7fe1dff2.content.1",
+            "evidence_item": "e6e6f8b004b904dcd5b212c4a7fe1dff2",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Court records confirm Company B entered insolvency. Company A continues operating solvently.",
+            "start": 0,
+            "end": 92
+          },
+          {
+            "id": "e6e6f8b004b904dcd5b212c4a7fe1dff2.source",
+            "evidence_item": "e6e6f8b004b904dcd5b212c4a7fe1dff2",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Controlled evaluation fixture",
+            "start": 0,
+            "end": 29
+          },
+          {
+            "id": "e6e6f8b004b904dcd5b212c4a7fe1dff2.url",
+            "evidence_item": "e6e6f8b004b904dcd5b212c4a7fe1dff2",
+            "field": "url",
+            "role": "PROVENANCE",
+            "text": "https://example.com/lab/A4",
+            "start": 0,
+            "end": 26
+          },
+          {
+            "id": "e6e6f8b004b904dcd5b212c4a7fe1dff2.published_at",
+            "evidence_item": "e6e6f8b004b904dcd5b212c4a7fe1dff2",
+            "field": "published_at",
+            "role": "PROVENANCE",
+            "text": "2026-10-01",
+            "start": 0,
+            "end": 10
+          }
+        ]
+      },
+      "raw": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Court records confirm that Company B entered insolvency, satisfying the OR condition.",
+        "novelty_summary": "New insolvency development for Company B; no prior entries.",
+        "condition_check": {
+          "required_state": "Company A or Company B enters insolvency",
+          "observed_state": "Company B entered insolvency; Company A remains solvent",
+          "condition_satisfied": true
+        },
+        "evidence_refs": [
+          "e6e6f8b004b904dcd5b212c4a7fe1dff2.content.1"
+        ],
+        "provenance_refs": [
+          "e6e6f8b004b904dcd5b212c4a7fe1dff2.source",
+          "e6e6f8b004b904dcd5b212c4a7fe1dff2.url",
+          "e6e6f8b004b904dcd5b212c4a7fe1dff2.published_at"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1502,
+          "input_tokens_details": {
+            "cache_write_tokens": 1499,
+            "cached_tokens": 0
+          },
+          "output_tokens": 216,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1718
+        },
+        "latency_ms": 2390
+      }
+    }
+  },
+  {
+    "id": "E4",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:55:04.318Z",
+      "understanding": {
+        "capture_id": "E4",
+        "intent": {
+          "canonical_text": "Alert me only after both Company A and Company B enter insolvency.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "only after both Company A and Company B enter insolvency",
+              "source_ref": "raw_input"
+            },
+            {
+              "kind": "relation",
+              "text": "both Company A and Company B",
+              "source_ref": "raw_input"
+            }
+          ],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The entities and the required joint condition are clearly specified."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Alert me only after both Company A and Company B enter insolvency.",
+          "references": null,
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "only after both Company A and Company B enter insolvency",
+              "source_ref": "raw_input",
+              "value": null
+            },
+            {
+              "kind": "relation",
+              "text": "both Company A and Company B",
+              "source_ref": "raw_input",
+              "value": null
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The entities and the required joint condition are clearly specified.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 949,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 175,
+          "output_tokens_details": {
+            "reasoning_tokens": 41
+          },
+          "total_tokens": 1124
+        },
+        "latency_ms": 1896
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:55:15.853Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Alert me only after both Company A and Company B enter insolvency.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "only after both Company A and Company B enter insolvency",
+              "source_ref": "raw_input"
+            },
+            {
+              "kind": "relation",
+              "text": "both Company A and Company B",
+              "source_ref": "raw_input"
+            }
+          ]
+        },
+        "evidence": {
+          "id": "e-A5",
+          "title": "Candidate evidence",
+          "content": "Court records confirm Company A entered insolvency. Company B continues operating solvently.",
+          "source": "Controlled evaluation fixture",
+          "url": "https://example.com/lab/A5",
+          "published_at": "2026-10-01",
+          "retrieved_at": "2026-10-31"
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "NO_ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Company A entered insolvency, but Company B continues operating solvently; the required condition that both companies enter insolvency is not satisfied.",
+        "novelty_summary": null,
+        "condition_check": {
+          "required_state": "Both Company A and Company B have entered insolvency",
+          "observed_state": "Company A entered insolvency; Company B remains solvent",
+          "condition_satisfied": false
+        },
+        "evidence_refs": [
+          "e01b5d00a0ed6c1342bb00d057bb95892.content.1"
+        ],
+        "provenance_refs": [
+          "e01b5d00a0ed6c1342bb00d057bb95892.source",
+          "e01b5d00a0ed6c1342bb00d057bb95892.url",
+          "e01b5d00a0ed6c1342bb00d057bb95892.published_at"
+        ],
+        "evidence_basis": [
+          {
+            "id": "e01b5d00a0ed6c1342bb00d057bb95892.content.1",
+            "evidence_item": "e01b5d00a0ed6c1342bb00d057bb95892",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Court records confirm Company A entered insolvency. Company B continues operating solvently.",
+            "start": 0,
+            "end": 92
+          },
+          {
+            "id": "e01b5d00a0ed6c1342bb00d057bb95892.source",
+            "evidence_item": "e01b5d00a0ed6c1342bb00d057bb95892",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Controlled evaluation fixture",
+            "start": 0,
+            "end": 29
+          },
+          {
+            "id": "e01b5d00a0ed6c1342bb00d057bb95892.url",
+            "evidence_item": "e01b5d00a0ed6c1342bb00d057bb95892",
+            "field": "url",
+            "role": "PROVENANCE",
+            "text": "https://example.com/lab/A5",
+            "start": 0,
+            "end": 26
+          },
+          {
+            "id": "e01b5d00a0ed6c1342bb00d057bb95892.published_at",
+            "evidence_item": "e01b5d00a0ed6c1342bb00d057bb95892",
+            "field": "published_at",
+            "role": "PROVENANCE",
+            "text": "2026-10-01",
+            "start": 0,
+            "end": 10
+          }
+        ]
+      },
+      "raw": {
+        "action": "NO_ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Company A entered insolvency, but Company B continues operating solvently; the required condition that both companies enter insolvency is not satisfied.",
+        "novelty_summary": null,
+        "condition_check": {
+          "required_state": "Both Company A and Company B have entered insolvency",
+          "observed_state": "Company A entered insolvency; Company B remains solvent",
+          "condition_satisfied": false
+        },
+        "evidence_refs": [
+          "e01b5d00a0ed6c1342bb00d057bb95892.content.1"
+        ],
+        "provenance_refs": [
+          "e01b5d00a0ed6c1342bb00d057bb95892.source",
+          "e01b5d00a0ed6c1342bb00d057bb95892.url",
+          "e01b5d00a0ed6c1342bb00d057bb95892.published_at"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1461,
+          "input_tokens_details": {
+            "cache_write_tokens": 1458,
+            "cached_tokens": 0
+          },
+          "output_tokens": 204,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1665
+        },
+        "latency_ms": 2757
+      }
+    }
+  },
+  {
+    "id": "E5",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:55:23.054Z",
+      "understanding": {
+        "capture_id": "E5",
+        "intent": {
+          "canonical_text": "Keep me updated on new Gucci products except perfumes.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "exclusion",
+              "text": "except perfumes",
+              "source_ref": "raw_input",
+              "value": "perfumes"
+            }
+          ],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject (new Gucci products) and exclusion (perfumes) are sufficiently clear."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Keep me updated on new Gucci products except perfumes.",
+          "references": null,
+          "explicit_constraints": [
+            {
+              "kind": "exclusion",
+              "text": "except perfumes",
+              "source_ref": "raw_input",
+              "value": "perfumes"
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject (new Gucci products) and exclusion (perfumes) are sufficiently clear.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 945,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 104,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1049
+        },
+        "latency_ms": 1416
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:55:29.981Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Keep me updated on new Gucci products except perfumes.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "exclusion",
+              "text": "except perfumes",
+              "source_ref": "raw_input",
+              "value": "perfumes"
+            }
+          ]
+        },
+        "evidence": {
+          "id": "e6",
+          "title": "Gucci perfume launch",
+          "content": "Gucci officially launched a new perfume today. This announcement concerns only that fragrance.",
+          "source": "Gucci product announcement",
+          "url": "https://example.com/brain/e6",
+          "published_at": "2026-10-31T10:05:00Z",
+          "retrieved_at": "2026-10-31T10:06:00Z"
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "NO_ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "The evidence confirms a new Gucci perfume launch, which is explicitly excluded.",
+        "novelty_summary": null,
+        "condition_check": {
+          "required_state": "New Gucci product that is not perfume",
+          "observed_state": "New Gucci perfume only",
+          "condition_satisfied": false
+        },
+        "evidence_refs": [
+          "ed833de052a15377b3133236a370771a4.title",
+          "ed833de052a15377b3133236a370771a4.content.1"
+        ],
+        "provenance_refs": [
+          "ed833de052a15377b3133236a370771a4.source",
+          "ed833de052a15377b3133236a370771a4.published_at"
+        ],
+        "evidence_basis": [
+          {
+            "id": "ed833de052a15377b3133236a370771a4.title",
+            "evidence_item": "ed833de052a15377b3133236a370771a4",
+            "field": "title",
+            "role": "CLAIM",
+            "text": "Gucci perfume launch",
+            "start": 0,
+            "end": 20
+          },
+          {
+            "id": "ed833de052a15377b3133236a370771a4.content.1",
+            "evidence_item": "ed833de052a15377b3133236a370771a4",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Gucci officially launched a new perfume today. This announcement concerns only that fragrance.",
+            "start": 0,
+            "end": 94
+          },
+          {
+            "id": "ed833de052a15377b3133236a370771a4.source",
+            "evidence_item": "ed833de052a15377b3133236a370771a4",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Gucci product announcement",
+            "start": 0,
+            "end": 26
+          },
+          {
+            "id": "ed833de052a15377b3133236a370771a4.published_at",
+            "evidence_item": "ed833de052a15377b3133236a370771a4",
+            "field": "published_at",
+            "role": "PROVENANCE",
+            "text": "2026-10-31T10:05:00Z",
+            "start": 0,
+            "end": 20
+          }
+        ]
+      },
+      "raw": {
+        "action": "NO_ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "The evidence confirms a new Gucci perfume launch, which is explicitly excluded.",
+        "novelty_summary": null,
+        "condition_check": {
+          "required_state": "New Gucci product that is not perfume",
+          "observed_state": "New Gucci perfume only",
+          "condition_satisfied": false
+        },
+        "evidence_refs": [
+          "ed833de052a15377b3133236a370771a4.title",
+          "ed833de052a15377b3133236a370771a4.content.1"
+        ],
+        "provenance_refs": [
+          "ed833de052a15377b3133236a370771a4.source",
+          "ed833de052a15377b3133236a370771a4.published_at"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1381,
+          "input_tokens_details": {
+            "cache_write_tokens": 1378,
+            "cached_tokens": 0
+          },
+          "output_tokens": 246,
+          "output_tokens_details": {
+            "reasoning_tokens": 78
+          },
+          "total_tokens": 1627
+        },
+        "latency_ms": 4451
+      }
+    }
+  },
+  {
+    "id": "E6",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:55:38.745Z",
+      "understanding": {
+        "capture_id": "E6",
+        "intent": {
+          "canonical_text": "Tell me when Product X launches and is available in France.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "launches and is available in France",
+              "source_ref": "raw_input"
+            }
+          ],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The product and requested launch-and-France-availability condition are sufficiently identified."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Tell me when Product X launches and is available in France.",
+          "references": null,
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "launches and is available in France",
+              "source_ref": "raw_input",
+              "value": null
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The product and requested launch-and-France-availability condition are sufficiently identified.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 947,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 166,
+          "output_tokens_details": {
+            "reasoning_tokens": 58
+          },
+          "total_tokens": 1113
+        },
+        "latency_ms": 2157
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:55:53.775Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Tell me when Product X launches and is available in France.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "launches and is available in France",
+              "source_ref": "raw_input"
+            }
+          ]
+        },
+        "evidence": {
+          "id": "e8",
+          "title": "Product X US launch",
+          "content": "Product X has been released in the United States. It is not yet available for purchase in France.",
+          "source": "Product X official release notice",
+          "url": "https://example.com/brain/e8",
+          "published_at": "2026-10-31T10:05:00Z",
+          "retrieved_at": "2026-10-31T10:06:00Z"
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "NO_ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "The official notice confirms a US release but states Product X is not yet available for purchase in France, so the required France launch and availability condition is not met.",
+        "novelty_summary": null,
+        "condition_check": {
+          "required_state": "Product X has launched and is available for purchase in France",
+          "observed_state": "Product X is released in the US and not yet available for purchase in France",
+          "condition_satisfied": false
+        },
+        "evidence_refs": [
+          "ed65a374d9b69662124400b81ef183cbc.content.1"
+        ],
+        "provenance_refs": [
+          "ed65a374d9b69662124400b81ef183cbc.source"
+        ],
+        "evidence_basis": [
+          {
+            "id": "ed65a374d9b69662124400b81ef183cbc.content.1",
+            "evidence_item": "ed65a374d9b69662124400b81ef183cbc",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Product X has been released in the United States. It is not yet available for purchase in France.",
+            "start": 0,
+            "end": 97
+          },
+          {
+            "id": "ed65a374d9b69662124400b81ef183cbc.source",
+            "evidence_item": "ed65a374d9b69662124400b81ef183cbc",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Product X official release notice",
+            "start": 0,
+            "end": 33
+          }
+        ]
+      },
+      "raw": {
+        "action": "NO_ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "The official notice confirms a US release but states Product X is not yet available for purchase in France, so the required France launch and availability condition is not met.",
+        "novelty_summary": null,
+        "condition_check": {
+          "required_state": "Product X has launched and is available for purchase in France",
+          "observed_state": "Product X is released in the US and not yet available for purchase in France",
+          "condition_satisfied": false
+        },
+        "evidence_refs": [
+          "ed65a374d9b69662124400b81ef183cbc.content.1"
+        ],
+        "provenance_refs": [
+          "ed65a374d9b69662124400b81ef183cbc.source"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1387,
+          "input_tokens_details": {
+            "cache_write_tokens": 1384,
+            "cached_tokens": 0
+          },
+          "output_tokens": 161,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1548
+        },
+        "latency_ms": 2483
+      }
+    }
+  },
+  {
+    "id": "E7",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:56:04.343Z",
+      "understanding": {
+        "capture_id": "E7",
+        "intent": {
+          "canonical_text": "Keep me updated on new Metallica concerts in Europe.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "new",
+              "source_ref": "raw_input",
+              "value": "new"
+            },
+            {
+              "kind": "relation",
+              "text": "in Europe",
+              "source_ref": "raw_input",
+              "value": "in Europe"
+            }
+          ],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject (Metallica concerts) and geographic scope (Europe) are clear."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Keep me updated on new Metallica concerts in Europe.",
+          "references": null,
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "new",
+              "source_ref": "raw_input",
+              "value": "new"
+            },
+            {
+              "kind": "relation",
+              "text": "in Europe",
+              "source_ref": "raw_input",
+              "value": "in Europe"
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject (Metallica concerts) and geographic scope (Europe) are clear.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 946,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 121,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1067
+        },
+        "latency_ms": 1643
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:56:11.655Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Keep me updated on new Metallica concerts in Europe.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "new",
+              "source_ref": "raw_input",
+              "value": "new"
+            },
+            {
+              "kind": "relation",
+              "text": "in Europe",
+              "source_ref": "raw_input",
+              "value": "in Europe"
+            }
+          ]
+        },
+        "evidence": {
+          "id": "e13",
+          "title": "Specialist reports on possible Metallica European dates",
+          "content": "Continental Live, an established specialist concert outlet, reports that Metallica is preparing to announce European dates soon, citing promoter-side planning contacts.\n\nTour Desk, a separate established specialist live-music outlet, independently reports that European dates are expected soon, citing different venue-side contacts rather than the first article or its sources.\n\nThe two reports are materially consistent and independently sourced. Fans are widely discussing them, but social discussion is not confirmation.\n\nNeither Metallica nor a promoter has officially confirmed European dates, a schedule or ticket sales.",
+          "source": "Controlled dossier of two independently sourced specialist reports",
+          "url": "https://example.com/brain/e13",
+          "published_at": "2026-10-31T10:05:00Z",
+          "retrieved_at": "2026-10-31T10:06:00Z"
+        },
+        "prior_state": {
+          "entries": [
+            {
+              "id": "p1",
+              "fact": "No European tour announcement was known before these reports.",
+              "date": "2026-10-30",
+              "alerted": false
+            },
+            {
+              "id": "p2",
+              "fact": "No independently corroborated reports of imminent European dates had been received.",
+              "date": "2026-10-30",
+              "alerted": false
+            }
+          ]
+        }
+      },
+      "judgment": {
+        "action": "NO_ALERT",
+        "evidence_status": "STRONG_UNCONFIRMED",
+        "reason": "Two independent specialist reports indicate possible upcoming European dates, but no Metallica or promoter confirmation establishes new concerts.",
+        "novelty_summary": "New independent corroboration of planned European dates, but not a confirmed concert announcement.",
+        "condition_check": {
+          "required_state": "New Metallica concerts in Europe",
+          "observed_state": "Possible European dates reportedly being prepared; no official dates, schedule, or ticket sales",
+          "condition_satisfied": false
+        },
+        "evidence_refs": [
+          "e5e912947be99e7913b4a60183a82ba9a.content.1",
+          "e5e912947be99e7913b4a60183a82ba9a.content.2",
+          "e5e912947be99e7913b4a60183a82ba9a.content.3",
+          "e5e912947be99e7913b4a60183a82ba9a.content.4"
+        ],
+        "provenance_refs": [
+          "e5e912947be99e7913b4a60183a82ba9a.source",
+          "e5e912947be99e7913b4a60183a82ba9a.published_at"
+        ],
+        "evidence_basis": [
+          {
+            "id": "e5e912947be99e7913b4a60183a82ba9a.content.1",
+            "evidence_item": "e5e912947be99e7913b4a60183a82ba9a",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Continental Live, an established specialist concert outlet, reports that Metallica is preparing to announce European dates soon, citing promoter-side planning contacts.\n\n",
+            "start": 0,
+            "end": 170
+          },
+          {
+            "id": "e5e912947be99e7913b4a60183a82ba9a.content.2",
+            "evidence_item": "e5e912947be99e7913b4a60183a82ba9a",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Tour Desk, a separate established specialist live-music outlet, independently reports that European dates are expected soon, citing different venue-side contacts rather than the first article or its sources.\n\n",
+            "start": 170,
+            "end": 379
+          },
+          {
+            "id": "e5e912947be99e7913b4a60183a82ba9a.content.3",
+            "evidence_item": "e5e912947be99e7913b4a60183a82ba9a",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "The two reports are materially consistent and independently sourced. Fans are widely discussing them, but social discussion is not confirmation.\n\n",
+            "start": 379,
+            "end": 525
+          },
+          {
+            "id": "e5e912947be99e7913b4a60183a82ba9a.content.4",
+            "evidence_item": "e5e912947be99e7913b4a60183a82ba9a",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Neither Metallica nor a promoter has officially confirmed European dates, a schedule or ticket sales.",
+            "start": 525,
+            "end": 626
+          },
+          {
+            "id": "e5e912947be99e7913b4a60183a82ba9a.source",
+            "evidence_item": "e5e912947be99e7913b4a60183a82ba9a",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Controlled dossier of two independently sourced specialist reports",
+            "start": 0,
+            "end": 66
+          },
+          {
+            "id": "e5e912947be99e7913b4a60183a82ba9a.published_at",
+            "evidence_item": "e5e912947be99e7913b4a60183a82ba9a",
+            "field": "published_at",
+            "role": "PROVENANCE",
+            "text": "2026-10-31T10:05:00Z",
+            "start": 0,
+            "end": 20
+          }
+        ]
+      },
+      "raw": {
+        "action": "NO_ALERT",
+        "evidence_status": "STRONG_UNCONFIRMED",
+        "reason": "Two independent specialist reports indicate possible upcoming European dates, but no Metallica or promoter confirmation establishes new concerts.",
+        "novelty_summary": "New independent corroboration of planned European dates, but not a confirmed concert announcement.",
+        "condition_check": {
+          "required_state": "New Metallica concerts in Europe",
+          "observed_state": "Possible European dates reportedly being prepared; no official dates, schedule, or ticket sales",
+          "condition_satisfied": false
+        },
+        "evidence_refs": [
+          "e5e912947be99e7913b4a60183a82ba9a.content.1",
+          "e5e912947be99e7913b4a60183a82ba9a.content.2",
+          "e5e912947be99e7913b4a60183a82ba9a.content.3",
+          "e5e912947be99e7913b4a60183a82ba9a.content.4"
+        ],
+        "provenance_refs": [
+          "e5e912947be99e7913b4a60183a82ba9a.source",
+          "e5e912947be99e7913b4a60183a82ba9a.published_at"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1917,
+          "input_tokens_details": {
+            "cache_write_tokens": 1914,
+            "cached_tokens": 0
+          },
+          "output_tokens": 553,
+          "output_tokens_details": {
+            "reasoning_tokens": 284
+          },
+          "total_tokens": 2470
+        },
+        "latency_ms": 6390
+      }
+    }
+  },
+  {
+    "id": "E8",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:56:33.982Z",
+      "understanding": {
+        "capture_id": "E8",
+        "intent": {
+          "canonical_text": "Keep me informed of important new developments concerning Manchester City.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject and requested scope are sufficiently clear for future planning."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Keep me informed of important new developments concerning Manchester City.",
+          "references": null,
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject and requested scope are sufficiently clear for future planning.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 946,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 101,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 1047
+        },
+        "latency_ms": 1672
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:56:42.130Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Keep me informed of important new developments concerning Manchester City.",
+          "references": [],
+          "explicit_constraints": [
+            {
+              "kind": "condition",
+              "text": "important new developments",
+              "source_ref": "raw_input",
+              "value": "important new developments"
+            }
+          ]
+        },
+        "evidence": {
+          "id": "e10",
+          "title": "Unconfirmed manager claim",
+          "content": "An anonymous fan account claims the Manchester City manager may resign. The claim is unconfirmed and no independent corroboration or club statement is supplied.",
+          "source": "Anonymous fan account, identity unverified",
+          "url": "https://example.com/brain/e10",
+          "published_at": "2026-10-31T10:05:00Z",
+          "retrieved_at": "2026-10-31T10:06:00Z"
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "NO_ALERT",
+        "evidence_status": "WEAK_UNCONFIRMED",
+        "reason": "An anonymous fan-account rumor about a possible resignation is unconfirmed and lacks independent corroboration or a club statement, so it does not establish an important new development.",
+        "novelty_summary": null,
+        "condition_check": {
+          "required_state": "Important new development concerning Manchester City",
+          "observed_state": "Unconfirmed anonymous fan-account claim that the manager may resign",
+          "condition_satisfied": false
+        },
+        "evidence_refs": [
+          "e23090c4cafa196b24fffe8c5fcc45a87.title",
+          "e23090c4cafa196b24fffe8c5fcc45a87.content.1"
+        ],
+        "provenance_refs": [
+          "e23090c4cafa196b24fffe8c5fcc45a87.source"
+        ],
+        "evidence_basis": [
+          {
+            "id": "e23090c4cafa196b24fffe8c5fcc45a87.title",
+            "evidence_item": "e23090c4cafa196b24fffe8c5fcc45a87",
+            "field": "title",
+            "role": "CLAIM",
+            "text": "Unconfirmed manager claim",
+            "start": 0,
+            "end": 25
+          },
+          {
+            "id": "e23090c4cafa196b24fffe8c5fcc45a87.content.1",
+            "evidence_item": "e23090c4cafa196b24fffe8c5fcc45a87",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "An anonymous fan account claims the Manchester City manager may resign. The claim is unconfirmed and no independent corroboration or club statement is supplied.",
+            "start": 0,
+            "end": 160
+          },
+          {
+            "id": "e23090c4cafa196b24fffe8c5fcc45a87.source",
+            "evidence_item": "e23090c4cafa196b24fffe8c5fcc45a87",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Anonymous fan account, identity unverified",
+            "start": 0,
+            "end": 42
+          }
+        ]
+      },
+      "raw": {
+        "action": "NO_ALERT",
+        "evidence_status": "WEAK_UNCONFIRMED",
+        "reason": "An anonymous fan-account rumor about a possible resignation is unconfirmed and lacks independent corroboration or a club statement, so it does not establish an important new development.",
+        "novelty_summary": null,
+        "condition_check": {
+          "required_state": "Important new development concerning Manchester City",
+          "observed_state": "Unconfirmed anonymous fan-account claim that the manager may resign",
+          "condition_satisfied": false
+        },
+        "evidence_refs": [
+          "e23090c4cafa196b24fffe8c5fcc45a87.title",
+          "e23090c4cafa196b24fffe8c5fcc45a87.content.1"
+        ],
+        "provenance_refs": [
+          "e23090c4cafa196b24fffe8c5fcc45a87.source"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1446,
+          "input_tokens_details": {
+            "cache_write_tokens": 1443,
+            "cached_tokens": 0
+          },
+          "output_tokens": 330,
+          "output_tokens_details": {
+            "reasoning_tokens": 146
+          },
+          "total_tokens": 1776
+        },
+        "latency_ms": 4919
+      }
+    }
+  },
+  {
+    "id": "E9",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:57:18.391Z",
+      "understanding": {
+        "capture_id": "E9",
+        "intent": {
+          "canonical_text": "Keep me updated on important new developments in the story of Haaland’s Manchester City contract.",
+          "references": [],
+          "explicit_constraints": [],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject and requested scope are sufficiently identified."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Keep me updated on important new developments in the story of Haaland’s Manchester City contract.",
+          "references": null,
+          "explicit_constraints": null,
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject and requested scope are sufficiently identified.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 953,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 122,
+          "output_tokens_details": {
+            "reasoning_tokens": 37
+          },
+          "total_tokens": 1075
+        },
+        "latency_ms": 1678
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:57:25.371Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Keep me updated on important new developments in the story of Haaland’s Manchester City contract.",
+          "references": [],
+          "explicit_constraints": []
+        },
+        "evidence": {
+          "id": "e-R12",
+          "title": "Public source extract and evaluator summary",
+          "content": "Evaluator summary: Guardiola welcomes Haaland’s new 10-year Manchester City contract through summer 2034. The article reports his reaction and gives background on reasons for signing. No further contract change is reported.",
+          "source": "Official publisher; bounded extract with evaluator-authored summary",
+          "url": "https://www.mancity.com/news/mens/pep-guardiola-haaland-contract-2034-63872711",
+          "published_at": "2025-01-17",
+          "retrieved_at": "2026-10-31"
+        },
+        "prior_state": {
+          "entries": [
+            {
+              "id": "p1",
+              "fact": "Haaland officially signed a 10-year Manchester City contract through summer 2034; this was alerted.",
+              "alerted": true
+            },
+            {
+              "id": "p2",
+              "fact": "Background archive: no additional material development in this story was known.",
+              "alerted": false
+            },
+            {
+              "id": "p3",
+              "fact": "Background archive: no additional material development in this story was known.",
+              "alerted": false
+            },
+            {
+              "id": "p4",
+              "fact": "Background archive: no additional material development in this story was known.",
+              "alerted": false
+            },
+            {
+              "id": "p5",
+              "fact": "Background archive: no additional material development in this story was known.",
+              "alerted": false
+            },
+            {
+              "id": "p6",
+              "fact": "Background archive: no additional material development in this story was known.",
+              "alerted": false
+            },
+            {
+              "id": "p7",
+              "fact": "Background archive: no additional material development in this story was known.",
+              "alerted": false
+            },
+            {
+              "id": "p8",
+              "fact": "Background archive: no additional material development in this story was known.",
+              "alerted": false
+            },
+            {
+              "id": "p9",
+              "fact": "Background archive: no additional material development in this story was known.",
+              "alerted": false
+            },
+            {
+              "id": "p10",
+              "fact": "Background archive: no additional material development in this story was known.",
+              "alerted": false
+            },
+            {
+              "id": "p11",
+              "fact": "Background archive: no additional material development in this story was known.",
+              "alerted": false
+            },
+            {
+              "id": "p12",
+              "fact": "Background archive: no additional material development in this story was known.",
+              "alerted": false
+            }
+          ]
+        }
+      },
+      "judgment": {
+        "action": "NO_ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "The evidence confirms Haaland’s existing 10-year contract through summer 2034 and reports no further contract change; this duplicates the previously alerted fact.",
+        "novelty_summary": null,
+        "condition_check": null,
+        "evidence_refs": [
+          "ebd2efa501f96307606b92063d5cbf55e.content.1"
+        ],
+        "provenance_refs": [
+          "ebd2efa501f96307606b92063d5cbf55e.source",
+          "ebd2efa501f96307606b92063d5cbf55e.url",
+          "ebd2efa501f96307606b92063d5cbf55e.published_at"
+        ],
+        "evidence_basis": [
+          {
+            "id": "ebd2efa501f96307606b92063d5cbf55e.content.1",
+            "evidence_item": "ebd2efa501f96307606b92063d5cbf55e",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Evaluator summary: Guardiola welcomes Haaland’s new 10-year Manchester City contract through summer 2034. The article reports his reaction and gives background on reasons for signing. No further contract change is reported.",
+            "start": 0,
+            "end": 223
+          },
+          {
+            "id": "ebd2efa501f96307606b92063d5cbf55e.source",
+            "evidence_item": "ebd2efa501f96307606b92063d5cbf55e",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Official publisher; bounded extract with evaluator-authored summary",
+            "start": 0,
+            "end": 67
+          },
+          {
+            "id": "ebd2efa501f96307606b92063d5cbf55e.url",
+            "evidence_item": "ebd2efa501f96307606b92063d5cbf55e",
+            "field": "url",
+            "role": "PROVENANCE",
+            "text": "https://www.mancity.com/news/mens/pep-guardiola-haaland-contract-2034-63872711",
+            "start": 0,
+            "end": 78
+          },
+          {
+            "id": "ebd2efa501f96307606b92063d5cbf55e.published_at",
+            "evidence_item": "ebd2efa501f96307606b92063d5cbf55e",
+            "field": "published_at",
+            "role": "PROVENANCE",
+            "text": "2025-01-17",
+            "start": 0,
+            "end": 10
+          }
+        ]
+      },
+      "raw": {
+        "action": "NO_ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "The evidence confirms Haaland’s existing 10-year contract through summer 2034 and reports no further contract change; this duplicates the previously alerted fact.",
+        "novelty_summary": null,
+        "condition_check": null,
+        "evidence_refs": [
+          "ebd2efa501f96307606b92063d5cbf55e.content.1"
+        ],
+        "provenance_refs": [
+          "ebd2efa501f96307606b92063d5cbf55e.source",
+          "ebd2efa501f96307606b92063d5cbf55e.url",
+          "ebd2efa501f96307606b92063d5cbf55e.published_at"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1752,
+          "input_tokens_details": {
+            "cache_write_tokens": 1749,
+            "cached_tokens": 0
+          },
+          "output_tokens": 242,
+          "output_tokens_details": {
+            "reasoning_tokens": 74
+          },
+          "total_tokens": 1994
+        },
+        "latency_ms": 2569
+      }
+    }
+  },
+  {
+    "id": "E10",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:57:33.494Z",
+      "understanding": {
+        "capture_id": "E10",
+        "resource": {
+          "source_ref": "resource",
+          "exact_url": "https://example.com/jobs?city=Nice#roles"
+        },
+        "intent": {
+          "canonical_text": "Monitor the job listings page at https://example.com/jobs?city=Nice#roles for meaningful changes.",
+          "references": [
+            {
+              "label": "Job listings page",
+              "source_ref": "resource",
+              "exact_url": "https://example.com/jobs?city=Nice#roles"
+            }
+          ],
+          "explicit_constraints": [
+            {
+              "kind": "exact_resource",
+              "text": "https://example.com/jobs?city=Nice#roles",
+              "source_ref": "resource",
+              "value": "https://example.com/jobs?city=Nice#roles"
+            },
+            {
+              "kind": "condition",
+              "text": "meaningful changes",
+              "source_ref": "raw_input",
+              "value": "meaningful changes"
+            }
+          ],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The page and requested follow scope are sufficiently identified."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Monitor the job listings page at https://example.com/jobs?city=Nice#roles for meaningful changes.",
+          "references": [
+            {
+              "label": "Job listings page",
+              "source_ref": "resource",
+              "exact_url": "https://example.com/jobs?city=Nice#roles"
+            }
+          ],
+          "explicit_constraints": [
+            {
+              "kind": "exact_resource",
+              "text": "https://example.com/jobs?city=Nice#roles",
+              "source_ref": "resource",
+              "value": "https://example.com/jobs?city=Nice#roles"
+            },
+            {
+              "kind": "condition",
+              "text": "meaningful changes",
+              "source_ref": "raw_input",
+              "value": "meaningful changes"
+            }
+          ],
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The page and requested follow scope are sufficiently identified.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 973,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 255,
+          "output_tokens_details": {
+            "reasoning_tokens": 80
+          },
+          "total_tokens": 1228
+        },
+        "latency_ms": 2585
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:57:43.557Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Monitor the job listings page at https://example.com/jobs?city=Nice#roles for meaningful changes.",
+          "references": [
+            {
+              "label": "Job listings page",
+              "source_ref": "resource",
+              "exact_url": "https://example.com/jobs?city=Nice#roles"
+            }
+          ],
+          "explicit_constraints": [
+            {
+              "kind": "exact_resource",
+              "text": "https://example.com/jobs?city=Nice#roles",
+              "source_ref": "resource",
+              "value": "https://example.com/jobs?city=Nice#roles"
+            },
+            {
+              "kind": "condition",
+              "text": "meaningful changes",
+              "source_ref": "raw_input",
+              "value": "meaningful changes"
+            }
+          ]
+        },
+        "evidence": {
+          "id": "e-C1",
+          "title": "Candidate evidence",
+          "content": "The exact monitored resource now lists a newly added permanent design role in Nice. Its previous snapshot listed no roles.",
+          "source": "Controlled evaluation fixture",
+          "url": "https://example.com/jobs?city=Nice#roles",
+          "published_at": "2026-10-01",
+          "retrieved_at": "2026-10-31"
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "The exact monitored resource has a newly added permanent design role in Nice, a meaningful change from the prior snapshot with no roles.",
+        "novelty_summary": "New permanent design role listed in Nice.",
+        "condition_check": {
+          "required_state": "Meaningful change on the exact monitored resource",
+          "observed_state": "New permanent design role added; prior snapshot had no roles",
+          "condition_satisfied": true
+        },
+        "evidence_refs": [
+          "e0f93e37e948ae4d84237b7bb2a4da3b9.content.1"
+        ],
+        "provenance_refs": [
+          "e0f93e37e948ae4d84237b7bb2a4da3b9.url",
+          "e0f93e37e948ae4d84237b7bb2a4da3b9.source",
+          "e0f93e37e948ae4d84237b7bb2a4da3b9.published_at"
+        ],
+        "evidence_basis": [
+          {
+            "id": "e0f93e37e948ae4d84237b7bb2a4da3b9.content.1",
+            "evidence_item": "e0f93e37e948ae4d84237b7bb2a4da3b9",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "The exact monitored resource now lists a newly added permanent design role in Nice. Its previous snapshot listed no roles.",
+            "start": 0,
+            "end": 122
+          },
+          {
+            "id": "e0f93e37e948ae4d84237b7bb2a4da3b9.url",
+            "evidence_item": "e0f93e37e948ae4d84237b7bb2a4da3b9",
+            "field": "url",
+            "role": "PROVENANCE",
+            "text": "https://example.com/jobs?city=Nice#roles",
+            "start": 0,
+            "end": 40
+          },
+          {
+            "id": "e0f93e37e948ae4d84237b7bb2a4da3b9.source",
+            "evidence_item": "e0f93e37e948ae4d84237b7bb2a4da3b9",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Controlled evaluation fixture",
+            "start": 0,
+            "end": 29
+          },
+          {
+            "id": "e0f93e37e948ae4d84237b7bb2a4da3b9.published_at",
+            "evidence_item": "e0f93e37e948ae4d84237b7bb2a4da3b9",
+            "field": "published_at",
+            "role": "PROVENANCE",
+            "text": "2026-10-01",
+            "start": 0,
+            "end": 10
+          }
+        ]
+      },
+      "raw": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "The exact monitored resource has a newly added permanent design role in Nice, a meaningful change from the prior snapshot with no roles.",
+        "novelty_summary": "New permanent design role listed in Nice.",
+        "condition_check": {
+          "required_state": "Meaningful change on the exact monitored resource",
+          "observed_state": "New permanent design role added; prior snapshot had no roles",
+          "condition_satisfied": true
+        },
+        "evidence_refs": [
+          "e0f93e37e948ae4d84237b7bb2a4da3b9.content.1"
+        ],
+        "provenance_refs": [
+          "e0f93e37e948ae4d84237b7bb2a4da3b9.url",
+          "e0f93e37e948ae4d84237b7bb2a4da3b9.source",
+          "e0f93e37e948ae4d84237b7bb2a4da3b9.published_at"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1569,
+          "input_tokens_details": {
+            "cache_write_tokens": 1566,
+            "cached_tokens": 0
+          },
+          "output_tokens": 285,
+          "output_tokens_details": {
+            "reasoning_tokens": 64
+          },
+          "total_tokens": 1854
+        },
+        "latency_ms": 4255
+      }
+    }
+  },
+  {
+    "id": "E11",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:57:52.653Z",
+      "understanding": {
+        "capture_id": "E11",
+        "intent": {
+          "canonical_text": "Follow Manchester City generally.",
+          "references": [
+            {
+              "label": "Manchester City",
+              "source_ref": "raw_input"
+            }
+          ],
+          "explicit_constraints": [],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The entity to follow is clearly identified."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Follow Manchester City generally.",
+          "references": [
+            {
+              "label": "Manchester City",
+              "source_ref": "raw_input",
+              "exact_url": null
+            }
+          ],
+          "explicit_constraints": null,
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The entity to follow is clearly identified.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 983,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 119,
+          "output_tokens_details": {
+            "reasoning_tokens": 32
+          },
+          "total_tokens": 1102
+        },
+        "latency_ms": 1922
+      }
+    },
+    "brain": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:58:01.136Z",
+      "adapter_input": {
+        "intent": {
+          "canonical_text": "Follow Manchester City generally.",
+          "references": [
+            {
+              "label": "Manchester City",
+              "source_ref": "raw_input"
+            }
+          ],
+          "explicit_constraints": []
+        },
+        "evidence": {
+          "id": "e-E11",
+          "title": "Official club development",
+          "content": "Manchester City officially opened its expanded stadium today, increasing capacity and bringing the completed new stand into use.",
+          "source": "Controlled official-club announcement fixture",
+          "url": "https://example.com/club/stadium",
+          "published_at": "2026-10-31"
+        },
+        "prior_state": {
+          "entries": []
+        }
+      },
+      "judgment": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Manchester City officially opened its expanded stadium, a relevant new club development.",
+        "novelty_summary": "No prior entries; this is a new development.",
+        "condition_check": null,
+        "evidence_refs": [
+          "e35695c53b70db4dc8be6c9d0b8b2f1b7.title",
+          "e35695c53b70db4dc8be6c9d0b8b2f1b7.content.1"
+        ],
+        "provenance_refs": [
+          "e35695c53b70db4dc8be6c9d0b8b2f1b7.source",
+          "e35695c53b70db4dc8be6c9d0b8b2f1b7.url",
+          "e35695c53b70db4dc8be6c9d0b8b2f1b7.published_at"
+        ],
+        "evidence_basis": [
+          {
+            "id": "e35695c53b70db4dc8be6c9d0b8b2f1b7.title",
+            "evidence_item": "e35695c53b70db4dc8be6c9d0b8b2f1b7",
+            "field": "title",
+            "role": "CLAIM",
+            "text": "Official club development",
+            "start": 0,
+            "end": 25
+          },
+          {
+            "id": "e35695c53b70db4dc8be6c9d0b8b2f1b7.content.1",
+            "evidence_item": "e35695c53b70db4dc8be6c9d0b8b2f1b7",
+            "field": "content",
+            "role": "CLAIM",
+            "text": "Manchester City officially opened its expanded stadium today, increasing capacity and bringing the completed new stand into use.",
+            "start": 0,
+            "end": 128
+          },
+          {
+            "id": "e35695c53b70db4dc8be6c9d0b8b2f1b7.source",
+            "evidence_item": "e35695c53b70db4dc8be6c9d0b8b2f1b7",
+            "field": "source",
+            "role": "PROVENANCE",
+            "text": "Controlled official-club announcement fixture",
+            "start": 0,
+            "end": 45
+          },
+          {
+            "id": "e35695c53b70db4dc8be6c9d0b8b2f1b7.url",
+            "evidence_item": "e35695c53b70db4dc8be6c9d0b8b2f1b7",
+            "field": "url",
+            "role": "PROVENANCE",
+            "text": "https://example.com/club/stadium",
+            "start": 0,
+            "end": 32
+          },
+          {
+            "id": "e35695c53b70db4dc8be6c9d0b8b2f1b7.published_at",
+            "evidence_item": "e35695c53b70db4dc8be6c9d0b8b2f1b7",
+            "field": "published_at",
+            "role": "PROVENANCE",
+            "text": "2026-10-31",
+            "start": 0,
+            "end": 10
+          }
+        ]
+      },
+      "raw": {
+        "action": "ALERT",
+        "evidence_status": "CONFIRMED",
+        "reason": "Manchester City officially opened its expanded stadium, a relevant new club development.",
+        "novelty_summary": "No prior entries; this is a new development.",
+        "condition_check": null,
+        "evidence_refs": [
+          "e35695c53b70db4dc8be6c9d0b8b2f1b7.title",
+          "e35695c53b70db4dc8be6c9d0b8b2f1b7.content.1"
+        ],
+        "provenance_refs": [
+          "e35695c53b70db4dc8be6c9d0b8b2f1b7.source",
+          "e35695c53b70db4dc8be6c9d0b8b2f1b7.url",
+          "e35695c53b70db4dc8be6c9d0b8b2f1b7.published_at"
+        ]
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 1508,
+          "input_tokens_details": {
+            "cache_write_tokens": 1505,
+            "cached_tokens": 0
+          },
+          "output_tokens": 253,
+          "output_tokens_details": {
+            "reasoning_tokens": 38
+          },
+          "total_tokens": 1761
+        },
+        "latency_ms": 2776
+      }
+    }
+  },
+  {
+    "id": "E12",
+    "intent": {
+      "state": "FINISHED",
+      "reserved_at": "2026-10-31T15:58:10.296Z",
+      "understanding": {
+        "capture_id": "E12",
+        "intent": {
+          "canonical_text": "Tell me when Apple does something important.",
+          "references": [],
+          "explicit_constraints": [],
+          "unresolved_ambiguities": []
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject is Apple and the request covers broad important developments."
+        }
+      },
+      "raw": {
+        "intent": {
+          "canonical_text": "Tell me when Apple does something important.",
+          "references": null,
+          "explicit_constraints": null,
+          "unresolved_ambiguities": null
+        },
+        "decision": {
+          "status": "READY_TO_MONITOR",
+          "reason": "The subject is Apple and the request covers broad important developments.",
+          "clarification_question": null,
+          "suggestions": null
+        }
+      },
+      "measurement": {
+        "model": "gpt-5.6-luna",
+        "calls": 1,
+        "http_status": 200,
+        "provider_status": "completed",
+        "usage": {
+          "input_tokens": 943,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 165,
+          "output_tokens_details": {
+            "reasoning_tokens": 87
+          },
+          "total_tokens": 1108
+        },
+        "latency_ms": 2019
+      }
+    }
+  }
+]

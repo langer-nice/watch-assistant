@@ -1,0 +1,1754 @@
+[
+  {
+    "id": "S02",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when GBP/EUR goes above 1.17.",
+      "explicit_constraints": [
+        {
+          "kind": "threshold",
+          "text": "1.17",
+          "source_ref": "verified_input",
+          "value": "1.17"
+        },
+        {
+          "kind": "comparator",
+          "text": "above",
+          "source_ref": "verified_input",
+          "value": "above"
+        }
+      ],
+      "numeric_condition": {
+        "metric": "GBP/EUR",
+        "operator": "gt",
+        "threshold": "1.17"
+      }
+    },
+    "evidence": {
+      "id": "e4",
+      "title": "Exchange-rate observation",
+      "content": "The current supplied observation is GBP/EUR = 1.171.",
+      "source": "Controlled numeric observation",
+      "url": "https://example.com/brain/e4",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z",
+      "measurement": {
+        "metric": "GBP/EUR",
+        "value": "1.171",
+        "quote": "GBP/EUR = 1.171"
+      }
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "The new exact observation is strictly above 1.17.",
+    "mandatory_requirements": [
+      "The new exact observation is strictly above 1.17."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "The new exact observation is strictly above 1.17."
+    ],
+    "case_type": [
+      "exact"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "S03",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when GBP/EUR goes above 1.17.",
+      "explicit_constraints": [
+        {
+          "kind": "threshold",
+          "text": "1.17",
+          "source_ref": "verified_input",
+          "value": "1.17"
+        },
+        {
+          "kind": "comparator",
+          "text": "above",
+          "source_ref": "verified_input",
+          "value": "above"
+        }
+      ],
+      "numeric_condition": {
+        "metric": "GBP/EUR",
+        "operator": "gt",
+        "threshold": "1.17"
+      }
+    },
+    "evidence": {
+      "id": "e5",
+      "title": "Exchange-rate observation",
+      "content": "The current supplied observation is GBP/EUR = 1.169.",
+      "source": "Controlled numeric observation",
+      "url": "https://example.com/brain/e5",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z",
+      "measurement": {
+        "metric": "GBP/EUR",
+        "value": "1.169",
+        "quote": "GBP/EUR = 1.169"
+      }
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "The exact value is below the strict threshold.",
+    "mandatory_requirements": [
+      "The exact value is below the strict threshold."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "The exact value is below the strict threshold."
+    ],
+    "case_type": [
+      "exact"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "A7",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me about new Gucci products, but not perfumes.",
+      "explicit_constraints": [
+        {
+          "kind": "exclusion",
+          "text": "but not perfumes",
+          "source_ref": "verified_input"
+        }
+      ]
+    },
+    "evidence": {
+      "id": "e6",
+      "title": "Gucci perfume launch",
+      "content": "Gucci officially launched a new perfume today. This announcement concerns only that fragrance.",
+      "source": "Gucci product announcement",
+      "url": "https://example.com/brain/e6",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "Perfumes are explicitly excluded by the verified intent.",
+    "mandatory_requirements": [
+      "Perfumes are explicitly excluded by the verified intent."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Perfumes are explicitly excluded by the verified intent."
+    ],
+    "case_type": [
+      "exact"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "A8",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when Product X is released, but only if it is available in France.",
+      "explicit_constraints": [
+        {
+          "kind": "condition",
+          "text": "only if it is available in France",
+          "source_ref": "verified_input"
+        }
+      ]
+    },
+    "evidence": {
+      "id": "e8",
+      "title": "Product X US launch",
+      "content": "Product X has been released in the United States. It is not yet available for purchase in France.",
+      "source": "Product X official release notice",
+      "url": "https://example.com/brain/e8",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "France availability is explicitly not met.",
+    "mandatory_requirements": [
+      "France availability is explicitly not met."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "France availability is explicitly not met."
+    ],
+    "case_type": [
+      "exact"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "S04",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when there are important new developments about Manchester City.",
+      "explicit_constraints": []
+    },
+    "evidence": {
+      "id": "e10",
+      "title": "Unconfirmed manager claim",
+      "content": "An anonymous fan account claims the Manchester City manager may resign. The claim is unconfirmed and no independent corroboration or club statement is supplied.",
+      "source": "Anonymous fan account, identity unverified",
+      "url": "https://example.com/brain/e10",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "WEAK_UNCONFIRMED",
+    "expected_reason_summary": "The plausible manager claim is weak and unconfirmed, supported only by one anonymous account.",
+    "mandatory_requirements": [
+      "The plausible manager claim is weak and unconfirmed, supported only by one anonymous account."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "The plausible manager claim is weak and unconfirmed, supported only by one anonymous account."
+    ],
+    "case_type": [
+      "strength"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "S05",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Keep me informed about new Metallica concerts in Europe.",
+      "explicit_constraints": []
+    },
+    "evidence": {
+      "id": "e13",
+      "title": "Specialist reports on possible Metallica European dates",
+      "content": "Continental Live, an established specialist concert outlet, reports that Metallica is preparing to announce European dates soon, citing promoter-side planning contacts.\n\nTour Desk, a separate established specialist live-music outlet, independently reports that European dates are expected soon, citing different venue-side contacts rather than the first article or its sources.\n\nThe two reports are materially consistent and independently sourced. Fans are widely discussing them, but social discussion is not confirmation.\n\nNeither Metallica nor a promoter has officially confirmed European dates, a schedule or ticket sales.",
+      "source": "Controlled dossier of two independently sourced specialist reports",
+      "url": "https://example.com/brain/e13",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z"
+    },
+    "prior_state": {
+      "entries": [
+        {
+          "id": "p1",
+          "fact": "No European tour announcement was known before these reports.",
+          "date": "2026-10-30",
+          "alerted": false
+        },
+        {
+          "id": "p2",
+          "fact": "No independently corroborated reports of imminent European dates had been received.",
+          "date": "2026-10-30",
+          "alerted": false
+        }
+      ]
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "STRONG_UNCONFIRMED",
+    "expected_reason_summary": "Multiple credible independent specialist reports suggest European dates may be announced soon, but this is not officially confirmed.",
+    "mandatory_requirements": [
+      "Multiple credible independent specialist reports suggest European dates may be announced soon, but this is not officially confirmed."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Multiple credible independent specialist reports suggest European dates may be announced soon, but this is not officially confirmed."
+    ],
+    "case_type": [
+      "strength"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "A1",
+    "track": "A",
+    "intent": null,
+    "evidence": null,
+    "capture": {
+      "id": "A1",
+      "kind": "FREE_TEXT",
+      "raw_input": "Tell me when Apple does something important."
+    },
+    "expected_action": null,
+    "expected_evidence_status": null,
+    "expected_decision": "NEEDS_CLARIFICATION",
+    "expected_reason_summary": "Materially unclear importance scope.",
+    "mandatory_requirements": [
+      "Materially unclear importance scope."
+    ],
+    "forbidden_inventions": [
+      "Do not invent company identity or a narrowed scope."
+    ],
+    "critical_constraints": [
+      "Materially unclear importance scope."
+    ],
+    "case_type": [
+      "ambiguity"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "A2",
+    "track": "A",
+    "intent": null,
+    "evidence": null,
+    "capture": {
+      "id": "A2",
+      "kind": "FREE_TEXT",
+      "raw_input": "Keep me informed about this company."
+    },
+    "expected_action": null,
+    "expected_evidence_status": null,
+    "expected_decision": "NEEDS_CLARIFICATION",
+    "expected_reason_summary": "Company referent missing.",
+    "mandatory_requirements": [
+      "Company referent missing."
+    ],
+    "forbidden_inventions": [
+      "Do not invent company identity or a narrowed scope."
+    ],
+    "critical_constraints": [
+      "Company referent missing."
+    ],
+    "case_type": [
+      "ambiguity"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "A3",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Keep me informed about important developments concerning Gucci."
+    },
+    "evidence": {
+      "id": "e-A3",
+      "title": "Candidate evidence",
+      "content": "Gucci officially announced that its chief executive has resigned, effective immediately.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/A3",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "ALERT: Context resolves company to Gucci; follow company generally, not products only.",
+    "mandatory_requirements": [
+      "Context resolves company to Gucci; follow company generally, not products only."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Context resolves company to Gucci; follow company generally, not products only."
+    ],
+    "case_type": [
+      "ambiguity",
+      "context"
+    ],
+    "source_type": "synthetic",
+    "hidden": false,
+    "context": {
+      "kind": "prior_user_context",
+      "text": "The company is Gucci; follow this company."
+    }
+  },
+  {
+    "id": "A4",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me if Company A OR Company B enters insolvency."
+    },
+    "evidence": {
+      "id": "e-A4",
+      "title": "Candidate evidence",
+      "content": "Court records confirm Company B entered insolvency. Company A continues operating solvently.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/A4",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "ALERT: OR: either company entering insolvency suffices.",
+    "mandatory_requirements": [
+      "OR: either company entering insolvency suffices."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "OR: either company entering insolvency suffices."
+    ],
+    "case_type": [
+      "ambiguity",
+      "exact",
+      "or"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "A5",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me only when BOTH Company A AND Company B have entered insolvency."
+    },
+    "evidence": {
+      "id": "e-A5",
+      "title": "Candidate evidence",
+      "content": "Court records confirm Company B entered insolvency. Company A continues operating solvently.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/A5",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "NO_ALERT: AND: both companies must enter insolvency.",
+    "mandatory_requirements": [
+      "AND: both companies must enter insolvency."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "AND: both companies must enter insolvency."
+    ],
+    "case_type": [
+      "ambiguity",
+      "exact",
+      "and"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "A6",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when GBP/EUR is above 1.17 for 3 consecutive daily closes."
+    },
+    "evidence": {
+      "id": "e-A6",
+      "title": "Candidate evidence",
+      "content": "Audited daily closes: 2026-09-28 GBP/EUR 1.171; 2026-09-29 GBP/EUR 1.172; 2026-09-30 GBP/EUR 1.169.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/A6",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "NO_ALERT: Strictly above 1.17 on 3 consecutive daily closes; third close fails.",
+    "mandatory_requirements": [
+      "Strictly above 1.17 on 3 consecutive daily closes; third close fails."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Strictly above 1.17 on 3 consecutive daily closes; third close fails."
+    ],
+    "case_type": [
+      "ambiguity",
+      "exact",
+      "duration"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "A9",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me about new Gucci or Chanel products, except perfumes unless they are limited edition."
+    },
+    "evidence": {
+      "id": "e-A9",
+      "title": "Candidate evidence",
+      "content": "Chanel officially launched a limited-edition perfume, available now. The brand explicitly identifies this fragrance as limited edition.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/A9",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "ALERT: Either brand; limited edition is an exception to perfume exclusion.",
+    "mandatory_requirements": [
+      "Either brand; limited edition is an exception to perfume exclusion."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Either brand; limited edition is an exception to perfume exclusion."
+    ],
+    "case_type": [
+      "ambiguity",
+      "exact",
+      "or",
+      "exclusion"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "A10",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Follow important developments in the Harbor Bridge closure story, excluding repeated summaries."
+    },
+    "evidence": {
+      "id": "e-A10",
+      "title": "Candidate evidence",
+      "content": "Harbor Bridge remains closed. The mayor recapped last week’s inspection. No reopening date or changed structural assessment is reported.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/A10",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": [
+        {
+          "id": "p1",
+          "fact": "Harbor Bridge was closed after an inspection; no reopening date was announced.",
+          "alerted": false
+        },
+        {
+          "id": "p2",
+          "fact": "The mayor summarized the same inspection last week.",
+          "alerted": false
+        },
+        {
+          "id": "p3",
+          "fact": "Background archive entry 1: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p4",
+          "fact": "Background archive entry 2: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p5",
+          "fact": "Background archive entry 3: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p6",
+          "fact": "Background archive entry 4: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p7",
+          "fact": "Background archive entry 5: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p8",
+          "fact": "Background archive entry 6: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p9",
+          "fact": "Background archive entry 7: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p10",
+          "fact": "Background archive entry 8: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p11",
+          "fact": "Background archive entry 9: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p12",
+          "fact": "Background archive entry 10: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        }
+      ]
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "NO_ALERT: Same story, no new development; repeated summaries excluded.",
+    "mandatory_requirements": [
+      "Same story, no new development; repeated summaries excluded."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Same story, no new development; repeated summaries excluded."
+    ],
+    "case_type": [
+      "ambiguity",
+      "memory",
+      "noisy"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "M2",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Follow important developments in the Harbor Bridge closure story."
+    },
+    "evidence": {
+      "id": "e-M2",
+      "title": "Candidate evidence",
+      "content": "The transport authority officially reopened Harbor Bridge after engineers signed off its repair. Traffic is now flowing.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/M2",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": [
+        {
+          "id": "p1",
+          "fact": "Harbor Bridge remained closed pending repair and engineering approval.",
+          "alerted": false
+        },
+        {
+          "id": "p2",
+          "fact": "Background archive entry 1: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p3",
+          "fact": "Background archive entry 2: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p4",
+          "fact": "Background archive entry 3: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p5",
+          "fact": "Background archive entry 4: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p6",
+          "fact": "Background archive entry 5: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p7",
+          "fact": "Background archive entry 6: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p8",
+          "fact": "Background archive entry 7: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p9",
+          "fact": "Background archive entry 8: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p10",
+          "fact": "Background archive entry 9: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p11",
+          "fact": "Background archive entry 10: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p12",
+          "fact": "Background archive entry 11: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        }
+      ]
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "ALERT: Real transition: closed to reopened.",
+    "mandatory_requirements": [
+      "Real transition: closed to reopened."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Real transition: closed to reopened."
+    ],
+    "case_type": [
+      "memory"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "M3",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Follow important developments in the Harbor Bridge closure story."
+    },
+    "evidence": {
+      "id": "e-M3",
+      "title": "Candidate evidence",
+      "content": "Archive from 2026-09-01, republished with a new timestamp: Harbor Bridge is closed for inspection. This is the unchanged September archive.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/M3",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": [
+        {
+          "id": "already",
+          "fact": "Harbor Bridge closed for inspection on 2026-09-01; this event was already notified.",
+          "alerted": true
+        },
+        {
+          "id": "p2",
+          "fact": "Background archive entry 1: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p3",
+          "fact": "Background archive entry 2: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p4",
+          "fact": "Background archive entry 3: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p5",
+          "fact": "Background archive entry 4: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p6",
+          "fact": "Background archive entry 5: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p7",
+          "fact": "Background archive entry 6: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p8",
+          "fact": "Background archive entry 7: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p9",
+          "fact": "Background archive entry 8: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p10",
+          "fact": "Background archive entry 9: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p11",
+          "fact": "Background archive entry 10: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p12",
+          "fact": "Background archive entry 11: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        }
+      ]
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "NO_ALERT: Republishing old content is not a new event.",
+    "mandatory_requirements": [
+      "Republishing old content is not a new event."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Republishing old content is not a new event."
+    ],
+    "case_type": [
+      "memory",
+      "noisy"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "M5",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when Product X is released and available for immediate delivery in France."
+    },
+    "evidence": {
+      "id": "e-M5",
+      "title": "Candidate evidence",
+      "content": "At 10:00 UTC, an established French retailer says Product X is in stock for immediate delivery. At 10:00 UTC, the official French checkout says not available in France. Both statements concern the same product and immediate delivery; no explanation reconciles them.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/M5",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": [
+        {
+          "id": "p1",
+          "fact": "Product X is released in the US.",
+          "alerted": false
+        },
+        {
+          "id": "p2",
+          "fact": "France launch date and actual checkout availability remain unresolved.",
+          "alerted": false
+        },
+        {
+          "id": "p3",
+          "fact": "Background archive entry 1: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p4",
+          "fact": "Background archive entry 2: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p5",
+          "fact": "Background archive entry 3: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p6",
+          "fact": "Background archive entry 4: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p7",
+          "fact": "Background archive entry 5: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p8",
+          "fact": "Background archive entry 6: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p9",
+          "fact": "Background archive entry 7: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p10",
+          "fact": "Background archive entry 8: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p11",
+          "fact": "Background archive entry 9: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        },
+        {
+          "id": "p12",
+          "fact": "Background archive entry 10: no other decision-relevant change was recorded in this story.",
+          "alerted": false
+        }
+      ]
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFLICTING",
+    "expected_reason_summary": "NO_ALERT: Material simultaneous conflict leaves France condition unresolved.",
+    "mandatory_requirements": [
+      "Material simultaneous conflict leaves France condition unresolved."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Material simultaneous conflict leaves France condition unresolved."
+    ],
+    "case_type": [
+      "memory",
+      "strength",
+      "condition"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "C1",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Follow meaningful changes to this exact resource: https://example.com/jobs?city=Nice#roles",
+      "references": [
+        {
+          "label": "Jobs",
+          "source_ref": "resource",
+          "exact_url": "https://example.com/jobs?city=Nice#roles"
+        }
+      ]
+    },
+    "evidence": {
+      "id": "e-C1",
+      "title": "Candidate evidence",
+      "content": "The exact monitored resource now lists a newly added permanent design role in Nice. Its previous snapshot listed no roles.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/jobs?city=Nice#roles",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "ALERT: Exact URL including query and fragment.",
+    "mandatory_requirements": [
+      "Exact URL including query and fragment."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Exact URL including query and fragment."
+    ],
+    "case_type": [
+      "context",
+      "resource"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "C2",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when new jobs in Nice appear on https://example.com/jobs?city=Nice#roles"
+    },
+    "evidence": {
+      "id": "e-C2",
+      "title": "Candidate evidence",
+      "content": "The exact page changed its footer copyright and added one Paris vacancy. There are still no Nice jobs.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/jobs?city=Nice#roles",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "NO_ALERT: Only new Nice jobs; generic page changes do not qualify.",
+    "mandatory_requirements": [
+      "Only new Nice jobs; generic page changes do not qualify."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Only new Nice jobs; generic page changes do not qualify."
+    ],
+    "case_type": [
+      "context",
+      "resource",
+      "noisy"
+    ],
+    "source_type": "synthetic",
+    "hidden": false
+  },
+  {
+    "id": "C3",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Follow the specific Player Y transfer to Club North story."
+    },
+    "evidence": {
+      "id": "e-C3",
+      "title": "Candidate evidence",
+      "content": "Club North officially opened a new training facility. Player Y appears only in a list of players from last season; no transfer development is given.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/C3",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "NO_ALERT: Follow story, not all club news.",
+    "mandatory_requirements": [
+      "Follow story, not all club news."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Follow story, not all club news."
+    ],
+    "case_type": [
+      "context",
+      "noisy"
+    ],
+    "source_type": "synthetic",
+    "hidden": false,
+    "context": {
+      "kind": "PAGE_CONTEXT",
+      "text": "Player Y transfer talks with Club North."
+    }
+  },
+  {
+    "id": "C4",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Follow important developments concerning Club North generally."
+    },
+    "evidence": {
+      "id": "e-C4",
+      "title": "Candidate evidence",
+      "content": "Club North officially opened its new stadium after a two-year reconstruction.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/C4",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "ALERT: Search context must not narrow explicit club-wide intent to transfers.",
+    "mandatory_requirements": [
+      "Search context must not narrow explicit club-wide intent to transfers."
+    ],
+    "forbidden_inventions": [
+      "Do not invent facts, intent, timing, sources or preferences."
+    ],
+    "critical_constraints": [
+      "Search context must not narrow explicit club-wide intent to transfers."
+    ],
+    "case_type": [
+      "context"
+    ],
+    "source_type": "synthetic",
+    "hidden": false,
+    "context": {
+      "kind": "SEARCH_CONTEXT",
+      "text": "Player Y transfer talks"
+    }
+  },
+  {
+    "id": "R01",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when Apple announces a new iPhone."
+    },
+    "evidence": {
+      "id": "e-R01",
+      "title": "Public source extract and evaluator summary",
+      "content": "Official Apple release, 9 September 2024. Evaluator summary: Apple announced iPhone 16 and iPhone 16 Plus with A18 chips and Camera Control. France is among the countries scheduled for availability on 20 September. Store | Mac | iPad | iPhone | Support.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.apple.com/newsroom/2024/09/apple-introduces-iphone-16-and-iphone-16-plus/",
+      "published_at": "2024-09-09",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "New official iPhone announcement.",
+    "mandatory_requirements": [
+      "Announcement, not completed shipment, is requested."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "Announcement, not completed shipment, is requested."
+    ],
+    "case_type": [
+      "simple"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R02",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me only about new Mac computer announcements."
+    },
+    "evidence": {
+      "id": "e-R02",
+      "title": "Public source extract and evaluator summary",
+      "content": "Official Apple release, 9 September 2024. Evaluator summary: Apple announced iPhone 16 and iPhone 16 Plus with A18 chips and Camera Control. France is among the countries scheduled for availability on 20 September. Store | Mac | iPad | iPhone | Support.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.apple.com/newsroom/2024/09/apple-introduces-iphone-16-and-iphone-16-plus/",
+      "published_at": "2024-09-09",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "An iPhone launch is outside the Mac-only intent.",
+    "mandatory_requirements": [
+      "Mac computers only; navigation mentions do not establish a Mac event."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "Mac computers only; navigation mentions do not establish a Mac event."
+    ],
+    "case_type": [
+      "simple",
+      "noisy"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R03",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when Apple Vision Pro is available for immediate purchase and delivery in France."
+    },
+    "evidence": {
+      "id": "e-R03",
+      "title": "Public source extract and evaluator summary",
+      "content": "Official Apple France announcement, 10 June 2024. Evaluator summary: Asian availability starts 28 June; French preorders start 28 June and French availability starts 12 July. The global headline foregrounds June, but France has a later schedule.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.apple.com/fr/newsroom/2024/06/apple-vision-pro-arrives-in-new-countries-and-regions-beginning-june-28/",
+      "published_at": "2024-06-10",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "Future France availability, not available now.",
+    "mandatory_requirements": [
+      "Actual France availability, not Asian launch or preorder."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "Actual France availability, not Asian launch or preorder."
+    ],
+    "case_type": [
+      "exact",
+      "condition",
+      "noisy"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R04",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me only when Apple Vision Pro can be collected or delivered immediately in France."
+    },
+    "evidence": {
+      "id": "e-R04",
+      "title": "Public source extract and evaluator summary",
+      "content": "ACTUALITÉ 28 juin 2024. Evaluator summary: French customers may preorder now; Apple says store availability and delivery begin 12 July. This is a preorder announcement, not immediate delivery.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.apple.com/fr/newsroom/2024/06/apple-vision-pro-is-available-to-pre-order/",
+      "published_at": "2024-06-28",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "Preorder does not satisfy immediate delivery.",
+    "mandatory_requirements": [
+      "Delivery or collection now, not preorders."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "Delivery or collection now, not preorders."
+    ],
+    "case_type": [
+      "exact",
+      "condition"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R05",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when Microsoft publishes FY2025 Q3 earnings results."
+    },
+    "evidence": {
+      "id": "e-R05",
+      "title": "Public source extract and evaluator summary",
+      "content": "Investor Relations | Press Release & Webcast | Earnings Release FY25 Q3. Evaluator summary: Microsoft published results on 30 April 2025 for the quarter ended 31 March 2025: revenue USD 70.1 billion, operating income USD 32.0 billion. Figures are actual results, not analyst forecasts.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.microsoft.com/en-us/investor/earnings/fy-2025-q3/press-release-webcast",
+      "published_at": "2025-04-30",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "Correct official reporting period.",
+    "mandatory_requirements": [
+      "FY2025 Q3 exactly."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "FY2025 Q3 exactly."
+    ],
+    "case_type": [
+      "exact"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R06",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me only when Microsoft publishes FY2025 Q4 earnings results."
+    },
+    "evidence": {
+      "id": "e-R06",
+      "title": "Public source extract and evaluator summary",
+      "content": "Investor Relations | Press Release & Webcast | Earnings Release FY25 Q3. Evaluator summary: Microsoft published results on 30 April 2025 for the quarter ended 31 March 2025: revenue USD 70.1 billion, operating income USD 32.0 billion. Figures are actual results, not analyst forecasts.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.microsoft.com/en-us/investor/earnings/fy-2025-q3/press-release-webcast",
+      "published_at": "2025-04-30",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "Q3 does not satisfy Q4.",
+    "mandatory_requirements": [
+      "FY2025 Q4 exactly; do not substitute Q3."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "FY2025 Q4 exactly; do not substitute Q3."
+    ],
+    "case_type": [
+      "exact"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R07",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when Nintendo Switch 2 has actually launched, not when a future date is announced."
+    },
+    "evidence": {
+      "id": "e-R07",
+      "title": "Public source extract and evaluator summary",
+      "content": "News Release | April 2, 2025 | Nintendo Co., Ltd. Evaluator summary: Nintendo announced that Switch 2 will release on 5 June 2025. Japan-only Japanese-language hardware and a Mario Kart World bundle are described. This page announces the future release date.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.nintendo.co.jp/corporate/release/en/2025/250402.html",
+      "published_at": "2025-04-02",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "Future release announcement is not actual launch.",
+    "mandatory_requirements": [
+      "Actual launch, not future schedule."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "Actual launch, not future schedule."
+    ],
+    "case_type": [
+      "exact",
+      "condition"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R08",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when Nintendo announces the release date for Switch 2."
+    },
+    "evidence": {
+      "id": "e-R08",
+      "title": "Public source extract and evaluator summary",
+      "content": "News Release | April 2, 2025 | Nintendo Co., Ltd. Evaluator summary: Nintendo announced that Switch 2 will release on 5 June 2025. Japan-only Japanese-language hardware and a Mario Kart World bundle are described. This page announces the future release date.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.nintendo.co.jp/corporate/release/en/2025/250402.html",
+      "published_at": "2025-04-02",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "Official future release date is the requested event.",
+    "mandatory_requirements": [
+      "Announcement of date is sufficient."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "Announcement of date is sufficient."
+    ],
+    "case_type": [
+      "simple"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R09",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when Europa Clipper launches."
+    },
+    "evidence": {
+      "id": "e-R09",
+      "title": "Public source extract and evaluator summary",
+      "content": "Explore | News & Events | Multimedia | Missions | Search.\nEuropa Clipper launched Oct. 14, 2024, on a journey to explore Europa, Jupiter's ocean world.\nEvaluator summary of official NASA mission page: spacecraft is en route to Jupiter, arrival planned for April 2030. The aim is to assess habitability, rather than establish that life has been found. The page includes mission navigation, imagery, objectives, science background and links to related mission updates.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://science.nasa.gov/mission/europa-clipper/",
+      "published_at": "2024-10-14",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "NASA establishes actual launch.",
+    "mandatory_requirements": [
+      "Launch, not arrival at Jupiter."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "Launch, not arrival at Jupiter."
+    ],
+    "case_type": [
+      "simple"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R10",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me only if Europa Clipper has found living organisms on Europa."
+    },
+    "evidence": {
+      "id": "e-R10",
+      "title": "Public source extract and evaluator summary",
+      "content": "Partial mission-card extract. Evaluator summary: the NASA card identifies Europa Clipper as an active mission travelling toward Jupiter, with arrival planned for April 2030. No observation of living organisms is supplied.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://science.nasa.gov/mission/europa-clipper/",
+      "published_at": "2024-10-14",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "INSUFFICIENT",
+    "expected_reason_summary": "Mission status supplies no life-detection evidence.",
+    "mandatory_requirements": [
+      "Actual organisms found; do not infer discovery from a mission objective."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "Actual organisms found; do not infer discovery from a mission objective."
+    ],
+    "case_type": [
+      "strength",
+      "noisy"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R11",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Follow important new Manchester City player contract developments."
+    },
+    "evidence": {
+      "id": "e-R11",
+      "title": "Public source extract and evaluator summary",
+      "content": "Men’s Team | Tickets | Shop. Evaluator summary: Manchester City announced Erling Haaland signed a new 10-year contract running until summer 2034. The article also recaps his prior goals and trophies.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.mancity.com/news/mens/erling-haaland-10-year-manchester-city-contract-63872694",
+      "published_at": "2025-01-17",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "New long-term contract is relevant.",
+    "mandatory_requirements": [
+      "New contract, not just goals background."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "New contract, not just goals background."
+    ],
+    "case_type": [
+      "simple"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R12",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Follow important new developments in Haaland’s Manchester City contract story."
+    },
+    "evidence": {
+      "id": "e-R12",
+      "title": "Public source extract and evaluator summary",
+      "content": "Evaluator summary: Guardiola welcomes Haaland’s new 10-year Manchester City contract through summer 2034. The article reports his reaction and gives background on reasons for signing. No further contract change is reported.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.mancity.com/news/mens/pep-guardiola-haaland-contract-2034-63872711",
+      "published_at": "2025-01-17",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": [
+        {
+          "id": "p1",
+          "fact": "Haaland officially signed a 10-year Manchester City contract through summer 2034; this was alerted.",
+          "alerted": true
+        },
+        {
+          "id": "p2",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p3",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p4",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p5",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p6",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p7",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p8",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p9",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p10",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p11",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p12",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        }
+      ]
+    },
+    "expected_action": "NO_ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "Same known contract; reaction alone adds no important state change.",
+    "mandatory_requirements": [
+      "M1: same event from new article is not novel."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "M1: same event from new article is not novel."
+    ],
+    "case_type": [
+      "memory"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "R13",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Tell me when Microsoft publishes FY2025 Q3 actual results."
+    },
+    "evidence": {
+      "id": "e-R13",
+      "title": "Public source extract and evaluator summary",
+      "content": "Investor Relations | Press Release & Webcast. Evaluator summary: the release contains forward-looking caveats and background on cloud and AI. In its results section Microsoft reports actual FY25 Q3 revenue of USD 70.1 billion and operating income of USD 32.0 billion.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.microsoft.com/en-us/investor/earnings/fy-2025-q3/press-release-webcast",
+      "published_at": "2025-04-30",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": [
+        {
+          "id": "p1",
+          "fact": "Microsoft FY2025 Q3 reporting date is 30 April.",
+          "alerted": true
+        },
+        {
+          "id": "p2",
+          "fact": "Cloud and AI are expected to feature in results.",
+          "alerted": false
+        },
+        {
+          "id": "p3",
+          "fact": "Official actual Q3 figures were not yet known.",
+          "alerted": false
+        },
+        {
+          "id": "p4",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p5",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p6",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p7",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p8",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p9",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p10",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p11",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p12",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        }
+      ]
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "Actual figures new despite familiar reporting context.",
+    "mandatory_requirements": [
+      "M4: actual results differ from known schedule and estimates."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "M4: actual results differ from known schedule and estimates."
+    ],
+    "case_type": [
+      "memory",
+      "noisy"
+    ],
+    "source_type": "real",
+    "hidden": false,
+    "notes_for_human_review": "Actual public evidence; evaluator-authored summary is marked. Intent and prior state are controlled historical evaluation inputs, not user production data."
+  },
+  {
+    "id": "C5",
+    "track": "B",
+    "intent": {
+      "canonical_text": "Follow Gucci generally, as the entity selected in the shared context."
+    },
+    "evidence": {
+      "id": "e-C5",
+      "title": "Public source extract and evaluator summary",
+      "content": "Gucci officially announced a new chief executive. This is an entity-wide leadership change, unrelated to the handbag article in shared context.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://example.com/lab/C5",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "expected_action": "ALERT",
+    "expected_evidence_status": "CONFIRMED",
+    "expected_reason_summary": "Entity scope is not narrowed to the shared story.",
+    "mandatory_requirements": [
+      "SHARED_CONTEXT selection is entity-wide, not article-only."
+    ],
+    "forbidden_inventions": [
+      "Do not import later events or model memory; judge the supplied historical snapshot."
+    ],
+    "critical_constraints": [
+      "SHARED_CONTEXT selection is entity-wide, not article-only."
+    ],
+    "case_type": [
+      "context"
+    ],
+    "source_type": "synthetic",
+    "hidden": false,
+    "notes_for_human_review": "Controlled synthetic evidence.",
+    "context": {
+      "kind": "SHARED_CONTEXT",
+      "text": "Gucci selected as entity; shared article concerns a handbag."
+    }
+  }
+]

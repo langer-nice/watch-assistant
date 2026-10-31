@@ -116,7 +116,7 @@ test('local SQL confirmation is service-only, atomic, inactive and durably idemp
       }
     });
     await t.test('actual confirmation middleware reaches only the service RPC and remains idempotent',async()=>{
-      const env={STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner+',bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',STRUCTURED_WATCH_SIGNING_SECRET:'fixture-only-'.repeat(4)};
+      const env={SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',VERCEL_ENV:'preview',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_WATCH_TEST_USER_IDS:owner+',bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',STRUCTURED_WATCH_SIGNING_SECRET:'fixture-only-'.repeat(4)};
       const handler=createStructuredWatchMiddleware({env,authenticate:async()=>({user:{id:owner}}),serviceClient:{rpc:async(name,p)=>{assert.equal(name,'persist_structured_watch_v1');return{data:await rpc(p),error:null};}}});
       const invoke=async body=>{let result;const response={setHeader(){},end(data){result=JSON.parse(data);}};await handler({method:'POST',url:'/api/structured-watches',body},response);assert.equal(response.statusCode,200);return result;};
       const body={action:'issue',operation:'create',watchId:identifier(30),mutationId:identifier(130),expectedRevision:0,title:'French Watch',interpretation:examples()[1],plan:compileMonitoringPlan(examples()[1],{structured:true})};

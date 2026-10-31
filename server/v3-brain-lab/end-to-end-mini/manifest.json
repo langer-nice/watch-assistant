@@ -1,0 +1,561 @@
+[
+  {
+    "id": "E1",
+    "capture": {
+      "id": "E1",
+      "kind": "FREE_TEXT",
+      "raw_input": "Keep me updated on important new developments concerning Manchester City.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e-E1",
+      "title": "Official club development",
+      "content": "Manchester City officially opened its expanded stadium today, increasing capacity and bringing the completed new stand into use.",
+      "source": "Controlled official-club announcement fixture",
+      "url": "https://example.com/club/stadium",
+      "published_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "R11",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "Manchester City",
+        "general important new developments"
+      ],
+      "exact_constraints": [],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "E2",
+    "capture": {
+      "id": "E2",
+      "kind": "FREE_TEXT",
+      "raw_input": "Tell me when GBP/EUR goes above 1.17.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e4",
+      "title": "Exchange-rate observation",
+      "content": "The current supplied observation is GBP/EUR = 1.171.",
+      "source": "Controlled numeric observation",
+      "url": "https://example.com/brain/e4",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z",
+      "measurement": {
+        "metric": "GBP/EUR",
+        "value": "1.171",
+        "quote": "GBP/EUR = 1.171"
+      }
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "S02",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "GBP/EUR",
+        "strict > 1.17"
+      ],
+      "exact_constraints": [
+        "threshold=1.17",
+        "comparator=above"
+      ],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "E3",
+    "capture": {
+      "id": "E3",
+      "kind": "FREE_TEXT",
+      "raw_input": "Alert me if Company A or Company B enters insolvency.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e-A4",
+      "title": "Candidate evidence",
+      "content": "Court records confirm Company B entered insolvency. Company A continues operating solvently.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/A4",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "A4",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "Company A",
+        "Company B",
+        "insolvency"
+      ],
+      "exact_constraints": [],
+      "relations": [
+        "OR"
+      ],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "E4",
+    "capture": {
+      "id": "E4",
+      "kind": "FREE_TEXT",
+      "raw_input": "Alert me only after both Company A and Company B enter insolvency.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e-A5",
+      "title": "Candidate evidence",
+      "content": "Court records confirm Company A entered insolvency. Company B continues operating solvently.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/lab/A5",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "A5",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "Company A",
+        "Company B",
+        "insolvency after both qualify"
+      ],
+      "exact_constraints": [],
+      "relations": [
+        "AND"
+      ],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "E5",
+    "capture": {
+      "id": "E5",
+      "kind": "FREE_TEXT",
+      "raw_input": "Keep me updated on new Gucci products except perfumes.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e6",
+      "title": "Gucci perfume launch",
+      "content": "Gucci officially launched a new perfume today. This announcement concerns only that fragrance.",
+      "source": "Gucci product announcement",
+      "url": "https://example.com/brain/e6",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "A7",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "new Gucci products"
+      ],
+      "exact_constraints": [],
+      "relations": [],
+      "exclusions": [
+        "perfumes"
+      ]
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "E6",
+    "capture": {
+      "id": "E6",
+      "kind": "FREE_TEXT",
+      "raw_input": "Tell me when Product X launches and is available in France.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e8",
+      "title": "Product X US launch",
+      "content": "Product X has been released in the United States. It is not yet available for purchase in France.",
+      "source": "Product X official release notice",
+      "url": "https://example.com/brain/e8",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "A8",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "Product X launch",
+        "available in France"
+      ],
+      "exact_constraints": [
+        "France availability at launch"
+      ],
+      "relations": [
+        "event AND condition"
+      ],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "E7",
+    "capture": {
+      "id": "E7",
+      "kind": "FREE_TEXT",
+      "raw_input": "Keep me updated on new Metallica concerts in Europe.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e13",
+      "title": "Specialist reports on possible Metallica European dates",
+      "content": "Continental Live, an established specialist concert outlet, reports that Metallica is preparing to announce European dates soon, citing promoter-side planning contacts.\n\nTour Desk, a separate established specialist live-music outlet, independently reports that European dates are expected soon, citing different venue-side contacts rather than the first article or its sources.\n\nThe two reports are materially consistent and independently sourced. Fans are widely discussing them, but social discussion is not confirmation.\n\nNeither Metallica nor a promoter has officially confirmed European dates, a schedule or ticket sales.",
+      "source": "Controlled dossier of two independently sourced specialist reports",
+      "url": "https://example.com/brain/e13",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z"
+    },
+    "prior_state": {
+      "entries": [
+        {
+          "id": "p1",
+          "fact": "No European tour announcement was known before these reports.",
+          "date": "2026-10-30",
+          "alerted": false
+        },
+        {
+          "id": "p2",
+          "fact": "No independently corroborated reports of imminent European dates had been received.",
+          "date": "2026-10-30",
+          "alerted": false
+        }
+      ]
+    },
+    "source_case": "S05",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "ALERT",
+      "evidence_status": "STRONG_UNCONFIRMED",
+      "requirements": [
+        "Metallica",
+        "new European concert developments",
+        "no confirmation-only restriction"
+      ],
+      "exact_constraints": [
+        "Europe"
+      ],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "E8",
+    "capture": {
+      "id": "E8",
+      "kind": "FREE_TEXT",
+      "raw_input": "Keep me informed of important new developments concerning Manchester City.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e10",
+      "title": "Unconfirmed manager claim",
+      "content": "An anonymous fan account claims the Manchester City manager may resign. The claim is unconfirmed and no independent corroboration or club statement is supplied.",
+      "source": "Anonymous fan account, identity unverified",
+      "url": "https://example.com/brain/e10",
+      "published_at": "2026-10-31T10:05:00Z",
+      "retrieved_at": "2026-10-31T10:06:00Z"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "S04",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "NO_ALERT",
+      "evidence_status": "WEAK_UNCONFIRMED",
+      "requirements": [
+        "Manchester City",
+        "general important new developments"
+      ],
+      "exact_constraints": [],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "E9",
+    "capture": {
+      "id": "E9",
+      "kind": "FREE_TEXT",
+      "raw_input": "Keep me updated on important new developments in the story of Haaland’s Manchester City contract.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e-R12",
+      "title": "Public source extract and evaluator summary",
+      "content": "Evaluator summary: Guardiola welcomes Haaland’s new 10-year Manchester City contract through summer 2034. The article reports his reaction and gives background on reasons for signing. No further contract change is reported.",
+      "source": "Official publisher; bounded extract with evaluator-authored summary",
+      "url": "https://www.mancity.com/news/mens/pep-guardiola-haaland-contract-2034-63872711",
+      "published_at": "2025-01-17",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": [
+        {
+          "id": "p1",
+          "fact": "Haaland officially signed a 10-year Manchester City contract through summer 2034; this was alerted.",
+          "alerted": true
+        },
+        {
+          "id": "p2",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p3",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p4",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p5",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p6",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p7",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p8",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p9",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p10",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p11",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        },
+        {
+          "id": "p12",
+          "fact": "Background archive: no additional material development in this story was known.",
+          "alerted": false
+        }
+      ]
+    },
+    "source_case": "R12",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "NO_ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "Haaland",
+        "Manchester City contract story",
+        "important new developments"
+      ],
+      "exact_constraints": [],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "E10",
+    "capture": {
+      "id": "E10",
+      "kind": "URL",
+      "raw_input": "Monitor this page for meaningful changes.",
+      "context": [
+        {
+          "id": "resource",
+          "kind": "page",
+          "text": "Job listings page.",
+          "url": "https://example.com/jobs?city=Nice#roles"
+        }
+      ],
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e-C1",
+      "title": "Candidate evidence",
+      "content": "The exact monitored resource now lists a newly added permanent design role in Nice. Its previous snapshot listed no roles.",
+      "source": "Controlled evaluation fixture",
+      "url": "https://example.com/jobs?city=Nice#roles",
+      "published_at": "2026-10-01",
+      "retrieved_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": "C1",
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "meaningful changes on exact supplied page"
+      ],
+      "exact_constraints": [
+        "https://example.com/jobs?city=Nice#roles"
+      ],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "E11",
+    "capture": {
+      "id": "E11",
+      "kind": "PAGE_CONTEXT",
+      "raw_input": "Follow Manchester City.",
+      "context": [
+        {
+          "id": "article",
+          "kind": "excerpt",
+          "text": "Player X is considering a transfer to Manchester City. Negotiations continue; no signing has been confirmed.",
+          "url": "https://example.com/transfer-story"
+        }
+      ],
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": {
+      "id": "e-E11",
+      "title": "Official club development",
+      "content": "Manchester City officially opened its expanded stadium today, increasing capacity and bringing the completed new stand into use.",
+      "source": "Controlled official-club announcement fixture",
+      "url": "https://example.com/club/stadium",
+      "published_at": "2026-10-31"
+    },
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": null,
+    "expected": {
+      "decision": "READY_TO_MONITOR",
+      "action": "ALERT",
+      "evidence_status": "CONFIRMED",
+      "requirements": [
+        "Manchester City general scope",
+        "transfer article must not narrow scope"
+      ],
+      "exact_constraints": [],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": false
+  },
+  {
+    "id": "E12",
+    "capture": {
+      "id": "E12",
+      "kind": "FREE_TEXT",
+      "raw_input": "Tell me when Apple does something important.",
+      "source_metadata": {
+        "captured_at": "2026-10-31T16:00:00.000Z",
+        "source_label": "Frozen end-to-end mini fixture"
+      }
+    },
+    "evidence": null,
+    "prior_state": {
+      "entries": []
+    },
+    "source_case": null,
+    "expected": {
+      "decision": "NEEDS_CLARIFICATION",
+      "action": null,
+      "evidence_status": null,
+      "requirements": [
+        "unresolved material scope should be clarified"
+      ],
+      "exact_constraints": [],
+      "relations": [],
+      "exclusions": []
+    },
+    "clarification_only": true
+  }
+]

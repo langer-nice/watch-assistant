@@ -86,6 +86,17 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   if(busy)return true;
   if(!enabled){const epoch=generation;busy=true;try{await accessReady;}finally{busy=false;}if(epoch!==generation)return true;}
   if(!enabled)return false;
+  if(activeSession()?.user?.id==='b4757e02-fc75-4984-b50e-8d933ae7ec04' && [
+   'Keep me updated on important new developments concerning Manchester City.',
+   'Tell me when GBP/EUR goes above 1.17.',
+   'Tell me when Apple announces a new Mac product.',
+   'Tell me when there are credible new reports that Metallica may announce concerts or tour dates in Europe for 2027, even before official confirmation.'
+  ].includes(original)){
+   busy=true;message(labels().busy);
+   try{const result=await request('/api/v3-pilot',{instruction:original});if(isCurrent())window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);}
+   catch{message('Pilot creation could not complete. Your instruction has been kept.');}
+   finally{busy=false;}return true;
+  }
   clear();reviewNote=(noteInput?.value||'').trim();busy=true;const epoch=generation,owner=activeSession()?.user?.id,c=labels();
   message(c.busy);
   try{
