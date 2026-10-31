@@ -8,7 +8,7 @@ test('private pilot SQL: auth, atomic slots, baseline, fence, outbox and pause',
  const dir=new URL('../supabase/migrations/',import.meta.url);
  for(const f of (await readdir(dir)).sort().filter(x=>x.endsWith('.sql')&&x!=='20261022160000_private_morning_reports.sql'))await db.exec((await readFile(new URL(f,dir),'utf8')).replace('create extension if not exists pgcrypto;','').replaceAll('clock_timestamp()','public.test_pilot_clock()'));
  await db.query('insert into auth.users values($1,$2)',[PILOT_OWNER,'pilot@example.test']);
- const role=async(r,sql,args=[])=>{await db.exec(`set role ${r};set request.jwt.claim.role='${r}'`);try{return await db.query(sql,args);}finally{await db.exec('reset role;reset request.jwt.claim.role');}};
+ const role=async(r,sql,args=[],sub=PILOT_OWNER)=>{await db.exec(`set role ${r};set request.jwt.claim.role='${r}';set request.jwt.claim.sub='${sub}'`);try{return await db.query(sql,args);}finally{await db.exec('reset role;reset request.jwt.claim.role;reset request.jwt.claim.sub');}};
  await assert.rejects(role('authenticated','select public.create_v3_pilot(1,$1,$2)',[understanding(PILOT_SPECS[0].instruction),pilotSource(PILOT_SPECS[0])]),/permission denied/);
  const ids=[];
  for(let i=0;i<4;i++){
@@ -17,6 +17,10 @@ test('private pilot SQL: auth, atomic slots, baseline, fence, outbox and pause',
  assert.equal((await role('service_role','select public.create_v3_pilot($1,$2,$3) id',args)).rows[0].id,id);
  }
  assert.equal((await db.query('select count(*)::int n from public.watches')).rows[0].n,4);
+ assert.equal((await role('authenticated','select public.get_media_watch_email_policy($1) value',[ids[1]])).rows[0].value.enabled,true);
+ assert.equal((await role('authenticated','select public.get_media_watch_email_policy($1) value',[ids[1]],'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')).rows[0].value,null);
+ await role('authenticated',"select public.set_media_watch_email_policy($1,'off',false)",[ids[1]]);
+ await role('authenticated',"select public.set_media_watch_email_policy($1,'daily_digest',true)",[ids[1]]);
  let claimed=(await role('service_role','select public.claim_v3_pilot_checks() rows')).rows[0].rows;assert.equal(claimed.length,4);assert.deepEqual(claimed.find(r=>r.slot===2).criteria,{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'});
  const results=claimed.map((r,i)=>({evidence:{id:'baseline-'+i,title:'Baseline',content:'Known development',source:'Test',url:'https://example.test/feed'},items:[{id:'baseline-'+i,title:'Known development',url:'https://example.test/article',publishedAt:'2026-10-31T00:00:00Z'}],judgment:null,article:null}));
  for(let i=0;i<claimed.length;i++)assert.equal((await role('service_role','select public.finish_v3_pilot_check($1,$2,$3) ok',[claimed[i].id,claimed[i].token,results[i]])).rows[0].ok,true);
@@ -24,6 +28,7 @@ test('private pilot SQL: auth, atomic slots, baseline, fence, outbox and pause',
  assert.equal(new Date((await db.query('select next_due_at from public.structured_media_schedules limit 1')).rows[0].next_due_at).toISOString(),'2026-11-01T06:00:00.000Z');
  await db.exec("update public.structured_media_schedules set next_due_at='2026-10-31T07:15:00Z'");
  claimed=(await role('service_role','select public.claim_v3_pilot_checks() rows')).rows[0].rows;
+ const failed=claimed[1];await role('service_role','select public.fail_v3_pilot_check($1,$2)',[failed.id,failed.token]);assert.equal((await db.query("select history->-1->>'status' status from public.v3_pilot_watches where watch_id=$1",[failed.id])).rows[0].status,'failed');
  const r=claimed[0],base=results[0];
  const alert={...base,evidence:{...base.evidence,id:'new-event'},judgment:{action:'ALERT',evidence_status:'CONFIRMED',evidence_basis:[{quote:'A new development'}]},article:{title:'CONFIRMED: A new development',url:'https://example.test/new',publishedAt:'2026-10-31T00:00:00Z',source:'Test'}};
  assert.equal((await role('service_role','select public.finish_v3_pilot_check($1,$2,$3) ok',[r.id,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',alert])).rows[0].ok,false);
