@@ -79,3 +79,50 @@ Rollback: restore previous deployment/commit. Keep backward-compatible schema in
 ## Production verification and final result
 
 Pending release/actual UI reproduction. No successful Watch 5 is claimed by this local gate. Original pilot observation window remains 1–7 November 2026 Europe/Paris (exclusive end `2026-11-08T00:00:00+01:00`). Final deployed commit, canary ID, source readiness, integrity comparison and ledger metadata will be recorded here after verification.
+
+### Release result
+
+Implementation/deployment commit: `3bc786cbc9142c1bb64ba07ab08288b385173ac2`.
+Migration applied successfully to Production; SHA-256 `b07e7032cb78b5dc7df13f622428b86566c9ab210c48e48aa86f284ed2c1aa5d`.
+Post-migration fingerprints equal initial values for core pilot state/schedules and historical reports; exact canary count remains zero. Installed security verified: RLS true; anon/authenticated RPC EXECUTE false; authenticated sidecar SELECT false; service-role RPC EXECUTE true. No RLS weakening or credential/config changes.
+
+Production deployment `dpl_8A8U3KrQA7ZRsjThMtF81Z2MorJe` **READY** at `watch-assistant-k92sw2o5s-david-lang.vercel.app`; alias `https://watch-assistant-omega.vercel.app` independently resolves to this exact commit. Source branch `master`, framework Vite, Node 24. Default Git deployment path used after local gate and migration; no cron/environment edits. Initial deployment runtime log scan found no entries/errors, not evidence of a completed creation request.
+
+Eight explicit semantic/reference/condition/adapter boundary files were also compared byte-for-byte against previous HEAD and are unchanged. New general adapter and migration are the only execution/persistence integration changes.
+
+The previous browser authorization covered read-only inspection only. An explicit request for one real UI canary submission was sent after deployment became READY; no automatic browser submission is authorized by that earlier read-only grant. Pending that reply, Production reproduction remains 0 attempts.
+
+### Current completion status — waiting for the single browser submission authorization
+
+| Field | Verified result |
+|---|---|
+| General new Watch engine | V3 Intent → generic private persistence → active schedule → V3 evidence-ref runtime |
+| Exact-instruction selection in general creation/runtime | NO; original pilot compatibility evaluator retained |
+| Engine/version authoritative | YES |
+| Legacy runtime / original four unchanged | YES / YES |
+| Supported READY persists | YES locally through actual SQL; actual UI Production creation not yet attempted |
+| Clarification / unsupported persists | NO / NO |
+| Technical failures | No partial transaction; pre-write failures leave no rows. A lost response after commit can be uncertain; same-owner original/UUID lookup prevents duplicates |
+| Text preserved on non-create | YES |
+| Original/canonical/references/constraints/resource/owner/engine/baseline | Persisted and tested |
+| General schedule / duplicate guard | YES / YES |
+| Global cron modified | NO |
+| V3 Brain/evidence refs active for generic scheduler | YES locally verified; no live judgment forced during creation |
+| New connector/crawler | NO |
+| RLS weakened / auth bypass / cross-account privilege / secret exposure | NO / NO / NO / NO |
+| Auth integration changed | NO; existing authenticated access reused |
+| V3 Intent / Brain / evidence refs / grounding / alert / condition policy modified | NO each |
+| Home history / global email / Morning Brief logic modified | NO each |
+| Hard stop triggered | NO; Production UI verification waits for scoped browser authorization |
+| Actual Production canary submissions | 0 |
+| Accepted / Intent decision / visible / engine / baseline / eligibility | NOT TESTED through actual UI yet |
+| Watch created / ID / active schedule | NO / none / none for canary |
+| Duplicate / immediate false alert created by task | NO / NO |
+| Original four unchanged / observation window unchanged | YES / YES |
+| Watch 5 added / marked post-start / ledger updated | NO / NO / NO; no fabricated canary metadata |
+
+Files in the implementation commit: `api/v3-pilot.js`; `server/v3-creation.js`, `server/v3-creation.test.js`, `server/v3-pilot.js`, `server/v3-pilot.test.js`, `server/structured-watch-api.js`, `server/media-watch-api.js`, `server/media-watch-check-api.js`, `server/watch-email-outbox-regression.test.js`; `src/js/currency-watch.js`, `src/js/navigation.js`, `src/js/structured-watch-creation.js`, `src/js/structured-watch-creation.test.js`; the single migration; this single report. Other pre-existing untracked reports were preserved.
+
+Current final classification: **GENERAL V3 CREATION PARTIAL** — implementation deployed and local gate passed; required actual UI reproduction/canary/ledger verification remain pending authorization, not a claimed observed Production success.
+
+Current recommendation: **REVIEW REMAINING GENERAL CREATION GAP** — finish the one authorized UI canary verification; no additional semantic tuning, connector or duplicate test is proposed.
