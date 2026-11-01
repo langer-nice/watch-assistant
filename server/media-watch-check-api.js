@@ -1,3 +1,4 @@
+import {pilotDatabaseMatches} from './v3-pilot.js';
 import {stagingLegacyEnabled,legacyStagingOwner} from './staging-legacy-notifications.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import {structuredMediaNotificationIntentsEnabled} from './structured-media-notification-gates.js';
@@ -59,6 +60,11 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     }
     prior = Array.isArray(row.media_watch_snapshots) ? row.media_watch_snapshots[0] : row.media_watch_snapshots;
     service = serviceClient || createSupabaseServiceClient(options);
+    if(pilotDatabaseMatches(options.env||process.env)){
+      const v3=await service.from('v3_pilot_watches').select('engine').eq('watch_id',row.id).eq('user_id',user.id).maybeSingle();
+      if(v3.error)throw Object.assign(Error('Engine unavailable'),{code:'PERSISTENCE_UNAVAILABLE'});
+      if(v3.data?.engine==='wa-v3-evidence-refs.v1')return send(409,{code:'V3_SCHEDULED_CHECK_ONLY'});
+    }
     if (hasDefinitionVersion(row.watch_definition) && (options.env || process.env).STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true') {
       const claim = await service.rpc('claim_structured_media_manual_check', {
         p_watch_id: row.id, p_owner: user.id, p_revision: row.media_revision,

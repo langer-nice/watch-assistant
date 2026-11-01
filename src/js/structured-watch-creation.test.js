@@ -151,3 +151,32 @@ test('non-news interpretations return to their existing route without review or 
  assert.equal(await h.run(),false);assert.equal(h.review(),null);assert.equal(h.state.rpcCount,0);
  assert.equal(h.state.calls.some(c=>c.body?.action==='issue'),false);
 });
+
+for(const outcome of ['READY_TO_MONITOR','NEEDS_CLARIFICATION','UNSUPPORTED_FOR_NOW','technical'])test(`general V3 UI: ${outcome} never falls through to interpretation.v1`,async t=>{
+ const previousDocument=globalThis.document,previousWindow=globalThis.window;
+ const {document}=parseHTML('<form><textarea></textarea><p></p></form>');globalThis.document=document;globalThis.window={location:{href:''}};
+ const form=document.querySelector('form'),input=document.querySelector('textarea'),error=document.querySelector('p');
+ input.value='Keep me updated on important new developments concerning protests, strikes and major social movements in France.';const original=input.value;
+ configureStructuredWatchCreation({getState:()=>({status:'authenticated',session:{user:{id:owner},access_token:'fixture-only'}})});
+ t.after(()=>{globalThis.document=previousDocument;globalThis.window=previousWindow;configureStructuredWatchCreation(null);});
+ const calls=[];const id='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+ const controller=initStructuredWatchCreation({form,input,error,getLanguage:()=> 'en',uuid:()=>id,listen:(n,e,f)=>n?.addEventListener(e,f),fetchImpl:async(path,req)=>{
+  calls.push({path,body:req.body?JSON.parse(req.body):null});
+  if(path==='/api/structured-watches')return Response.json({enabled:true,v3Create:true,monitoringEnabled:true});
+  assert.equal(path,'/api/v3-pilot');
+  return outcome==='technical'?Response.json({code:'V3_CREATION_UNAVAILABLE'},{status:503}):Response.json({status:outcome,id:outcome==='READY_TO_MONITOR'?id:undefined,clarification_question:outcome==='NEEDS_CLARIFICATION'?'Which company?':undefined,reason:'A supported connector is required.'});
+ }});
+ assert.equal(await controller.runV3(original,'en'),true);assert.equal(input.value,original);
+ assert.deepEqual(calls.map(c=>c.path),['/api/structured-watches','/api/v3-pilot']);assert.deepEqual(calls[1].body,{instruction:original,watchId:id,captureKind:'FREE_TEXT'});
+ if(outcome==='READY_TO_MONITOR')assert.match(window.location.href,/watch-detail.html\?id=/);
+ else{assert.equal(window.location.href,'');assert.match(error.textContent,outcome==='NEEDS_CLARIFICATION'?/Which company/:outcome==='UNSUPPORTED_FOR_NOW'?/cannot be monitored yet/:/Creation could not be confirmed/);}
+ if(outcome==='technical'){await controller.runV3(original,'en');assert.equal(calls[2].body.watchId,id);}
+});
+
+test('general V3 entry precedes legacy planning, currency and URL routing; edit remains excluded',async()=>{
+ const {readFile}=await import('node:fs/promises');const source=await readFile(new URL('./navigation.js',import.meta.url),'utf8');
+ const start=source.indexOf("editor.listen(form, 'submit'");const submit=source.slice(start);
+ const entry=submit.indexOf('await structuredCreation?.runV3');assert.ok(entry>0);
+ for(const later of ['parseCurrencyRequest(request)','await requestWatchPlan(request)','if (isUrl(request))'])assert.ok(entry<submit.indexOf(later));
+ assert.match(submit,/if \(!isEditMode && await structuredCreation\?\.runV3/);
+});

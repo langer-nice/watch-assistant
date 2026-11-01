@@ -1,4 +1,4 @@
-import {PILOT_OWNER,pilotDatabaseMatches,pilotReadRows} from './v3-pilot.js';
+import {pilotDatabaseMatches,pilotReadRows} from './v3-pilot.js';
 import {createSupabaseServiceClient} from './supabase-service.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import { validateMediaQuery } from '../src/js/media-provider-query.js';
@@ -35,7 +35,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
         watches.push(...data);
         if (data.length < 100) break;
       }
-      if(user.id===PILOT_OWNER&&pilotDatabaseMatches(options.env||process.env)){
+      if(pilotDatabaseMatches(options.env||process.env)){
         const service=options.serviceClient||createSupabaseServiceClient(options);
         watches.splice(0,watches.length,...await pilotReadRows(watches,user.id,{client:service,env:options.env||process.env}));
       }

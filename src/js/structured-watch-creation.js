@@ -46,7 +46,7 @@ export const structuredCreationError = (code,language) => {
 };
 
 export const initStructuredWatchCreation = ({form,input,noteInput,error,getLanguage,listen,isCurrent=()=>true,fetchImpl=(...args)=>fetch(...args),uuid=()=>crypto.randomUUID()}) => {
- let enabled=false, monitoringEnabled=false, pilotOwner=null, generation=0, pending=null, busy=false, panel, reviewNote='';
+ let enabled=false, monitoringEnabled=false, v3Owner=null, v3Submission=null, generation=0, pending=null, busy=false, panel, reviewNote='';
  const message=text=>{if(error)error.textContent=text;const inline=panel?.querySelector('.structured-review-error');if(inline)inline.textContent=text;};
  const labels=()=>copy[getLanguage()==='fr'?'fr':'en'];
  const clear=()=>{generation++;pending=null;panel?.remove();panel=null;form.classList.remove('is-reviewing');};
@@ -75,7 +75,7 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
  const access=async()=>{
   if(!activeSession())return;
   const accessOwner=activeSession()?.user?.id;
-  try {const result=await request('/api/structured-watches');if(!isCurrent()||activeSession()?.user?.id!==accessOwner||result.enabled!==true)return;enabled=true;pilotOwner=result.v3Pilot===true?accessOwner:null;monitoringEnabled=result.monitoringEnabled===true;
+  try {const result=await request('/api/structured-watches');if(!isCurrent()||activeSession()?.user?.id!==accessOwner||result.enabled!==true)return;enabled=true;v3Owner=result.v3Create===true?accessOwner:null;monitoringEnabled=result.monitoringEnabled===true;
   }catch{/* Default/public flow stays unchanged. No AI or persistence request. */}
  };
  const invalidateInput=()=>{if(busy||pending||panel){clear();message(labels().stale);}};
@@ -86,10 +86,22 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   if(busy)return true;
   if(!enabled){const epoch=generation;busy=true;try{await accessReady;}finally{busy=false;}if(epoch!==generation)return true;}
   if(!enabled)return false;
-  if(pilotOwner&&pilotOwner===activeSession()?.user?.id){
+  reviewNote=(noteInput?.value||'').trim();
+  if(v3Owner&&v3Owner===activeSession()?.user?.id){
+   if(!v3Submission||v3Submission.original!==original)v3Submission={original,id:uuid()};
+   const epoch=generation,owner=activeSession()?.user?.id;
    busy=true;message(labels().busy);
-   try{const result=await request('/api/v3-pilot',{instruction:original});if(result.pilot===true){if(isCurrent())window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);return true;}}
-   catch{message('Pilot creation could not complete. Your instruction has been kept.');return true;}
+   try{
+    const captureKind=/^https:\/\/\S+$/i.test(original.trim())?'URL':'FREE_TEXT';
+    const result=await request('/api/v3-pilot',{instruction:original,watchId:v3Submission.id,captureKind});
+    if(!ready(epoch,owner,original,language))return true;
+    if(result.status==='READY_TO_MONITOR'&&result.id){window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);return true;}
+    if(result.status==='NEEDS_CLARIFICATION'){message(result.clarification_question||labels().clarify);return true;}
+    if(result.status==='UNSUPPORTED_FOR_NOW'){message(labels().unsupported+' '+(result.reason||''));return true;}
+    throw Error('Invalid V3 response');
+   }catch(e){if(ready(epoch,owner,original,language))message(e.code==='V3_CREATION_UNAVAILABLE'
+    ? (language==='fr'?'La création n’a pas pu être confirmée. Votre texte est conservé.':'Creation could not be confirmed. Your text has been kept.')
+    : structuredCreationError(e.code,language));return true;}
    finally{busy=false;}
   }
   clear();reviewNote=(noteInput?.value||'').trim();busy=true;const epoch=generation,owner=activeSession()?.user?.id,c=labels();
@@ -184,5 +196,5 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   return true;
  };
  const accessReady=access();
- return {run,invalidate:clear,isEnabled:()=>enabled};
+ return {run,runV3:async(original,language)=>{await accessReady;return v3Owner?run(original,language):false;},invalidate:clear,isEnabled:()=>enabled};
 };

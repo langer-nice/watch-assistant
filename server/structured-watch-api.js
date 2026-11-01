@@ -1,4 +1,4 @@
-import {PILOT_OWNER,pilotEnabled} from './v3-pilot.js';
+import {v3CreationEnabled} from './v3-creation.js';
 import {resolveCurrentRole} from './role-development.js';
 import {roleDevelopmentIntent} from '../src/js/role-development.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
@@ -63,7 +63,7 @@ export const createStructuredWatchMiddleware = ({ env = process.env, authenticat
   try {
     const { user, client } = await authenticate(request,{env,...options});
     requireStructuredCreationAccess(user,env);
-    if (request.method === 'GET') return send(200,{enabled:true,monitoringEnabled:env.STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true',...(pilotEnabled(env)&&user.id===PILOT_OWNER?{v3Pilot:true}:{})});
+    if (request.method === 'GET') return send(200,{enabled:true,monitoringEnabled:env.STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true',...(v3CreationEnabled(env)?{v3Create:true}:{})});
     const body = await readBody(request);
     if (body.action === 'monitoring') {
       // Authenticated owner and the exact Staging rollout gates are authoritative.

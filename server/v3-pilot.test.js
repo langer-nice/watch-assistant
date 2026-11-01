@@ -75,13 +75,13 @@ test('baseline makes no judgment call and bad refs cannot reach delivery',async(
  row.baseline_at='2026-10-30T00:00:00Z';await assert.rejects(evaluatePilot(row,{feed:feedFor('New Mac','Apple introduced a Mac.'),model:async()=>({action:'ALERT',evidence_status:'CONFIRMED',reason:'New Mac.',evidence_refs:['invented'],provenance_refs:[]})}),/reference/i);
 });
 
-test('pilot creation capability is private and scoped to the authenticated owner',async()=>{
+test('general V3 creation capability is scoped to authenticated Production access',async()=>{
  const {createStructuredWatchMiddleware}=await import('./structured-watch-api.js');
  const env={V3_PILOT_ENABLED:'true',VERCEL_ENV:'production',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',VERCEL_GIT_COMMIT_REF:'master',SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',STRUCTURED_PRODUCTION_ENABLED:'true',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true'};
  for(const id of [PILOT_OWNER,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']){
  let body;const res={setHeader(){},end(text){body=JSON.parse(text);}};
  await createStructuredWatchMiddleware({env,authenticate:async()=>({user:{id},client:{}})})({method:'GET',url:'/api/structured-watches'},res);
- assert.equal(res.statusCode,200);assert.equal(body.v3Pilot===true,id===PILOT_OWNER);assert.ok(!JSON.stringify(body).includes(PILOT_OWNER));
+ assert.equal(res.statusCode,200);assert.equal(body.v3Create,true);assert.equal(body.v3Pilot,undefined);assert.ok(!JSON.stringify(body).includes(PILOT_OWNER));
  }
  const browserCode=await readFile(new URL('../src/js/structured-watch-creation.js',import.meta.url),'utf8');assert.ok(!browserCode.includes(PILOT_OWNER));for(const spec of PILOT_SPECS)assert.ok(!browserCode.includes(spec.instruction));
 });
@@ -107,7 +107,7 @@ test('only authenticated pilot rows receive typed read compatibility; legacy par
  for(const owner of [PILOT_OWNER,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']){
   const row={id,user_id:owner,title:'GBP/EUR > 1.17',watch_definition:definition,monitoring_source:pilotSource(PILOT_SPECS[1]),monitoring_state:'monitoring',current_status:'watching',created_at:'2026-10-31T00:00:00Z'};
   const query={select(){return this;},eq(key,value){if(key==='user_id')assert.equal(value,owner);return this;},order(){return this;},async range(){return {data:[row],error:null};}};
-  const handler=createMediaWatchMiddleware({env,authenticate:async()=>({user:{id:owner},client:{from:()=>query}}),serviceClient:{from:()=>({select:()=>({eq:async(key,value)=>{assert.equal(key,'user_id');assert.equal(value,PILOT_OWNER);return {data:[{watch_id:id,engine:PILOT_ENGINE}],error:null};}})})}});
+  const handler=createMediaWatchMiddleware({env,authenticate:async()=>({user:{id:owner},client:{from:()=>query}}),serviceClient:{from:()=>({select:()=>({eq:async(key,value)=>{assert.equal(key,'user_id');assert.equal(value,owner);return {data:owner===PILOT_OWNER?[{watch_id:id,engine:PILOT_ENGINE}]:[],error:null};}})})}});
   let body;const res={setHeader(){},end(text){body=JSON.parse(text);}};await handler({url:'/api/media-watches',method:'GET'},res);assert.equal(res.statusCode,200);
   const watch=mapMediaReportRow(body.watches[0],owner);
   if(owner===PILOT_OWNER){assert.deepEqual(currencyCriteriaFor(watch),definition.currencyCriteria);assert.equal(mediaWatchDefinition(watch).watch_definition.request,definition.request);}else assert.equal(watch.v3Engine,undefined);

@@ -31,7 +31,8 @@ for (const [kind, processNotifications] of [
         assert.equal(table, `${kind}_watch_notifications`);
         const predicates = [];
         const query = {
-          select(fields) { assert.equal(fields, 'id'); return query; },
+          select(fields) { assert.equal(fields, kind==='media'?'id,watches!inner(watch_definition,user_id)':'id'); return query; },
+          is(key,value) { assert.equal(key,'watches.watch_definition->>definitionVersion');assert.equal(value,null);return query; },
           eq(key, value) { predicates.push(row => row[key] === value); return query; },
           or(expression) {
             assert.match(expression, /^claim_token\.is\.null,claimed_at\.lt\./);
@@ -42,7 +43,7 @@ for (const [kind, processNotifications] of [
           order() { return query; },
           async range(start, end) {
             const data = rows.filter(row => predicates.every(predicate => predicate(row)))
-              .slice(start, end + 1).map(({ id }) => ({ id }));
+              .slice(start, end + 1).map(({ id }) => ({ id, ...(kind==='media'?{watches:{watch_definition:{},user_id:'user'}}:{}) }));
             selected.push(...data.map(row => row.id));
             return { data, error: null };
           },

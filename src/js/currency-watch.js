@@ -46,7 +46,7 @@ export const parseCurrencyRequest = (request) => {
 };
 export const currencyCriteriaFor = (watch) => {
   if(Object.hasOwn(watch||{},'definitionVersion')||watch?.inputType!=='text')return null;
-  if(watch.v3Engine==='wa-v3-evidence-refs-pilot.v1'&&watch.monitoringSource?.type==='currency'){
+  if(['wa-v3-evidence-refs-pilot.v1','wa-v3-evidence-refs.v1'].includes(watch.v3Engine)&&watch.monitoringSource?.type==='currency'){
     const c=watch.currencyCriteria,op={gt:'>',gte:'>='}[c?.operator];
     const parsed=op?parseCurrencyRequest(`${c.base} ${op} ${c.target} ${c.quote}`):null;
     return sameCurrencyCriteria(parsed,c)?parsed:null;

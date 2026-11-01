@@ -18,7 +18,7 @@ export const PILOT_SPECS=Object.freeze([
 export const pilotDatabaseMatches=env=>env.VERCEL_ENV==='production'&&env.VERCEL_PROJECT_ID==='prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF'&&env.SUPABASE_URL==='https://cztpitujsnzhhenedwjn.supabase.co';
 export const pilotEnabled=env=>env.V3_PILOT_ENABLED==='true'&&pilotDatabaseMatches(env)&&env.STRUCTURED_PRODUCTION_ENABLED==='true';
 export async function pilotReadRows(rows,owner,{client,env=process.env}={}){
- if(owner!==PILOT_OWNER||!pilotDatabaseMatches(env))return rows;
+ if(!pilotDatabaseMatches(env)||!rows.some(row=>row.type==='media_news'||row.watch_definition))return rows;
  const marked=await client.from('v3_pilot_watches').select('watch_id,engine').eq('user_id',owner);
  if(marked.error)throw Error('Pilot read unavailable');
  const engines=new Map(marked.data.map(row=>[row.watch_id,row.engine]));
@@ -45,13 +45,20 @@ export function connectorCurrencyRequest(criteria){
 }
 export async function evaluatePilot(row,{feed=fetchAndNormalizeFeed,currency=fetchCurrencyRate,model}={}){
  const spec=PILOT_SPECS[row.slot-1];if(!spec||row.user_id!==PILOT_OWNER||row.engine!==PILOT_ENGINE||row.instruction!==spec.instruction)throw Error('Pilot identity mismatch');
+ return evaluateV3Source(row,pilotSource(spec),{feed,currency,model});
+}
+export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,currency=fetchCurrencyRate,model}={}){
+ if(!source||!['feed','currency'].includes(source.type))throw Error('Invalid V3 source');
+ const isCurrency=source.type==='currency';
  let evidence,items,evaluation;
- if(spec.currency){
+ if(isCurrency){
   const rate=await currency(connectorCurrencyRequest(row.criteria));evaluation=evaluateCurrencyRate(rate.criteria,rate.observation);
-  const quote=`GBP/EUR ${evaluation.observedRate}`;
-  evidence={id:hash(JSON.stringify(rate.observation)),title:'ECB GBP/EUR reference observation',content:`${quote} (display truncated at 12 decimal places). Source observation: ${rate.observation.base}/${rate.observation.quote} ${rate.observation.rate}. Exact rational comparison GBP/EUR > 1.17: ${evaluation.met}.`,measurement:{metric:'GBP/EUR',value:String(evaluation.observedRate),quote},source:'ECB',url:pilotSource(spec).url,published_at:rate.observation.date+'T00:00:00Z',retrieved_at:rate.checkedAt};
+  const metric=row.engine==='wa-v3-evidence-refs.v1'?`${row.criteria.base}/${row.criteria.quote}`:'GBP/EUR';
+  const comparison=row.engine==='wa-v3-evidence-refs.v1'?`${metric} ${row.criteria.operator==='gt'?'>':'>='} ${row.criteria.target}`:'GBP/EUR > 1.17';
+  const quote=`${metric} ${evaluation.observedRate}`;
+  evidence={id:hash(JSON.stringify(rate.observation)),title:`ECB ${metric} reference observation`,content:`${quote} (display truncated at 12 decimal places). Source observation: ${rate.observation.base}/${rate.observation.quote} ${rate.observation.rate}. Exact rational comparison ${comparison}: ${evaluation.met}.`,measurement:{metric,value:String(evaluation.observedRate),quote},source:'ECB',url:source.url,published_at:rate.observation.date+'T00:00:00Z',retrieved_at:rate.checkedAt};
   items=[{id:evidence.id,title:evidence.title,excerpt:quote,url:evidence.url,publishedAt:evidence.published_at,source:'ECB'}];
- }else{const f=await feed(pilotSource(spec).url);items=f.items.slice(0,20);evidence=feedEvidence(f);}
+ }else{const f=await feed(source.url);items=f.items.slice(0,20);evidence=feedEvidence(f);}
  const prior={entries:[...(row.prior_state?.entries||[]),...(row.baseline_at?[{id:'pilot-baseline:'+row.id,fact:'Monitoring baseline established at '+row.baseline_at,date:row.baseline_at,alerted:false}]:[])]};
  const input=toBrainInput(row.understanding,evidence,prior);
  // Initial evidence is a baseline, never a creation alert and never a model call.
@@ -59,8 +66,8 @@ export async function evaluatePilot(row,{feed=fetchAndNormalizeFeed,currency=fet
  const judgment=await judgeReferenceEvidence(input,{model});
  let article=null;
  if(judgment.action==='ALERT'){
-  if(spec.currency&&(!evaluation.met||row.evaluation?.met))throw Error('Numeric condition not satisfied');
-  const chosen=spec.currency?items[0]:items.find(i=>judgment.evidence_basis.some(b=>b.text.includes(i.title)||i.excerpt&&b.text.includes(i.excerpt)));
+  if(isCurrency&&(!evaluation.met||row.evaluation?.met))throw Error('Numeric condition not satisfied');
+  const chosen=isCurrency?items[0]:items.find(i=>judgment.evidence_basis.some(b=>b.text.includes(i.title)||i.excerpt&&b.text.includes(i.excerpt)));
   if(!chosen?.url)throw Error('No selected evidence article');
   article={title:`${judgment.evidence_status==='STRONG_UNCONFIRMED'?'Unconfirmed reports: ':''}${judgment.reason}`.slice(0,300),url:chosen.url,summary:judgment.reason,publishedAt:chosen.publishedAt,source:chosen.sourceTitle||chosen.source||evidence.source};
  }
@@ -71,7 +78,9 @@ export async function runPilotMonitoring({client,env=process.env,schedulerAuthor
  const claim=await client.rpc('claim_v3_pilot_checks');if(claim.error)throw Error('Pilot claim failed');
  const rows=claim.data||[];let completed=0,failed=0;
  await Promise.all(rows.map(async row=>{try{
-  const result=await evaluatePilot(row,{feed,currency,model:model||createBrainModel({apiKey:env.OPENAI_API_KEY})});
+  const options={feed,currency,model:model||createBrainModel({apiKey:env.OPENAI_API_KEY})};
+  const result=row.engine==='wa-v3-evidence-refs.v1'
+   ? await evaluateV3Source(row,row.source,options) : await evaluatePilot(row,options);
   const saved=await client.rpc('finish_v3_pilot_check',{p_id:row.id,p_token:row.token,p_result:result});if(saved.error||saved.data!==true)throw Error('Pilot completion fenced');completed++;
  }catch{failed++;await client.rpc('fail_v3_pilot_check',{p_id:row.id,p_token:row.token});}}));
  return {status:failed?'partial-success':'success',claimed:rows.length,completed,failed};
