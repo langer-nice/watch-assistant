@@ -92,10 +92,27 @@ Rollback: restore previous Production deployment `dpl_BgXGiFNkSvPYSKGZrgjPKr2cJm
 
 ## Production verification
 
-Release/version/served frontend asset verification pending below. A disposable Watch is unnecessary given the real-reader/controller instrumentation and unchanged backend regression; no real create POST, readiness GET, source check or Watch mutation has been executed by this task. Five pilot Watches and their ledger/window are not modified. No Production database operation or credential/config change.
+Deployment commit: `65fe77507657225a336d6298913e7d9098d4c939`.
+Production deployment: `dpl_94bXHhjPVjeEZQzJ2yY5YWLAS92Q`, **READY**, URL `watch-assistant-ghr1bbotr-david-lang.vercel.app`. Alias `https://watch-assistant-omega.vercel.app` independently resolves to that exact commit.
+
+Served public HTML/main/shared-read assets verified with normal TLS validation and no credentials. HTTP 200. Main asset `/assets/main-C0HZAoUy.js` contains the confirmation adapter option and exact confirmed-creation waiting copy; SHA-256 `a7cfe5193deb8b6d9254561df7e0563a8642fe34a2589cc6f464ccd1b4d2d325`. The existing GET endpoint is in its referenced shared chunk `/assets/watch-storage-DkjLZ3P0.js`; SHA-256 `1709fa4a339e97826085cd66087f3ea9e00a33bca49375be604447ca6a6bcfa8`. Artifact: `/private/tmp/wa-readiness/production-assets.json`. No static asset check is misrepresented as a live create/confirmation attempt.
+
+A disposable Watch is unnecessary given the real-reader/controller instrumentation, cache handoff browser test and unchanged backend regression. No real create POST, post-create readiness GET, source check or Watch mutation has been executed by this task. Five pilot Watches and their ledger/window are not modified by this task. No direct Production database query, credential/config change or email action.
+
+| Production verification field | Result |
+|---|---|
+| Released commit / alias / assets | Verified READY / exact commit / new logic and copy served |
+| Disposable Watch used | NO |
+| Live creation succeeded in this task | NOT ATTEMPTED; unchanged creation regression PASS locally |
+| Live transient not-found observed | NOT TESTED through another create; no occurrence in controlled success navigation |
+| Readiness failure state | NOT_TRIGGERED live; exact copy/no repeats verified in local browser and real-reader tests |
+| Disposable Watch deleted | Not applicable, none created |
+| Five pilots modified by task | NO |
+
+No new build/tests were run solely for report finalization. The local test HTTP server and temporary dependency link were removed after verification.
 
 Hard stop triggered: **NO**, this request explicitly authorizes the one read that was prohibited in the preceding task.
 
-Final classification: **POST-CREATE READINESS CONFIRMATION FIXED** (local gate passed; release verification to follow).
+Final classification: **POST-CREATE READINESS CONFIRMATION FIXED**.
 
 Recommendation: **CONTINUE 7-DAY OBSERVATION**. If the single read cannot confirm, use the existing All Watches navigation later; do not restart creation automatically.
