@@ -5,6 +5,7 @@ import {reportSyncState} from './report-sync.js';
 import { articleWatchDisplayCategory, localizedGeneratedArticleScope } from './article-watch-presentation.js';
 import { canManuallyCheckWatch, manualCheckIssue } from './watch-manual-check.js';
 import { initStructuredWatchCreation } from './structured-watch-creation.js';
+import { isWatchCreationTransition, watchCreationCopy } from './watch-creation-presentation.js';
 import { creationConfirmationKey, watchCreationState } from './watch-creation-state.js';
 import { showCurrencyCreationReview } from './currency-creation-review.js';
 import { parseCurrencyRequest, normalizeCurrencyWatch, CURRENCY_SOURCE } from './currency-watch.js';
@@ -1438,7 +1439,9 @@ const renderWatchDetail = () => {
   };
 
   if (!watch) {
-    const uncertain = getWatchListAvailability().uncertain;
+    const availability = getWatchListAvailability();
+    const creating = isWatchCreationTransition({id:watchId,found:false,availability});
+    const uncertain = availability.uncertain || creating;
     titleEl.textContent = uncertain ? t('detail.title') : t('detail.notFoundTitle');
     if (categoryEl) {
       categoryEl.hidden = true;
@@ -1450,13 +1453,16 @@ const renderWatchDetail = () => {
       editActionEl.hidden = true;
     }
     if (notFoundEl) {
-      notFoundEl.textContent = t('detail.notFoundCopy');
-      notFoundEl.hidden = uncertain;
+      notFoundEl.textContent = creating ? watchCreationCopy(getLanguage()).opening : t('detail.notFoundCopy');
+      notFoundEl.hidden = uncertain && !creating;
+      if (creating) { notFoundEl.setAttribute('role','status');notFoundEl.setAttribute('aria-busy','true'); }
+      else { notFoundEl.removeAttribute('role');notFoundEl.removeAttribute('aria-busy'); }
     }
     hideDetailContent();
     return;
   }
 
+  isWatchCreationTransition({id:watchId,found:true,availability:getWatchListAvailability()});
   trackProductEventOnce(
     PRODUCT_EVENTS.WATCH_DETAIL_VIEWED,
     { watch_state: watch.monitoringState || 'unknown' },

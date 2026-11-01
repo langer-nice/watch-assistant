@@ -3,6 +3,7 @@ import { assessCapabilities } from './watch-capabilities.js';
 import { validateInterpretation } from './watch-interpretation.js';
 import { createWatchDefinition, validateWatchDefinition, structuredMonitoringSource } from './watch-definition.js';
 import { canonicalJSON } from './structured-fingerprint.js';
+import { createWatchCreationPresentation } from './watch-creation-presentation.js';
 
 let authSource;
 export const configureStructuredWatchCreation = auth => { authSource = auth; };
@@ -46,6 +47,7 @@ export const structuredCreationError = (code,language) => {
 };
 
 export const initStructuredWatchCreation = ({form,input,noteInput,error,getLanguage,listen,isCurrent=()=>true,fetchImpl=(...args)=>fetch(...args),uuid=()=>crypto.randomUUID()}) => {
+ const presentation=createWatchCreationPresentation({form,status:error,getLanguage,listen,isCurrent});
  let enabled=false, monitoringEnabled=false, v3Owner=null, v3Submission=null, generation=0, pending=null, busy=false, panel, reviewNote='';
  const message=text=>{if(error)error.textContent=text;const inline=panel?.querySelector('.structured-review-error');if(inline)inline.textContent=text;};
  const labels=()=>copy[getLanguage()==='fr'?'fr':'en'];
@@ -91,18 +93,19 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
    if(!v3Submission||v3Submission.original!==original)v3Submission={original,id:uuid()};
    const epoch=generation,owner=activeSession()?.user?.id;
    busy=true;message(labels().busy);
+   presentation.start();
    try{
     const captureKind=/^https:\/\/\S+$/i.test(original.trim())?'URL':'FREE_TEXT';
     const result=await request('/api/v3-pilot',{instruction:original,watchId:v3Submission.id,captureKind});
     if(!ready(epoch,owner,original,language))return true;
-    if(result.status==='READY_TO_MONITOR'&&result.id){window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);return true;}
+    if(result.status==='READY_TO_MONITOR'&&result.id){presentation.navigating(result.id);window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);return true;}
     if(result.status==='NEEDS_CLARIFICATION'){message(result.clarification_question||labels().clarify);return true;}
     if(result.status==='UNSUPPORTED_FOR_NOW'){message(labels().unsupported+' '+(result.reason||''));return true;}
     throw Error('Invalid V3 response');
    }catch(e){if(ready(epoch,owner,original,language))message(e.code==='V3_CREATION_UNAVAILABLE'
     ? (language==='fr'?'La création n’a pas pu être confirmée. Votre texte est conservé.':'Creation could not be confirmed. Your text has been kept.')
     : structuredCreationError(e.code,language));return true;}
-   finally{busy=false;}
+   finally{busy=false;presentation.finish();}
   }
   clear();reviewNote=(noteInput?.value||'').trim();busy=true;const epoch=generation,owner=activeSession()?.user?.id,c=labels();
   message(c.busy);

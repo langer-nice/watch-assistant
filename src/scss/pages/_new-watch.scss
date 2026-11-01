@@ -293,6 +293,41 @@ body.is-edit-modal .language-control {
   display: none;
 }
 
+.watch-form.is-creating .watch-composer__submit {
+  color: var(--color-text-on-dark);
+  background: var(--color-action);
+  cursor: progress;
+}
+
+.watch-form.is-creating .watch-composer__submit > span:not(.watch-creation-spinner):not(#newWatchSubmitLabel) {
+  display: none;
+}
+
+.watch-creation-spinner {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  animation: watch-creation-spin 800ms linear infinite;
+}
+
+.watch-creation-spinner[hidden] { display: none; }
+
+.watch-form .watch-creation-status {
+  margin: var(--space-sm) 0 0;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+@keyframes watch-creation-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .watch-creation-spinner { animation: none; }
+}
+
 .form-error {
   min-height: 1.25rem;
   margin: calc(var(--space-sm) * -1) var(--space-xxs) 0;
