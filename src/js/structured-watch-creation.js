@@ -4,6 +4,7 @@ import { validateInterpretation } from './watch-interpretation.js';
 import { createWatchDefinition, validateWatchDefinition, structuredMonitoringSource } from './watch-definition.js';
 import { canonicalJSON } from './structured-fingerprint.js';
 import { createWatchCreationPresentation } from './watch-creation-presentation.js';
+import { confirmCreatedMediaWatchRead } from './media-watch-server-store.js';
 
 let authSource;
 export const configureStructuredWatchCreation = auth => { authSource = auth; };
@@ -46,9 +47,9 @@ export const structuredCreationError = (code,language) => {
  return c.error;
 };
 
-export const initStructuredWatchCreation = ({form,input,noteInput,error,getLanguage,listen,isCurrent=()=>true,fetchImpl=(...args)=>fetch(...args),uuid=()=>crypto.randomUUID()}) => {
+export const initStructuredWatchCreation = ({form,input,noteInput,error,getLanguage,listen,isCurrent=()=>true,fetchImpl=(...args)=>fetch(...args),uuid=()=>crypto.randomUUID(),confirmReadiness=confirmCreatedMediaWatchRead}) => {
  const presentation=createWatchCreationPresentation({form,status:error,getLanguage,listen,isCurrent});
- let enabled=false, monitoringEnabled=false, v3Owner=null, v3Submission=null, generation=0, pending=null, busy=false, panel, reviewNote='';
+ let enabled=false, monitoringEnabled=false, v3Owner=null, v3Submission=null, v3CreatedResult=null, generation=0, pending=null, busy=false, panel, reviewNote='';
  const message=text=>{if(error)error.textContent=text;const inline=panel?.querySelector('.structured-review-error');if(inline)inline.textContent=text;};
  const labels=()=>copy[getLanguage()==='fr'?'fr':'en'];
  const clear=()=>{generation++;pending=null;panel?.remove();panel=null;form.classList.remove('is-reviewing');};
@@ -85,7 +86,7 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
  listen(noteInput,'input',invalidateInput);
  listen(document,'i18n:languageChanged',clear);
  const run=async(original,language,revalidation)=>{
-  if(busy)return true;
+  if(busy||v3CreatedResult)return true;
   if(!enabled){const epoch=generation;busy=true;try{await accessReady;}finally{busy=false;}if(epoch!==generation)return true;}
   if(!enabled)return false;
   reviewNote=(noteInput?.value||'').trim();
@@ -98,7 +99,14 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
     const captureKind=/^https:\/\/\S+$/i.test(original.trim())?'URL':'FREE_TEXT';
     const result=await request('/api/v3-pilot',{instruction:original,watchId:v3Submission.id,captureKind});
     if(!ready(epoch,owner,original,language))return true;
-    if(result.status==='READY_TO_MONITOR'&&result.id){presentation.navigating(result.id);window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);return true;}
+    if(result.status==='READY_TO_MONITOR'&&result.id){
+     v3CreatedResult=result;
+     let readable=false;
+     try{readable=await confirmReadiness({id:result.id,ownerId:owner,accessToken:activeSession()?.access_token,isCurrent:()=>ready(epoch,owner,original,language)});}catch{/* A read failure does not undo successful creation. */}
+     if(!ready(epoch,owner,original,language)){if(isCurrent()&&activeSession()?.user?.id===owner)presentation.createdWaiting();return true;}
+     if(!readable){presentation.createdWaiting();return true;}
+     presentation.navigating(result.id);window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);return true;
+    }
     if(result.status==='NEEDS_CLARIFICATION'){message(result.clarification_question||labels().clarify);return true;}
     if(result.status==='UNSUPPORTED_FOR_NOW'){message(labels().unsupported+' '+(result.reason||''));return true;}
     throw Error('Invalid V3 response');

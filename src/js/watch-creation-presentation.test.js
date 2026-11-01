@@ -17,7 +17,7 @@ for(const state of ['success','error','clarify','unsupported'])test(`real V3 con
  const form=document.querySelector('form'),input=document.querySelector('textarea'),button=document.querySelector('#newWatchSubmit'),label=document.querySelector('#newWatchSubmitLabel'),status=document.querySelector('#watchError');
  input.value='Keep me updated on important developments concerning Blackburn Rovers football club';
  let release;const held=new Promise(r=>release=r);const calls=[];
- const c=initStructuredWatchCreation({form,input,error:status,getLanguage:()=> 'en',listen,uuid:()=>id,fetchImpl:async(path,req)=>{
+ const c=initStructuredWatchCreation({form,input,error:status,getLanguage:()=> 'en',listen,uuid:()=>id,confirmReadiness:async()=>true,fetchImpl:async(path,req)=>{
   calls.push({path,body:req.body?JSON.parse(req.body):null});
   if(path==='/api/structured-watches')return Response.json({enabled:true,v3Create:true});
   await held;

@@ -160,7 +160,7 @@ for(const outcome of ['READY_TO_MONITOR','NEEDS_CLARIFICATION','UNSUPPORTED_FOR_
  configureStructuredWatchCreation({getState:()=>({status:'authenticated',session:{user:{id:owner},access_token:'fixture-only'}})});
  t.after(()=>{globalThis.document=previousDocument;globalThis.window=previousWindow;configureStructuredWatchCreation(null);});
  const calls=[];const id='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
- const controller=initStructuredWatchCreation({form,input,error,getLanguage:()=> 'en',uuid:()=>id,listen:(n,e,f)=>n?.addEventListener(e,f),fetchImpl:async(path,req)=>{
+ const controller=initStructuredWatchCreation({form,input,error,getLanguage:()=> 'en',uuid:()=>id,confirmReadiness:async()=>true,listen:(n,e,f)=>n?.addEventListener(e,f),fetchImpl:async(path,req)=>{
   calls.push({path,body:req.body?JSON.parse(req.body):null});
   if(path==='/api/structured-watches')return Response.json({enabled:true,v3Create:true,monitoringEnabled:true});
   assert.equal(path,'/api/v3-pilot');

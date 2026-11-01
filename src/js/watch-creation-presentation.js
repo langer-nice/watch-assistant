@@ -1,8 +1,8 @@
 // Presentation only: no requests, retries, timers, Watch data or success tests.
 const transitionKey='watchAssistant.creationTransition';
 export const watchCreationCopy=language=>language==='fr'
- ? {button:'Création de la Watch…',pending:'Création de votre Watch…',opening:'Chargement de votre Watch…'}
- : {button:'Creating Watch…',pending:'Creating your Watch…',opening:'Loading your Watch…'};
+ ? {button:'Création de la Watch…',pending:'Création de votre Watch…',opening:'Chargement de votre Watch…',createdWaiting:'Votre Watch a été créée, mais son ouverture prend un peu plus de temps. Revenez à Toutes les Watches dans un instant.'}
+ : {button:'Creating Watch…',pending:'Creating your Watch…',opening:'Loading your Watch…',createdWaiting:'Your Watch was created, but it is taking a little longer to open. Please return to All Watches in a moment.'};
 
 export const markWatchCreationTransition=(id,{storage,now=Date.now()}={})=>{
  try{(storage??globalThis.sessionStorage)?.setItem(transitionKey,JSON.stringify({id,at:now}));}catch{/* Optional UI handoff. */}
@@ -42,6 +42,7 @@ export function createWatchCreationPresentation({form,status,getLanguage,listen,
    }
   }),
   navigating:safe(id=>{navigating=true;markWatchCreationTransition(id);}),
+  createdWaiting:safe(()=>{navigating=true;if(status)status.textContent=watchCreationCopy(getLanguage()).createdWaiting;}),
   finish:safe(()=>{
    // Keep the visible pending state until the existing navigation unloads us.
    if(!pending||navigating||!isCurrent())return;
