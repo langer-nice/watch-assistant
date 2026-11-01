@@ -72,10 +72,26 @@ Deploy only this tested UI commit to the existing project/alias. Rollback: resto
 
 ## Production verification
 
-Pending deployment/version and served asset verification. No test Watch created; none needs deletion. No create/mutation request was sent to the five pilot Watches or any real Watch in this task.
+Deployment commit: `90a4f2b614d62c0d25cda7f09595575e57a4acae`. Production deployment: `dpl_BgXGiFNkSvPYSKGZrgjPKr2cJmSN`, **READY**, URL `watch-assistant-coiqv6icz-david-lang.vercel.app`. Alias `https://watch-assistant-omega.vercel.app` independently resolves to this exact commit.
+
+Served public HTML/JS/CSS verification PASS: HTTP 200; `/assets/main-C_8t1iYt.js` contains the creating label and presentation handoff marker; `/assets/analytics-DUDm8y3E.css` contains spinner/status styling. Main JS SHA-256 `0e4b30c08ff6dd12995d7a080af5e9f25523a15b5b5c1b6dde50d5d3157e224a`; CSS SHA-256 `32bcc7fa4c7ee5b125a11f68827e9fb54c984659d07db0af857994c47c3e175c`. Artifact: `/private/tmp/wa-loading-ui/production-assets.json`. Standard system TLS validation was used; no protection or certificate check was disabled.
+
+Signed-in Production New Watch was opened read-only after release. It renders the normal idle Create Watch button (disabled for empty input), input and note controls; browser error/warning log scan was empty. No create submission was made. Pending spinner/text/status, duplicate prevention and successful unchanged response navigation were verified in the instrumented local browser and real-controller tests above, not by inventing a live pending Production request. Deployment identity and served code confirm that implementation is released.
+
+A byte comparison of all **231 tracked API/server/SQL files** against the previous Production implementation found **zero differences** (`/private/tmp/wa-loading-ui/scope.json`). Create payload literal remains identical. No test Watch created; deletion not applicable. No mutation request, source check, model call, database operation, schedule or ledger update was performed on any real Watch. The five pilot Watches are unmodified by this task; no fingerprint-based claim about external concurrent activity is made.
+
+| Production check | Result/evidence |
+|---|---|
+| UI version/served JS+CSS | YES, exact commit and assets verified |
+| Idle form renders / frontend errors | YES / none observed |
+| Spinner, loading text, status visible | YES in exact-source local browser instrumentation; released code/CSS verified |
+| Duplicate clicks/keyboard blocked | YES, frontend/browser tests; no live create request needed |
+| Successful creation unchanged | YES, identical contract/URL and existing creation regression PASS; no additional live creation claimed |
+| Test Watch created / deleted | NO / not applicable |
+| Five pilot Watches changed by task | NO |
 
 Hard stop triggered: **NO**. All changes remain presentation-only.
 
-Final classification: **CREATE WATCH LOADING UX IMPROVED — CREATION LOGIC UNCHANGED** (local gate passed; release verification pending below).
+Final classification: **CREATE WATCH LOADING UX IMPROVED — CREATION LOGIC UNCHANGED**.
 
 Recommendation: **CONTINUE 7-DAY OBSERVATION**. This change does not assert anything about future monitoring quality or other sources of a not-found state beyond the matching creation/hydration presentation gap.
