@@ -101,7 +101,7 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
         ...(definition.id === '25d970f3-4c23-4272-8f8a-e04d1ee373a2' ? {
           mutation: raw.mutation, pending: raw.pending, operation: raw.operation,
           deleted: raw.deleted, baseMutation: raw.baseMutation,
-          rejectedDefinition: definition,
+          rejectedDefinition: JSON.stringify(definition),
         } : {}),
       });
       throw Object.assign(new Error('DATABASE_ERROR'), { code: 'DATABASE_ERROR', databaseCode: error.code });
