@@ -91,6 +91,13 @@ export const createMediaWatchMiddleware = ({ authenticate = authenticateSupabase
     });
     if (error) {
       if (['PT409', '40001'].includes(error.code)) return send(409, { code: 'MEDIA_CONFLICT' });
+      // Diagnostic only: preserve the permission rejection lost by the public mapping.
+      // No request body, JWT, credential or Watch content is logged.
+      if (error.code === '42501') console.warn('[Media Watch parity]', {
+        watchId: definition.id, ownerId: user.id, revision: raw.revision,
+        rpc: mediaDailyDigestEnabled(options.env || process.env) ? 'persist_media_watch_with_digest' : 'persist_media_watch',
+        sqlstate: error.code, message: error.message, details: error.details, hint: error.hint,
+      });
       throw Object.assign(new Error('DATABASE_ERROR'), { code: 'DATABASE_ERROR', databaseCode: error.code });
     }
     return send(200, { watch: data });
