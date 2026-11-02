@@ -231,7 +231,13 @@ export const ensureMediaWatchSaved = async (watch) => {
   }
   const saved = read(user, watch.id);
   const remote = rows.find(row => row.id === watch.id && !row.deleted_at);
-  if (!synced?.ok || saved?.pending || saved?.conflict || saved?.localOnly || !remote
+  // An account sync may include another Watch's rejected mutation. Only a
+  // confirmed server read and failures exclusively outside this Watch permit
+  // its check to continue. Its own pending/conflicted state remains blocking.
+  const unrelatedFailures = synced?.readConfirmed === true
+    && Array.isArray(synced.failedWatchIds) && synced.failedWatchIds.length > 0
+    && !synced.failedWatchIds.includes(watch.id);
+  if ((!synced?.ok && !unrelatedFailures) || saved?.pending || saved?.conflict || saved?.localOnly || !remote
     || epoch !== generation || user !== owner()) throw Object.assign(new Error('Watch not synchronized'), { code: 'PERSISTENCE_UNAVAILABLE' });
   return remote;
 };
@@ -353,6 +359,8 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
       syncError = null;
       notify();
       let failure = null;
+      const failedWatchIds = new Set();
+      let readConfirmed = false;
       try {
         const jobs = readOnly || deferredRead ? [] : Object.keys(localStorage).filter((name) => name.startsWith(`${PREFIX}${user}.`));
         for (const name of jobs) {
@@ -383,8 +391,10 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
               write(user, job.definition.id, { ...current, conflict: true });
             }
             if (current?.mutation === job.mutation) write(user, job.definition.id, { ...read(user, job.definition.id), errorCode: error.code || 'SYNC_FAILED' });
-            failure = error;
-            break; // One failed write ends this attempt, never a retry storm.
+            failedWatchIds.add(job.definition.id);
+            failure ||= error;
+            // Each mutation has its own RPC transaction. Keep this failure
+            // observable, attempt remaining jobs once, and never retry it here.
           }
         }
         const readId = ++latestRead;
@@ -400,6 +410,7 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
             refreshAttempted = false;
             emailEnabled = typeof body.emailEnabled === 'boolean' ? body.emailEnabled : emailEnabled;
             writeWatchCache('media', user, rows);
+            readConfirmed = true;
             for (const row of rows) {
               const current = read(user, row.id);
               if (current?.pending && current.baseMutation && current.baseMutation === row.media_mutation_id) {
@@ -415,7 +426,10 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
           if (fresh()) loadError = error;
           failure ||= error;
         }
-        if (failure) throw failure;
+        if (failure) throw Object.assign(new Error('Media synchronization incomplete.'), {
+          code: failure.code || 'SYNC_FAILED', readConfirmed,
+          failedWatchIds: [...failedWatchIds],
+        });
         return { ok: true };
       } finally {
         if (running === attempt) { running = null; activeWrites.clear(); }
@@ -431,7 +445,9 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
       return { ok: false, code: 'BACKOFF' };
     } });
   } catch (error) {
-    return { ok: false, code: error.code || 'SYNC_FAILED' };
+    return { ok: false, code: error.code || 'SYNC_FAILED',
+      ...(error.readConfirmed === true && Array.isArray(error.failedWatchIds)
+        ? { readConfirmed: true, failedWatchIds: error.failedWatchIds } : {}) };
   }
 };
 
