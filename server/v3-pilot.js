@@ -74,7 +74,7 @@ export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,cu
   if(isCurrency&&(!evaluation.met||row.evaluation?.met))throw Error('Numeric condition not satisfied');
   const chosen=isCurrency?items[0]:items.find(i=>judgment.evidence_basis.some(b=>b.text.includes(i.title)||i.excerpt&&b.text.includes(i.excerpt)));
   if(!chosen?.url)throw Error('No selected evidence article');
-  article={title:`${judgment.evidence_status==='STRONG_UNCONFIRMED'?'Unconfirmed reports: ':''}${judgment.reason}`.slice(0,300),url:chosen.url,summary:judgment.reason,publishedAt:chosen.publishedAt,source:chosen.sourceTitle||chosen.source||evidence.source};
+  article={title:judgment.reason.slice(0,300),url:chosen.url,summary:judgment.reason,publishedAt:chosen.publishedAt,source:chosen.sourceTitle||chosen.source||evidence.source};
  }
  return {evidence,items,evaluation,judgment,article};
 }

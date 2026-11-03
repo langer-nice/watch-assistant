@@ -67,7 +67,7 @@ test('currency comparison is exact: 1.169 and equality cannot alert; 1.171 can',
 test('Metallica strong, weak and duplicate admissions preserve qualification and prior state',async()=>{
  for(const [action,status,reason] of [['ALERT','STRONG_UNCONFIRMED','Credible independent reports suggest new dates; not officially confirmed.'],['NO_ALERT','WEAK_UNCONFIRMED','A single anonymous rumor is insufficient.'],['NO_ALERT','STRONG_UNCONFIRMED','These unconfirmed reports were already alerted.']]){
  const row=await rowFor(4);row.prior_state={entries:[{id:'prior',fact:'Earlier Europe 2027 reports',alerted:true}]};
- const r=await evaluatePilot(row,{feed:feedFor('Metallica Europe 2027 reports','Two separate publications report possible concerts.','News reports'),model:async req=>{assert.equal(req.input.prior_state.entries[0].alerted,true);return modelFor(action,status,reason)(req);}});assert.equal(r.judgment.evidence_status,status);assert.equal(!!r.article,action==='ALERT');if(r.article)assert.match(r.article.title,/Unconfirmed reports/);
+ const r=await evaluatePilot(row,{feed:feedFor('Metallica Europe 2027 reports','Two separate publications report possible concerts.','News reports'),model:async req=>{assert.equal(req.input.prior_state.entries[0].alerted,true);return modelFor(action,status,reason)(req);}});assert.equal(r.judgment.evidence_status,status);assert.equal(!!r.article,action==='ALERT');if(r.article)assert.equal(r.article.title,reason.slice(0,300));
  }
 });
 test('baseline makes no judgment call and bad refs cannot reach delivery',async()=>{
