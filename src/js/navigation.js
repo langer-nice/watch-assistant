@@ -247,7 +247,7 @@ const currentCheckController = () => {
   if (epoch !== checkControllerEpoch) {
     checkControllerEpoch = epoch;
     sessionCheckController = createWatchCheckController({
-      checkStoredWatch: (watch, options) => canCheckStoredMediaWatch(watch) ? checkStoredMediaWatch(watch, options) : null,
+      checkStoredWatch: (watch, options) => canCheckStoredMediaWatch(watch) ? checkStoredMediaWatch(watch, {...options,outputLocale:getLanguage()}) : null,
       getWatch: (id) => epoch === getAccountEpoch() ? getWatchById(id) : null,
       saveWatch: (id, changes) => epoch === getAccountEpoch() ? updateWatch(id, changes) : null,
     });

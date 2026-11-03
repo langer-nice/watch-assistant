@@ -5,7 +5,8 @@ import { applyExampleToEditor } from './example-watches.js';
 import { getAccountEpoch, getAccountOwner } from './account-storage.js';
 import { configureMediaWatchServerStore, synchronizeMediaWatches } from './media-watch-server-store.js';
 import { configureHomeGreeting, initApp } from './navigation.js';
-import { initializeLanguage, setLanguage, t } from './i18n.js';
+import { initializeLanguage, setLanguage, getLanguage, t } from './i18n.js';
+import {configureInterfaceLocaleSync} from './interface-locale-sync.js';
 import { initStructuredEmailPreference } from './structured-email-preference.js';
 import { initTopNavigation } from './top-navigation.js';
 import { initializeAnalytics } from './analytics.js';
@@ -33,6 +34,7 @@ const authUi = initAuthUi({ onResume: async (request, owner) => {
   document.querySelector('#newWatchForm').requestSubmit();
 } });
 configureHomeGreeting(authUi?.auth);
+configureInterfaceLocaleSync({client:authUi?.client,auth:authUi?.auth,getLocale:getLanguage});
 void configureReportSync({client:authUi?.client,auth:authUi?.auth});
 configureStructuredWatchCreation(authUi?.auth);
 const emailPreference = initStructuredEmailPreference({root:document.querySelector('#email-notifications'),client:authUi?.client,auth:authUi?.auth,location:window.location,t,digestEnabled:import.meta.env.VITE_MEDIA_WATCH_DAILY_DIGEST_ENABLED === 'true'});

@@ -2,7 +2,7 @@ import {runV3WatchCheck} from './v3-pilot.js';
 import {mapMediaReportRow} from '../src/js/media-watch-row.js';
 import {diagnosticInvocationId,withV3ScheduledDiagnostics,getV3AttemptDiagnostic,recordV3Failure} from './v3-scheduled-diagnostics.js';
 
-export const runManualV3Check=({row,user,client,env,model,feed,currency,engine})=>withV3ScheduledDiagnostics({
+export const runManualV3Check=({row,user,client,env,model,feed,currency,engine,outputLocale})=>withV3ScheduledDiagnostics({
  invocation_id:diagnosticInvocationId(),watch_id:row.id,engine,invocation_type:'manual',
 },async()=>{
  let token;
@@ -13,7 +13,7 @@ export const runManualV3Check=({row,user,client,env,model,feed,currency,engine})
   token=claim.data.lease_token;
   const work=claim.data.v3;
   if(!work||work.id!==row.id||work.user_id!==user.id||work.engine!==engine||work.token!==token)throw Error('Pilot identity mismatch');
-  const result=await runV3WatchCheck(work,{client,env,model,feed,currency});
+  const result=await runV3WatchCheck(work,{client,env,model,feed,currency,outputLocale});
   // Return the same authoritative read model used by scheduled hydration.
   const saved=await client.from('watches').select('*,media_watch_snapshots(*),currency_watch_events(*)')
    .eq('id',row.id).eq('user_id',user.id).eq('type','media_news').is('deleted_at',null).range(0,0);

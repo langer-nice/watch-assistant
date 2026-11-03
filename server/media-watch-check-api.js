@@ -67,7 +67,7 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
       if(['wa-v3-evidence-refs.v1','wa-v3-evidence-refs-pilot.v1'].includes(v3.data?.engine)){
         if(!pilotEnabled(options.env||process.env))return send(503,{code:'V3_FEATURE_UNAVAILABLE'});
         const result=await runManualV3Check({row,user,client:service,env:options.env||process.env,
-          engine:v3.data.engine,model:options.model,feed:fetchFeed,currency:fetchCurrency});
+          engine:v3.data.engine,model:options.model,feed:fetchFeed,currency:fetchCurrency,outputLocale:body.outputLocale});
         return send(result.status,result.body);
       }
       if(v3.data?.engine)return send(409,{code:'UNSUPPORTED_WATCH_VERSION'});

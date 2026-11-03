@@ -14,7 +14,7 @@ const good=req=>({action:'NO_ALERT',evidence_status:'INSUFFICIENT',reason:'No qu
 async function capture(run){const logs=[];const previous=console.error;console.error=(event,payload)=>logs.push({event,...payload});try{return {value:await run(),logs};}finally{console.error=previous;}}
 async function execute(kind){
  const calls=[],requests=[];let feedCalls=0,brainCalls=0;
- const client={rpc:async(name,payload)=>{calls.push({name,payload});if(name==='claim_v3_pilot_checks')return {data:[{...row,token:'lease-not-for-logs'}]};if(name==='finish_v3_pilot_check'){if(kind==='persistence')throw Object.assign(Error('private SQL credential=secret'),{code:'42501'});if(kind==='returned-sql-error')return {error:{code:'42501',message:'private SQL data'}};return {data:true};}if(name==='fail_v3_pilot_check')return {data:null};throw Error(name);}};
+ const client={rpc:async(name,payload)=>{calls.push({name,payload});if(name==='get_media_watch_notification_locale')return {data:'en'};if(name==='claim_v3_pilot_checks')return {data:[{...row,token:'lease-not-for-logs'}]};if(name==='finish_v3_pilot_check'){if(kind==='persistence')throw Object.assign(Error('private SQL credential=secret'),{code:'42501'});if(kind==='returned-sql-error')return {error:{code:'42501',message:'private SQL data'}};return {data:true};}if(name==='fail_v3_pilot_check')return {data:null};throw Error(name);}};
  const result=await capture(()=>runPilotMonitoring({client,env,schedulerAuthorized:true,feed:async()=>{feedCalls++;if(kind==='source')throw Object.assign(Error('The feed request timed out.'),{code:'TIMEOUT'});return kind==='normalization'?{...feedResult,items:[]}:structuredClone(feedResult);},model:async req=>{brainCalls++;requests.push(req);if(kind==='brain')throw Object.assign(Error('private provider body'),{providerStatus:429});if(kind==='validation')return {};if(kind==='refs')return {...good(req),evidence_refs:['invented']};return good(req);}}));
  return {...result,calls,requests,feedCalls,brainCalls};
 }
@@ -28,8 +28,8 @@ test('scheduled failures record exact stages while preserving summary, calls and
  }
 });
 test('success has no failure diagnostic and uses unchanged Brain and persistence payloads',async()=>{
- const r=await execute('success');assert.deepEqual(r.value,{status:'success',claimed:1,completed:1,failed:0});assert.equal(r.logs.length,0);assert.equal(r.feedCalls,1);assert.equal(r.brainCalls,1);assert.equal(r.calls.length,2);
- const saved=r.calls[1];assert.deepEqual(Object.keys(saved.payload),['p_id','p_token','p_result']);assert.equal(saved.payload.p_id,id);assert.equal(saved.payload.p_token,'lease-not-for-logs');
+ const r=await execute('success');assert.deepEqual(r.value,{status:'success',claimed:1,completed:1,failed:0});assert.equal(r.logs.length,0);assert.equal(r.feedCalls,1);assert.equal(r.brainCalls,1);assert.equal(r.calls.length,3);
+ const saved=r.calls.find(c=>c.name==='finish_v3_pilot_check');assert.deepEqual(Object.keys(saved.payload),['p_id','p_token','p_result']);assert.equal(saved.payload.p_id,id);assert.equal(saved.payload.p_token,'lease-not-for-logs');
  const direct=await evaluatePilot(row,{feed:async()=>structuredClone(feedResult),model:async req=>{const actual=structuredClone(req),expected=structuredClone(r.requests[0]);const normalize=v=>JSON.stringify(v).replace(/e[a-f0-9]{32}/g,'REF');assert.equal(normalize(actual),normalize(expected));return good(req);}});
  const normalize=v=>JSON.stringify(v).replace(/e[a-f0-9]{32}/g,'REF');assert.equal(normalize(saved.payload.p_result),normalize(direct));
 });
@@ -67,5 +67,5 @@ test('baseline call count and product failure survive unavailable diagnostic log
  let calls=0;const baseline=await capture(()=>evaluatePilot({...row,baseline_at:null},{feed:async()=>structuredClone(feedResult),model:async()=>{calls++;throw Error('must not call');}}));
  assert.equal(calls,0);assert.equal(baseline.value.judgment,null);assert.equal(baseline.logs.length,0);
  const previous=console.error;console.error=()=>{throw Error('logger down');};let failures=0;
- try{const result=await runPilotMonitoring({env,schedulerAuthorized:true,client:{rpc:async name=>name==='claim_v3_pilot_checks'?{data:[row]}:(failures++,{data:null})},model:good,feed:async()=>{throw Error('source down');}});assert.equal(result.failed,1);assert.equal(failures,1);}finally{console.error=previous;}
+ try{const result=await runPilotMonitoring({env,schedulerAuthorized:true,client:{rpc:async name=>name==='claim_v3_pilot_checks'?{data:[row]}:name==='get_media_watch_notification_locale'?{data:'en'}:(failures++,{data:null})},model:good,feed:async()=>{throw Error('source down');}});assert.equal(result.failed,1);assert.equal(failures,1);}finally{console.error=previous;}
 });

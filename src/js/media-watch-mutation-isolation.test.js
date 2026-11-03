@@ -36,6 +36,14 @@ test('per-Watch mutation failures cannot poison another stored check',async t=>{
  await t.test('valid remaining mutation processes once after another rejection',async()=>{await fixture();enqueue(a);enqueue(c);invalid.add(a);await synchronizeMediaWatches();assert.equal(JSON.parse(localStorage.getItem(key(c))).pending,false);assert.deepEqual(calls.filter(x=>x.body).map(x=>x.body.definition.id),[a,c]);});
  await t.test('Apple manual controller reaches its own check transport and saves its result despite A',async()=>{await fixture();enqueue(a);invalid.add(a);let saved;const controller=createWatchCheckController({getWatch:()=>current(b),saveWatch:(id,changes)=>{assert.equal(id,b);saved=changes;return {...current(b),...changes};},checkStoredWatch:checkStoredMediaWatch});const result=await controller.check(b);assert.equal(result.outcome,'no-new-items');assert.equal(checkRuns,1);assert.equal(saved.lastCheckAttempt.status,'succeeded');assert.equal(JSON.parse(localStorage.getItem(key(a))).pending,true);});
  await t.test('second unrelated V3 Watch also reaches its own stored check',async()=>{await fixture();enqueue(a);invalid.add(a);await checkStoredMediaWatch(current(c));assert.equal(checkRuns,1);assert.equal(calls.at(-1).body.id,c);});
+ await t.test('current locale travels only on V3 check requests, without Watch mutation',async()=>{
+  await fixture();await checkStoredMediaWatch(current(b),{outputLocale:'fr'});
+  assert.deepEqual(calls.at(-1).body,{id:b,revision:1,outputLocale:'fr'});
+  assert.equal(calls.filter(x=>x.body?.definition).length,0);
+  await checkStoredMediaWatch(current(b),{outputLocale:'de'});assert.deepEqual(calls.at(-1).body,{id:b,revision:1});
+  delete records[1].v3Engine;await synchronizeMediaWatches({readOnly:true});
+  await checkStoredMediaWatch(current(b),{outputLocale:'fr'});assert.deepEqual(calls.at(-1).body,{id:b,revision:1});
+ });
  await t.test('own rejected mutation still blocks the selected Watch',async()=>{await fixture();enqueue(b);invalid.add(b);await assert.rejects(checkStoredMediaWatch(current(b)),{code:'PERSISTENCE_UNAVAILABLE'});assert.equal(checkRuns,0);});
  await t.test('failed authoritative read cannot be ignored alongside unrelated failure',async()=>{await fixture();const target=current(b);enqueue(a);invalid.add(a);failRead=true;await assert.rejects(checkStoredMediaWatch(target),{code:'PERSISTENCE_UNAVAILABLE'});assert.equal(checkRuns,0);});
  await t.test('same-account in-flight background rejection cannot transfer to another check',async()=>{await fixture();enqueue(a);invalid.add(a);let release,entered;hold=new Promise(r=>{release=r;});const entry=new Promise(r=>{entered=r;});started=entered;const background=synchronizeMediaWatches();await entry;const check=checkStoredMediaWatch(current(b));release();assert.equal((await background).ok,false);await check;assert.equal(checkRuns,1);assert.equal(calls.filter(x=>x.body?.definition).length,1);});

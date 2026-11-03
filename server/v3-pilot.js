@@ -9,6 +9,7 @@ import {fetchAndNormalizeFeed} from './check-watch-api.js';
 import {fetchCurrencyRate} from './currency-rate.js';
 import {evaluateCurrencyRate,parseCurrencyRequest,sameCurrencyCriteria} from '../src/js/currency-watch.js';
 import {acquireIntentNews} from './intent-news-acquisition.js';
+import {resolveV3OutputLocale} from './v3-output-locale.js';
 export const PILOT_OWNER='b4757e02-fc75-4984-b50e-8d933ae7ec04';
 export const PILOT_ENGINE='wa-v3-evidence-refs-pilot.v1';
 export const PILOT_SPECS=Object.freeze([
@@ -45,11 +46,11 @@ export function connectorCurrencyRequest(criteria){
  if(!sameCurrencyCriteria(parseCurrencyRequest(request),criteria))throw Error('Invalid connector criteria');
  return request;
 }
-export async function evaluatePilot(row,{feed=fetchAndNormalizeFeed,currency=fetchCurrencyRate,model}={}){
+export async function evaluatePilot(row,{feed=fetchAndNormalizeFeed,currency=fetchCurrencyRate,model,outputLocale='en'}={}){
  const spec=PILOT_SPECS[row.slot-1];if(!spec||row.user_id!==PILOT_OWNER||row.engine!==PILOT_ENGINE||row.instruction!==spec.instruction)throw Error('Pilot identity mismatch');
- return evaluateV3Source(row,pilotSource(spec),{feed,currency,model});
+ return evaluateV3Source(row,pilotSource(spec),{feed,currency,model,outputLocale});
 }
-export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,currency=fetchCurrencyRate,model}={}){
+export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,currency=fetchCurrencyRate,model,outputLocale='en'}={}){
  if(!source||!['feed','currency'].includes(source.type))throw Error('Invalid V3 source');
  const isCurrency=source.type==='currency';
  let evidence,items,evaluation;
@@ -68,7 +69,7 @@ export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,cu
  const input=toBrainInput(row.understanding,evidence,prior);
  // Initial evidence is a baseline, never a creation alert and never a model call.
  if(!row.baseline_at)return {evidence,items,evaluation,judgment:null,article:null};
- const judgment=await judgeReferenceEvidence(input,{model});
+ const judgment=await judgeReferenceEvidence(input,{model,outputLocale});
  markV3Stage('EVIDENCE_NORMALIZATION');
  let article=null;
  if(judgment.action==='ALERT'){
@@ -80,8 +81,9 @@ export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,cu
  return {evidence,items,evaluation,judgment,article};
 }
 // Shared post-claim runtime: identical evidence, Brain, refs and result transaction.
-export async function runV3WatchCheck(row,{client,env=process.env,model,feed,currency}={}){
- const options={feed,currency,model:model||createBrainModel({apiKey:env.OPENAI_API_KEY})};
+export async function runV3WatchCheck(row,{client,env=process.env,model,feed,currency,outputLocale}={}){
+ const locale=await resolveV3OutputLocale({client,ownerId:row.user_id,requested:outputLocale});
+ const options={feed,currency,model:model||createBrainModel({apiKey:env.OPENAI_API_KEY}),outputLocale:locale};
  const result=row.engine==='wa-v3-evidence-refs.v1'
   ? await evaluateV3Source(row,row.source,options) : await evaluatePilot(row,options);
  markV3Stage('RESULT_PERSISTENCE');

@@ -262,7 +262,7 @@ export const ensureMediaWatchSaved = async (watch) => {
     || epoch !== generation || user !== owner()) throw Object.assign(new Error('Watch not synchronized'), { code: 'PERSISTENCE_UNAVAILABLE' });
   return remote;
 };
-export const checkStoredMediaWatch = async (watch, {signal} = {}) => {
+export const checkStoredMediaWatch = async (watch, {signal,outputLocale} = {}) => {
   const requireActiveRequest=()=>{if(signal?.aborted)throw Object.assign(new Error('Check completion timed out.'),{code:'TIMEOUT'});};
   requireActiveRequest();
   const user = owner(); const epoch = generation;
@@ -278,7 +278,8 @@ export const checkStoredMediaWatch = async (watch, {signal} = {}) => {
   const response = await watchRequest('/api/media-watches?action=check', {
     signal,
     method: 'POST', headers: { Authorization: `Bearer ${session().access_token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: watch.id, revision: Number(remote.media_revision) }),
+    body: JSON.stringify({ id: watch.id, revision: Number(remote.media_revision),
+      ...(isV3MediaIdentity(watch)&&['en','fr'].includes(outputLocale)?{outputLocale}:{}) }),
   }, isV3MediaIdentity(watch) ? 90000 : 15000);
   const result = await response.json();
   if (!response.ok) throw Object.assign(new Error('Check failed'), { code: result.code || 'CHECK_FAILED',

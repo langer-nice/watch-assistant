@@ -46,10 +46,10 @@ test('real manual API and scheduled V3 share judgment, fencing and persistence w
  const schedule=async id=>(await db.query('select * from public.structured_media_schedules where watch_id=$1',[id])).rows[0];
  const count=async table=>(await db.query(`select count(*)::int n from public.${table}`)).rows[0].n;
  let model=async req=>output(req),fetchFeed=feed,fetchCurrency=currency;
- const invoke=async(id,{as=owner,revision=1,service=client,authClient=client}={})=>{
+ const invoke=async(id,{as=owner,revision=1,service=client,authClient=client,outputLocale}={})=>{
   let body;const response={setHeader(){},end(raw){body=JSON.parse(raw);}};
   const handler=createMediaWatchCheckMiddleware({env,authenticate:async()=>({user:{id:as},client:authClient}),serviceClient:service,fetchFeed:(...args)=>fetchFeed(...args),fetchCurrency:(...args)=>fetchCurrency(...args),model:(...args)=>model(...args)});
-  await handler({url:'/api/media-watches?action=check',method:'POST',body:{id,revision}},response);return {http:response.statusCode,...body};
+  await handler({url:'/api/media-watches?action=check',method:'POST',body:{id,revision,...(outputLocale===undefined?{}:{outputLocale})}},response);return {http:response.statusCode,...body};
  };
  for(const [i,name] of ['City','GBP/EUR','Apple','Metallica','France','Taylor','elections'].entries())await t.test(name+' manual reaches V3 Brain once, then shared SQL; due/outbox/report unchanged',async()=>{
   let brains=0,sources=0;model=async req=>{brains++;return output(req);};fetchFeed=async(...args)=>{sources++;return feed(...args);};fetchCurrency=async request=>{sources++;assert.equal(request,'GBP > 1.17 EUR');return currency();};
@@ -68,6 +68,22 @@ test('real manual API and scheduled V3 share judgment, fencing and persistence w
   await db.query("update public.structured_media_schedules set next_due_at=clock_timestamp()-interval '1 second' where watch_id=$1",[id]);
   const result=await runPilotMonitoring({client,env,schedulerAuthorized:true,feed,currency,model:async req=>{scheduledInput=structuredClone(req);return output(req);}});
   assert.equal(result.completed,1);assert.equal(namespace(manualInput),namespace(scheduledInput));assert.equal(namespace(manualResult),namespace(calls.findLast(c=>c.name==='finish_v3_pilot_check').p.p_result));
+ });
+ await t.test('French profile scheduled output and current manual UI override share the real API/SQL runtime',async()=>{
+  const id=ids[4],prior=(await db.query('select * from public.v3_pilot_watches where watch_id=$1',[id])).rows[0];
+  await db.query("update public.profiles set locale='fr' where id=$1",[owner]);
+  let brains=0,sources=0;const localized=req=>{brains++;assert.match(req.instructions,/Output locale: French \(fr\)/);return output(req,{action:'ALERT',reason:'Radio France rapporte un nouvel événement confirmé.'});};
+  model=localized;fetchFeed=async()=>{sources++;return feed();};
+  const manual=await invoke(id,{outputLocale:'fr'});assert.equal(manual.http,200);assert.equal(manual.changes.updates[0].summary,'Radio France rapporte un nouvel événement confirmé.');
+  const manualResult=calls.findLast(c=>c.name==='finish_v3_pilot_check').p.p_result;
+  await db.query('update public.v3_pilot_watches set prior_state=$2,baseline_at=$3,evaluation=$4 where watch_id=$1',[id,prior.prior_state,prior.baseline_at,prior.evaluation]);
+  await db.query("update public.structured_media_schedules set next_due_at=clock_timestamp()-interval '1 second' where watch_id=$1",[id]);
+  const scheduled=await runPilotMonitoring({client,env,schedulerAuthorized:true,feed:fetchFeed,currency,model:localized});
+  assert.equal(scheduled.completed,1);assert.equal(namespace(manualResult),namespace(calls.findLast(c=>c.name==='finish_v3_pilot_check').p.p_result));
+  assert.equal(brains,2);assert.equal(sources,2);
+  model=async req=>{assert.match(req.instructions,/Output locale: English \(en\)/);return output(req,{action:'ALERT',reason:'Radio France reports a new confirmed event.'});};
+  const english=await invoke(id,{outputLocale:'en'});assert.equal(english.http,200);assert.equal(english.changes.updates[0].summary,'Radio France reports a new confirmed event.');
+  await db.query("update public.profiles set locale='en' where id=$1",[owner]);
  });
  await t.test('speculative Metallica preserves STRONG_UNCONFIRMED and manual creates no notification',async()=>{
   fetchFeed=feed;model=async req=>output(req,{action:'ALERT',status:'STRONG_UNCONFIRMED',reason:'Credible reports suggest Metallica may announce new concerts; this remains unconfirmed.'});

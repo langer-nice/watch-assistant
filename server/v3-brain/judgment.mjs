@@ -4,6 +4,12 @@ import { resolveEvidenceBasis } from './evidence-basis.mjs';
 // Generic output qualification markers, never input/subject classification.
 // This lexical check is not a proof of arbitrary prose semantics.
 export function hasUnconfirmedQualification(reason) {
+  // Equivalent explicit qualification in the supported French output locale.
+  // Do not accept bare positive "confirmé" or a status enum as qualification.
+  const french=typeof reason==='string'?reason.normalize('NFD').replace(/\p{M}/gu,''):'';
+  if (/\bnon[\s-]+confirme(?:e)?s?\b/iu.test(french)
+    || /\bpas\s+(?:encore\s+)?(?:officiellement\s+)?confirme(?:e)?s?\b/iu.test(french)
+    || /\bconfirmation\s+(?:officielle\s+)?(?:(?:est|reste)\s+)?(?:attendue|en\s+attente)\b/iu.test(french)) return true;
   return /\bunconfirmed\b/iu.test(reason) ||
     /\bnot\s+(?:yet\s+)?(?:officially\s+)?confirmed\b/iu.test(reason) ||
     /\bconfirmation\b[^.!?\n]{0,60}\b(?:pending|awaited|absent|outstanding)\b/iu.test(reason) ||

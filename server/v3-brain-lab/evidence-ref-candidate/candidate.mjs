@@ -2,6 +2,7 @@ import {INSTRUCTIONS as LEGACY} from '../condition-state/candidate.mjs';
 import {freeze} from '../../v3-brain/schema.mjs';
 import {createReferenceRequest,REFERENCE_INSTRUCTIONS} from './references.mjs';
 import {markV3Stage,markV3BrainCompleted} from '../../v3-scheduled-diagnostics.js';
+import {v3OutputLocaleInstruction} from '../../v3-output-locale.js';
 const start=LEGACY.indexOf('Return only the supplied Judgment schema.');
 const end=LEGACY.indexOf('\nWhen the verified intent depends on a material condition',start);
 if(start<0||end<0)throw new Error('Grounding-only prompt boundary missing');
@@ -11,11 +12,11 @@ if(!LEGACY.slice(0,start).includes(PREVIOUS_ACTION_DEFINITION))throw new Error('
 export const INSTRUCTIONS=LEGACY.slice(0,start).replace(PREVIOUS_ACTION_DEFINITION,ALERT_POLICY)+'Return only the supplied Judgment schema. '+REFERENCE_INSTRUCTIONS+' Give a concise reason and optional novelty_summary; do not invent facts.'+LEGACY.slice(end);
 export const NAME='WA V3 SIMPLE CONDITION-AWARE CANDIDATE — EVIDENCE REFS';
 export function prepareReferenceJudgment(input,options){return createReferenceRequest(input,options);}
-export async function judgePreparedReferenceEvidence(prepared,{model}={}){
+export async function judgePreparedReferenceEvidence(prepared,{model,outputLocale}={}){
  if(typeof model!=='function')throw new TypeError('Explicit judgment model required');
  markV3Stage('BRAIN_CALL');
- const output=await model(freeze({instructions:INSTRUCTIONS,input:prepared.input,response_schema:prepared.response_schema}));
+ const output=await model(freeze({instructions:INSTRUCTIONS+(outputLocale===undefined?'':v3OutputLocaleInstruction(outputLocale)),input:prepared.input,response_schema:prepared.response_schema}));
  markV3BrainCompleted();
  return prepared.admit(output);
 }
-export async function judgeReferenceEvidence(input,{model}={}){return judgePreparedReferenceEvidence(prepareReferenceJudgment(input),{model});}
+export async function judgeReferenceEvidence(input,{model,outputLocale}={}){return judgePreparedReferenceEvidence(prepareReferenceJudgment(input),{model,outputLocale});}
