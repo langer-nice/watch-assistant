@@ -8,6 +8,7 @@ import {toBrainInput} from './v3-brain-lab/end-to-end-mini/adapter.mjs';
 import {fetchAndNormalizeFeed} from './check-watch-api.js';
 import {fetchCurrencyRate} from './currency-rate.js';
 import {evaluateCurrencyRate,parseCurrencyRequest,sameCurrencyCriteria} from '../src/js/currency-watch.js';
+import {acquireIntentNews} from './intent-news-acquisition.js';
 export const PILOT_OWNER='b4757e02-fc75-4984-b50e-8d933ae7ec04';
 export const PILOT_ENGINE='wa-v3-evidence-refs-pilot.v1';
 export const PILOT_SPECS=Object.freeze([
@@ -62,7 +63,7 @@ export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,cu
   const quote=`${metric} ${evaluation.observedRate}`;
   evidence={id:hash(JSON.stringify(rate.observation)),title:`ECB ${metric} reference observation`,content:`${quote} (display truncated at 12 decimal places). Source observation: ${rate.observation.base}/${rate.observation.quote} ${rate.observation.rate}. Exact rational comparison ${comparison}: ${evaluation.met}.`,measurement:{metric,value:String(evaluation.observedRate),quote},source:'ECB',url:source.url,published_at:rate.observation.date+'T00:00:00Z',retrieved_at:rate.checkedAt};
   items=[{id:evidence.id,title:evidence.title,excerpt:quote,url:evidence.url,publishedAt:evidence.published_at,source:'ECB'}];
- }else{const f=await feed(source.url);markV3Stage('EVIDENCE_NORMALIZATION');items=f.items.slice(0,20);evidence=feedEvidence(f);}
+ }else{const f=row.baseline_at?await acquireIntentNews(row,source,{feed}):await feed(source.url);markV3Stage('EVIDENCE_NORMALIZATION');items=f.items.slice(0,20);evidence=feedEvidence(f);}
  const prior={entries:[...(row.prior_state?.entries||[]),...(row.baseline_at?[{id:'pilot-baseline:'+row.id,fact:'Monitoring baseline established at '+row.baseline_at,date:row.baseline_at,alerted:false}]:[])]};
  const input=toBrainInput(row.understanding,evidence,prior);
  // Initial evidence is a baseline, never a creation alert and never a model call.
