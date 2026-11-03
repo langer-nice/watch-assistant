@@ -1,7 +1,8 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {createHash,randomUUID} from 'node:crypto';
 
-// This context exists only inside the scheduled V3 worker. Observers must never
+// Shared V3 attempt context. Scheduled records retain their existing contract.
+// Observers must never
 // throw, change a request/result, or make another network/storage request.
 const context=new AsyncLocalStorage();
 export const V3_DIAGNOSTIC_STAGES=Object.freeze(['WATCH_LOAD','SOURCE_ACQUISITION','EVIDENCE_NORMALIZATION','BRAIN_CALL','BRAIN_RESPONSE_VALIDATION','EVIDENCE_REF_ADMISSION','RESULT_PERSISTENCE','NOTIFICATION_ELIGIBILITY','REPORT_ELIGIBILITY','UNKNOWN']);
@@ -13,14 +14,15 @@ const safeCode=value=>typeof value==='string'&&(codes.has(value)||/^[0-9]{5}$/.t
 const safeMessage=value=>typeof value==='string'&&(messages.has(value)||codes.has(value)||/^OpenAI request failed with status [1-5][0-9]{2}\.$/.test(value))?value:'[redacted: unrecognized error message]';
 const uuid=value=>typeof value==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value)?value:null;
 export const diagnosticInvocationId=()=>randomUUID();
-export const withV3ScheduledDiagnostics=(metadata,run)=>context.run({diagnostic_id:randomUUID(),check_attempt_id:randomUUID(),invocation_id:metadata.invocation_id,watch_id:uuid(metadata.watch_id),engine:['wa-v3-evidence-refs.v1','wa-v3-evidence-refs-pilot.v1'].includes(metadata.engine)?metadata.engine:null,stage:'WATCH_LOAD',Brain_reached:false,Brain_completed:false,refs_admission_reached:false,persistence_attempted:false,persistence_succeeded:false,started:performance.now(),provider_http_status:null,provider_error_code:null},run);
+export const withV3ScheduledDiagnostics=(metadata,run)=>context.run({diagnostic_id:randomUUID(),check_attempt_id:randomUUID(),invocation_id:metadata.invocation_id,invocation_type:metadata.invocation_type==='manual'?'manual':'scheduled',watch_id:uuid(metadata.watch_id),engine:['wa-v3-evidence-refs.v1','wa-v3-evidence-refs-pilot.v1'].includes(metadata.engine)?metadata.engine:null,stage:'WATCH_LOAD',Brain_reached:false,Brain_completed:false,refs_admission_reached:false,persistence_attempted:false,persistence_succeeded:false,started:performance.now(),provider_http_status:null,provider_error_code:null},run);
+export const getV3AttemptDiagnostic=()=>{const c=context.getStore();return c?{diagnostic_id:c.diagnostic_id,check_attempt_id:c.check_attempt_id,stage:c.stage}:{};};
 export const markV3Stage=stage=>{try{const c=context.getStore();if(!c||!stages.has(stage))return;c.stage=stage;if(stage==='BRAIN_CALL'){c.Brain_reached=true;c.provider_http_status=null;}if(stage==='EVIDENCE_REF_ADMISSION')c.refs_admission_reached=true;if(stage==='RESULT_PERSISTENCE')c.persistence_attempted=true;}catch{}};
 export const markV3BrainCompleted=()=>{try{const c=context.getStore();if(c)c.Brain_completed=true;}catch{}};
 export const markV3ProviderStatus=status=>{try{const c=context.getStore();if(c&&Number.isInteger(status)&&status>=100&&status<=599)c.provider_http_status=status;}catch{}};
 export const markV3PersistenceSuccess=()=>{try{const c=context.getStore();if(c)c.persistence_succeeded=true;}catch{}};
-export const recordV3Failure=(error,{event='v3_scheduled_failure'}={})=>{try{
- const c=context.getStore();if(!c)return;
+export const recordV3Failure=(error,{event}={})=>{try{
+ const c=context.getStore();if(!c)return;event ||= c.invocation_type==='manual'?'v3_manual_failure':'v3_scheduled_failure';
  const message=typeof error?.message==='string'?error.message:'';
- const record={event,diagnostic_id:c.diagnostic_id,check_attempt_id:c.check_attempt_id,invocation_id:c.invocation_id,watch_id:c.watch_id,engine:c.engine,stage:c.stage,error_name:names.has(error?.name)?error.name:'Error',error_code:safeCode(error?.code),error_message:safeMessage(message),error_fingerprint:createHash('sha256').update(message).digest('hex'),provider_http_status:Number.isInteger(error?.providerStatus)?error.providerStatus:c.provider_http_status,provider_error_code:safeCode(error?.providerCode),cause_name:names.has(error?.cause?.name)?error.cause.name:null,cause_code:safeCode(error?.cause?.code),Brain_reached:c.Brain_reached,Brain_completed:c.Brain_completed,refs_admission_reached:c.refs_admission_reached,persistence_attempted:c.persistence_attempted,persistence_succeeded:c.persistence_succeeded,timestamp:new Date().toISOString(),invocation_type:'scheduled',elapsed_ms:Math.round(performance.now()-c.started)};
+ const record={event,diagnostic_id:c.diagnostic_id,check_attempt_id:c.check_attempt_id,invocation_id:c.invocation_id,watch_id:c.watch_id,engine:c.engine,stage:c.stage,error_name:names.has(error?.name)?error.name:'Error',error_code:safeCode(error?.code),error_message:safeMessage(message),error_fingerprint:createHash('sha256').update(message).digest('hex'),provider_http_status:Number.isInteger(error?.providerStatus)?error.providerStatus:c.provider_http_status,provider_error_code:safeCode(error?.providerCode),cause_name:names.has(error?.cause?.name)?error.cause.name:null,cause_code:safeCode(error?.cause?.code),Brain_reached:c.Brain_reached,Brain_completed:c.Brain_completed,refs_admission_reached:c.refs_admission_reached,persistence_attempted:c.persistence_attempted,persistence_succeeded:c.persistence_succeeded,timestamp:new Date().toISOString(),invocation_type:c.invocation_type,elapsed_ms:Math.round(performance.now()-c.started)};
  console.error(event,record);
 }catch{/* Diagnostic failures cannot replace the original product failure. */}};

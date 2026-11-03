@@ -279,9 +279,10 @@ export const checkStoredMediaWatch = async (watch, {signal} = {}) => {
     signal,
     method: 'POST', headers: { Authorization: `Bearer ${session().access_token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: watch.id, revision: Number(remote.media_revision) }),
-  }, 15000);
+  }, isV3MediaIdentity(watch) ? 90000 : 15000);
   const result = await response.json();
-  if (!response.ok) throw Object.assign(new Error('Check failed'), { code: result.code || 'CHECK_FAILED' });
+  if (!response.ok) throw Object.assign(new Error('Check failed'), { code: result.code || 'CHECK_FAILED',
+    ...(result.diagnostic_id ? {diagnostic_id:result.diagnostic_id,check_attempt_id:result.check_attempt_id,stage:result.stage} : {}) });
   if (epoch !== generation || user !== owner()) throw Object.assign(new Error('Account changed'), { code: 'AUTH_SESSION_CHANGED' });
   return result;
 };

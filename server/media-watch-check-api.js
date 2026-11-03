@@ -1,4 +1,5 @@
-import {pilotDatabaseMatches} from './v3-pilot.js';
+import {pilotDatabaseMatches,pilotEnabled} from './v3-pilot.js';
+import {runManualV3Check} from './v3-manual-check.js';
 import {stagingLegacyEnabled,legacyStagingOwner} from './staging-legacy-notifications.js';
 import {mediaDailyDigestEnabled} from './media-watch-digest.js';
 import {structuredMediaNotificationIntentsEnabled} from './structured-media-notification-gates.js';
@@ -63,7 +64,13 @@ export const createMediaWatchCheckMiddleware = ({ authenticate = authenticateSup
     if(pilotDatabaseMatches(options.env||process.env)){
       const v3=await service.from('v3_pilot_watches').select('engine').eq('watch_id',row.id).eq('user_id',user.id).maybeSingle();
       if(v3.error)throw Object.assign(Error('Engine unavailable'),{code:'PERSISTENCE_UNAVAILABLE'});
-      if(v3.data?.engine==='wa-v3-evidence-refs.v1')return send(409,{code:'V3_SCHEDULED_CHECK_ONLY'});
+      if(['wa-v3-evidence-refs.v1','wa-v3-evidence-refs-pilot.v1'].includes(v3.data?.engine)){
+        if(!pilotEnabled(options.env||process.env))return send(503,{code:'V3_FEATURE_UNAVAILABLE'});
+        const result=await runManualV3Check({row,user,client:service,env:options.env||process.env,
+          engine:v3.data.engine,model:options.model,feed:fetchFeed,currency:fetchCurrency});
+        return send(result.status,result.body);
+      }
+      if(v3.data?.engine)return send(409,{code:'UNSUPPORTED_WATCH_VERSION'});
     }
     if (hasDefinitionVersion(row.watch_definition) && (options.env || process.env).STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true') {
       const claim = await service.rpc('claim_structured_media_manual_check', {

@@ -90,9 +90,10 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   const q={select(){return q;},eq(){return q;},is(){return q;},async range(){return {data:[row]};}};
   const v3={select(){return v3;},eq(){return v3;},async maybeSingle(){return {data:{engine:V3_ENGINE}};}};
   let value;const res={setHeader(){},end(raw){value=JSON.parse(raw);}};
-  const check=createMediaWatchCheckMiddleware({env,authenticate:async()=>({user:{id:owner},client:{from:()=>q}}),serviceClient:{from:()=>v3,rpc:()=>assert.fail('No legacy claim')},fetchFeed:()=>assert.fail('No legacy source check')});
+  let claims=0;
+  const check=createMediaWatchCheckMiddleware({env,authenticate:async()=>({user:{id:owner},client:{from:()=>q}}),serviceClient:{from:()=>v3,rpc:async(name)=>{assert.equal(name,'claim_structured_media_manual_check');claims++;return {data:null};}},fetchFeed:()=>assert.fail('No legacy source check')});
   await check({url:'/api/media-watches?action=check',method:'POST',body:{id:ids[0],revision:1}},res);
-  assert.equal(res.statusCode,409);assert.equal(value.code,'V3_SCHEDULED_CHECK_ONLY');
+  assert.equal(res.statusCode,409);assert.equal(value.code,'MEDIA_CONFLICT');assert.equal(claims,1);
  });
  await t.test('atomic rejection does not leave a Watch or schedule',async()=>{
   const args={p_id:randomUUID(),p_owner:owner,p_instruction:'Bad baseline',p_kind:'FREE_TEXT',p_understanding:output,p_source:pilotSource({query:'Another company'}),p_criteria:null,p_baseline:{evidence:{id:'baseline'},items:[],judgment:{action:'ALERT'},article:null}};

@@ -8,6 +8,13 @@ import {
 } from './watch-monitoring-errors.js';
 
 const expectedCategories = {
+  V3_WATCH_LOAD: 'generic',
+  V3_SOURCE_ACQUISITION: 'generic',
+  V3_EVIDENCE_NORMALIZATION: 'generic',
+  V3_BRAIN_CALL: 'generic',
+  V3_BRAIN_RESPONSE_VALIDATION: 'generic',
+  V3_EVIDENCE_REF_ADMISSION: 'generic',
+  V3_RESULT_PERSISTENCE: 'generic',
   MEDIA_QUERY_REVIEW_REQUIRED: 'mediaQuery',
   STALE_CURRENCY_DATA: 'currency', INVALID_CURRENCY_DATA: 'currency', CURRENCY_PROVIDER_UNAVAILABLE: 'currency', INVALID_CURRENCY_CRITERIA: 'currency', STALE_CHECK: 'edited',
   MISSING_FEED_URL: 'missingSource',

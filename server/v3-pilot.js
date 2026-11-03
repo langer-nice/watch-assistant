@@ -78,6 +78,17 @@ export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,cu
  }
  return {evidence,items,evaluation,judgment,article};
 }
+// Shared post-claim runtime: identical evidence, Brain, refs and result transaction.
+export async function runV3WatchCheck(row,{client,env=process.env,model,feed,currency}={}){
+ const options={feed,currency,model:model||createBrainModel({apiKey:env.OPENAI_API_KEY})};
+ const result=row.engine==='wa-v3-evidence-refs.v1'
+  ? await evaluateV3Source(row,row.source,options) : await evaluatePilot(row,options);
+ markV3Stage('RESULT_PERSISTENCE');
+ const saved=await client.rpc('finish_v3_pilot_check',{p_id:row.id,p_token:row.token,p_result:result});
+ if(saved.error||saved.data!==true)throw saved.error||Error('Pilot completion fenced');
+ markV3PersistenceSuccess();
+ return result;
+}
 export async function runPilotMonitoring({client,env=process.env,schedulerAuthorized=false,model,feed,currency}={}){
  if(!schedulerAuthorized||!pilotEnabled(env))return {status:'disabled',claimed:0};
  const invocation_id=diagnosticInvocationId();
@@ -91,13 +102,7 @@ export async function runPilotMonitoring({client,env=process.env,schedulerAuthor
  });
  const rows=claim.data||[];let completed=0,failed=0;
  await Promise.all(rows.map(row=>withV3ScheduledDiagnostics({invocation_id,watch_id:row.id,engine:row.engine},async()=>{let reported=false;try{
-  const options={feed,currency,model:model||createBrainModel({apiKey:env.OPENAI_API_KEY})};
-  const result=row.engine==='wa-v3-evidence-refs.v1'
-   ? await evaluateV3Source(row,row.source,options) : await evaluatePilot(row,options);
-  markV3Stage('RESULT_PERSISTENCE');
-  const saved=await client.rpc('finish_v3_pilot_check',{p_id:row.id,p_token:row.token,p_result:result});
-  if(saved.error||saved.data!==true){recordV3Failure(saved.error||Error('Pilot completion fenced'));reported=true;throw Error('Pilot completion fenced');}
-  markV3PersistenceSuccess();completed++;
+  await runV3WatchCheck(row,{client,env,model,feed,currency});completed++;
  }catch(error){if(!reported)recordV3Failure(error);failed++;await client.rpc('fail_v3_pilot_check',{p_id:row.id,p_token:row.token});}})));
  return {status:failed?'partial-success':'success',claimed:rows.length,completed,failed};
 }

@@ -15,6 +15,7 @@ import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js'
 import { planMediaQuery, googleNewsSource, mediaMentionDefinition, validateMediaQuery } from './media-provider-query.js';
 import { renderInitialContext } from './initial-context.js';
 import { canCheckStoredMediaWatch, checkStoredMediaWatch, ensureMediaWatchSaved } from './media-watch-server-store.js';
+import { isV3MediaIdentity } from './v3-media-identity.js';
 import { currencyUpdateSummary } from './currency-display.js';
 import { currencySummary, currencyOverview, currencyCriteriaFor } from './currency-watch.js';
 import { getWatchListAvailability, renderWatchLoadNotice } from './watch-load-notice.js';
@@ -1968,7 +1969,7 @@ const renderWatchDetail = () => {
         if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
           await checkServerCompanyWatch(watch.id);
         } else {
-          const result = await watchCheckController.check(watch.id, { timeoutMs: 30000 });
+          const result = await watchCheckController.check(watch.id, { timeoutMs: isV3MediaIdentity(watch) ? 90000 : 30000 });
           const displayedUpdateIds = result.matchedItems.map(({ id }) => id);
           if (displayedUpdateIds.length) markUpdatesAsRead(watch.id, displayedUpdateIds);
         }
