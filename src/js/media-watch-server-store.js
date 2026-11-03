@@ -8,6 +8,7 @@ import { addUpdateToWatch } from './watch-updates.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
 import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
 import { hasDefinitionVersion } from './watch-definition.js';
+import { isV3MediaIdentity, v3ServerDefinition, sameV3Definition, sameV3ClientIdentity, isV3FormattingJob, rejectedV3History } from './v3-media-identity.js';
 
 const PREFIX = 'watchAssistant.mediaSync.';
 // One approved legacy cleanup; no other journal or revision is eligible.
@@ -127,9 +128,21 @@ export const prepareMediaWatch = (watch, previous, { claimExistingLocal = false 
     || (ownership && ownership !== user)) return watch;
   const owned = { ...watch, mediaPersistence: { ownerId: user } };
   try {
-    const definition = mediaWatchDefinition(owned);
+    let definition = mediaWatchDefinition(owned);
     const existing = read(user, watch.id);
     const confirmedRow = rows.find(row => row.id === watch.id);
+    const v3 = confirmedRow?.user_id === user && isV3MediaIdentity(confirmedRow) && !confirmedRow.deleted_at;
+    if (isV3MediaIdentity(watch) && !v3) return owned; // Wait for its authoritative identity; never create it via legacy sync.
+    if (v3) {
+      if (!sameV3ClientIdentity(definition, confirmedRow)) throw Object.assign(new Error('V3 identity is immutable'), {code:'V3_IDENTITY_IMMUTABLE'});
+      definition = {...v3ServerDefinition(confirmedRow), monitoring_state:definition.monitoring_state};
+      if (existing?.pending && !sameV3Definition(existing.definition, definition)) {
+        // Do not replace a rejected draft (even with an innocent result save).
+        // Known formatting jobs are retired only by the confirmed read below.
+        if (definition.monitoring_state !== confirmedRow.monitoring_state) throw Object.assign(new Error('Unresolved identity edit'), {code:'MEDIA_CONFLICT'});
+        return owned;
+      }
+    }
     if (previous && previous.status === watch.status && confirmedRow && !existing?.pending) {
       definition.monitoring_state = confirmedRow.monitoring_state;
     }
@@ -138,22 +151,25 @@ export const prepareMediaWatch = (watch, previous, { claimExistingLocal = false 
     // report provenance changes only device state, not the saved definition.
     // Compare with the confirmed server definition before creating a mutation;
     // never clear or replace an existing pending/failed/conflicted job here.
-    const confirmedDefinition = !existing && confirmedRow && !confirmedRow.deleted_at
-      ? mediaWatchDefinition({ ...confirmedRow.watch_definition, id: confirmedRow.id,
+    const confirmedDefinition = (!existing || existing.terminalIdentity) && confirmedRow && !confirmedRow.deleted_at
+      ? v3 ? v3ServerDefinition(confirmedRow) : mediaWatchDefinition({ ...confirmedRow.watch_definition, id: confirmedRow.id,
         title: confirmedRow.title, isStory: confirmedRow.watch_definition.inputType === 'url',
         monitoringSource: confirmedRow.monitoring_source,
         status: confirmedRow.monitoring_state === 'paused' ? 'paused' : 'watching' })
       : null;
-    if (!existing && JSON.stringify(confirmedDefinition) === JSON.stringify(definition)) return owned;
-    if (JSON.stringify(existing?.definition) !== JSON.stringify(definition)) {
+    const equal = v3 ? sameV3Definition : (a,b) => JSON.stringify(a) === JSON.stringify(b);
+    if ((!existing || existing.terminalIdentity) && equal(confirmedDefinition, definition)) return owned;
+    if (!equal(existing?.definition, definition)) {
       const remote = rows.find((row) => row.id === watch.id);
       write(user, watch.id, {
-        definition, revision: existing?.revision ?? Number(remote?.media_revision ?? 0),
+        definition, revision: existing?.terminalIdentity ? Number(remote.media_revision) : existing?.revision ?? Number(remote?.media_revision ?? 0),
         mutation: crypto.randomUUID(), baseMutation: existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: false, operation: explicitClaim ? 'syncing' : 'saving',
+        ...(v3 ? {rejectedMutations:rejectedV3History(existing)} : {}),
       });
       queueMicrotask(() => { void synchronizeMediaWatches(); });
     }
-  } catch {
+  } catch (error) {
+    if (['V3_IDENTITY_IMMUTABLE','MEDIA_CONFLICT'].includes(error.code)) throw error;
     // Validation is not a monitoring decision. Retain the edit without sending a pause.
     const existing = read(user, watch.id);
     if (!existing?.deleted) {
@@ -175,6 +191,10 @@ export const queueMediaWatchDeletion = (watch) => {
   }
   const existing = read(user, watch.id);
   const remote = rows.find((row) => row.id === watch.id);
+  const v3 = remote?.user_id === user && isV3MediaIdentity(remote) && !remote.deleted_at;
+  if (v3 && existing?.pending && !sameV3Definition({...existing.definition, monitoring_state:remote.monitoring_state}, v3ServerDefinition(remote))) {
+    throw Object.assign(new Error('Unresolved identity edit'), {code:'MEDIA_CONFLICT'});
+  }
   if (!existing && !remote) {
     if (confirmDeletion) throw Object.assign(new Error('Deletion state unavailable'), { code: 'DELETE_NOT_CONFIRMED' });
     return;
@@ -182,13 +202,14 @@ export const queueMediaWatchDeletion = (watch) => {
   const reconcileRoyal = canReconcileRoyalDeletion(remote, existing, user);
   // Retain a tombstone even when creation is still in flight.
   write(user, watch.id, {
-    definition: reconcileRoyal ? mediaWatchDefinition({ ...remote.watch_definition, id: remote.id,
+    definition: v3 ? v3ServerDefinition(remote) : reconcileRoyal ? mediaWatchDefinition({ ...remote.watch_definition, id: remote.id,
       title: remote.title, monitoringSource: remote.monitoring_source,
       isStory: remote.watch_definition.inputType === 'url',
       status: remote.monitoring_state === 'paused' ? 'paused' : 'watching' }) : existing?.definition || mediaWatchDefinition(watch),
-    revision: reconcileRoyal ? Number(remote.media_revision) : existing?.revision ?? Number(remote?.media_revision ?? 0),
+    revision: reconcileRoyal || (v3 && existing?.terminalIdentity) ? Number(remote.media_revision) : existing?.revision ?? Number(remote?.media_revision ?? 0),
     mutation: crypto.randomUUID(), baseMutation: !reconcileRoyal && existing?.pending ? existing.baseMutation || existing.mutation : null, pending: true, deleted: true,
     ...(confirmDeletion ? { confirmDeletion: true } : {}),
+    ...(v3 ? {rejectedMutations:rejectedV3History(existing)} : {}),
   });
   if (confirmDeletion) {
     const epoch = generation, mutation = read(user, watch.id).mutation;
@@ -368,10 +389,14 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
           const job = JSON.parse(localStorage.getItem(name) || 'null');
           // Old automatic pause jobs were marked localOnly. Quarantine them; never replay.
           if (!job?.pending || job.conflict || job.localOnly || rows.some(row => row.id === job.definition?.id && row.clientReadOnly)) continue;
+          // Do not resend a known impossible formatting write. Retirement below
+          // requires a fresh owner/revision-matched GET, not this cached row.
+          if (isV3FormattingJob(job, rows.find(row => row.id === job.definition?.id), user)) continue;
           try {
             activeWrites.set(job.definition.id, job.operation === 'syncing' ? 'syncing' : 'saving');
             notify();
-            const { watch } = await request(token, { method: 'POST', body: JSON.stringify(job) });
+            const {rejectedMutations, terminalIdentity, ...payload} = job;
+            const { watch } = await request(token, { method: 'POST', body: JSON.stringify(payload) });
             if (!watch || !Number.isSafeInteger(Number(watch.media_revision))) throw Object.assign(new Error('Invalid sync response.'), { code: 'INVALID_PERSISTED_WATCH' });
             if (!fresh()) return { ok: false, code: 'AUTH_SESSION_CHANGED' };
             if (job.confirmDeletion && (watch.id !== job.definition.id || watch.user_id !== user
@@ -413,6 +438,11 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
             readConfirmed = true;
             for (const row of rows) {
               const current = read(user, row.id);
+              if (isV3FormattingJob(current, row, user)) {
+                write(user, row.id, {...current, pending:false, terminalIdentity:{reason:'V3_IDENTITY_FORMATTING',
+                  rejectedAt:new Date().toISOString(), serverRevision:Number(row.media_revision)}});
+                continue;
+              }
               if (current?.pending && current.baseMutation && current.baseMutation === row.media_mutation_id) {
                 write(user, row.id, { ...current, revision: Number(row.media_revision), baseMutation: null, conflict: false });
               }

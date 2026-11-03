@@ -27,6 +27,7 @@ import {
 import { mediaMentionDefinition } from './media-provider-query.js';
 import { parseMediaMentionRequest } from './media-mention-request.js';
 import { hasDefinitionVersion, definitionFromWatch, validateWatchDefinition } from './watch-definition.js';
+import { isV3MediaIdentity } from './v3-media-identity.js';
 
 export const WATCH_MODEL_VERSION = 10;
 
@@ -362,6 +363,13 @@ export const migrateWatchModel = (watch) => {
     lastCheckAttempt: normalizeLastCheckAttempt(watch.lastCheckAttempt),
   };
   const normalized = normalizeCurrencyWatch(migratedWatch);
+  // V3 identity is server-owned. Legacy display/model normalization must not
+  // replace the concept selection or text later serialized by local sync.
+  if (isV3MediaIdentity(watch)) {
+    for (const key of ['inputType', 'request', 'category', 'title', 'storyProfile', 'monitoringSource']) {
+      if (watch[key] !== undefined) normalized[key] = watch[key];
+    }
+  }
   return {
     watch: normalized,
     migrated: JSON.stringify(normalized) !== JSON.stringify(watch),
