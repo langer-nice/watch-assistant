@@ -1,4 +1,5 @@
 import { requestStructuredOutput } from '../request-clarification-api.js';
+import {markV3Stage,markV3ProviderStatus} from '../v3-scheduled-diagnostics.js';
 
 export function createBrainModel({ apiKey, model = 'gpt-5.6-luna', fetchImpl = fetch, onMeasurement = () => {} } = {}) {
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
@@ -13,7 +14,9 @@ export function createBrainModel({ apiKey, model = 'gpt-5.6-luna', fetchImpl = f
         fetchImpl: async (url, options) => {
           measure.calls++;
           const response = await fetchImpl(url, options); measure.http_status = response.status;
+          markV3ProviderStatus(response.status);
           if (response.ok) {
+            markV3Stage('BRAIN_RESPONSE_VALIDATION');
             const body = await response.clone().json(); measure.provider_status = body.status ?? null; measure.usage = body.usage ?? null;
             if (body.status !== 'completed') throw new Error('Provider response is not completed');
           }

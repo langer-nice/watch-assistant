@@ -7,6 +7,7 @@ import https from 'node:https';
 import { Readable } from 'node:stream';
 import he from 'he';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
+import {markV3Stage,markV3ProviderStatus} from './v3-scheduled-diagnostics.js';
 import {
   createPinnedLookup,
   isPublicIpAddress,
@@ -341,6 +342,7 @@ const fetchFeedWithinDeadline = async (sourceUrl, {
       );
     }
 
+    markV3ProviderStatus(response.status);
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location');
       await response.body?.cancel();
@@ -416,6 +418,7 @@ const fetchPlainAndNormalizeFeed = async (sourceUrl, {
       maxRedirects,
     });
     const { xml, finalUrl } = await Promise.race([operation, timeout]);
+    markV3Stage('EVIDENCE_NORMALIZATION');
     const normalized = parseFeedXml(xml, { sourceUrl: finalUrl });
     return {
       source: normalized.source,

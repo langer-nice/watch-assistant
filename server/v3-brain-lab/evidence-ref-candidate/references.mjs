@@ -4,6 +4,7 @@ import {ACTIONS,EVIDENCE_STATUSES,PROVENANCE_FIELDS,freeze,object,text,list} fro
 import {hasUnconfirmedQualification} from '../../v3-brain/judgment.mjs';
 import {guardNumericAction} from '../../v3-brain/validate.mjs';
 import {OUTPUT_SCHEMA,createConditionCheck,guardConditionAction} from '../condition-state/candidate.mjs';
+import {markV3Stage} from '../../v3-scheduled-diagnostics.js';
 
 export const REFERENCE_INSTRUCTIONS = 'For claim support return evidence_refs containing only supplied title/content/measurement segment IDs. Return provenance_refs separately containing only supplied source/url/published_at IDs. Use empty arrays when no references of a role are selected. Do not reproduce claim quotes or invent references. Title, content and measurement references support claims. Source, url and published_at references are provenance only and cannot alone support ALERT. Select relevant supporting segments; reference validity alone does not establish relevance or entailment.';
 
@@ -45,12 +46,14 @@ export function createReferenceRequest(input, {requestNonce = randomBytes(16).to
     return freeze(resolved);
   }
   function admit(output){
+    markV3Stage('BRAIN_RESPONSE_VALIDATION');
     // Candidate admission uses the unchanged semantic guards; only source
     // representation and role validation replace quote resolution.
     object(output,Object.keys(schema.properties),['action','evidence_status','reason','evidence_refs','provenance_refs']);
     if(!EVIDENCE_STATUSES.includes(output.evidence_status))throw new TypeError('Invalid judgment evidence status');
     text(output.reason,'reason');if(output.reason.length>4000)throw new TypeError('Reason too long');
     if(output.novelty_summary!==undefined&&output.novelty_summary!==null){text(output.novelty_summary,'novelty_summary',true);if(output.novelty_summary.length>4000)throw new TypeError('Novelty summary too long');}
+    markV3Stage('EVIDENCE_REF_ADMISSION');
     const claims=resolve(output.evidence_refs,output.action),provenance=resolve(output.provenance_refs,'NO_ALERT','PROVENANCE');
     const basis=[...claims,...provenance];if(!basis.length)throw new TypeError('Evidence references required');
     if(output.action==='ALERT'){

@@ -1,4 +1,5 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
+import {markV3Stage,markV3ProviderStatus} from './v3-scheduled-diagnostics.js';
 import { CURRENCY_SOURCE, parseCurrencyRequest, evaluateCurrencyRate, validateObservation } from '../src/js/currency-watch.js';
 
 const failure = (code) => Object.assign(new Error(code), { code, statusCode: 502 });
@@ -11,6 +12,7 @@ export const fetchCurrencyRate = async (request, { fetchImpl = fetch, now = () =
   try {
     return await Promise.race([timeout, (async () => {
       const response = await fetchImpl(CURRENCY_SOURCE.url, { signal: controller.signal, redirect: 'error', cache: 'no-store', headers: { Accept: 'application/xml,text/xml' } });
+      markV3ProviderStatus(response.status);
       if (!response.ok) throw failure('CURRENCY_PROVIDER_UNAVAILABLE');
       if (Number(response.headers?.get('content-length')) > 65536) throw failure('INVALID_CURRENCY_DATA');
       // Bound the stream as well as Content-Length, including chunked responses.
@@ -22,6 +24,7 @@ export const fetchCurrencyRate = async (request, { fetchImpl = fetch, now = () =
           xml += decoder.decode(value, { stream: true });
         } xml += decoder.decode(); } finally { reader.releaseLock(); }
       } else xml = await response.text();
+      markV3Stage('EVIDENCE_NORMALIZATION');
       if (xml.length > 65536 || /<!DOCTYPE|<!ENTITY/i.test(xml) || XMLValidator.validate(xml) !== true) throw failure('INVALID_CURRENCY_DATA');
       const parsed = new XMLParser({ ignoreAttributes: false, parseAttributeValue: false, removeNSPrefix: true }).parse(xml);
       const cube = parsed?.Envelope?.Cube?.Cube;

@@ -3,6 +3,7 @@ import {understandCapture} from './v3-intent/understand.mjs';
 import {createResponsesModel} from './v3-intent/provider.mjs';
 import {createBrainModel} from './v3-brain/provider.mjs';
 import {judgeReferenceEvidence} from './v3-brain-lab/evidence-ref-candidate/candidate.mjs';
+import {diagnosticInvocationId,withV3ScheduledDiagnostics,markV3Stage,markV3PersistenceSuccess,recordV3Failure} from './v3-scheduled-diagnostics.js';
 import {toBrainInput} from './v3-brain-lab/end-to-end-mini/adapter.mjs';
 import {fetchAndNormalizeFeed} from './check-watch-api.js';
 import {fetchCurrencyRate} from './currency-rate.js';
@@ -51,19 +52,23 @@ export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,cu
  if(!source||!['feed','currency'].includes(source.type))throw Error('Invalid V3 source');
  const isCurrency=source.type==='currency';
  let evidence,items,evaluation;
+ markV3Stage('SOURCE_ACQUISITION');
  if(isCurrency){
-  const rate=await currency(connectorCurrencyRequest(row.criteria));evaluation=evaluateCurrencyRate(rate.criteria,rate.observation);
+  const rate=await currency(connectorCurrencyRequest(row.criteria));
+  markV3Stage('EVIDENCE_NORMALIZATION');
+  evaluation=evaluateCurrencyRate(rate.criteria,rate.observation);
   const metric=row.engine==='wa-v3-evidence-refs.v1'?`${row.criteria.base}/${row.criteria.quote}`:'GBP/EUR';
   const comparison=row.engine==='wa-v3-evidence-refs.v1'?`${metric} ${row.criteria.operator==='gt'?'>':'>='} ${row.criteria.target}`:'GBP/EUR > 1.17';
   const quote=`${metric} ${evaluation.observedRate}`;
   evidence={id:hash(JSON.stringify(rate.observation)),title:`ECB ${metric} reference observation`,content:`${quote} (display truncated at 12 decimal places). Source observation: ${rate.observation.base}/${rate.observation.quote} ${rate.observation.rate}. Exact rational comparison ${comparison}: ${evaluation.met}.`,measurement:{metric,value:String(evaluation.observedRate),quote},source:'ECB',url:source.url,published_at:rate.observation.date+'T00:00:00Z',retrieved_at:rate.checkedAt};
   items=[{id:evidence.id,title:evidence.title,excerpt:quote,url:evidence.url,publishedAt:evidence.published_at,source:'ECB'}];
- }else{const f=await feed(source.url);items=f.items.slice(0,20);evidence=feedEvidence(f);}
+ }else{const f=await feed(source.url);markV3Stage('EVIDENCE_NORMALIZATION');items=f.items.slice(0,20);evidence=feedEvidence(f);}
  const prior={entries:[...(row.prior_state?.entries||[]),...(row.baseline_at?[{id:'pilot-baseline:'+row.id,fact:'Monitoring baseline established at '+row.baseline_at,date:row.baseline_at,alerted:false}]:[])]};
  const input=toBrainInput(row.understanding,evidence,prior);
  // Initial evidence is a baseline, never a creation alert and never a model call.
  if(!row.baseline_at)return {evidence,items,evaluation,judgment:null,article:null};
  const judgment=await judgeReferenceEvidence(input,{model});
+ markV3Stage('EVIDENCE_NORMALIZATION');
  let article=null;
  if(judgment.action==='ALERT'){
   if(isCurrency&&(!evaluation.met||row.evaluation?.met))throw Error('Numeric condition not satisfied');
@@ -75,14 +80,25 @@ export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,cu
 }
 export async function runPilotMonitoring({client,env=process.env,schedulerAuthorized=false,model,feed,currency}={}){
  if(!schedulerAuthorized||!pilotEnabled(env))return {status:'disabled',claimed:0};
- const claim=await client.rpc('claim_v3_pilot_checks');if(claim.error)throw Error('Pilot claim failed');
+ const invocation_id=diagnosticInvocationId();
+ const claim=await withV3ScheduledDiagnostics({invocation_id},async()=>{
+  let reported=false;
+  try{
+   const claim=await client.rpc('claim_v3_pilot_checks');
+   if(claim.error){recordV3Failure(claim.error);reported=true;throw Error('Pilot claim failed');}
+   return claim;
+  }catch(error){if(!reported)recordV3Failure(error);throw error;}
+ });
  const rows=claim.data||[];let completed=0,failed=0;
- await Promise.all(rows.map(async row=>{try{
+ await Promise.all(rows.map(row=>withV3ScheduledDiagnostics({invocation_id,watch_id:row.id,engine:row.engine},async()=>{let reported=false;try{
   const options={feed,currency,model:model||createBrainModel({apiKey:env.OPENAI_API_KEY})};
   const result=row.engine==='wa-v3-evidence-refs.v1'
    ? await evaluateV3Source(row,row.source,options) : await evaluatePilot(row,options);
-  const saved=await client.rpc('finish_v3_pilot_check',{p_id:row.id,p_token:row.token,p_result:result});if(saved.error||saved.data!==true)throw Error('Pilot completion fenced');completed++;
- }catch{failed++;await client.rpc('fail_v3_pilot_check',{p_id:row.id,p_token:row.token});}}));
+  markV3Stage('RESULT_PERSISTENCE');
+  const saved=await client.rpc('finish_v3_pilot_check',{p_id:row.id,p_token:row.token,p_result:result});
+  if(saved.error||saved.data!==true){recordV3Failure(saved.error||Error('Pilot completion fenced'));reported=true;throw Error('Pilot completion fenced');}
+  markV3PersistenceSuccess();completed++;
+ }catch(error){if(!reported)recordV3Failure(error);failed++;await client.rpc('fail_v3_pilot_check',{p_id:row.id,p_token:row.token});}})));
  return {status:failed?'partial-success':'success',claimed:rows.length,completed,failed};
 }
 export const pilotIntentModel=env=>createResponsesModel({apiKey:env.OPENAI_API_KEY});

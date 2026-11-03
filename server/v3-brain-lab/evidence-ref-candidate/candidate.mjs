@@ -1,6 +1,7 @@
 import {INSTRUCTIONS as LEGACY} from '../condition-state/candidate.mjs';
 import {freeze} from '../../v3-brain/schema.mjs';
 import {createReferenceRequest,REFERENCE_INSTRUCTIONS} from './references.mjs';
+import {markV3Stage,markV3BrainCompleted} from '../../v3-scheduled-diagnostics.js';
 const start=LEGACY.indexOf('Return only the supplied Judgment schema.');
 const end=LEGACY.indexOf('\nWhen the verified intent depends on a material condition',start);
 if(start<0||end<0)throw new Error('Grounding-only prompt boundary missing');
@@ -12,7 +13,9 @@ export const NAME='WA V3 SIMPLE CONDITION-AWARE CANDIDATE — EVIDENCE REFS';
 export function prepareReferenceJudgment(input,options){return createReferenceRequest(input,options);}
 export async function judgePreparedReferenceEvidence(prepared,{model}={}){
  if(typeof model!=='function')throw new TypeError('Explicit judgment model required');
+ markV3Stage('BRAIN_CALL');
  const output=await model(freeze({instructions:INSTRUCTIONS,input:prepared.input,response_schema:prepared.response_schema}));
+ markV3BrainCompleted();
  return prepared.admit(output);
 }
 export async function judgeReferenceEvidence(input,{model}={}){return judgePreparedReferenceEvidence(prepareReferenceJudgment(input),{model});}
