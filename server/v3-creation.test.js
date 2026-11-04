@@ -32,7 +32,7 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
  for(const id of [owner,other,PILOT_OWNER])await db.query('insert into auth.users values($1,$2)',[id,'fixture@example.test']);
  const role=async(r,sql,args=[],sub=owner)=>{await db.exec(`set role ${r};set request.jwt.claim.role='${r}';set request.jwt.claim.sub='${sub}'`);try{return await db.query(sql,args);}finally{await db.exec('reset role;reset request.jwt.claim.role;reset request.jwt.claim.sub');}};
  const rpc=async(name,p={})=>{const keys=Object.keys(p);try{return {data:(await role('service_role',`select public.${name}(${keys.map((k,i)=>k+' => $'+(i+1)).join(',')}) value`,keys.map(k=>p[k]))).rows[0].value};}catch(error){return {error};}};
- const client={rpc,from:()=>{const filters=[];const q={select(){return q;},eq(k,v){filters.push([k,v]);return q;},async maybeSingle(){const a=filters.map(x=>x[1]);return {data:(await db.query('select watch_id,instruction,engine from public.v3_pilot_watches where user_id=$1 and instruction=$2',a)).rows[0]||null};}};return q;}};
+ const client={rpc,from:table=>{const filters=[];const q={select(){return q;},eq(k,v){filters.push([k,v]);return q;},async maybeSingle(){const a=filters.map(x=>x[1]);return {data:(await db.query(table==='watches'?'select id,user_id,deleted_at from public.watches where user_id=$1 and id=$2':'select watch_id,instruction,engine from public.v3_pilot_watches where user_id=$1 and instruction=$2',a)).rows[0]||null};}};return q;}};
  let output,modelCalls=0,sourceCalls=0;const model=async req=>{modelCalls++;assert.deepEqual(req.input.conversation,[]);return output;};
  const api=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,model,feed:async url=>{sourceCalls++;return feed(url);},currency});
  const invoke=async(body,handler=api)=>{let value;const res={setHeader(){},end(raw){value=JSON.parse(raw);}};await handler({method:'POST',body},res);return {http:res.statusCode,...value};};
@@ -64,6 +64,15 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   assert.equal(p.instruction,url);assert.equal(p.capture_kind,'URL');assert.equal(p.understanding.story_seed.original_url,url);assert.equal(p.understanding.story_seed.canonical_url,url);assert(!p.understanding.resource);
   assert.equal(p.prior_state.entries.length,1);assert.match(p.prior_state.entries[0].fact,/shop manager was assaulted/);assert.equal(p.prior_state.entries[0].alerted,false);assert.equal(p.last_judgment,null);
   const snapshot=(await db.query('select initial_items from public.media_watch_snapshots where watch_id=$1',[id])).rows[0];assert.equal(snapshot.initial_items[0].url,url);
+ });
+ await t.test('deleted idempotent identity cannot report a new successful creation or run Intent/baseline again',async()=>{
+  const instruction='Follow important developments about a deleted example case.',id=randomUUID();output=ready(instruction,['Example case']);
+  assert.equal((await invoke({instruction,watchId:id})).persisted,true);
+  await db.query("update public.watches set deleted_at='2026-11-04T16:22:49Z',media_revision=media_revision+1 where id=$1",[id]);
+  const beforeModels=modelCalls,beforeSources=sourceCalls,beforeRows=await count('watches');
+  const again=await invoke({instruction,watchId:randomUUID()});assert.equal(again.http,409);assert.equal(again.code,'V3_CREATION_DELETED');assert.equal(again.status,undefined);
+  assert.equal(modelCalls,beforeModels);assert.equal(sourceCalls,beforeSources);assert.equal(await count('watches'),beforeRows);
+  assert((await db.query('select deleted_at from public.watches where id=$1',[id])).rows[0].deleted_at);
  });
  await t.test('pilot records and schedules remain unchanged by creation; baseline creates no notifications',async()=>{
   assert.deepEqual((await db.query('select watch_id,user_id,slot,engine,instruction,understanding,baseline_at,prior_state from public.v3_pilot_watches where slot is not null order by slot')).rows,beforePilot);

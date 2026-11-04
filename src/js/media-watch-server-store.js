@@ -75,22 +75,25 @@ const request = async (token, options = {}) => {
 // One post-create read, using the same authenticated list reader/row contract
 // as detail hydration. Do not use the automatic gate: it may defer/coalesce a
 // pre-create read. Never refresh auth, retry or schedule another read here.
-export const confirmCreatedMediaWatchRead = async ({id,ownerId,accessToken,isCurrent,read=()=>request(accessToken)}) => {
+export const confirmCreatedMediaWatchRead = async ({id,ownerId,accessToken,isCurrent,read=()=>request(accessToken),details=false}) => {
+  let existence='unknown';
+  const result=readable=>details?{readable,existence}:readable;
   try {
     const body = await read();
-    if (!isCurrent() || !Array.isArray(body?.watches)) return false;
+    if (!isCurrent() || !Array.isArray(body?.watches)) return result(false);
     const next = body.watches.map(validateRow);
-    if (next.some(row=>row.user_id!==ownerId)) return false;
-    const target = next.find(row=>row.id===id&&!row.deleted_at);
-    if (!target) return false;
+    if (next.some(row=>row.user_id!==ownerId)) return result(false);
+    const target = next.find(row=>row.id===id);
+    existence=!target?'absent':target.deleted_at?'deleted':'present';
+    if (existence!=='present') return result(false);
     mapMediaReportRow(target,ownerId); // The existing detail read model must map.
     // Carry the confirmed server row across the existing full-page navigation.
     // Fence older in-flight list results from replacing this fresher snapshot.
     latestRead += 1;
     writeWatchCache('media',ownerId,next);
     const cached = readWatchCache('media',ownerId,validateRow);
-    return Boolean(cached?.rows.some(row=>row.id===id&&row.user_id===ownerId&&!row.deleted_at));
-  } catch { return false; }
+    return result(Boolean(cached?.rows.some(row=>row.id===id&&row.user_id===ownerId&&!row.deleted_at)));
+  } catch { return result(false); }
 };
 
 // An older browser-only Watch may be claimed only by an explicit action in its

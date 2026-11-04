@@ -16,6 +16,12 @@ export const v3CreationEnabled=env=>env.V3_PILOT_ENABLED==='true'&&structuredCre
 export const V3_LIMITATION='Monitoring currently supports public RSS/Atom news and ECB GBP/EUR thresholds only. Booking availability, inventory, private pages and arbitrary page changes require an unavailable connector.';
 const unsupported=reason=>({status:'UNSUPPORTED_FOR_NOW',reason});
 const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+const verifyCreatedWatch=async(client,owner,id)=>{
+ const read=await client.from('watches').select('id,user_id,deleted_at').eq('user_id',owner).eq('id',id).maybeSingle();
+ if(read.error)throw Error('V3 creation confirmation unavailable');
+ if(!read.data||read.data.id!==id||read.data.user_id!==owner)return 'V3_CREATION_NOT_CONFIRMED';
+ return read.data.deleted_at?'V3_CREATION_DELETED':null;
+};
 
 // Connector grammar only; the admitted natural-language Intent remains unchanged.
 export function v3CurrencyCriteria(text){
@@ -63,7 +69,11 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    // selecting an engine by instruction. No migration/recreation of old rows.
    const existing=await client.from('v3_pilot_watches').select('watch_id,instruction,engine').eq('user_id',user.id).eq('instruction',body.instruction).maybeSingle();
    if(existing.error)throw Error('V3 persistence unavailable');
-   if(existing.data)return send(200,{status:'READY_TO_MONITOR',id:existing.data.watch_id,engine:existing.data.engine,existing:true});
+   if(existing.data){
+    const failure=await verifyCreatedWatch(client,user.id,existing.data.watch_id);
+    if(failure)return send(409,{code:failure});
+    return send(200,{status:'READY_TO_MONITOR',id:existing.data.watch_id,engine:existing.data.engine,existing:true,persisted:true});
+   }
    let urlInput;
    if(kind==='URL'){
     stage='url';
@@ -95,7 +105,9 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    stage='persistence';
    const saved=await client.rpc('create_v3_watch',{p_id:body.watchId,p_owner:user.id,p_instruction:body.instruction,p_kind:kind,p_understanding:understanding,p_source:capability.source,p_criteria:capability.criteria||null,p_baseline:baseline});
    if(saved.error)throw Error('V3 creation not committed');
-   return send(200,{status:'READY_TO_MONITOR',id:saved.data,engine:V3_ENGINE});
+   const failure=await verifyCreatedWatch(client,user.id,saved.data);
+   if(failure)return send(409,{code:failure});
+   return send(200,{status:'READY_TO_MONITOR',id:saved.data,engine:V3_ENGINE,persisted:true});
   }catch(e){console.warn('v3_creation_failed',{stage,code:/^[A-Z_]{1,80}$/.test(e.code||'')?e.code:'V3_CREATION_UNAVAILABLE'});return send([401,403,404].includes(e.statusCode)?e.statusCode:503,{code:['AUTH_REQUIRED','INVALID_SESSION','AUTH_UNAVAILABLE','STRUCTURED_FEATURE_UNAVAILABLE'].includes(e.code)?e.code:'V3_CREATION_UNAVAILABLE'});}
  };
 }

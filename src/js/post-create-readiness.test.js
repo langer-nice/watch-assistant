@@ -13,7 +13,7 @@ const row=()=>({id,user_id:owner,title:'Blackburn Rovers developments',created_a
 const memory=()=>{const m=new Map();return {getItem:k=>m.get(k)||null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)};};
 const tick=()=>new Promise(r=>setImmediate(r));
 const until=async f=>{for(let n=0;n<100;n++){if(f())return;await tick();}assert.fail('fixture did not reach state');};
-const setup=(t,{response=()=>Response.json({watches:[row()]}),createError=false,cacheBlocked=false}={})=>{
+const setup=(t,{response=()=>Response.json({watches:[row()]}),createError=false,cacheBlocked=false,persisted=true,createCode='V3_CREATION_UNAVAILABLE'}={})=>{
  const old={document:globalThis.document,window:globalThis.window,fetch:globalThis.fetch,localStorage:globalThis.localStorage};
  const {document}=parseHTML('<form><textarea></textarea><button id="newWatchSubmit"><span id="newWatchSubmitLabel">Create Watch</span></button><p aria-live="polite"></p></form>');globalThis.document=document;
  let href='',navigations=0,current=true,language='en',releaseCreate,releaseRead;
@@ -23,7 +23,7 @@ const setup=(t,{response=()=>Response.json({watches:[row()]}),createError=false,
  configureStructuredWatchCreation({getState:()=>({status:'authenticated',session:{user:{id:owner},access_token:'fixture-only'}})});
  globalThis.fetch=async(path,options)=>{calls.push({path,options});assert.equal(path,'/api/media-watches');assert.equal(options.method||'GET','GET');assert.equal(options.headers.Authorization,'Bearer fixture-only');await readHold;return response();};
  const controller=initStructuredWatchCreation({form,input,error:status,getLanguage:()=>language,isCurrent:()=>current,listen:(n,e,f,o)=>n?.addEventListener(e,f,o),uuid:()=>id,fetchImpl:async(path,options)=>{
-  calls.push({path,options});if(path==='/api/structured-watches')return Response.json({enabled:true,v3Create:true});assert.equal(path,'/api/v3-pilot');await createHold;return createError?Response.json({code:'V3_CREATION_UNAVAILABLE'},{status:503}):Response.json({status:'READY_TO_MONITOR',id,engine:'wa-v3-evidence-refs.v1'});
+  calls.push({path,options});if(path==='/api/structured-watches')return Response.json({enabled:true,v3Create:true});assert.equal(path,'/api/v3-pilot');await createHold;return createError?Response.json({code:createCode},{status:503}):Response.json({status:'READY_TO_MONITOR',id,engine:'wa-v3-evidence-refs.v1',persisted});
  }});
  t.after(()=>{Object.assign(globalThis,old);configureStructuredWatchCreation(null);});
  return {controller,form,input,button,status,calls,releaseCreate,releaseRead,invalidate:()=>{current=false;},changeLanguage:()=>{language='fr';document.dispatchEvent(new document.defaultView.Event('i18n:languageChanged'));},href:()=>href,navigations:()=>navigations};
@@ -53,8 +53,8 @@ for(const [name,options] of [
  ['cache cannot carry row across navigation',{cacheBlocked:true}],
 ])test(`confirmed creation + ${name}: truthful terminal waiting, one read, no retry`,async t=>{
  const h=setup(t,options),work=h.controller.runV3(original,'en');await until(()=>h.calls.length===2);h.releaseCreate();await until(()=>h.calls.length===3);h.releaseRead();await work;
- assert.equal(h.href(),'');assert.equal(h.navigations(),0);assert.equal(h.input.value,original);assert.equal(h.button.disabled,true);assert.equal(h.button.querySelector('.watch-creation-spinner').hidden,false);
- assert.equal(h.status.textContent,'Your Watch was created, but it is taking a little longer to open. Please return to All Watches in a moment.');assert.equal(h.status.getAttribute('role'),'status');assert.equal(h.status.getAttribute('aria-live'),'polite');assert.doesNotMatch(h.status.textContent,/Watch not found|Creation failed|creating again|automatically/i);
+ assert.equal(h.href(),'');assert.equal(h.navigations(),0);assert.equal(h.input.value,original);assert.equal(h.button.disabled,false);assert.equal(h.button.querySelector('.watch-creation-spinner').hidden,true);assert.equal(h.form.getAttribute('aria-busy'),null);
+ assert.equal(h.status.textContent,['missing ID','deleted ID'].includes(name)?watchCreationCopy('en').unconfirmed:watchCreationCopy('en').createdWaiting);assert.equal(h.status.getAttribute('role'),'status');assert.equal(h.status.getAttribute('aria-live'),'polite');assert.doesNotMatch(h.status.textContent,/Watch not found|Creation failed|creating again|automatically/i);
  await h.controller.runV3(original,'en');h.input.value='Another request';await h.controller.runV3(h.input.value,'en');await tick();await tick();
  assert.equal(h.calls.filter(x=>x.path==='/api/v3-pilot').length,1);assert.equal(h.calls.filter(x=>x.path==='/api/media-watches').length,1);
 });
@@ -85,6 +85,27 @@ test('direct detail absence semantics unchanged; no new timer/retry loop in conf
 
 test('language change during confirmation retains known creation and does not unlock a second submit',async t=>{
  const h=setup(t),work=h.controller.runV3(original,'en');await until(()=>h.calls.length===2);h.releaseCreate();await until(()=>h.calls.length===3);h.changeLanguage();h.releaseRead();await work;
- assert.equal(h.href(),'');assert.equal(h.button.disabled,true);assert.match(h.status.textContent,/Votre Watch a été créée/);assert.equal(readWatchCache('media',owner,x=>x),null);
+ assert.equal(h.href(),'');assert.equal(h.button.disabled,false);assert.equal(h.button.querySelector('.watch-creation-spinner').hidden,true);assert.match(h.status.textContent,/Votre Watch a été créée/);assert.equal(readWatchCache('media',owner,x=>x),null);
  await h.controller.runV3(original,'fr');assert.equal(h.calls.length,3);
+});
+
+for(const [name,options] of [
+ ['unproven creation',{persisted:false,response:()=>Response.json({watches:[]})}],
+ ['timeout with independent persistence proof',{response:()=>{throw Object.assign(Error('timeout'),{code:'TIMEOUT'});}}],
+ ['timeout without persistence proof',{persisted:false,response:()=>{throw Object.assign(Error('timeout'),{code:'TIMEOUT'});}}],
+])test(name+' is terminal, truthful and does not retry',async t=>{
+ const h=setup(t,options),work=h.controller.runV3(original,'en');await until(()=>h.calls.length===2);h.releaseCreate();await until(()=>h.calls.length===3);h.releaseRead();await work;
+ assert.equal(h.href(),'');assert.equal(h.button.disabled,false);assert.equal(h.button.querySelector('.watch-creation-spinner').hidden,true);assert.equal(h.form.getAttribute('aria-busy'),null);
+ assert.equal(h.status.textContent,name==='timeout with independent persistence proof'?watchCreationCopy('en').createdWaiting:watchCreationCopy('en').unconfirmed);
+ await h.controller.runV3(original,'en');assert.equal(h.calls.filter(c=>c.path==='/api/v3-pilot').length,1);
+});
+test('backend rejects an already-deleted creation identity without any read or success claim',async t=>{
+ const h=setup(t,{createError:true,createCode:'V3_CREATION_DELETED'}),work=h.controller.runV3(original,'en');await until(()=>h.calls.length===2);h.releaseCreate();await work;
+ assert.equal(h.calls.length,2);assert.match(h.status.textContent,/previous Watch.*deleted/);assert.match(h.status.textContent,/No new Watch was created/);assert.equal(h.button.querySelector('.watch-creation-spinner').hidden,true);assert.equal(h.href(),'');
+});
+test('article creation confirms the same durable row and hydrates All Watches before navigation',async t=>{
+ const article='https://example.test/article';const h=setup(t,{response:()=>Response.json({watches:[{...row(),watch_definition:{...row().watch_definition,request:article}}]})});h.input.value=article;
+ const work=h.controller.runV3(article,'en');await until(()=>h.calls.length===2);h.releaseCreate();await until(()=>h.calls.length===3);h.releaseRead();await work;
+ assert.equal(JSON.parse(h.calls[1].options.body).captureKind,'URL');assert.equal(h.href(),'watch-detail.html?id='+id);assert.equal(h.button.querySelector('.watch-creation-spinner').hidden,true);
+ const cached=readWatchCache('media',owner,x=>x);assert(cached.rows.some(r=>r.id===id&&!r.deleted_at));assert.equal(mapMediaReportRow(cached.rows.find(r=>r.id===id),owner).request,article);
 });

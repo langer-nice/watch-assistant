@@ -34,7 +34,7 @@ for(const state of ['success','error','clarify','unsupported'])test(`real V3 con
  assert.deepEqual(calls[1],{path:'/api/v3-pilot',body:{instruction:input.value,watchId:id,captureKind:'FREE_TEXT'}});
  release();await work;
  assert.match(input.value,/Blackburn Rovers/);
- if(state==='success'){assert.equal(window.location.href,'watch-detail.html?id='+id);assert.equal(button.disabled,true);assert.equal(label.textContent,'Creating Watch…');}
+ if(state==='success'){assert.equal(window.location.href,'watch-detail.html?id='+id);assert.equal(button.disabled,false);assert.equal(label.textContent,'Create Watch');assert.equal(button.querySelector('.watch-creation-spinner').hidden,true);}
  else{assert.equal(window.location.href,'');assert.equal(button.disabled,false);assert.equal(input.readOnly,false);assert.equal(label.textContent,'Create Watch');assert.equal(button.querySelector('.watch-creation-spinner').hidden,true);assert.equal(form.getAttribute('aria-busy'),null);assert.match(status.textContent,state==='error'?/Creation could not be confirmed/:state==='clarify'?/Which club/:/cannot be monitored/);}
  assert.equal(calls.length,2);
 });

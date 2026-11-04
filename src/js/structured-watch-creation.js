@@ -35,6 +35,8 @@ const limitations = {
 };
 export const structuredCreationError = (code,language) => {
  const c=copy[language==='fr'?'fr':'en'];
+ if(code==='V3_CREATION_DELETED')return language==='fr'?'La Watch précédente pour cette demande a été supprimée. Aucune nouvelle Watch n’a été créée.':'The previous Watch for this request was deleted. No new Watch was created.';
+ if(code==='V3_CREATION_NOT_CONFIRMED')return language==='fr'?'La création n’a pas pu être confirmée. Votre texte est conservé.':'Creation could not be confirmed. Your request has been kept.';
  if(code==='ROLE_EVIDENCE_UNAVAILABLE')return language==='fr'?'Le titulaire actuel n’a pas pu être vérifié auprès de la source officielle. Réessayez plus tard ; aucune identité n’a été supposée.':'The current holder could not be verified with the official source. Try again later; no identity was assumed.';
  if (['AUTH_REQUIRED','INVALID_SESSION','AUTH_SESSION_CHANGED','AUTH_UNAVAILABLE'].includes(code)) return c.auth;
  if (['STRUCTURED_BACKEND_DISABLED','STRUCTURED_FEATURE_UNAVAILABLE'].includes(code)) return c.unavailable;
@@ -101,10 +103,14 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
     if(!ready(epoch,owner,original,language))return true;
     if(result.status==='READY_TO_MONITOR'&&result.id){
      v3CreatedResult=result;
-     let readable=false;
-     try{readable=await confirmReadiness({id:result.id,ownerId:owner,accessToken:activeSession()?.access_token,isCurrent:()=>ready(epoch,owner,original,language)});}catch{/* A read failure does not undo successful creation. */}
-     if(!ready(epoch,owner,original,language)){if(isCurrent()&&activeSession()?.user?.id===owner)presentation.createdWaiting();return true;}
-     if(!readable){presentation.createdWaiting();return true;}
+     let confirmation=false;
+     try{confirmation=await confirmReadiness({id:result.id,ownerId:owner,accessToken:activeSession()?.access_token,isCurrent:()=>ready(epoch,owner,original,language),details:true});}catch{/* Unknown read outcome is not proof of creation. */}
+     const readable=confirmation===true||confirmation?.readable===true;
+     const absent=['absent','deleted'].includes(confirmation?.existence);
+     const persisted=!absent&&(result.persisted===true||confirmation?.existence==='present');
+     const terminal=()=>persisted?presentation.createdWaiting():presentation.unconfirmed();
+     if(!ready(epoch,owner,original,language)){if(isCurrent()&&activeSession()?.user?.id===owner)terminal();return true;}
+     if(!readable){terminal();return true;}
      presentation.navigating(result.id);window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);return true;
     }
     if(result.status==='NEEDS_CLARIFICATION'){message(result.clarification_question||labels().clarify);return true;}
@@ -113,7 +119,7 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
    }catch(e){if(ready(epoch,owner,original,language))message(e.code==='V3_CREATION_UNAVAILABLE'
     ? (language==='fr'?'La création n’a pas pu être confirmée. Votre texte est conservé.':'Creation could not be confirmed. Your text has been kept.')
     : structuredCreationError(e.code,language));return true;}
-   finally{busy=false;presentation.finish();}
+   finally{busy=false;presentation.finish({terminal:true});}
   }
   clear();reviewNote=(noteInput?.value||'').trim();busy=true;const epoch=generation,owner=activeSession()?.user?.id,c=labels();
   message(c.busy);

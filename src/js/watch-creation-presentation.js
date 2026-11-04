@@ -1,8 +1,8 @@
 // Presentation only: no requests, retries, timers, Watch data or success tests.
 const transitionKey='watchAssistant.creationTransition';
 export const watchCreationCopy=language=>language==='fr'
- ? {button:'Création de la Watch…',pending:'Création de votre Watch…',opening:'Chargement de votre Watch…',createdWaiting:'Votre Watch a été créée, mais son ouverture prend un peu plus de temps. Revenez à Toutes les Watches dans un instant.'}
- : {button:'Creating Watch…',pending:'Creating your Watch…',opening:'Loading your Watch…',createdWaiting:'Your Watch was created, but it is taking a little longer to open. Please return to All Watches in a moment.'};
+ ? {button:'Création de la Watch…',pending:'Création de votre Watch…',opening:'Chargement de votre Watch…',createdWaiting:'Votre Watch a été créée, mais son ouverture prend un peu plus de temps. Revenez à Toutes les Watches dans un instant.',unconfirmed:'La création n’a pas pu être confirmée. Votre texte est conservé. Consultez Toutes les Watches avant de réessayer.'}
+ : {button:'Creating Watch…',pending:'Creating your Watch…',opening:'Loading your Watch…',createdWaiting:'Your Watch was created, but it is taking a little longer to open. Please return to All Watches in a moment.',unconfirmed:'Creation could not be confirmed. Your request has been kept. Check All Watches before trying again.'};
 
 export const markWatchCreationTransition=(id,{storage,now=Date.now()}={})=>{
  try{(storage??globalThis.sessionStorage)?.setItem(transitionKey,JSON.stringify({id,at:now}));}catch{/* Optional UI handoff. */}
@@ -42,10 +42,12 @@ export function createWatchCreationPresentation({form,status,getLanguage,listen,
    }
   }),
   navigating:safe(id=>{navigating=true;markWatchCreationTransition(id);}),
-  createdWaiting:safe(()=>{navigating=true;if(status)status.textContent=watchCreationCopy(getLanguage()).createdWaiting;}),
-  finish:safe(()=>{
-   // Keep the visible pending state until the existing navigation unloads us.
-   if(!pending||navigating||!isCurrent())return;
+  createdWaiting:safe(()=>{if(status)status.textContent=watchCreationCopy(getLanguage()).createdWaiting;}),
+  unconfirmed:safe(()=>{if(status)status.textContent=watchCreationCopy(getLanguage()).unconfirmed;}),
+  finish:safe(({terminal=false}={})=>{
+   // V3 terminal paths end loading; its result latch prevents duplicate POSTs.
+   // Preserve the existing navigation handoff for other creation paths.
+   if(!pending||(navigating&&!terminal)||!isCurrent())return;
    pending=false;
    for(const {node,disabled,readOnly} of controls){node.disabled=disabled;if(node.matches('textarea,input'))node.readOnly=Boolean(readOnly);}
    controls=[];form.classList.remove('is-creating');form.removeAttribute('aria-busy');button.removeAttribute('aria-busy');
