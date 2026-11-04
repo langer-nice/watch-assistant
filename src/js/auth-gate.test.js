@@ -87,6 +87,28 @@ test('a signed-in person can save a first name without deriving it from email', 
   assert.equal(document.querySelector('[data-auth-profile-form] [name="firstName"]').value, 'David');
 });
 
+for (const language of ['en','fr']) test(`${language} compact profile controls preserve loading, save error/retry and sign-out`, async () => {
+  const {document}=await setup('index.html','index.html');setLanguage(language,{persist:false});
+  const mock=client(),ui=startUi({client:mock});
+  const session={user:{id:'profile-polish',email:'sample@example.test',user_metadata:{first_name:'Ava'}},access_token:'synthetic'};
+  mock.resolve(session);await ui.ready;
+  const form=document.querySelector('[data-auth-profile-form]'),input=form.querySelector('input'),button=form.querySelector('button');
+  assert.equal(input.value,'Ava');assert.equal(form.querySelector('label').getAttribute('for'),input.id);
+  assert.equal(button.textContent,language==='fr'?'Enregistrer':'Save');assert.equal(button.getAttribute('aria-label'),language==='fr'?'Enregistrer le prénom':'Save name');
+  assert.equal(button.className,'auth-menu__profile-save');assert.equal(document.querySelector('[data-auth-sign-out]').className,'auth-menu__text-button');
+  assert.deepEqual([...form.querySelectorAll('input,button')].map(el=>el.tagName),['INPUT','BUTTON']);
+  let finish;mock.auth.updateUser=()=>new Promise(resolve=>{finish=resolve;});input.value='Bea';form.reportValidity=()=>true;
+  form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));assert.equal(button.disabled,true);
+  finish({error:{message:'Synthetic failure'}});await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(button.disabled,false);assert.equal(input.value,'Bea');assert.equal(form.querySelector('[data-auth-profile-error]').hidden,false);
+  mock.auth.updateUser=async({data})=>{assert.deepEqual(data,{first_name:'Bea'});mock.emit({...session,user:{...session.user,user_metadata:data}});return {error:null};};
+  form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.querySelector('[name="firstName"]').value,'Bea');
+  let signOuts=0;mock.auth.signOut=async()=>{signOuts++;return {error:null};};
+  await ui.auth.signOut();
+  assert.equal(signOuts,1);assert.equal(ui.auth.getState().status,'anonymous');
+});
+
 test('pagehide does not publish sign-out before the signed-in editor can leave', async () => {
   await setup();
   const mock = client();

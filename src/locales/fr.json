@@ -741,6 +741,7 @@
     "signOut": "Se déconnecter",
     "firstNameLabel": "Prénom",
     "saveFirstName": "Enregistrer le prénom",
+    "saveFirstNameShort": "Enregistrer",
     "profileSaveError": "Impossible d’enregistrer votre prénom. Veuillez réessayer.",
     "unavailable": "La connexion est indisponible ici. Veuillez réessayer plus tard.",
     "linkSent": "Nous avons envoyé un lien de connexion sécurisé à {email}.",

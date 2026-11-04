@@ -741,6 +741,7 @@
     "signOut": "Sign out",
     "firstNameLabel": "First name",
     "saveFirstName": "Save name",
+    "saveFirstNameShort": "Save",
     "profileSaveError": "Couldn’t save your name. Please try again.",
     "unavailable": "Sign-in is unavailable here. Please try again later.",
     "linkSent": "We sent a secure sign-in link to {email}.",

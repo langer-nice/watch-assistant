@@ -32,15 +32,17 @@ export const renderAuthState = (root, state, { mode = 'magic-link', creation = f
     const profileForm = root.hasAttribute('data-auth-gate-root') ? '' : `
       <form class="auth-menu__form auth-menu__profile-form" data-auth-profile-form>
         <label for="authProfileFirstName">${t('auth.firstNameLabel')}</label>
-        <input id="authProfileFirstName" name="firstName" type="text" autocomplete="given-name" maxlength="80" value="${escapeHtml(getProfileFirstName(state) || '')}" required>
-        <button class="auth-menu__button" type="submit">${t('auth.saveFirstName')}</button>
+        <div class="auth-menu__profile-controls">
+          <input id="authProfileFirstName" name="firstName" type="text" autocomplete="given-name" maxlength="80" value="${escapeHtml(getProfileFirstName(state) || '')}" required>
+          <button class="auth-menu__profile-save" type="submit" aria-label="${t('auth.saveFirstName')}">${t('auth.saveFirstNameShort')}</button>
+        </div>
         <p class="auth-menu__error" data-auth-profile-error role="alert" hidden></p>
       </form>`;
     root.innerHTML = `
       ${state.verifiedRequest ? `<p role="status">${t('auth.verified')}</p>` : ''}
       <p class="auth-menu__email">${escapeHtml(state.session?.user?.email || t('auth.signedIn'))}</p>
       ${profileForm}
-      <button class="auth-menu__button" type="button" data-auth-sign-out>${t('auth.signOut')}</button>
+      <button class="${root.hasAttribute('data-auth-gate-root') ? 'auth-menu__button' : 'auth-menu__text-button'}" type="button" data-auth-sign-out>${t('auth.signOut')}</button>
     `;
     return;
   }

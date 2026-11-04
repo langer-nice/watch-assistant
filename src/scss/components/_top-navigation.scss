@@ -144,7 +144,41 @@
 }
 
 .auth-menu__profile-form {
-  margin-block: var(--space-sm);
+  margin-block: var(--space-xs) var(--space-xxs);
+}
+
+.auth-menu__profile-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-xxs);
+}
+
+.auth-menu__profile-controls input {
+  min-width: 0;
+}
+
+.auth-menu__profile-save {
+  min-height: 2.75rem;
+  padding: 0 var(--space-xs);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.auth-menu__profile-save:hover,
+.auth-menu__profile-save:focus-visible {
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+}
+
+.auth-menu__profile-save:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .auth-menu__form label {
