@@ -7,6 +7,8 @@ import {requireStructuredCreationAccess,structuredCreationEnabled} from './struc
 import {structuredProductionEnabled} from './structured-production-access.js';
 import {evaluateV3Source,pilotSource} from './v3-pilot.js';
 import {parseCurrencyRequest,isCurrencyRequest} from '../src/js/currency-watch.js';
+import {fetchAndNormalizeFeed} from './check-watch-api.js';
+import {resolveV3UrlCapture} from './v3-article-seed.js';
 
 export const V3_ENGINE='wa-v3-evidence-refs.v1';
 export const v3CreationEnabled=env=>env.V3_PILOT_ENABLED==='true'&&structuredCreationEnabled(env)&&structuredProductionEnabled(env)&&env.STRUCTURED_MEDIA_SCHEDULED_ENABLED==='true';
@@ -41,7 +43,7 @@ export function v3Capability(capture,understanding){
  return {source:pilotSource({query})};
 }
 
-export function createV3WatchHandler({env=process.env,authenticate=authenticateSupabaseRequest,serviceClient,model,feed,currency}={}){
+export function createV3WatchHandler({env=process.env,authenticate=authenticateSupabaseRequest,serviceClient,model,feed=fetchAndNormalizeFeed,currency,pageMetadata}={}){
  return async(req,res)=>{
   const send=(status,body)=>{res.statusCode=status;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(body));};
   if(!v3CreationEnabled(env))return send(404,{code:'STRUCTURED_FEATURE_UNAVAILABLE'});
@@ -54,22 +56,34 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    if(typeof body==='string')body=JSON.parse(body);
    if(!body||Object.keys(body).some(k=>!['instruction','watchId','captureKind'].includes(k))||!uuid.test(body.watchId)||typeof body.instruction!=='string'||!body.instruction.trim()||body.instruction.length>500)return send(400,{code:'INVALID_BODY'});
    const kind=body.captureKind||'FREE_TEXT';if(!['FREE_TEXT','URL'].includes(kind))return send(400,{code:'INVALID_BODY'});
-   const capture={id:randomUUID(),kind,raw_input:body.instruction,...(kind==='URL'?{context:[{id:'resource',kind:'page',text:'',url:body.instruction.trim()}]}:{})};
+   let capture={id:randomUUID(),kind,raw_input:body.instruction,...(kind==='URL'?{context:[{id:'resource',kind:'page',text:'',url:body.instruction.trim()}]}:{})};
    const client=serviceClient||createSupabaseServiceClient({env});
    // Owner-scoped idempotency also reuses existing pilot identities without
    // selecting an engine by instruction. No migration/recreation of old rows.
    const existing=await client.from('v3_pilot_watches').select('watch_id,instruction,engine').eq('user_id',user.id).eq('instruction',body.instruction).maybeSingle();
    if(existing.error)throw Error('V3 persistence unavailable');
    if(existing.data)return send(200,{status:'READY_TO_MONITOR',id:existing.data.watch_id,engine:existing.data.engine,existing:true});
+   let urlInput;
+   if(kind==='URL'){
+    stage='url';
+    try{urlInput=await resolveV3UrlCapture(capture,{feed,pageMetadata});}
+    catch(error){if(['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','INVALID_FEED_FORMAT'].includes(error.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));throw error;}
+    if(urlInput.decision)return send(200,urlInput.decision);
+    capture=urlInput.capture;
+   }
    stage='intent';
-   const understanding=await understandCapture(capture,[],{model:model||createResponsesModel({apiKey:env.OPENAI_API_KEY}),limitations:[V3_LIMITATION]});
+   let understanding=await understandCapture(capture,[],{model:model||createResponsesModel({apiKey:env.OPENAI_API_KEY}),limitations:[V3_LIMITATION]});
    if(understanding.decision.status!=='READY_TO_MONITOR')return send(200,{...understanding.decision});
+   if(urlInput?.seed){
+    if(understanding.resource||understanding.intent.references.some(r=>r.exact_url)||understanding.intent.explicit_constraints.some(c=>c.kind==='exact_resource'))return send(200,unsupported('This article must identify a story to follow, rather than require monitoring changes to the exact page.'));
+    understanding={...understanding,story_seed:urlInput.seed};
+   }
    const capability=v3Capability(capture,understanding);if(capability.decision)return send(200,capability.decision);
    // Acquire baseline before any write. The single SQL RPC commits all records
    // together; a provider/source/validation failure leaves no partial Watch.
    stage='baseline';
    let baseline;
-   try{baseline=await evaluateV3Source({id:body.watchId,understanding,criteria:capability.criteria,prior_state:{entries:[]},baseline_at:null},capability.source,{feed,currency});}
+   try{baseline=await evaluateV3Source({id:body.watchId,understanding,criteria:capability.criteria,prior_state:{entries:[]},baseline_at:null},capability.source,{feed:urlInput?.baselineFeed||feed,currency});}
    catch(e){if(kind==='URL'&&['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','UNSUPPORTED_CONTENT_TYPE','INVALID_FEED_FORMAT','NOT_A_FEED'].includes(e.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));throw e;}
    stage='persistence';
    const saved=await client.rpc('create_v3_watch',{p_id:body.watchId,p_owner:user.id,p_instruction:body.instruction,p_kind:kind,p_understanding:understanding,p_source:capability.source,p_criteria:capability.criteria||null,p_baseline:baseline});

@@ -52,6 +52,18 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   if(name==='GBP/EUR')assert.deepEqual(row.watch_definition.currencyCriteria,{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'});
   const again=await invoke({...body,watchId:randomUUID()});assert.equal(again.id,id);assert.equal(modelCalls,before+1);
  });
+ await t.test('article seed persists through unchanged atomic SQL with original URL and a silent reference baseline',async()=>{
+  const url='https://example.test/story/assault-20261022',id=randomUUID();let calls=0;
+  const articleApi=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,
+   feed:async()=>{throw Object.assign(Error('HTML'),{code:'UNSUPPORTED_CONTENT_TYPE'});},
+   pageMetadata:async()=>({pageType:'article',title:'A shop manager was assaulted in Nice',description:'Police appeal for witnesses to the 22 October assault.',openGraphType:'article',titleSource:'open_graph_title',siteName:'Public news',canonicalUrl:url,publishedAt:'2026-10-22T10:00:00Z'}),
+   model:async req=>{calls++;assert.equal(req.input.capture.kind,'PAGE_CONTEXT');return ready('Follow future developments in the shop manager assault in Nice.',['shop manager assault','Nice']);}});
+  const r=await invoke({instruction:url,watchId:id,captureKind:'URL'},articleApi);assert.equal(r.http,200);assert.equal(r.id,id);assert.equal(calls,1);
+  const p=(await db.query('select * from public.v3_pilot_watches where watch_id=$1',[id])).rows[0];
+  assert.equal(p.instruction,url);assert.equal(p.capture_kind,'URL');assert.equal(p.understanding.story_seed.original_url,url);assert.equal(p.understanding.story_seed.canonical_url,url);assert(!p.understanding.resource);
+  assert.equal(p.prior_state.entries.length,1);assert.match(p.prior_state.entries[0].fact,/shop manager was assaulted/);assert.equal(p.prior_state.entries[0].alerted,false);assert.equal(p.last_judgment,null);
+  const snapshot=(await db.query('select initial_items from public.media_watch_snapshots where watch_id=$1',[id])).rows[0];assert.equal(snapshot.initial_items[0].url,url);
+ });
  await t.test('pilot records and schedules remain unchanged by creation; baseline creates no notifications',async()=>{
   assert.deepEqual((await db.query('select watch_id,user_id,slot,engine,instruction,understanding,baseline_at,prior_state from public.v3_pilot_watches where slot is not null order by slot')).rows,beforePilot);
   assert.deepEqual((await db.query('select s.* from public.structured_media_schedules s join public.v3_pilot_watches p on p.watch_id=s.watch_id where p.slot is not null order by s.watch_id')).rows,pilotSchedules);
