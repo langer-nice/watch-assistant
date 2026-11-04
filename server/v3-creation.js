@@ -8,7 +8,7 @@ import {structuredProductionEnabled} from './structured-production-access.js';
 import {evaluateV3Source,pilotSource} from './v3-pilot.js';
 import {parseCurrencyRequest,isCurrencyRequest} from '../src/js/currency-watch.js';
 import {fetchAndNormalizeFeed} from './check-watch-api.js';
-import {resolveV3UrlCapture,articleStoryIntentInstructions} from './v3-article-seed.js';
+import {resolveV3UrlCapture,articleStoryTitleRequest,validateArticleStoryTitle} from './v3-article-seed.js';
 import {resolveV3OutputLocale} from './v3-output-locale.js';
 
 export const V3_ENGINE='wa-v3-evidence-refs.v1';
@@ -74,12 +74,16 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    }
    stage='intent';
    const intentModel=model||createResponsesModel({apiKey:env.OPENAI_API_KEY});
-   const scopedModel=urlInput?.seed?request=>intentModel({...request,instructions:request.instructions+articleStoryIntentInstructions(urlInput.locale)}):intentModel;
+   let displayTitle;
+   const scopedModel=urlInput?.seed?async request=>{
+    const output=await intentModel(articleStoryTitleRequest(request,urlInput.locale));
+    const {display_title,...semantic}=output;displayTitle=display_title;return semantic;
+   }:intentModel;
    let understanding=await understandCapture(capture,[],{model:scopedModel,limitations:[V3_LIMITATION]});
    if(understanding.decision.status!=='READY_TO_MONITOR')return send(200,{...understanding.decision});
    if(urlInput?.seed){
     if(understanding.resource||understanding.intent.references.some(r=>r.exact_url)||understanding.intent.explicit_constraints.some(c=>c.kind==='exact_resource'))return send(200,unsupported('This article must identify a story to follow, rather than require monitoring changes to the exact page.'));
-    understanding={...understanding,story_seed:urlInput.seed};
+    understanding={...understanding,story_seed:urlInput.seed,display_title:validateArticleStoryTitle(displayTitle)};
    }
    const capability=v3Capability(capture,understanding);if(capability.decision)return send(200,capability.decision);
    // Acquire baseline before any write. The single SQL RPC commits all records

@@ -11,7 +11,7 @@ const html='<html lang="fr"><head><title>Shop manager assaulted in Nice: police 
 const page=extractPageMetadata(html,url);
 const capture={id:'capture',kind:'URL',raw_input:url,context:[{id:'resource',kind:'page',text:'',url}]};
 const nonFeed=()=>{throw Object.assign(Error('HTML'),{code:'UNSUPPORTED_CONTENT_TYPE'});};
-const ready=()=>({intent:{canonical_text:'Follow future developments in the 22 October assault on a shop manager in Nice and the police witness appeal.',references:[{label:'shop manager assault',source_ref:'article'},{label:'Nice',source_ref:'article'}],explicit_constraints:[],unresolved_ambiguities:[]},decision:{status:'READY_TO_MONITOR',reason:'Specific story identified.'}});
+const ready=()=>({display_title:'Shop manager assault in Nice',intent:{canonical_text:'Follow future developments in the 22 October assault on a shop manager in Nice and the police witness appeal.',references:[{label:'shop manager assault',source_ref:'article'},{label:'Nice',source_ref:'article'}],explicit_constraints:[],unresolved_ambiguities:[]},decision:{status:'READY_TO_MONITOR',reason:'Specific story identified.'}});
 const env={V3_PILOT_ENABLED:'true',VERCEL_ENV:'production',VERCEL_GIT_COMMIT_REF:'master',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',STRUCTURED_PRODUCTION_ENABLED:'true',STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true'};
 function harness({metadata=page,feed=nonFeed,output=ready(),locale='en'}={}){
  let saved,models=0,pages=0,request;
@@ -76,7 +76,7 @@ test('invented exact URL is still rejected by unchanged grounding, never silentl
  const output=ready();output.intent.references.push({label:'seed',source_ref:'article',exact_url:url});const h=harness({output});const r=await h.run();assert.equal(r.http,503);assert.equal(h.saved,undefined);
 });
 test('French article Intent uses the existing owner locale without turning presentation into monitoring scope',async()=>{
- const output=ready();output.intent.canonical_text='Suivre les suites de cette agression et de l’enquête de police.';
+ const output=ready();output.intent.canonical_text='Suivre les suites de cette agression et de l’enquête de police.';output.display_title='Agression du commerçant à Nice';
  const h=harness({locale:'fr',output});assert.equal((await h.run()).status,'READY_TO_MONITOR');assert.match(h.request.input.capture.raw_input,/^Suis/);assert.match(h.request.instructions,/Write canonical_text and user-facing decision prose in French/);assert.match(h.request.instructions,/do not add it.*as monitored conditions/);assert(!h.request.input.capture.raw_input.includes('français'));assert.equal(h.models,1);
 });
 test('existing public metadata fetcher keeps private/redirect validation',async()=>{

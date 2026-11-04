@@ -57,9 +57,10 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   const articleApi=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,
    feed:async()=>{throw Object.assign(Error('HTML'),{code:'UNSUPPORTED_CONTENT_TYPE'});},
    pageMetadata:async()=>({pageType:'article',title:'A shop manager was assaulted in Nice',description:'Police appeal for witnesses to the 22 October assault.',openGraphType:'article',titleSource:'open_graph_title',siteName:'Public news',canonicalUrl:url,publishedAt:'2026-10-22T10:00:00Z'}),
-   model:async req=>{calls++;assert.equal(req.input.capture.kind,'PAGE_CONTEXT');return ready('Follow future developments in the shop manager assault in Nice.',['shop manager assault','Nice']);}});
+   model:async req=>{calls++;assert.equal(req.input.capture.kind,'PAGE_CONTEXT');return {...ready('Follow future developments in the shop manager assault in Nice.',['shop manager assault','Nice']),display_title:'Shop manager assault in Nice'};}});
   const r=await invoke({instruction:url,watchId:id,captureKind:'URL'},articleApi);assert.equal(r.http,200);assert.equal(r.id,id);assert.equal(calls,1);
   const p=(await db.query('select * from public.v3_pilot_watches where watch_id=$1',[id])).rows[0];
+  const persisted=(await db.query('select title,watch_definition from public.watches where id=$1',[id])).rows[0];assert.equal(persisted.title,'Shop manager assault in Nice');assert.equal(persisted.watch_definition.storyProfile.concepts[0].label,'Follow future developments in the shop manager assault in Nice.');assert.equal(p.understanding.intent.canonical_text,'Follow future developments in the shop manager assault in Nice.');
   assert.equal(p.instruction,url);assert.equal(p.capture_kind,'URL');assert.equal(p.understanding.story_seed.original_url,url);assert.equal(p.understanding.story_seed.canonical_url,url);assert(!p.understanding.resource);
   assert.equal(p.prior_state.entries.length,1);assert.match(p.prior_state.entries[0].fact,/shop manager was assaulted/);assert.equal(p.prior_state.entries[0].alerted,false);assert.equal(p.last_judgment,null);
   const snapshot=(await db.query('select initial_items from public.media_watch_snapshots where watch_id=$1',[id])).rows[0];assert.equal(snapshot.initial_items[0].url,url);
