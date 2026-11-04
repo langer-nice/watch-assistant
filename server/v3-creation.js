@@ -8,7 +8,8 @@ import {structuredProductionEnabled} from './structured-production-access.js';
 import {evaluateV3Source,pilotSource} from './v3-pilot.js';
 import {parseCurrencyRequest,isCurrencyRequest} from '../src/js/currency-watch.js';
 import {fetchAndNormalizeFeed} from './check-watch-api.js';
-import {resolveV3UrlCapture} from './v3-article-seed.js';
+import {resolveV3UrlCapture,articleStoryIntentInstructions} from './v3-article-seed.js';
+import {resolveV3OutputLocale} from './v3-output-locale.js';
 
 export const V3_ENGINE='wa-v3-evidence-refs.v1';
 export const v3CreationEnabled=env=>env.V3_PILOT_ENABLED==='true'&&structuredCreationEnabled(env)&&structuredProductionEnabled(env)&&env.STRUCTURED_MEDIA_SCHEDULED_ENABLED==='true';
@@ -66,13 +67,15 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    let urlInput;
    if(kind==='URL'){
     stage='url';
-    try{urlInput=await resolveV3UrlCapture(capture,{feed,pageMetadata});}
+    try{urlInput=await resolveV3UrlCapture(capture,{feed,pageMetadata,storyLocale:()=>resolveV3OutputLocale({client,ownerId:user.id})});}
     catch(error){if(['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','INVALID_FEED_FORMAT'].includes(error.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));throw error;}
     if(urlInput.decision)return send(200,urlInput.decision);
     capture=urlInput.capture;
    }
    stage='intent';
-   let understanding=await understandCapture(capture,[],{model:model||createResponsesModel({apiKey:env.OPENAI_API_KEY}),limitations:[V3_LIMITATION]});
+   const intentModel=model||createResponsesModel({apiKey:env.OPENAI_API_KEY});
+   const scopedModel=urlInput?.seed?request=>intentModel({...request,instructions:request.instructions+articleStoryIntentInstructions(urlInput.locale)}):intentModel;
+   let understanding=await understandCapture(capture,[],{model:scopedModel,limitations:[V3_LIMITATION]});
    if(understanding.decision.status!=='READY_TO_MONITOR')return send(200,{...understanding.decision});
    if(urlInput?.seed){
     if(understanding.resource||understanding.intent.references.some(r=>r.exact_url)||understanding.intent.explicit_constraints.some(c=>c.kind==='exact_resource'))return send(200,unsupported('This article must identify a story to follow, rather than require monitoring changes to the exact page.'));
