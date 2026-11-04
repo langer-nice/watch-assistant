@@ -3,6 +3,7 @@ import {mediaArticleIdentityKeys} from './media-article-identity.js';
 import {markV3Stage} from './v3-scheduled-diagnostics.js';
 
 export const NEWS_QUERY_BUDGET=Object.freeze({queries:2,perQuery:20,finalItems:20});
+export const MULTI_ENTITY_NEWS_QUERY_BUDGET=Object.freeze({...NEWS_QUERY_BUDGET,entities:4,queries:8});
 const fold=s=>String(s||'').normalize('NFD').replace(/\p{M}/gu,'').toLowerCase().replace(/\s+/g,' ').trim();
 const escape=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const quote=s=>'"'+s.replace(/["\\]/g,' ').replace(/\s+/g,' ').trim()+'"';
@@ -43,7 +44,22 @@ const regionNames=()=>{
 };
 const words=s=>(fold(s).match(/[\p{L}\p{N}]+/gu)||[]).filter(w=>w.length>1&&!stop.has(w));
 const strip=(text,label)=>text.replace(new RegExp('(?<![\\p{L}\\p{N}])'+escape(fold(label))+'(?![\\p{L}\\p{N}])','gu'),' ');
-export function planIntentNewsQueries(row,source){
+// Conservative acquisition opt-in: an explicit simple OR list, never an OR
+// elsewhere in the event or a mixed AND/OR expression. Brain retains the text.
+const explicitOrSubjects=(canonical,subjects)=>{
+ if(subjects.length<2)return false;
+ const positions=subjects.map(label=>{
+  const match=new RegExp('(?<![\\p{L}\\p{N}])'+escape(fold(label))+'(?![\\p{L}\\p{N}])','u').exec(canonical);
+  return match&&{start:match.index,end:match.index+match[0].length};
+ });
+ if(positions.some(p=>!p))return false;
+ positions.sort((a,b)=>a.start-b.start);
+ const gaps=positions.slice(1).map((p,i)=>canonical.slice(positions[i].end,p.start));
+ return gaps.every(g=>/^\s*(?:,|(?:,\s*)?(?:or|ou))\s*$/.test(g))&&gaps.some(g=>/\b(?:or|ou)\b/.test(g));
+};
+const releaseTerms={en:['launch','release','announce','unveil'],fr:['lancement','sortie','annonce','devoilement'],ja:['発売','発表']};
+const releasePattern=/\b(?:bring(?:s|ing)?\s+out|brought\s+out|launch(?:es|ed|ing)?|releas(?:e|es|ed|ing)|announc(?:e|es|ed|ing)|unveil(?:s|ed|ing)?|lanc(?:e|ent|er|ement|ements)|sort(?:ent|ir|ie|ies)|annonc(?:e|ent|er))\b/gu;
+export function planIntentNewsQueries(row,source,{multiEntityOnly=false}={}){
  if(!googleNewsSource(source?.url))return null;
  const u=row.understanding, intent=u?.intent;
  // Explicit resources retain their exact acquisition contract.
@@ -62,7 +78,17 @@ export function planIntentNewsQueries(row,source){
  for(const label of negatives)remaining=strip(remaining,label);
  for(const [alias,geo] of names)if(geos.has(geo.code))remaining=strip(remaining,alias);
  const subjects=refs.filter(label=>!names.has(fold(label))&&!literalTopic(label)&&words(label).length);
+ const orList=explicitOrSubjects(canonical,subjects);
+ if(multiEntityOnly&&!orList)return null; // Preserve single-entity creation acquisition.
+ const entityQueries=orList&&subjects.length<=MULTI_ENTITY_NEWS_QUERY_BUDGET.entities;
+ const entityCoverageLimited=orList&&!entityQueries;
+ const budget=entityQueries?MULTI_ENTITY_NEWS_QUERY_BUDGET:NEWS_QUERY_BUDGET;
  for(const label of subjects)remaining=strip(remaining,label);
+ const focusedRelease=orList&&releasePattern.test(remaining);
+ releasePattern.lastIndex=0;
+ if(focusedRelease)remaining=remaining.replace(releasePattern,' ');
+ const focusedOpen=orList&&/\b(?:open|opens|opening|opened)\b/.test(remaining);
+ if(focusedOpen)remaining=remaining.replace(/\b(?:open|opens|opening|opened)\b/gu,' ');
  const concepts=[];
  for(const entry of lexicon){
   const before=remaining;
@@ -76,26 +102,30 @@ export function planIntentNewsQueries(row,source){
  const geography=[...geos.values()];
  const local=geography.length===1?editions[geography[0].code]:null;
  const selected=[local||international,international].filter((e,i,a)=>a.findIndex(x=>x.hl===e.hl&&x.gl===e.gl)===i).slice(0,NEWS_QUERY_BUDGET.queries);
- const queries=selected.map(edition=>{
-  const topics=[...concepts.map(c=>c[edition.language]||c.en),...residual];
-  const topic=topics.length>1?'('+topics.map(quote).join(' OR ')+')':topics.map(quote).join('');
+ const querySubjects=entityQueries?subjects.map(label=>[label]):[subjects];
+ const queries=querySubjects.flatMap(group=>selected.map(edition=>{
+  const productRelease=focusedRelease&&concepts.some(c=>c.en==='products');
+  const topics=[...concepts.filter(c=>!productRelease||c.en!=='products').map(c=>c[edition.language]||c.en),...(orList?[]:residual)];
+  const alternatives=focusedRelease?[...(productRelease?[{en:'new products',fr:'nouveaux produits',ja:'新製品'}[edition.language]]:[]),...releaseTerms[edition.language]]:focusedOpen?{en:['open','announce','launch'],fr:['ouverture','annonce','lancement'],ja:['開設','発表']}[edition.language]:[];
+  const any=terms=>terms.length>1?'('+terms.map(quote).join(' OR ')+')':terms.map(quote).join('');
+  const topic=orList?[any(alternatives),...topics.map(quote),...(residual.length?[quote(residual.join(' '))]:[])].filter(Boolean).join(' '):any(topics);
   const display=new Intl.DisplayNames([edition.language],{type:'region'});
   const places=geography.map(g=>quote(display.of(g.code)));
   const geo=places.length>1?'('+places.join(' OR ')+')':places.join('');
   const numbers=numericContext.length>1?'('+numericContext.map(quote).join(' OR ')+')':numericContext.map(quote).join('');
-  const subject=subjects.length>1?'('+subjects.map(quote).join(' OR ')+')':subjects.map(quote).join('');
+  const subject=group.length>1?'('+group.map(quote).join(' OR ')+')':group.map(quote).join('');
   const query=[subject,topic,geo,numbers].filter(Boolean).join(' ');
   if(!query||query.length>1000)throw Object.assign(Error('News query exceeds budget'),{code:'SOURCE_QUERY_LIMITED'});
   const url=new URL('https://news.google.com/rss/search');
   url.search=new URLSearchParams({q:query,hl:edition.hl,gl:edition.gl,ceid:edition.gl+':'+edition.language});
-  return {query,url:url.href,language:edition.language,country:edition.gl};
- });
+  return {query,url:url.href,language:edition.language,country:edition.gl,...(entityQueries?{entity:group[0]}:{})};
+ }));
  return {queries,geography:geography.map(g=>g.code),translationLimited:residual.length>0,
-  localEditionSupported:Boolean(local),budget:NEWS_QUERY_BUDGET};
+  localEditionSupported:Boolean(local),budget,entityQueries,entityCoverageLimited};
 }
 
-export async function acquireIntentNews(row,source,{feed}){
- const plan=planIntentNewsQueries(row,source);
+export async function acquireIntentNews(row,source,{feed,multiEntityOnly=false}){
+ const plan=planIntentNewsQueries(row,source,{multiEntityOnly});
  if(!plan)return feed(source.url);
  const responses=(await Promise.allSettled(plan.queries.map(q=>feed(q.url)))).map((r,i)=>({...r,query:plan.queries[i]}));
  const accepted=responses.filter(r=>r.status==='fulfilled'&&Array.isArray(r.value?.items)&&r.value.items.length);
@@ -104,11 +134,19 @@ export async function acquireIntentNews(row,source,{feed}){
   if(!failure)markV3Stage('EVIDENCE_NORMALIZATION');
   throw failure||Object.assign(Error('The feed is empty.'),{code:'EMPTY_FEED'});
  }
- const queues=accepted.map(r=>r.value.items.slice(0,NEWS_QUERY_BUDGET.perQuery));
+ let queues=accepted.map(r=>r.value.items.slice(0,plan.budget.perQuery));
+ if(plan.entityQueries){
+  // Interleave editions within each entity, then give each entity one turn.
+  queues=[...new Set(accepted.map(r=>r.query.entity))].map(entity=>{
+   const feeds=accepted.filter(r=>r.query.entity===entity).map(r=>r.value.items.slice(0,plan.budget.perQuery));
+   return Array.from({length:plan.budget.perQuery},(_,i)=>feeds.map(f=>f[i]).filter(Boolean)).flat();
+  });
+ }
  const seen=new Set(),publishers=new Map(),items=[];
  // Fair query turns and soft publisher diversity; never semantic story merging.
  while(items.length<NEWS_QUERY_BUDGET.finalItems&&queues.some(q=>q.length))for(const queue of queues){
   if(!queue.length||items.length>=NEWS_QUERY_BUDGET.finalItems)continue;
+  do {
   const publisher=item=>item.sourceUrl||item.source||'';
   const min=Math.min(...queue.map(item=>publishers.get(publisher(item))||0));
   const index=queue.findIndex(item=>(publishers.get(publisher(item))||0)===min);
@@ -116,9 +154,12 @@ export async function acquireIntentNews(row,source,{feed}){
   const keys=mediaArticleIdentityKeys(item).map(key=>key.startsWith('id:')?key+':'+publisher(item):key);
   if(keys.some(key=>seen.has(key)))continue;
   keys.forEach(key=>seen.add(key));items.push(item);publishers.set(publisher(item),(publishers.get(publisher(item))||0)+1);
+  break;
+  }while(plan.entityQueries&&queue.length); // Duplicates must not consume an entity's turn.
  }
- return {source:{title:'Google News ('+accepted.map(r=>r.query.language).join(' + ')+')',url:accepted[0].query.url},
+ const languages=accepted.map(r=>r.query.language);
+ return {source:{title:'Google News ('+(plan.entityQueries?[...new Set(languages)]:languages).join(' + ')+')',url:accepted[0].query.url},
   checkedAt:accepted.map(r=>r.value.checkedAt).filter(Boolean).sort().at(-1),items,
   coverage:{queries:plan.queries,candidates:accepted.reduce((n,r)=>n+Math.min(r.value.items.length,NEWS_QUERY_BUDGET.perQuery),0),
-   partial:accepted.length!==responses.length,translationLimited:plan.translationLimited}};
+   partial:accepted.length!==responses.length,translationLimited:plan.translationLimited,entityCoverageLimited:plan.entityCoverageLimited}};
 }

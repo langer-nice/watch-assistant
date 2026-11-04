@@ -37,7 +37,7 @@ test('explicitly excluded reference is not promoted to a required search subject
  const before=structuredClone(w);const q=planIntentNewsQueries(w,source).queries[0].query;assert.match(q,/Apple/);assert.match(q,/products/);assert(!q.includes('iPhone'));assert.deepEqual(w,before);
 });
 test('multiple subject references retain OR acquisition breadth; Brain keeps the original relation',()=>{
- const w=row('Keep me updated on AsterCo or BorealCo.',['AsterCo','BorealCo']);assert.equal(planIntentNewsQueries(w,source).queries[0].query,'("AsterCo" OR "BorealCo")');
+ const w=row('Keep me updated on AsterCo or BorealCo.',['AsterCo','BorealCo']);assert.deepEqual(planIntentNewsQueries(w,source).queries.map(q=>q.query),['"AsterCo"','"BorealCo"']);
 });
 test('French Manchester City Watch retains English coverage without a club-specific rule',()=>{
  const p=planIntentNewsQueries(row('Tiens-moi informé des transferts et blessures concernant Manchester City.',['Manchester City']),source);
