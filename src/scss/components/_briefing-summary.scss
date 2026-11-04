@@ -153,3 +153,11 @@
   letter-spacing: normal;
 }
 .briefing-summary__readiness[hidden] { display: none; }
+
+// A usable Brief with a few unavailable results needs a secondary note.
+.briefing-summary__masthead #homeServerReportNotice.briefing-summary__partial-notice {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+  letter-spacing: normal;
+  text-transform: none;
+}

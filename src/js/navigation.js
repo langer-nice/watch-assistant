@@ -2440,6 +2440,7 @@ const renderHomeSummary = () => {
   if(!reportNotice&&briefingDate){reportNotice=document.createElement('p');reportNotice.id='homeServerReportNotice';reportNotice.setAttribute('role','status');briefingDate.parentElement.append(reportNotice);}
   if(reportNotice){
     const partial=homeReport.report?.origin==='automatic'&&homeReport.report.partial;
+    reportNotice.classList.toggle('briefing-summary__partial-notice',Boolean(partial));
     reportNotice.hidden=availability.failed||(!partial&&reportSyncState!=='unavailable');
     reportNotice.textContent=partial?t('home.reportPartial'):reportSyncState==='unavailable'?t('home.reportSyncUnavailable'):'';
   }

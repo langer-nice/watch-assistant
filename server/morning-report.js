@@ -5,6 +5,7 @@ import {stagingLegacyEnabled,legacyStagingOwner} from './staging-legacy-notifica
 import {mapMediaReportRow} from '../src/js/media-watch-row.js';
 import {mapCompanyWatchRow} from './company-watch-repository.js';
 import {buildStoredReport} from '../src/js/report-snapshot.js';
+import {hasCurrentMorningCompletion} from './morning-report-completeness.js';
 
 export const morningReportWindow=(at=Date.now())=>{
  const date=new Date(at);
@@ -34,12 +35,13 @@ const generateOwnerReport=async({client,env,window,at,owner,production})=>{
  if(!Array.isArray(data.watches)||!data.watches.every(row=>row.user_id===owner))throw Error('Invalid morning owner');
  const compatible=await pilotReadRows(data.watches,owner,{client,env});
  const watches=compatible.map(row=>row.type==='media_news'?mapMediaReportRow(row,owner):mapCompanyWatchRow(row));
+ const incomplete=new Set(data.watches.filter(row=>!hasCurrentMorningCompletion(row,window,at)).map(row=>row.id));
  const completedAt=new Date(at).toISOString();
  const report={...buildStoredReport({watches,ownerId:owner,id:randomUUID(),startedAt:window.cutoff,completedAt}),origin:'automatic',snapshotAt:completedAt,sourceRevision:data.revision,
-  partial:watches.some(w=>w.lastCheckAttempt?.status!=='succeeded'||!w.lastChecked||Date.parse(w.lastChecked)<Date.parse(window.cutoff))};
+  partial:incomplete.size>0};
  // Pending/paused classifications are not completed checks. Keep them visible
  // as attention instead of silently losing them in report normalization.
- for(const entry of report.entries)if(!['attention','new','updated','watching'].includes(entry.classification))entry.classification='attention';
+ for(const entry of report.entries)if(incomplete.has(entry.watchId)||!['attention','new','updated','watching'].includes(entry.classification))entry.classification='attention';
  const saved=await client.rpc('save_watch_report',{p_report:report,p_kind:'automatic'});
  if(saved.error)throw Error('Morning persistence unavailable');
  return {status:saved.data?'generated':'snapshot-changed',partial:report.partial};

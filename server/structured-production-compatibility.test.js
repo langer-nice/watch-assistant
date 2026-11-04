@@ -120,8 +120,10 @@ test('Production private report SQL: owner isolation, uniqueness and protected c
   const second=(await svc('select public.prepare_production_structured_digests($1,$2) r',[since,[owner,other]])).rows[0].r;assert.equal(second.length,1);
   const secondClaim=(await svc('select public.claim_production_structured_digest($1,$2,$3,$4) r',[second[0],token,[other],since])).rows[0].r;
   assert.equal(secondClaim.user_id,other);assert.deepEqual(secondClaim.articles.map(a=>a.id),['after-consent']);
-  // Previously completed legacy results remain available, explicitly stale/partial
-  // at composition; unfinished due Structured leases still block freshness.
+  // Due/missing work is projected as partial, without blocking successful rows.
+  // Only an actual in-flight lease delays the consistent report snapshot.
+  assert.equal((await svc("select public.morning_report_context($1,'2026-10-22T06:00Z') r",[owner])).rows[0].r.pending,0);
+  await db.query("update public.structured_media_schedules set lease_until=public.test_production_clock()+interval '2 minutes' where watch_id=$1",[structuredId]);
   assert((await svc("select public.morning_report_context($1,'2026-10-22T06:00Z') r",[owner])).rows[0].r.pending>0);
  }finally{await db.close();}
 });

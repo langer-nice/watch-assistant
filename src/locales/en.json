@@ -92,7 +92,7 @@
     "flow3": "Watch Assistant — Flow 3"
   },
   "home": {
-    "reportPartial": "Partial report: some Watches have no recent completed check. Their original check times are retained.",
+    "reportPartial": "Some results are not yet available.",
     "reportSyncUnavailable": "The latest server report is unavailable. The retained local report may be old.",
 
     "newBadge": "New",

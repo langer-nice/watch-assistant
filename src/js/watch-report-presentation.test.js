@@ -162,6 +162,7 @@ test('Home loading failure retains only the short Brief line, while normal repor
       assert.equal(message.hidden,true);
       assert.equal(reportNotice.hidden,!partial&&reportSyncState!=='unavailable');
       assert.equal(reportNotice.textContent,partial?t('home.reportPartial'):reportSyncState==='unavailable'?t('home.reportSyncUnavailable'):'');
+      assert.equal(reportNotice.classList.contains('briefing-summary__partial-notice'),partial);
     }
   }
 });
