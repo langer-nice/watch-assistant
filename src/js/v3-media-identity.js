@@ -11,6 +11,7 @@ const identity = definition => {
 export const v3ServerDefinition = row => structuredClone({id:row.id, title:row.title,
   watch_definition:row.watch_definition, monitoring_source:row.monitoring_source, monitoring_state:row.monitoring_state});
 export const v3ClientProjection = row => mediaWatchDefinition({...row.watch_definition, id:row.id, title:row.title,
+  v3Engine:row.v3Engine,
   isStory:row.watch_definition.inputType === 'url', monitoringSource:row.monitoring_source,
   status:row.monitoring_state === 'paused' ? 'paused' : 'watching'});
 const labels = definition => {
@@ -33,6 +34,24 @@ export const isV3FormattingJob = (job, row, user) => Boolean(row && isV3MediaIde
   && job.definition?.monitoring_state === row.monitoring_state
   && sameV3ClientIdentity(job.definition, row)
   && stable(identity(job.definition)) !== stable(identity(v3ClientProjection(row))));
+
+// The old currency validation failure could leave only these two flags, with
+// no definition or mutation to save. Recover only an exact owned V3 identity
+// after an authoritative read; real drafts/conflicts/deletions are not artifacts.
+export const isV3CurrencyValidationArtifact = (job,row,local,user) => {
+  if (!row || !isV3MediaIdentity(row) || row.monitoring_source?.type!=='currency'
+    || row.user_id!==user || row.deleted_at || row.clientReadOnly
+    || !Number.isSafeInteger(Number(row.media_revision)) || Number(row.media_revision)<1
+    || local?.id!==row.id || local?.v3Engine!==row.v3Engine || local?.mediaPersistence?.ownerId!==user
+    || ['type','url','provider'].some(key=>local.monitoringSource?.[key]!==row.monitoring_source[key])
+    || job?.localOnly!==true || job.validationError!==true
+    || stable(Object.keys(job).sort())!==stable(['localOnly','validationError'])) return false;
+  if (local.mediaPersistence.revision!==undefined && Number(local.mediaPersistence.revision)!==Number(row.media_revision)) return false;
+  try {
+    const candidate=mediaWatchDefinition(local);
+    return candidate.monitoring_state===row.monitoring_state && sameV3ClientIdentity(candidate,row);
+  } catch { return false; }
+};
 export const rejectedV3History = job => job?.terminalIdentity
   ? [...(job.rejectedMutations || []), Object.fromEntries(Object.entries(job).filter(([key]) => key !== 'rejectedMutations'))]
   : job?.rejectedMutations || [];

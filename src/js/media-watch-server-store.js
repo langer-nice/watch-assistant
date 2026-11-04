@@ -8,7 +8,7 @@ import { addUpdateToWatch } from './watch-updates.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
 import { WATCH_STORAGE_CHANGED_EVENT } from './watch-storage-events.js';
 import { hasDefinitionVersion } from './watch-definition.js';
-import { isV3MediaIdentity, v3ServerDefinition, sameV3Definition, sameV3ClientIdentity, isV3FormattingJob, rejectedV3History } from './v3-media-identity.js';
+import { isV3MediaIdentity, v3ServerDefinition, sameV3Definition, sameV3ClientIdentity, isV3FormattingJob, isV3CurrencyValidationArtifact, rejectedV3History } from './v3-media-identity.js';
 
 const PREFIX = 'watchAssistant.mediaSync.';
 // One approved legacy cleanup; no other journal or revision is eligible.
@@ -438,8 +438,16 @@ export const synchronizeMediaWatches = async ({ automatic = false, readOnly = fa
             emailEnabled = typeof body.emailEnabled === 'boolean' ? body.emailEnabled : emailEnabled;
             writeWatchCache('media', user, rows);
             readConfirmed = true;
+            let localCopies=[];
+            try { const stored=JSON.parse(safeStorage.getItem(localWatchStorageKey('watchAssistant.watches'))||'[]'); if(Array.isArray(stored))localCopies=stored; } catch { /* No identity proof: retain the local artifact. */ }
             for (const row of rows) {
               const current = read(user, row.id);
+              if (isV3CurrencyValidationArtifact(current,row,localCopies.find(w=>w.id===row.id),user)) {
+                write(user,row.id,{...current,localOnly:false,validationError:false,pending:false,
+                  terminalIdentity:{reason:'V3_CURRENCY_VALIDATION_ARTIFACT',confirmedAt:new Date().toISOString(),
+                    serverRevision:Number(row.media_revision),original:current}});
+                continue;
+              }
               if (isV3FormattingJob(current, row, user)) {
                 write(user, row.id, {...current, pending:false, terminalIdentity:{reason:'V3_IDENTITY_FORMATTING',
                   rejectedAt:new Date().toISOString(), serverRevision:Number(row.media_revision)}});
