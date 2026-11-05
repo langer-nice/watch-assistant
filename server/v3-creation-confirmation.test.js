@@ -8,7 +8,7 @@ async function invoke({existing=false,row={id,user_id:owner,deleted_at:null},rea
  const client={from:table=>{const filters=[];const q={select(){return q;},eq(k,v){filters.push([k,v]);return q;},async maybeSingle(){
   if(table==='v3_pilot_watches')return {data:existing?{watch_id:id,engine:'wa-v3-evidence-refs.v1'}:null};
   assert.equal(table,'watches');assert.deepEqual(filters,[['user_id',owner],['id',id]]);reads++;return readError?{error:{code:'42501'}}:{data:row};
- }};return q;},rpc:async name=>{assert.equal(name,'create_v3_watch');writes++;return persistError?{error:{code:'XX000'}}:{data:id};}};
+ }};return q;},rpc:async (name,args)=>{assert.equal(name,'create_v3_watch');if(args.p_understanding===null)return {data:existing?id:null};writes++;return persistError?{error:{code:'XX000'}}:{data:id};}};
  const api=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,model:async()=>{models++;return {intent:{canonical_text:'Follow the AsterCo appeal.',references:[{label:'AsterCo',source_ref:'raw_input'}],explicit_constraints:[],unresolved_ambiguities:[]},decision:{status:'READY_TO_MONITOR',reason:'Clear.'}};},feed:async url=>{feeds++;return {source:{url},items:[{id:'seed',title:'AsterCo appeal',url:'https://example.test/story'}]};}});
  let result;const res={setHeader(){},end(s){result={http:this.statusCode,...JSON.parse(s)};}};await api({method:'POST',body:{instruction:'Follow the AsterCo appeal.',watchId:id,captureKind:'FREE_TEXT'}},res);
  return {result,models,feeds,writes,reads};

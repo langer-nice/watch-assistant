@@ -32,7 +32,7 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
  for(const id of [owner,other,PILOT_OWNER])await db.query('insert into auth.users values($1,$2)',[id,'fixture@example.test']);
  const role=async(r,sql,args=[],sub=owner)=>{await db.exec(`set role ${r};set request.jwt.claim.role='${r}';set request.jwt.claim.sub='${sub}'`);try{return await db.query(sql,args);}finally{await db.exec('reset role;reset request.jwt.claim.role;reset request.jwt.claim.sub');}};
  const rpc=async(name,p={})=>{const keys=Object.keys(p);try{return {data:(await role('service_role',`select public.${name}(${keys.map((k,i)=>k+' => $'+(i+1)).join(',')}) value`,keys.map(k=>p[k]))).rows[0].value};}catch(error){return {error};}};
- const client={rpc,from:table=>{const filters=[];const q={select(){return q;},eq(k,v){filters.push([k,v]);return q;},async maybeSingle(){const a=filters.map(x=>x[1]);return {data:(await db.query(table==='watches'?'select id,user_id,deleted_at from public.watches where user_id=$1 and id=$2':'select watch_id,instruction,engine from public.v3_pilot_watches where user_id=$1 and instruction=$2',a)).rows[0]||null};}};return q;}};
+ const client={rpc,from:table=>{const filters=[];const q={select(){return q;},eq(k,v){filters.push([k,v]);return q;},async maybeSingle(){const a=filters.map(x=>x[1]);return {data:(await db.query(table==='watches'?'select id,user_id,deleted_at from public.watches where user_id=$1 and id=$2':'select engine from public.v3_pilot_watches where user_id=$1 and watch_id=$2',a)).rows[0]||null};}};return q;}};
  let output,modelCalls=0,sourceCalls=0;const model=async req=>{modelCalls++;assert.deepEqual(req.input.conversation,[]);return output;};
  const api=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,model,feed:async url=>{sourceCalls++;return feed(url);},currency});
  const invoke=async(body,handler=api)=>{let value;const res={setHeader(){},end(raw){value=JSON.parse(raw);}};await handler({method:'POST',body},res);return {http:res.statusCode,...value};};
@@ -64,15 +64,6 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   assert.equal(p.instruction,url);assert.equal(p.capture_kind,'URL');assert.equal(p.understanding.story_seed.original_url,url);assert.equal(p.understanding.story_seed.canonical_url,url);assert(!p.understanding.resource);
   assert.equal(p.prior_state.entries.length,1);assert.match(p.prior_state.entries[0].fact,/shop manager was assaulted/);assert.equal(p.prior_state.entries[0].alerted,false);assert.equal(p.last_judgment,null);
   const snapshot=(await db.query('select initial_items from public.media_watch_snapshots where watch_id=$1',[id])).rows[0];assert.equal(snapshot.initial_items[0].url,url);
- });
- await t.test('deleted idempotent identity cannot report a new successful creation or run Intent/baseline again',async()=>{
-  const instruction='Follow important developments about a deleted example case.',id=randomUUID();output=ready(instruction,['Example case']);
-  assert.equal((await invoke({instruction,watchId:id})).persisted,true);
-  await db.query("update public.watches set deleted_at='2026-11-04T16:22:49Z',media_revision=media_revision+1 where id=$1",[id]);
-  const beforeModels=modelCalls,beforeSources=sourceCalls,beforeRows=await count('watches');
-  const again=await invoke({instruction,watchId:randomUUID()});assert.equal(again.http,409);assert.equal(again.code,'V3_CREATION_DELETED');assert.equal(again.status,undefined);
-  assert.equal(modelCalls,beforeModels);assert.equal(sourceCalls,beforeSources);assert.equal(await count('watches'),beforeRows);
-  assert((await db.query('select deleted_at from public.watches where id=$1',[id])).rows[0].deleted_at);
  });
  await t.test('pilot records and schedules remain unchanged by creation; baseline creates no notifications',async()=>{
   assert.deepEqual((await db.query('select watch_id,user_id,slot,engine,instruction,understanding,baseline_at,prior_state from public.v3_pilot_watches where slot is not null order by slot')).rows,beforePilot);
@@ -137,6 +128,121 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   let saved;const rows=(await db.query('select * from public.watches where id=$1',[ids[0]])).rows;
   const reportClient={from:()=>({select:()=>({eq:async(k,v)=>({data:(await db.query('select watch_id,engine from public.v3_pilot_watches where user_id=$1',[v])).rows})})}),rpc:async(name,p)=>{if(name==='production_watch_owners')return {data:[owner]};if(name==='morning_report_context')return {data:{pending:0,exists:false,watches:rows,revision:'generic-v3'}};if(name==='save_watch_report'){saved=p.p_report;return {data:true};}throw Error(name);}};
   await generateMorningReport({client:reportClient,env,schedulerAuthorized:true,at:Date.parse('2026-11-01T07:10:00Z')});assert.ok(saved.watchIdsConsidered.includes(ids[0]));
+ });
+
+ const getState=async id=>(await db.query(`
+  select to_jsonb(w) as watch, to_jsonb(p) as runtime, to_jsonb(s) as snapshot,
+    to_jsonb(c) as schedule,
+    (select count(*)::int from public.media_watch_notifications n where n.watch_id=w.id) as notifications,
+    (select count(*)::int from public.structured_watch_mutations m where m.watch_id=w.id) as receipts,
+    (select count(*)::int from public.currency_watch_events e where e.watch_id=w.id) as events
+  from public.watches w join public.v3_pilot_watches p on p.watch_id=w.id
+  join public.media_watch_snapshots s on s.watch_id=w.id
+  join public.structured_media_schedules c on c.watch_id=w.id where w.id=$1`,[id])).rows[0];
+ const recreationCases=[
+  ['text','Keep me updated on Jannik Sinner.',['Jannik Sinner']],
+  ['multi-entity','Notify me when Gucci or Prada bring out new products.',['Gucci','Prada']],
+  ['threshold','Tell me when GBP/EUR goes above 1.18.',['GBP/EUR']],
+  ['article','https://example.test/story/recreation',['Shop manager assault','Nice']],
+ ];
+ for(const [name,instruction,refs] of recreationCases)await t.test(name+' recreates with fresh identity and baseline, while old tokens remain bound',async()=>{
+  let models=0,sources=0;
+  const article=name==='article';
+  const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,
+   model:async req=>{
+    models++;
+    if(!article)return ready(instruction,refs);
+    assert.equal(req.input.capture.kind,'PAGE_CONTEXT');
+    return {...ready('Follow the shop manager assault in Nice.',refs),display_title:'Shop manager assault in Nice'};
+   },
+   feed:async url=>{
+    if(article)throw Object.assign(Error('HTML'),{code:'UNSUPPORTED_CONTENT_TYPE'});
+    sources++;
+    const result=await feed(url);
+    return {...result,items:result.items.map(item=>({...item,id:'fresh-'+sources,url:item.url+'?observation='+sources}))};
+   },
+   pageMetadata:async()=>({
+    pageType:'article',title:'A shop manager was assaulted in Nice',description:'Witness appeal version '+(++sources),
+    openGraphType:'article',titleSource:'open_graph_title',siteName:'Public news',canonicalUrl:instruction,publishedAt:'2026-10-22T10:00:00Z',
+   }),
+   currency:async()=>({
+    criteria:{base:'GBP',quote:'EUR',operator:'gt',target:'1.18'},
+    observation:{base:'GBP',quote:'EUR',rate:sources++?'1.179':'1.181',date:'2026-11-01'},checkedAt:'2026-11-01T10:00:00Z',
+   }),
+  });
+  const original={instruction,watchId:randomUUID(),captureKind:article?'URL':'FREE_TEXT'};
+  const alias={...original,watchId:randomUUID()};
+  assert.equal((await invoke(original,handler)).id,original.watchId);
+  assert.equal((await invoke(alias,handler)).id,original.watchId);
+  assert.equal((await invoke(original,handler)).id,original.watchId);
+  assert.equal(models,1);
+  await db.query(`update public.watches set deleted_at='2026-11-04T16:22:49Z',
+    media_revision=media_revision+1, current_status='updated', last_change_item_id='old-change',
+    last_check_error_code='OLD_ERROR' where id=$1`,[original.watchId]);
+  await db.query(`update public.v3_pilot_watches set history=history||'[{"old":true}]',
+    last_judgment='{"action":"ALERT"}' where watch_id=$1`,[original.watchId]);
+  await db.query(`insert into public.media_watch_notifications(watch_id,user_id,source_article_id,watch_title,article)
+    values($1,$2,'old-notification','Historical development','{}')`,[original.watchId,owner]);
+  const deleted=await getState(original.watchId);
+  assert.equal(deleted.notifications,1);
+  assert.equal(deleted.receipts,1);
+  for(const retry of [original,alias]){
+   const response=await invoke(retry,handler);
+   assert.equal(response.http,409);
+   assert.equal(response.code,'V3_CREATION_DELETED');
+  }
+  assert.equal(models,1);
+  const fresh={...original,watchId:randomUUID()};
+  const response=await invoke(fresh,handler);
+  assert.equal(response.http,200);
+  assert.equal(response.id,fresh.watchId);
+  assert.equal(response.persisted,true);
+  assert.equal(models,2);
+  assert.equal(sources,name==='multi-entity'?4:2);
+  assert.deepEqual(await getState(original.watchId),deleted);
+  const created=await getState(fresh.watchId);
+  assert.equal(created.watch.deleted_at,null);
+  assert.equal(created.watch.media_revision,1);
+  assert.notEqual(created.watch.media_mutation_id,deleted.watch.media_mutation_id);
+  assert.equal(created.watch.last_change_item_id,null);
+  assert.equal(created.watch.last_check_error_code,null);
+  assert.equal(created.watch.current_status,'watching');
+  assert.equal(created.watch.last_check_outcome,'baseline');
+  assert.equal(created.runtime.last_judgment,null);
+  assert.equal(created.runtime.history.length,1);
+  assert.equal(created.runtime.history[0].baseline,true);
+  assert.ok(created.runtime.prior_state.entries.every(entry=>entry.alerted===false));
+  assert.notDeepEqual(created.runtime.last_evidence,deleted.runtime.last_evidence);
+  assert.equal(created.schedule.failures,0);
+  assert.equal(created.schedule.lease_token,null);
+  assert.equal(created.notifications,0);
+  assert.equal(created.receipts,0);
+  assert.equal(created.events,0);
+  if(article){
+   assert.equal(created.watch.title,'Shop manager assault in Nice');
+   assert.equal(created.runtime.understanding.story_seed.original_url,instruction);
+   assert.equal(created.runtime.understanding.intent.canonical_text,'Follow the shop manager assault in Nice.');
+   assert.equal(created.snapshot.initial_items[0].url,instruction);
+  }
+  if(name==='multi-entity')assert.equal(new URL(created.watch.monitoring_source.url).searchParams.get('q'),'"Gucci" OR "Prada"');
+  if(name==='threshold'){
+   assert.notEqual(created.watch.watch_definition.currencyRevision,deleted.watch.watch_definition.currencyRevision);
+   assert.equal(created.watch.currency_evaluation.met,false);
+  }
+  assert.equal((await invoke(alias,handler)).code,'V3_CREATION_DELETED');
+  assert.equal((await invoke({...fresh,watchId:randomUUID()},handler)).id,fresh.watchId);
+  assert.equal(models,2);
+ });
+
+ await t.test('same instruction is independent across owners and a bound token cannot change payload or owner',async()=>{
+  const instruction='Keep me updated on Jannik Sinner.';
+  const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:other}}),serviceClient:client,
+   model:async()=>ready(instruction,['Jannik Sinner']),feed});
+  const otherBody={instruction,watchId:randomUUID()};
+  assert.equal((await invoke(otherBody,handler)).id,otherBody.watchId);
+  assert.equal((await invoke(otherBody)).http,409);
+  assert.equal((await invoke({...otherBody,instruction:'Follow other news.'},handler)).http,409);
+  assert.equal((await invoke(otherBody,handler)).id,otherBody.watchId);
  });
 });
 

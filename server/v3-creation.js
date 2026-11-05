@@ -63,17 +63,25 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    if(typeof body==='string')body=JSON.parse(body);
    if(!body||Object.keys(body).some(k=>!['instruction','watchId','captureKind'].includes(k))||!uuid.test(body.watchId)||typeof body.instruction!=='string'||!body.instruction.trim()||body.instruction.length>500)return send(400,{code:'INVALID_BODY'});
    const kind=body.captureKind||'FREE_TEXT';if(!['FREE_TEXT','URL'].includes(kind))return send(400,{code:'INVALID_BODY'});
-   let capture={id:randomUUID(),kind,raw_input:body.instruction,...(kind==='URL'?{context:[{id:'resource',kind:'page',text:'',url:body.instruction.trim()}]}:{})};
    const client=serviceClient||createSupabaseServiceClient({env});
-   // Owner-scoped idempotency also reuses existing pilot identities without
-   // selecting an engine by instruction. No migration/recreation of old rows.
-   const existing=await client.from('v3_pilot_watches').select('watch_id,instruction,engine').eq('user_id',user.id).eq('instruction',body.instruction).maybeSingle();
-   if(existing.error)throw Error('V3 persistence unavailable');
-   if(existing.data){
-    const failure=await verifyCreatedWatch(client,user.id,existing.data.watch_id);
+   const identity={p_id:body.watchId,p_owner:user.id,p_instruction:body.instruction,p_kind:kind};
+   const confirmed=async(id,existing)=>{
+    const failure=await verifyCreatedWatch(client,user.id,id);
     if(failure)return send(409,{code:failure});
-    return send(200,{status:'READY_TO_MONITOR',id:existing.data.watch_id,engine:existing.data.engine,existing:true,persisted:true});
-   }
+    let engine=V3_ENGINE;
+    if(existing){
+     const sidecar=await client.from('v3_pilot_watches').select('engine').eq('user_id',user.id).eq('watch_id',id).maybeSingle();
+     if(sidecar.error||!sidecar.data?.engine)throw Error('V3 creation engine unavailable');
+     engine=sidecar.data.engine;
+    }
+    return send(200,{status:'READY_TO_MONITOR',id,engine,...(existing?{existing:true}:{}),persisted:true});
+   };
+   stage='identity';
+   const existing=await client.rpc('create_v3_watch',{...identity,p_understanding:null,p_source:null,p_criteria:null,p_baseline:null});
+   if(existing.error?.code==='PT409')return send(409,{code:'V3_CREATION_NOT_CONFIRMED'});
+   if(existing.error)throw Error('V3 creation identity unavailable');
+   if(existing.data)return await confirmed(existing.data,true);
+   let capture={id:randomUUID(),kind,raw_input:body.instruction,...(kind==='URL'?{context:[{id:'resource',kind:'page',text:'',url:body.instruction.trim()}]}:{})};
    let urlInput;
    if(kind==='URL'){
     stage='url';
@@ -103,11 +111,10 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    try{baseline=await evaluateV3Source({id:body.watchId,understanding,criteria:capability.criteria,prior_state:{entries:[]},baseline_at:null},capability.source,{feed:urlInput?.baselineFeed||feed,currency});}
    catch(e){if(kind==='URL'&&['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','UNSUPPORTED_CONTENT_TYPE','INVALID_FEED_FORMAT','NOT_A_FEED'].includes(e.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));throw e;}
    stage='persistence';
-   const saved=await client.rpc('create_v3_watch',{p_id:body.watchId,p_owner:user.id,p_instruction:body.instruction,p_kind:kind,p_understanding:understanding,p_source:capability.source,p_criteria:capability.criteria||null,p_baseline:baseline});
+   const saved=await client.rpc('create_v3_watch',{...identity,p_understanding:understanding,p_source:capability.source,p_criteria:capability.criteria||null,p_baseline:baseline});
+   if(saved.error?.code==='PT409')return send(409,{code:'V3_CREATION_NOT_CONFIRMED'});
    if(saved.error)throw Error('V3 creation not committed');
-   const failure=await verifyCreatedWatch(client,user.id,saved.data);
-   if(failure)return send(409,{code:failure});
-   return send(200,{status:'READY_TO_MONITOR',id:saved.data,engine:V3_ENGINE,persisted:true});
+   return await confirmed(saved.data,saved.data!==body.watchId.toLowerCase());
   }catch(e){console.warn('v3_creation_failed',{stage,code:/^[A-Z_]{1,80}$/.test(e.code||'')?e.code:'V3_CREATION_UNAVAILABLE'});return send([401,403,404].includes(e.statusCode)?e.statusCode:503,{code:['AUTH_REQUIRED','INVALID_SESSION','AUTH_UNAVAILABLE','STRUCTURED_FEATURE_UNAVAILABLE'].includes(e.code)?e.code:'V3_CREATION_UNAVAILABLE'});}
  };
 }
