@@ -104,6 +104,12 @@ export const getMeaningfulUpdateTimestamp = (watch) => {
   return legacyTimestamps.length ? Math.max(...legacyTimestamps) : null;
 };
 
+export const getMostRecentWatchTimestamp = (watch) => (
+  toSortableTimestamp(getLatestUpdate(watch)?.timestamp)
+  ?? toSortableTimestamp(watch?.latestChangeAt)
+  ?? getHomeWatchActivityTimestamp(watch)
+);
+
 const compareFallback = (first, second) => {
   const firstId = typeof first.watch?.id === 'string' ? first.watch.id : '';
   const secondId = typeof second.watch?.id === 'string' ? second.watch.id : '';
@@ -131,9 +137,13 @@ export const sortHomeWatches = (watches, {
     timestamp: null,
   }));
   entries.forEach((entry) => {
-    entry.timestamp = entry.status === 'updated' && STATUS_PRIORITIES[normalizedMode]
-      ? getMeaningfulUpdateTimestamp(entry.watch)
-      : getHomeWatchActivityTimestamp(entry.watch);
+    if (normalizedMode === HOME_SORT_MODES.MOST_RECENT) {
+      entry.timestamp = getMostRecentWatchTimestamp(entry.watch);
+    } else {
+      entry.timestamp = entry.status === 'updated' && STATUS_PRIORITIES[normalizedMode]
+        ? getMeaningfulUpdateTimestamp(entry.watch)
+        : getHomeWatchActivityTimestamp(entry.watch);
+    }
   });
 
   entries.sort((first, second) => {
@@ -160,6 +170,12 @@ export const orderAllWatchGroups = (groups, {
   mode = DEFAULT_HOME_SORT_MODE,
 } = {}) => {
   const normalizedMode = normalizeHomeSortMode(mode);
+  if (normalizedMode === HOME_SORT_MODES.MOST_RECENT) {
+    // Contiguous status/creation groups can put an older card before a newer one.
+    const watches = new Map(groups.flatMap((group) => group.watches.map((watch) => [watch.id, watch])));
+    const recent = orderedWatches.map(({ id }) => watches.get(id)).filter(Boolean);
+    return recent.length ? [{ type: 'recent', watches: recent }] : [];
+  }
   const orderById = new Map(orderedWatches.map((watch, index) => [watch.id, index]));
   const sortBySelectedOrder = (watches) => [...watches].sort((first, second) => (
     orderById.get(first.id) - orderById.get(second.id)

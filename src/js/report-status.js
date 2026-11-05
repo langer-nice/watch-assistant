@@ -1,7 +1,7 @@
 import { hasDefinitionVersion } from './watch-definition.js';
 import { watchCreationState } from './watch-creation-state.js';
 import { HOME_NEW_WATCH_WINDOW_MS, isUserActionRequired } from './watch-grouping.js';
-import { getWatchCreationDate } from './watch-dates.js';
+import { getWatchCreationDate, parseTimestampValue } from './watch-dates.js';
 import { getUnreadUpdates } from './watch-updates.js';
 
 export const WATCH_CLASSIFICATIONS = Object.freeze({
@@ -55,6 +55,17 @@ export const getMeaningfulWatchUpdate = (watch) => {
 
 export const hasMeaningfulWatchUpdate = (watch) => Boolean(getMeaningfulWatchUpdate(watch));
 
+// A quiet check supersedes the badge, while the development and its read
+// acknowledgement remain in history.
+export const isSupersededWatchUpdate = (watch, update) => {
+  const outcome = watch?.lastCheckOutcome?.type
+    || (watch?.lastCheckAttempt?.status === 'succeeded' ? watch.lastCheckAttempt.outcome : null);
+  if (outcome !== 'no-new-items') return false;
+  const checkedAt = parseTimestampValue(watch.lastChecked)?.getTime();
+  const detectedAt = parseTimestampValue(update?.timestamp)?.getTime();
+  return detectedAt > 0 && checkedAt > detectedAt;
+};
+
 export const isRecentlyCreatedWatch = (watch, now = new Date()) => {
   if (!watch || typeof watch !== 'object') return false;
   const createdAt = getWatchCreationDate(watch)?.getTime();
@@ -94,7 +105,8 @@ export const getUserFacingWatchClassification = (watch, { now = new Date() } = {
   const meaningful = getMeaningfulWatchUpdate(watch);
   // Persisted Update status is the acknowledgement record. Legacy Watches that
   // predate structured Updates retain their old meaningful-text presentation.
-  if (meaningful?.update && getUnreadUpdates(watch).some(({ id }) => id === meaningful.update.id)) {
+  if (meaningful?.update && !isSupersededWatchUpdate(watch, meaningful.update)
+    && getUnreadUpdates(watch).some(({ id }) => id === meaningful.update.id)) {
     return WATCH_CLASSIFICATIONS.UPDATED;
   }
   if (meaningful && !meaningful.update && !watch.lastCheckAttempt) {

@@ -1,4 +1,4 @@
-import {classifyReportAttempt,monitoringUnavailable,getMeaningfulWatchUpdate} from './report-status.js';
+import {classifyReportAttempt,monitoringUnavailable,getMeaningfulWatchUpdate,isSupersededWatchUpdate} from './report-status.js';
 export const snapshotEntry = (watch, attempt, checkedAt) => {
   const classification = classifyReportAttempt({ watch, now: new Date(checkedAt) });
   const meaningfulUpdate = classification === 'updated' ? getMeaningfulWatchUpdate(watch) : null;
@@ -24,13 +24,15 @@ export const storedAttemptForWatch = (watch, completedAt) => {
   const failed = latest?.status === 'failed';
   const checkedAt = latest?.attemptedAt || watch.lastChecked || completedAt;
   const meaningful = getMeaningfulWatchUpdate(watch);
-  const resultIds = !failed && meaningful?.update?.id ? [meaningful.update.id] : [];
+  const resultIds = !failed && meaningful?.update?.id && !isSupersededWatchUpdate(watch, meaningful.update)
+    ? [meaningful.update.id] : [];
   return {
     watchId: watch.id,
     status: paused || unavailable || !latest ? 'skipped' : failed ? 'failed' : 'succeeded',
     startedAt: checkedAt,
     completedAt: checkedAt,
-    outcome: unavailable ? 'persistence-unavailable' : paused ? 'paused' : failed ? 'failed' : latest?.outcome || 'no-new-items',
+    outcome: unavailable ? 'persistence-unavailable' : paused ? 'paused' : failed ? 'failed'
+      : latest?.outcome || watch.lastCheckOutcome?.type || 'no-new-items',
     code: failed ? latest.code || 'CHECK_FAILED' : null,
     baselineCheckedAt: watch.monitoringSnapshot?.checkedAt || null,
     resultIds,

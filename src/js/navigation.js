@@ -85,6 +85,8 @@ import {
 } from './watch-dates.js';
 import {
   getHomeSortPreference,
+  getMostRecentWatchTimestamp,
+  HOME_SORT_MODES,
   orderAllWatchGroups,
   setHomeSortPreference,
   sortHomeWatches,
@@ -1243,9 +1245,9 @@ const renderWatchList = () => {
         })
         : '';
       const latestUpdate = getLatestUpdate(watch);
-      const cardTimestamp = creationMetadata || (status
-        ? getHomeWatchTimestampText(watch, latestUpdate)
-        : '');
+      const cardTimestamp = mode === HOME_SORT_MODES.MOST_RECENT
+        ? formatHomeWatchTimestamp(getMostRecentWatchTimestamp(watch))
+        : creationMetadata || (status ? getHomeWatchTimestampText(watch, latestUpdate) : '');
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : updatedIds.has(watch.id)
@@ -1268,7 +1270,7 @@ const renderWatchList = () => {
 
   list.innerHTML = orderedGroups
     .map((group, index) => {
-      if (['actionRequired', 'updated'].includes(group.type)) {
+      if (['actionRequired', 'updated', 'recent'].includes(group.type)) {
         return renderWatchCards(group);
       }
       const headingLabel = (group.label || t(`watches.${group.type}`))
