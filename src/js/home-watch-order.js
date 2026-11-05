@@ -125,6 +125,18 @@ const compareDates = (first, second, direction) => {
   return compareFallback(first, second);
 };
 
+const compareMostRecent = (first, second) => {
+  // The cards display hours and minutes. Give updates priority only within
+  // that visible minute, then retain exact recency within each priority.
+  if (first.timestamp !== null && second.timestamp !== null
+    && Math.floor(first.timestamp / 60_000) === Math.floor(second.timestamp / 60_000)) {
+    const firstUpdated = first.status === 'updated';
+    const secondUpdated = second.status === 'updated';
+    if (firstUpdated !== secondUpdated) return firstUpdated ? -1 : 1;
+  }
+  return compareDates(first, second, -1);
+};
+
 export const sortHomeWatches = (watches, {
   getStatus = () => 'unchanged',
   mode = DEFAULT_HOME_SORT_MODE,
@@ -153,11 +165,9 @@ export const sortHomeWatches = (watches, {
         - (statusPriorities[second.status] ?? Number.MAX_SAFE_INTEGER);
       return statusDifference || compareDates(first, second, -1);
     }
-    return compareDates(
-      first,
-      second,
-      normalizedMode === HOME_SORT_MODES.MOST_RECENT ? -1 : 1,
-    );
+    return normalizedMode === HOME_SORT_MODES.MOST_RECENT
+      ? compareMostRecent(first, second)
+      : compareDates(first, second, 1);
   });
 
   return entries.map(({ watch }) => watch);

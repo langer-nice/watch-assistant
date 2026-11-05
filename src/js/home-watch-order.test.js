@@ -67,6 +67,60 @@ test('date modes sort globally while all invalid timestamp forms remain visible 
   );
 });
 
+const mostRecentIds = watches => sortHomeWatches(watches, {
+  mode: HOME_SORT_MODES.MOST_RECENT,
+  getStatus: watch => watch.status,
+}).map(watch => watch.id);
+
+const watching = (id, lastChecked) => ({ id, status: 'watching', lastChecked });
+const updated = (id, timestamp) => ({
+  id, status: 'updated', lastChecked: timestamp, updates: [{ timestamp }],
+});
+
+test('Most recent puts Taylor above quiet checks in the same visible minute', () => {
+  const watches = [
+    updated('gucci', '2026-11-05T13:17:21.484Z'),
+    updated('france', '2026-11-05T13:17:01.038Z'),
+    watching('gbp', '2026-11-05T13:16:50.186Z'),
+    watching('apple', '2026-11-05T13:16:42.482Z'),
+    watching('metallica', '2026-11-05T13:16:34.491Z'),
+    updated('taylor', '2026-11-05T13:16:22.249Z'),
+  ];
+  const expected = ['gucci', 'france', 'taylor', 'gbp', 'apple', 'metallica'];
+  assert.deepEqual(mostRecentIds(watches), expected);
+  assert.deepEqual(mostRecentIds([...watches].reverse()), expected);
+});
+
+test('Most recent prefers the visible minute across statuses, including across days', () => {
+  const quiet = watching('quiet', '2026-11-05T13:17:00.000Z');
+  assert.deepEqual(mostRecentIds([
+    updated('older', '2026-11-05T13:16:59.999Z'),
+    quiet,
+    updated('newer', '2026-11-05T13:18:00.000Z'),
+    updated('yesterday', '2026-11-04T23:59:59.999Z'),
+  ]), ['newer', 'quiet', 'older', 'yesterday']);
+});
+
+test('Most recent breaks exact same-status timestamp ties by ID', () => {
+  const timestamp = '2026-11-05T13:16:05.000Z';
+  assert.deepEqual(mostRecentIds([
+    watching('b', timestamp), updated('d', timestamp),
+    watching('a', timestamp), updated('c', timestamp),
+    watching('undated'),
+  ]), ['c', 'd', 'a', 'b', 'undated']);
+});
+
+test('Oldest first retains its exact-time ordering for the same displayed minute', () => {
+  const watches = [
+    watching('early-quiet', '2026-11-05T13:16:05Z'),
+    updated('later-update', '2026-11-05T13:16:59Z'),
+  ];
+  assert.deepEqual(sortHomeWatches(watches, {
+    mode: HOME_SORT_MODES.OLDEST_FIRST,
+    getStatus: watch => watch.status,
+  }).map(watch => watch.id), ['early-quiet', 'later-update']);
+});
+
 test('Unix seconds and milliseconds resolve to the same meaningful activity timestamp', () => {
   const seconds = getHomeWatchActivityTimestamp({ latestUpdateAt: 1_790_000_000 });
   const milliseconds = getHomeWatchActivityTimestamp({ latestUpdateAt: 1_790_000_000_000 });
