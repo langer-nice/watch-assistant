@@ -20,7 +20,7 @@ import { currencyUpdateSummary } from './currency-display.js';
 import { currencySummary, currencyOverview, currencyCriteriaFor } from './currency-watch.js';
 import { getWatchListAvailability, renderWatchLoadNotice } from './watch-load-notice.js';
 import { renderExampleWatches, renderExampleDetail } from './example-watches.js';
-import { renderSummaryCard } from './watch-summary-card.js';
+import { getUpdateSummaryPreview, renderSummaryCard } from './watch-summary-card.js';
 import { createEditorSession } from './editor-session.js';
 import { ACCOUNT_STORAGE_CHANGED_EVENT, getAccountEpoch } from './account-storage.js';
 import { selectHomeReport } from './home-report.js';
@@ -572,15 +572,13 @@ const getLatestChange = (watch) => {
     : '';
 };
 
-const getHomeUpdateText = (watch) => {
-  const latestUpdate = getLatestUpdate(watch);
-  return currencyUpdateSummary(watch, latestUpdate, getLanguage())
+const getHomeUpdateText = (watch, latestUpdate = getLatestUpdate(watch)) => (
+  currencyUpdateSummary(watch, latestUpdate, getLanguage())
     || getBodaccBusinessEventLabel(latestUpdate, t)
-    || latestUpdate?.sourceTitle
-    || latestUpdate?.summary
+    || getUpdateSummaryPreview(latestUpdate)
     || getLatestChange(watch)
-    || (latestUpdate ? t('detail.untitledItem') : '');
-};
+    || (latestUpdate ? t('detail.untitledItem') : '')
+);
 
 const getMonitoringSummary = (watch, title) => {
   if (currencyCriteriaFor(watch)) return currencySummary(watch.currencyEvaluation, getLanguage())
@@ -1082,6 +1080,7 @@ const renderSummaryWatchCard = ({
   return renderSummaryCard({
     title, category, categoryModifier, statusPresentation,
     supportingText: readOnly ? readOnly.explanation : supportingText,
+    clampSummary: !readOnly,
     timestamp: readOnly ? '' : timestamp, historicalResult: readOnly?.result,
     articleId, dataAttribute,
     renderLink: (content) => renderWatchCardLink({
@@ -1098,7 +1097,6 @@ const renderHomeWatchCards = (watches, statusById) => {
   return watches.map((watch) => {
     const title = getWatchDisplayTitle(watch);
     const latestUpdate = getLatestUpdate(watch);
-    const latestChange = getHomeUpdateText(watch);
     if (!hasMeaningfulText(title)) return '';
 
     const homeStatus = statusById.get(watch.id);
@@ -1106,19 +1104,14 @@ const renderHomeWatchCards = (watches, statusById) => {
     const latestChangeAt = watch.reportCheckedAt
       ? formatHomeWatchTimestamp(watch.reportCheckedAt)
       : getHomeWatchTimestampText(watch, latestUpdate);
-    const reportContent = [watch.reportUpdateTitle, watch.reportSummary]
-      .filter(hasMeaningfulText).join(' — ');
-    const supportingText = hasMeaningfulText(reportContent)
-      ? reportContent
-      : watch.reportFailureCode
+    const reportContent = getUpdateSummaryPreview({
+      summary: watch.reportSummary,
+      sourceTitle: watch.reportUpdateTitle,
+    });
+    const supportingText = reportContent || (watch.reportFailureCode
         ? t(getMonitoringFailureMessageKey(watch.reportFailureCode))
-      : latestUpdate
-      ? currencyUpdateSummary(watch, latestUpdate, getLanguage())
-        || getBodaccBusinessEventLabel(latestUpdate, t)
-        || latestUpdate.sourceTitle
-        || latestUpdate.summary
-        || t('detail.untitledItem')
-      : latestChange || getMonitoringSummary(watch, title) || t('common.monitoringFallback');
+        : getHomeUpdateText(watch, latestUpdate) || getMonitoringSummary(watch, title)
+          || t('common.monitoringFallback'));
 
     const statusTargetId = getHomeStatusTargetId(homeStatus);
     const isFirstStatusWatch = statusTargetId && !renderedStatusTargets.has(homeStatus);
@@ -1251,7 +1244,7 @@ const renderWatchList = () => {
       const subtitle = isPaused
         ? t('watches.monitoringPaused')
         : updatedIds.has(watch.id)
-          ? getHomeUpdateText(watch)
+          ? getHomeUpdateText(watch, latestUpdate)
           : getMonitoringSummary(watch, title);
       const card = renderSummaryWatchCard({
         watch,

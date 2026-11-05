@@ -84,6 +84,13 @@
   overflow-wrap: anywhere;
 }
 
+.briefing-item__summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
 .briefing-item > .briefing-item__link p + p {
   margin-top: var(--space-xs);
 }

@@ -5,9 +5,14 @@ export const escapeHtml = (value = '') => String(value)
   .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const hasText = value => typeof value === 'string' && value.trim().length >= 3 && /[\p{L}\p{N}]/u.test(value);
 
+export const getUpdateSummaryPreview = update => (
+  [update?.summary, update?.sourceTitle].find(hasText) || ''
+);
+
 export const renderSummaryCard = ({
   title, category, categoryModifier = 'general', statusPresentation = null,
-  supportingText = '', timestamp = '', historicalResult = null, articleId = '', dataAttribute = '', renderLink,
+  supportingText = '', clampSummary = false, timestamp = '', historicalResult = null,
+  articleId = '', dataAttribute = '', renderLink,
 }) => {
   const link = renderLink(`
       <div class="briefing-item__header">
@@ -24,7 +29,7 @@ export const renderSummaryCard = ({
         ` : ''}
       </div>
       <h2>${escapeHtml(title)}</h2>
-      ${hasText(supportingText) ? `<p>${escapeHtml(supportingText)}</p>` : ''}
+      ${hasText(supportingText) ? `<p${clampSummary ? ' class="briefing-item__summary"' : ''}>${escapeHtml(supportingText)}</p>` : ''}
       ${historicalResult ? `<div class="briefing-item__historical-result">
         <p><strong>${escapeHtml(historicalResult.label)}</strong></p>
         ${hasText(historicalResult.summary) ? `<p>${escapeHtml(historicalResult.summary)}</p>` : ''}
