@@ -117,6 +117,7 @@
     "reportPreparationFailed": "Report unavailable: try loading your Watches again.",
     "noReport": "No report available on this device.",
     "briefingTimeUnavailable": "Briefing time unavailable",
+    "manualReportAt": "Manual report at",
     "generateReport": "Generate report",
     "generatingReport": "Generating report…",
     "reportGenerating": "Generating your report…",

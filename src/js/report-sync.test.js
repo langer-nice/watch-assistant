@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {configureAccountStorage} from './account-storage.js';
 import {configureReportSync,loadLatestServerReport,saveManualReport} from './report-sync.js';
-import {getLatestReport,resetStoredReports} from './report-storage.js';
+import {getLatestReport,getReports,resetStoredReports} from './report-storage.js';
 import {selectHomeReport} from './home-report.js';
 import {resolveHomeReportTimestamp} from './home-report-timestamp.js';
+import {refreshLatestReport} from './report-service.js';
 const owner='4eee8bb6-21c1-46c2-b150-0fa8981a0aef',other='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const env={VITE_SUPABASE_URL:'https://tseexvbwhrtofcsrvcqc.supabase.co',VITE_MEDIA_WATCH_DAILY_DIGEST_ENABLED:'true'};
 const report={version:2,origin:'automatic',id:'dddddddd-dddd-4ddd-8ddd-dddddddddddd',ownerId:owner,startedAt:'2026-10-22T06:00:00Z',completedAt:'2026-10-22T06:02:00Z',watchIdsConsidered:['w'],watchIdsChecked:['w'],watchIdsSkipped:[],attempts:[{watchId:'w',status:'succeeded',startedAt:'2026-10-22T06:01:00Z',completedAt:'2026-10-22T06:01:00Z',resultIds:['a']}],entries:[{watchId:'w',title:'Synthetic',classification:'updated',attemptStatus:'succeeded',checkedAt:'2026-10-22T06:01:00Z',resultIds:['a']}]};
@@ -34,4 +35,16 @@ test('automatic facts preserve local read rules and real generation time without
  assert.equal(selectHomeReport({report,watches:[{...watch,updates:[{...watch.updates[0],status:'new'}]}]}).updatedWatches.length,1);
  assert.equal(resolveHomeReportTimestamp({report,watches:[{lastChecked:'2026-10-22T09:00:00Z'}]}),'2026-10-22T06:02:00.000Z');
  assert.deepEqual(report,before);
+});
+
+test('an empty client cache restores the automatic artifact alongside the newer manual report',async()=>{
+ configureAccountStorage(auth);login(owner);resetStoredReports();
+ const manual={...report,id:'manual',origin:'manual',completedAt:'2026-10-22T07:00:00Z'};
+ await configureReportSync({client:{rpc:async()=>({data:{...manual,automaticReport:report}})},auth,env});
+ assert.deepEqual(getReports().map(({id})=>id),[manual.id,report.id]);
+ const result=selectHomeReport({reports:getReports(),now:new Date(manual.completedAt)});
+ assert.equal(result.report.id,report.id);
+ const saved=getReports();
+ refreshLatestReport({watches:[],now:()=>new Date('2026-10-22T08:00:00Z')});
+ assert.deepEqual(getReports(),saved);
 });

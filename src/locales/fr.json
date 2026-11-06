@@ -117,6 +117,7 @@
     "reportPreparationFailed": "Rapport indisponible : réessayez le chargement des Watches.",
     "noReport": "Aucun rapport disponible sur cet appareil.",
     "briefingTimeUnavailable": "Heure indisponible",
+    "manualReportAt": "Rapport manuel à",
     "generateReport": "Générer le rapport",
     "generatingReport": "Génération du rapport…",
     "reportGenerating": "Génération de votre rapport…",

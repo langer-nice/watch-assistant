@@ -1,5 +1,5 @@
 import {getAccountOwner,getAccountEpoch} from './account-storage.js';
-import {getLatestReport,saveReport} from './report-storage.js';
+import {getReportById,normalizeReport,saveReport} from './report-storage.js';
 const setState=state=>{reportSyncState=state;globalThis.window?.dispatchEvent?.(new Event('watchassistant:reportschanged'));};
 let connection=null,unsubscribe=null,flight=null;
 export let reportSyncState='idle';
@@ -15,9 +15,13 @@ export const loadLatestServerReport=async()=>{
    const r=await c.client.rpc('latest_watch_report');
    if(c!==connection||owner!==getAccountOwner()||epoch!==getAccountEpoch())return null;
    if(r.error)throw Error('Report unavailable');
-   const current=getLatestReport(),report=r.data;
-   if(report&&(report.ownerId!==owner||report.version!==2))throw Error('Invalid report owner');
-   if(report&&(!current||Date.parse(report.completedAt)>Date.parse(current.completedAt)))saveReport(report);
+   const report=r.data;
+   const automatic=report?.automaticReport;
+   const snapshots=[automatic,report].filter(Boolean).map(normalizeReport);
+   if(snapshots.some(snapshot=>!snapshot)||automatic&&automatic.origin!=='automatic')throw Error('Invalid report');
+   for(const snapshot of snapshots){
+    if(getReportById(snapshot.id)?.completedAt!==snapshot.completedAt)saveReport(snapshot);
+   }
    setState('ready');return report;
   }catch{if(owner===getAccountOwner()&&epoch===getAccountEpoch())setState('unavailable');return null;}
  })().finally(()=>{if(flight?.promise===promise)flight=null;});flight={owner,epoch,promise};return promise;

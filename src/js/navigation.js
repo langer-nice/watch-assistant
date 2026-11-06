@@ -24,7 +24,6 @@ import { getUpdateSummaryPreview, renderSummaryCard } from './watch-summary-card
 import { createEditorSession } from './editor-session.js';
 import { ACCOUNT_STORAGE_CHANGED_EVENT, getAccountEpoch } from './account-storage.js';
 import { selectHomeReport } from './home-report.js';
-import { getMediaServerWatches } from './media-watch-server-store.js';
 import { renderMediaPersistenceNotice } from './media-watch-persistence-notice.js';
 import { localizedGeneratedMediaTitle } from './media-watch-title.js';
 import { getLocalizedWatchCopy } from './watch-copy-translation.js';
@@ -40,7 +39,6 @@ import {
   WATCH_STORAGE_CHANGED_EVENT,
 } from './watch-storage.js';
 import {
-  getLatestReport,
   getReports,
   REPORTS_CHANGED_EVENT,
 } from './report-storage.js';
@@ -1031,11 +1029,9 @@ export const createWatchObject = (request, whyFollowing = '', urlAnalysis = null
   };
 };
 
-const getHomeServerWatches = () => [...getServerCompanyWatches(), ...getMediaServerWatches()];
 const getHomeReport = () => selectHomeReport({
-  report: getLatestReport(),
+  reports: getReports(),
   watches: getWatches(),
-  serverWatches: getHomeServerWatches(),
   isDisplayableWatch: (watch) => hasMeaningfulText(getWatchDisplayTitle(watch)),
 });
 
@@ -2434,17 +2430,16 @@ const renderHomeSummary = () => {
   let reportNotice=document.querySelector('#homeServerReportNotice');
   if(!reportNotice&&briefingDate){reportNotice=document.createElement('p');reportNotice.id='homeServerReportNotice';reportNotice.setAttribute('role','status');briefingDate.parentElement.append(reportNotice);}
   if(reportNotice){
-    const partial=homeReport.report?.origin==='automatic'&&homeReport.report.partial;
+    const partial = homeReport.report?.origin === 'automatic'
+      ? homeReport.report.partial
+      : homeReport.report?.attempts?.some(attempt => attempt.status === 'failed');
     reportNotice.classList.toggle('briefing-summary__partial-notice',Boolean(partial));
     reportNotice.hidden=availability.failed||(!partial&&reportSyncState!=='unavailable');
     reportNotice.textContent=partial?t('home.reportPartial'):reportSyncState==='unavailable'?t('home.reportSyncUnavailable'):'';
   }
   if (briefingDate) {
     briefingDate.hidden = reportHeader.hideTimestamp;
-    const storedTimestamp = resolveHomeReportTimestamp({
-      report: homeReport.report,
-      watches: getServerCompanyWatches(),
-    });
+    const storedTimestamp = resolveHomeReportTimestamp({ report: homeReport.report });
     const timestampText = formatHomeReportTimestamp(storedTimestamp, getLanguage())
       || t('home.briefingTimeUnavailable');
 
@@ -2454,7 +2449,7 @@ const renderHomeSummary = () => {
       briefingDate.removeAttribute('datetime');
     }
     briefingDate.innerHTML = `
-      <span class="briefing-summary__timestamp-label">${escapeHtml(t('home.updatedAt'))}</span>
+      <span class="briefing-summary__timestamp-label">${escapeHtml(t(homeReport.report?.origin === 'manual' ? 'home.manualReportAt' : 'home.updatedAt'))}</span>
       <span class="briefing-summary__timestamp-value">${escapeHtml(timestampText)}</span>
     `;
   }
@@ -5338,6 +5333,21 @@ export const initApp = () => {
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) renderHomeSummary();
+    if (!document.hidden) {
+      renderHomeSummary();
+      renderHomeBriefing();
+    }
   });
+  if (document.querySelector('#homeBriefingList')) {
+    const renderAtMidnight = () => {
+      const midnight = new Date();
+      midnight.setHours(24, 0, 0, 0);
+      window.setTimeout(() => {
+        renderHomeSummary();
+        renderHomeBriefing();
+        renderAtMidnight();
+      }, midnight.getTime() - Date.now());
+    };
+    renderAtMidnight();
+  }
 };

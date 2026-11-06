@@ -38,13 +38,12 @@ const addReportProvenance = (watch, resultIds, { reportId, completedAt }) => ({
   )),
 });
 
-// Check Now changes the live Watch outside report generation. Replacing the
-// latest snapshot under the same ID keeps Home current without creating report
-// history or rerunning unrelated network checks.
+// Only old untyped reports used an in-place refresh. The daily Brief reads
+// typed report snapshots and current developments independently.
 export const refreshLatestReport = ({ watches, now = () => new Date(), save = saveReport } = {}) => {
   const latest = getReports()[0];
   if (!latest) return null;
-  if (latest.origin==='automatic') return latest;
+  if (latest.origin === 'automatic' || latest.origin === 'manual') return latest;
   const completedAt = now().toISOString();
   const considered = (Array.isArray(watches) ? watches : [])
     .filter((watch) => watch?.id && watch.status !== 'completed');
