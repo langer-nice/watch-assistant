@@ -35,6 +35,14 @@ export const getHomeReportHeader = ({ hasReport, uncertain, totalChecked }, tran
     : translate(`home.checkedAway.${totalChecked === 1 ? 'one' : 'other'}`, { count: totalChecked }),
 });
 
+export const renderBriefNotices = ({ failureNotice, syncNotice, failureCount, syncUnavailable }, translate) => {
+  failureNotice.hidden = failureCount === 0;
+  const key = failureCount === null ? 'unknown' : failureCount === 1 ? 'one' : 'other';
+  failureNotice.querySelector('[data-report-failure-text]').textContent = failureCount === 0
+    ? '' : translate(`home.reportFailures.${key}`, { count: failureCount });
+  syncNotice.hidden = !syncUnavailable;
+};
+
 // Readiness describes the existing guard; it never starts or retries a request.
 export const renderReportReadiness = ({ button, message, availability, generating, hasWatches }, translate) => {
   const loading = availability.uncertain && !availability.failed;

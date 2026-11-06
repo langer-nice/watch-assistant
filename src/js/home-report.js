@@ -38,6 +38,7 @@ const collectDailyUpdates = (scope, watches) => {
       offer({
         id: entry.watchId, title: entry.title, category: entry.category,
         reportUpdateTitle: entry.updateTitle, reportSummary: entry.summary, reportCheckedAt: entry.checkedAt,
+        briefUpdateId: entry.resultIds.length === 1 ? entry.resultIds[0] : '',
       });
     }
   }
@@ -49,6 +50,7 @@ const collectDailyUpdates = (scope, watches) => {
     if (latest) offer({
       ...watch, reportUpdateTitle: latest.sourceTitle,
       reportSummary: latest.summary, reportCheckedAt: latest.timestamp,
+      briefUpdateId: latest.id,
     });
   }
   return updates;
@@ -69,6 +71,10 @@ export const selectHomeReport = ({
   const snapshot = selected ? structuredClone(selected) : null;
   const attempts = snapshot?.attempts || [];
   const succeededIds = new Set(attempts.filter(attempt => attempt.status === 'succeeded').map(attempt => attempt.watchId));
+  const failedAttempts = attempts.filter(attempt => attempt.status === 'failed');
+  const failedIds = new Set(failedAttempts.map(attempt => attempt.watchId).filter(id => typeof id === 'string' && id.trim()));
+  const unknownFailureCount = failedAttempts.some(attempt => !failedIds.has(attempt.watchId))
+    || (snapshot?.partial && !failedIds.size);
   const currentById = new Map(watches.map(watch => [watch.id, watch]));
   const authoritative = watchListAvailability.active && !watchListAvailability.uncertain
     && !watchListAvailability.loading && !watchListAvailability.waiting && !watchListAvailability.failed;
@@ -93,7 +99,12 @@ export const selectHomeReport = ({
     }
     if (daily && classification === WATCH_CLASSIFICATIONS.UPDATED) classification = WATCH_CLASSIFICATIONS.WATCHING;
     if(local&&classification===WATCH_CLASSIFICATIONS.NEW&&!isRecentlyCreatedWatch(local,now))classification=WATCH_CLASSIFICATIONS.WATCHING;
-    statusById.set(entry.watchId, classification);
+    statusById.set(entry.watchId, failedIds.has(entry.watchId) ? WATCH_CLASSIFICATIONS.ATTENTION : classification);
+  }
+  for (const id of failedIds) {
+    if (byId.has(id) || !currentById.has(id)) continue;
+    byId.set(id, currentById.get(id));
+    statusById.set(id, WATCH_CLASSIFICATIONS.ATTENTION);
   }
   // Keep the stored report immutable, but do not present a currently local-only
   // or pending Watch as successfully monitored. Surface it regardless of age.
@@ -109,7 +120,8 @@ export const selectHomeReport = ({
     for (const [id, card] of updates) {
       if (authoritative && !currentById.has(id)) continue;
       if (currentById.get(id)?.status === 'completed') continue;
-      byId.set(id, card);
+      const update = currentById.get(id)?.updates?.find(update => update.id === card.briefUpdateId);
+      byId.set(id, { ...card, briefUpdateRead: update?.status === 'read' });
       statusById.set(id, WATCH_CLASSIFICATIONS.UPDATED);
     }
   }
@@ -119,7 +131,7 @@ export const selectHomeReport = ({
       && isDisplayableWatch(watch) && isRecentlyCreatedWatch(watch, now))
     .sort((a, b) => getWatchCreationDate(b) - getWatchCreationDate(a));
   for (const watch of recentWatches) {
-    if (daily && [WATCH_CLASSIFICATIONS.ATTENTION, WATCH_CLASSIFICATIONS.UPDATED].includes(statusById.get(watch.id))) continue;
+    if (failedIds.has(watch.id) || (daily && [WATCH_CLASSIFICATIONS.ATTENTION, WATCH_CLASSIFICATIONS.UPDATED].includes(statusById.get(watch.id)))) continue;
     if (!byId.has(watch.id)) byId.set(watch.id, watch);
     statusById.set(watch.id, WATCH_CLASSIFICATIONS.NEW);
   }
@@ -128,6 +140,7 @@ export const selectHomeReport = ({
   const updatedWatches = select(WATCH_CLASSIFICATIONS.UPDATED);
   return {
     report: snapshot, watches: [...attentionWatches, ...newlyCreatedWatches, ...updatedWatches], statusById,
+    failedIds, failureCount: unknownFailureCount ? null : failedIds.size,
     attentionWatches, newlyCreatedWatches, updatedWatches,
     // An unchanged Watch alone is not evidence of a completed report check.
     quietWatches: select(WATCH_CLASSIFICATIONS.WATCHING).filter(watch => succeededIds.has(watch.id)),

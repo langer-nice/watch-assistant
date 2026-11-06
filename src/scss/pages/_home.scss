@@ -209,14 +209,16 @@
 }
 
 .briefing-summary__masthead-meta {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
   align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-sm);
+  gap: var(--space-xxs) var(--space-sm);
+  min-width: 0;
 }
 
 .briefing-summary__generate {
   display: grid;
+  grid-column: 2;
   width: 2.75rem;
   height: 2.75rem;
   flex: 0 0 2.75rem;
@@ -278,8 +280,7 @@
   }
 
   .briefing-summary__masthead-meta {
-    flex-wrap: wrap;
-    gap: var(--space-xs);
+    column-gap: var(--space-xs);
   }
 
 }

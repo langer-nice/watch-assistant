@@ -92,7 +92,13 @@
     "flow3": "Watch Assistant — Flow 3"
   },
   "home": {
-    "reportPartial": "Some results are not yet available.",
+    "reportFailures": {
+      "one": "Error retrieving updates for 1 Watch.",
+      "other": "Error retrieving updates for {count} Watches.",
+      "unknown": "Error retrieving updates for some Watches."
+    },
+    "watchCheckFailed": "We couldn’t check this Watch for updates when preparing this brief.",
+    "readBadge": "Read",
     "reportSyncUnavailable": "The latest server report is unavailable. The retained local report may be old.",
 
     "newBadge": "New",

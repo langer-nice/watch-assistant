@@ -33,7 +33,7 @@ test('Home presents Generate report as a lightweight refresh icon beside the tim
   assert.match(styles, /\.briefing-summary__generate:hover,[\s\S]*\.briefing-summary__generate:focus-visible/);
   assert.match(styles, /\.briefing-summary__generate:active/);
   assert.match(styles, /\.briefing-summary__generate\[aria-busy='true'\] svg[\s\S]*home-report-refresh-spin/);
-  assert.match(styles, /@media \(max-width: 32rem\)[\s\S]*briefing-summary__masthead-meta[\s\S]*flex-wrap: wrap/);
+  assert.match(styles, /\.briefing-summary__masthead-meta \{[^}]*grid-template-columns: minmax\(0, 1fr\) max-content/);
 });
 
 test('Home blocks interaction and exposes accessible progress, success, and retry states', async () => {
