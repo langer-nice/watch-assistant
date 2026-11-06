@@ -2062,11 +2062,12 @@ const renderWatchDetail = () => {
 
   const briefTarget = briefUpdateId ? document.getElementById(checkUpdateTargetId(briefUpdateId)) : null;
   const shouldRevealCurrentUpdate = window.location.hash === `#${CURRENT_UPDATE_FRAGMENT}`
-    && Boolean(latestMeaningfulUpdate);
-  const revealTarget = shouldRevealCurrentUpdate && (!briefTarget || briefUpdateId === latestMeaningfulUpdate.id)
-    ? currentSituationContainerEl : briefTarget;
+    && latestMeaningfulUpdate
+    && (!briefUpdateId || (briefTarget && briefUpdateId === latestMeaningfulUpdate.id));
+  const revealTarget = shouldRevealCurrentUpdate ? currentSituationContainerEl : briefTarget;
+  const revealedUpdateId = shouldRevealCurrentUpdate ? latestMeaningfulUpdate.id : briefUpdateId;
   const revealRouteKey = revealTarget
-    ? `${watch.id}\u0000${revealTarget.id}\u0000${window.location.href}`
+    ? `${watch.id}\u0000${revealedUpdateId}\u0000${window.location.href}`
     : null;
   if (revealRouteKey && detailRevealedUpdateRoute !== revealRouteKey) {
     detailRevealedUpdateRoute = revealRouteKey;
