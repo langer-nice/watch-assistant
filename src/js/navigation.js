@@ -201,6 +201,7 @@ import {
 import { getWatchTimelineEvents } from './watch-timeline.js';
 import {
   getBodaccBusinessEventLabel,
+  getCurrentSituationHeadingKey,
   getCurrentSituationPresentation,
   getLatestCheckUpdates,
   isBodaccBusinessEvent,
@@ -1592,11 +1593,11 @@ const renderWatchDetail = () => {
     translateBusinessEvent: t,
   });
   const latestMeaningfulUpdate = currentUpdate.update;
-  const rateHeading = currentSituationContainerEl?.querySelector('.section-heading');
-  if (rateHeading) {
-    const key = currencyCriteriaFor(watch) ? 'currency.currentRate' : 'detail.currentSituation';
-    rateHeading.dataset.i18n = key;
-    rateHeading.textContent = t(key);
+  const situationHeading = currentSituationContainerEl?.querySelector('.section-heading');
+  if (situationHeading) {
+    const key = getCurrentSituationHeadingKey(watch);
+    situationHeading.dataset.i18n = key;
+    situationHeading.textContent = t(key);
   }
   const eventCurrencySummary = currencyUpdateSummary(watch, currentUpdate.update, getLanguage());
   const currentSituation = watch.currencyEvaluation && currencyCriteriaFor(watch)
