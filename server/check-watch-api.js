@@ -8,6 +8,7 @@ import { Readable } from 'node:stream';
 import he from 'he';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import {markV3Stage,markV3ProviderStatus} from './v3-scheduled-diagnostics.js';
+import { googleNewsSource } from '../src/js/media-provider-query.js';
 import {
   createPinnedLookup,
   isPublicIpAddress,
@@ -200,7 +201,7 @@ const parser = new XMLParser({
   processEntities: true,
 });
 
-export const parseFeedXml = (xml, { sourceUrl = '' } = {}) => {
+export const parseFeedXml = (xml, { sourceUrl = '', httpStatus } = {}) => {
   const value = String(xml || '').trim();
   if (!value) {
     throw new CheckWatchError('EMPTY_RESPONSE', 422, 'The feed is empty.');
@@ -232,7 +233,18 @@ export const parseFeedXml = (xml, { sourceUrl = '' } = {}) => {
     throw new CheckWatchError('NOT_A_FEED', 422, 'The document is not an RSS or Atom feed.');
   }
   if (!normalized.items.length) {
-    throw new CheckWatchError('EMPTY_FEED', 422, 'The feed does not contain any items.');
+    const error = new CheckWatchError('EMPTY_FEED', 422, 'The feed does not contain any items.');
+    const channel = document.rss?.channel;
+    // Keep the parser's default error. Only a verified empty search channel
+    // can be interpreted as no results by the opted-in V3 follow-up.
+    if (httpStatus === 200 && googleNewsSource(sourceUrl)?.searchParams.get('q')?.trim()
+      && document.rss?.['@_version'] === '2.0' && channel && !Array.isArray(channel)
+      && !Object.hasOwn(channel, 'item') && getTextValue(channel.title).trim()
+      && /^https?:\/\//i.test(getTextValue(channel.link).trim())
+      && normalizeLink(channel.link, sourceUrl) && Object.hasOwn(channel, 'description')) {
+      error.validEmptyGoogleSearch = true;
+    }
+    throw error;
   }
   return normalized;
 };
@@ -380,7 +392,7 @@ const fetchFeedWithinDeadline = async (sourceUrl, {
     if (!looksLikeFeedXml(xml)) {
       throw new CheckWatchError('NOT_A_FEED', 422, 'The document is not an RSS or Atom feed.');
     }
-    return { xml, finalUrl: destination.url.href };
+    return { xml, finalUrl: destination.url.href, httpStatus: response.status };
   }
   throw new CheckWatchError('TOO_MANY_REDIRECTS', 502, 'The feed redirected too many times.');
 };
@@ -417,9 +429,9 @@ const fetchPlainAndNormalizeFeed = async (sourceUrl, {
       maxFeedBytes,
       maxRedirects,
     });
-    const { xml, finalUrl } = await Promise.race([operation, timeout]);
+    const { xml, finalUrl, httpStatus } = await Promise.race([operation, timeout]);
     markV3Stage('EVIDENCE_NORMALIZATION');
-    const normalized = parseFeedXml(xml, { sourceUrl: finalUrl });
+    const normalized = parseFeedXml(xml, { sourceUrl: finalUrl, httpStatus });
     return {
       source: normalized.source,
       checkedAt: now().toISOString(),

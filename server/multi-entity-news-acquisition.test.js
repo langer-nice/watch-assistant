@@ -13,6 +13,19 @@ const response=(url,items)=>({source:{title:'Offline fixture',url},items,checked
 const feed=(g,p)=>async url=>response(url,new URL(url).searchParams.get('q').startsWith('"Gucci"')?g:p);
 const judgment=req=>({action:'ALERT',evidence_status:'CONFIRMED',reason:'A supplied new product launch.',novelty_summary:null,condition_check:null,evidence_refs:req.input.evidence.segments.filter(s=>s.field==='content').map(s=>s.id),provenance_refs:[]});
 
+test('a multi-edition story search succeeds empty only when every arm is verified empty', async () => {
+ const w=row('Follow the city hall fire in France.',['city hall fire','France']);
+ w.engine='wa-v3-evidence-refs.v1';
+ w.understanding.story_seed={original_url:'https://example.test/incident'};
+ const empty=Object.assign(new Error('Verified empty RSS'),{code:'EMPTY_FEED',validEmptyGoogleSearch:true});
+ const upstream=Object.assign(new Error('Upstream failed'),{code:'UPSTREAM_ERROR'});
+ assert.equal(planIntentNewsQueries(w,source).queries.length,2);
+ assert.equal(await acquireIntentNews(w,source,{feed:async()=>{throw empty;}}),null);
+ await assert.rejects(acquireIntentNews(w,source,{feed:async url=>{
+  throw new URL(url).searchParams.get('gl')==='FR'?empty:upstream;
+ }}),error=>error===upstream);
+});
+
 test('two independent focused product queries preserve stored OR Intent without bring/out noise',()=>{
  const w=row(),before=structuredClone(w),plan=planIntentNewsQueries(w,source);
  assert.deepEqual(plan.queries.map(q=>q.query),['"Gucci" ("new products" OR "launch" OR "release" OR "announce" OR "unveil")','"Prada" ("new products" OR "launch" OR "release" OR "announce" OR "unveil")']);

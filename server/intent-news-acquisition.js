@@ -128,9 +128,16 @@ export async function acquireIntentNews(row,source,{feed,multiEntityOnly=false})
  const plan=planIntentNewsQueries(row,source,{multiEntityOnly});
  if(!plan)return feed(source.url);
  const responses=(await Promise.allSettled(plan.queries.map(q=>feed(q.url)))).map((r,i)=>({...r,query:plan.queries[i]}));
- const accepted=responses.filter(r=>r.status==='fulfilled'&&Array.isArray(r.value?.items)&&r.value.items.length);
+ const storyFollowup = row.engine === 'wa-v3-evidence-refs.v1' && row.baseline_at
+   && row.understanding?.story_seed?.original_url;
+ const accepted = responses.filter(r => r.status === 'fulfilled' && Array.isArray(r.value?.items)
+   && (storyFollowup ? r.value.items.some(item => item?.title || item?.excerpt) : r.value.items.length));
  if(!accepted.length){
-  const failure=responses.find(r=>r.status==='rejected')?.reason;
+  const validEmpty = response => response.status === 'rejected'
+    && response.reason?.code === 'EMPTY_FEED' && response.reason.validEmptyGoogleSearch === true;
+  if (storyFollowup && responses.length && responses.every(validEmpty)) return null;
+  const failure = (storyFollowup && responses.find(r => r.status === 'rejected' && !validEmpty(r))
+    || responses.find(r => r.status === 'rejected'))?.reason;
   if(!failure)markV3Stage('EVIDENCE_NORMALIZATION');
   throw failure||Object.assign(Error('The feed is empty.'),{code:'EMPTY_FEED'});
  }

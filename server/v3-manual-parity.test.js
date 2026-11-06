@@ -6,6 +6,7 @@ import {readFile,readdir} from 'node:fs/promises';
 import {PILOT_OWNER,PILOT_SPECS,pilotSource,runPilotMonitoring} from './v3-pilot.js';
 import {createMediaWatchCheckMiddleware} from './media-watch-check-api.js';
 import {createWatchCheckController} from '../src/js/watch-monitoring.js';
+import {fetchAndNormalizeFeed} from './check-watch-api.js';
 
 const owner=PILOT_OWNER,other='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const env={V3_PILOT_ENABLED:'true',VERCEL_ENV:'production',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',STRUCTURED_PRODUCTION_ENABLED:'true'};
@@ -23,10 +24,15 @@ test('real manual API and scheduled V3 share judgment, fencing and persistence w
  create function auth.role() returns text language sql stable as $$select current_setting('request.jwt.claim.role',true)$$;
  grant usage on schema auth,public to anon,authenticated,service_role;grant execute on all functions in schema auth to anon,authenticated,service_role;`);
  const dir=new URL('../supabase/migrations/',import.meta.url),files=(await readdir(dir)).sort().filter(f=>f.endsWith('.sql')&&f!=='20261022160000_private_morning_reports.sql');
- for(const f of files.filter(f=>f!=='20261103120000_v3_manual_runtime_context.sql'))await db.exec((await readFile(new URL(f,dir),'utf8')).replace('create extension if not exists pgcrypto;',''));
+ const manualMigration='20261103120000_v3_manual_runtime_context.sql';
+ const emptyMigration='20261106170000_v3_empty_story_search_completion.sql';
+ for(const f of files.filter(f=>f!==manualMigration&&f!==emptyMigration))await db.exec((await readFile(new URL(f,dir),'utf8')).replace('create extension if not exists pgcrypto;',''));
  const contract=async()=>JSON.stringify((await db.query(`select oid::regprocedure::text name,proacl from pg_proc where oid in ('public.claim_structured_media_manual_check(uuid,uuid,bigint)'::regprocedure,'public.finish_v3_pilot_check(uuid,uuid,jsonb)'::regprocedure,'public.fail_v3_pilot_check(uuid,uuid)'::regprocedure) order by 1`)).rows);
  const acl=await contract();await db.exec(await readFile(new URL('20261103120000_v3_manual_runtime_context.sql',dir),'utf8'));
  await db.exec(await readFile(new URL('20261103120000_v3_manual_runtime_context.sql',dir),'utf8')); // Safe later migration-ledger application.
+ const emptySql=await readFile(new URL(emptyMigration,dir),'utf8');
+ await db.exec(emptySql);
+ await db.exec(emptySql);
  await t.test('function signatures and ACL unchanged; migration has no table/RLS/grant statements',async()=>{
   assert.equal(await contract(),acl);const sql=await readFile(new URL('20261103120000_v3_manual_runtime_context.sql',dir),'utf8');assert(!/\b(?:alter table|create table|grant |revoke |create policy)\b/i.test(sql));
  });
@@ -131,5 +137,89 @@ test('real manual API and scheduled V3 share judgment, fencing and persistence w
   const invalid={...await row(ids[6]),monitoring_source:{type:'page',url:'https://example.test/page'}};
   const q={select(){return q;},eq(){return q;},is(){return q;},async range(){return {data:[invalid]};}};
   let n=0;fetchFeed=async()=>{n++;throw Error('Should not acquire');};const r=await invoke(ids[6],{authClient:{from:()=>q}});assert.equal(r.http,400);assert.equal(r.code,'INVALID_MONITORING_SOURCE');assert.equal(n,0);
+ });
+
+ await t.test('story search with validated zero items completes silently in manual and scheduled paths',async()=>{
+  const id=randomUUID(),seed='https://example.test/local-incident';
+  const intent=understanding('Micromania manager assault in Nice');
+  intent.story_seed={original_url:seed};
+  await rpc('create_v3_watch',{
+   p_id:id,p_owner:owner,p_instruction:seed,p_kind:'URL',p_understanding:intent,
+   p_source:pilotSource({query:'Micromania manager assault in Nice'}),p_criteria:null,
+   p_baseline:{evidence:{id:'seed',source:'Fixture',url:seed},items:[{id:'seed',title:'Seed story',url:seed}],judgment:null,article:null},
+  });
+  fetchFeed=feed;
+  model=async req=>output(req,{action:'ALERT',reason:'A material new development was confirmed.'});
+  assert.equal((await invoke(id)).outcome,'matching-items');
+  await db.query("update public.watches set last_check_error_code='V3_PILOT_CHECK_FAILED' where id=$1",[id]);
+  await db.query('update public.structured_media_schedules set failures=2 where watch_id=$1',[id]);
+  const before=await row(id),beforeSchedule=await schedule(id),notifications=await count('media_watch_notifications');
+  const evidence=async()=>(await db.query(`select p.baseline_at,p.prior_state,p.last_evidence,p.last_judgment,to_jsonb(s) snapshot
+    from public.v3_pilot_watches p join public.media_watch_snapshots s on s.watch_id=p.watch_id where p.watch_id=$1`,[id])).rows[0];
+  const previous=await evidence();
+  const rss=(items='')=>`<rss version="2.0"><channel><title>Search</title><link>https://news.google.com/</link><description>Search results</description>${items}</channel></rss>`;
+  let requests=0;
+  const source=(xml,status=200,timeout=false)=>url=>fetchAndNormalizeFeed(url,{
+   lookup:async()=>[{address:'93.184.216.34',family:4}],timeoutMs:timeout?5:1000,
+   fetchImpl:async()=>{
+    requests++;
+    if(timeout)return new Promise(()=>{});
+    return new Response(xml,{status,headers:{'content-type':'application/rss+xml'}});
+   },
+  });
+  let brainCalls=0;
+  model=async()=>{brainCalls++;throw Error('Unexpected Brain call');};
+  fetchFeed=source(rss());
+  const manual=await invoke(id);
+  assert.equal(manual.http,200);
+  assert.equal(manual.outcome,'no-new-items');
+  assert.deepEqual(manual.matchedItems,[]);
+  assert.equal(manual.changes.lastCheckAttempt.status,'succeeded');
+  assert.equal(requests,1);
+  assert.deepEqual(await evidence(),previous);
+  assert.deepEqual((await schedule(id)).next_due_at,beforeSchedule.next_due_at);
+  assert.equal((await schedule(id)).failures,2);
+  assert.equal((await row(id)).last_check_error_code,null);
+  assert.equal((await row(id)).last_change_item_id,before.last_change_item_id);
+  assert.equal((await row(id)).current_status,'watching');
+  assert((await row(id)).last_checked_at>=before.last_checked_at);
+  await db.query("update public.structured_media_schedules set next_due_at=clock_timestamp()-interval '1 second' where watch_id=$1",[id]);
+  const scheduled=await runPilotMonitoring({client,env,schedulerAuthorized:true,feed:fetchFeed,model});
+  assert.equal(scheduled.completed,1);
+  assert.equal(scheduled.failed,0);
+  assert.equal(requests,2);
+  assert.deepEqual(await evidence(),previous);
+  assert.equal((await schedule(id)).failures,0);
+  assert.equal((await schedule(id)).lease_token,null);
+  assert((await schedule(id)).next_due_at>new Date());
+  assert.equal(await count('media_watch_notifications'),notifications);
+  const history=(await db.query('select history from public.v3_pilot_watches where watch_id=$1',[id])).rows[0].history;
+  assert.deepEqual(history.slice(-2).map(h=>[h.status,h.outcome,h.empty_search]),[
+   ['succeeded','no-new-items',true],['succeeded','no-new-items',true],
+  ]);
+
+  for(const [name,bad,code] of [
+   ['malformed XML',source('<rss><broken></rss>'),'MALFORMED_XML'],
+   ['missing channel metadata',source('<rss version="2.0"><channel><title>Search</title></channel></rss>'),'EMPTY_FEED'],
+   ['items present but no usable text',source(rss('<item/>')),'EMPTY_FEED'],
+   ['partial HTTP response',source(rss(),206),'EMPTY_FEED'],
+   ['upstream HTTP 500',source(rss(),500),'UPSTREAM_ERROR'],
+   ['authorization failure',source(rss(),403),'ACCESS_DENIED'],
+   ['timeout',source(rss(),200,true),'TIMEOUT'],
+  ]){
+   const parsed=()=>bad(pilotSource({query:'Fixture'}).url);
+   if(name==='items present but no usable text'){
+    const response=await parsed();
+    assert.equal(response.items.length,1);
+    assert.equal(response.items[0].title,null);
+   }else{
+    await assert.rejects(parsed,error=>error.code===code&&!error.validEmptyGoogleSearch);
+   }
+   fetchFeed=bad;
+   assert.equal((await invoke(id)).http,503,name);
+  }
+  fetchFeed=source(rss());
+  assert.equal((await invoke(ids[5])).http,503,'normal text empty behavior stays technical');
+  assert.equal(brainCalls,0);
  });
 });
