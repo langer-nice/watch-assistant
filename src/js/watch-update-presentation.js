@@ -1,3 +1,5 @@
+import { isCompanyWatch } from './company-watch-classification.js';
+import { currencyCriteriaFor } from './currency-watch.js';
 import { getLatestDevelopmentUpdate } from './watch-developments.js';
 import { getWatchUpdates } from './watch-updates.js';
 
@@ -32,6 +34,12 @@ export const isBodaccBusinessEvent = (update) => (
 export const getBodaccBusinessEventLabel = (update, translate = () => '') => {
   const key = getBodaccBusinessEventTranslationKey(update);
   return key ? translate(key) : '';
+};
+
+export const getCurrentSituationHeadingKey = (watch) => {
+  if (currencyCriteriaFor(watch)) return 'currency.currentRate';
+  if (isCompanyWatch(watch)) return 'detail.latestOfficialEvent';
+  return 'detail.currentSituation';
 };
 
 const sameCopy = (a, b) => String(a || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase() === String(b || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase();

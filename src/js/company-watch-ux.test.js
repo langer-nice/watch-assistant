@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { getCurrentSituationHeadingKey } from './watch-update-presentation.js';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
@@ -29,14 +30,34 @@ test('unknown BODACC monitoring status is omitted while the latest official even
   );
 });
 
-test('the latest official event heading and Company clarification are localized', async () => {
+test('current situation headings distinguish news, official company events and currency rates', async () => {
+  const [english, french] = await Promise.all([
+    read('../locales/en.json').then(JSON.parse),
+    read('../locales/fr.json').then(JSON.parse),
+  ]);
+  const newsKey = getCurrentSituationHeadingKey({
+    inputType: 'text',
+    category: 'News',
+    request: 'Keep me updated on important developments concerning Manchester City.',
+  });
+  const companyKey = getCurrentSituationHeadingKey({ inputType: 'company' });
+
+  assert.equal(english.detail[newsKey.split('.')[1]], 'Current situation');
+  assert.equal(french.detail[newsKey.split('.')[1]], 'Situation actuelle');
+  assert.equal(english.detail[companyKey.split('.')[1]], 'Latest official event detected');
+  assert.equal(french.detail[companyKey.split('.')[1]], 'Dernier événement officiel détecté');
+  assert.equal(
+    getCurrentSituationHeadingKey({ inputType: 'text', request: 'GBP > 1.17 EUR' }),
+    'currency.currentRate',
+  );
+});
+
+test('Company clarification is localized', async () => {
   const [english, french] = await Promise.all([
     read('../locales/en.json').then(JSON.parse),
     read('../locales/fr.json').then(JSON.parse),
   ]);
 
-  assert.equal(english.detail.currentSituation, 'Latest official event detected');
-  assert.equal(french.detail.currentSituation, 'Dernier événement officiel détecté');
   assert.equal(
     english.detail.companyEventNotice,
     'This announcement concerns an event recorded for the company or one of its establishments. It does not necessarily mean that the company has ceased trading.',
