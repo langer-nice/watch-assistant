@@ -7,10 +7,11 @@ export const normalizeWatchId = (watchId) => {
 
 export const CURRENT_UPDATE_FRAGMENT = 'current-situation';
 
-export const getWatchDetailHref = (watchId, { revealLatestUpdate = false } = {}) => {
+export const getWatchDetailHref = (watchId, { revealLatestUpdate = false, briefUpdateId } = {}) => {
   const normalizedId = normalizeWatchId(watchId);
+  const briefTarget = briefUpdateId === undefined ? '' : `&briefUpdate=${encodeURIComponent(briefUpdateId)}`;
   return normalizedId
-    ? `watch-detail.html?id=${encodeURIComponent(normalizedId)}${
+    ? `watch-detail.html?id=${encodeURIComponent(normalizedId)}${briefTarget}${
       revealLatestUpdate ? `#${CURRENT_UPDATE_FRAGMENT}` : ''
     }`
     : null;

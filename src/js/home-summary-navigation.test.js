@@ -63,7 +63,7 @@ test('Home exposes accessible status navigation and keeps its fixed dashboard pr
   assert.match(navigation, /trigger\.disabled = uncertain \|\| count === 0/);
   assert.match(navigation, /\['new', newlyCreatedWatches\.length, newLabel\]/);
   assert.match(navigation, /navigateToHomeWatchStatus\(document, trigger\.dataset\.homeStatusTarget\)/);
-  assert.match(navigation, /list\.innerHTML = renderHomeWatchCards\(watches, statusById\)/);
+  assert.match(navigation, /list\.innerHTML = renderHomeWatchCards\(watches, statusById, failedIds\)/);
   const english = JSON.parse(en);
   const french = JSON.parse(fr);
   assert.deepEqual([

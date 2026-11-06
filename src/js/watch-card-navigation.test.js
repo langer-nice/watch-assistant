@@ -154,6 +154,6 @@ test('Home keeps fixed priority and Everything else links to the complete Watch 
   const allQuietMarkup = html.match(/id="homeAllQuiet"[\s\S]*?<\/section>/)?.[0] || '';
   assert.doesNotMatch(allQuietMarkup, /href="watches\.html"|data-i18n="home\.allWatches"/);
   assert.doesNotMatch(html, /id="homeWatchSort"/);
-  assert.match(navigation, /list\.innerHTML = renderHomeWatchCards\(watches, statusById\)/);
+  assert.match(navigation, /list\.innerHTML = renderHomeWatchCards\(watches, statusById, failedIds\)/);
   assert.match(itemStyles, /\.briefing-item \+ \.briefing-item\s*\{[\s\S]*?border-top:\s*1px solid var\(--color-divider\)/);
 });

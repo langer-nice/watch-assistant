@@ -92,7 +92,13 @@
     "flow3": "Watch Assistant — Parcours 3"
   },
   "home": {
-    "reportPartial": "Certains résultats ne sont pas encore disponibles.",
+    "reportFailures": {
+      "one": "Erreur lors de la récupération des nouveautés pour {count} Watch.",
+      "other": "Erreur lors de la récupération des nouveautés pour {count} Watches.",
+      "unknown": "Erreur lors de la récupération des nouveautés pour certaines Watches."
+    },
+    "watchCheckFailed": "Nous n’avons pas pu rechercher de nouveautés pour cette Watch lors de la préparation de ce Brief.",
+    "readBadge": "Lu",
     "reportSyncUnavailable": "Le dernier rapport serveur est indisponible. Le rapport local conservé peut être ancien.",
 
     "newBadge": "Nouveau",

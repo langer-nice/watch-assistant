@@ -1,5 +1,5 @@
 import {mergeHistoryItems,renderUpdateHistory} from './update-history-presentation.js';
-import {linkCheckResult} from './check-result-navigation.js';
+import {checkUpdateTargetId,linkCheckResult} from './check-result-navigation.js';
 import {watchOperationalState,renderWatchOverview,renderLatestDevelopments,detailDevelopmentItems} from './watch-detail-overview.js';
 import {reportSyncState} from './report-sync.js';
 import { articleWatchDisplayCategory, localizedGeneratedArticleScope } from './article-watch-presentation.js';
@@ -10,7 +10,7 @@ import { creationConfirmationKey, watchCreationState } from './watch-creation-st
 import { showCurrencyCreationReview } from './currency-creation-review.js';
 import { parseCurrencyRequest, normalizeCurrencyWatch, CURRENCY_SOURCE } from './currency-watch.js';
 import { renderCurrencyPolicyControl } from './currency-policy-control.js';
-import { getReadOnlyCardPresentation, getHomeReportHeader, renderReportReadiness } from './watch-report-presentation.js';
+import { getReadOnlyCardPresentation, getHomeReportHeader, renderBriefNotices, renderReportReadiness } from './watch-report-presentation.js';
 import { isMediaWatch, mediaWatchDefinition } from './media-watch-definition.js';
 import { planMediaQuery, googleNewsSource, mediaMentionDefinition, validateMediaQuery } from './media-provider-query.js';
 import { renderInitialContext } from './initial-context.js';
@@ -1065,6 +1065,8 @@ const renderSummaryWatchCard = ({
   supportingText = '',
   timestamp = '',
   revealLatestUpdate = false,
+  briefUpdateId,
+  warning,
   articleId = '',
   dataAttribute = '',
 } = {}) => {
@@ -1072,24 +1074,27 @@ const renderSummaryWatchCard = ({
   if (!hasMeaningfulText(title)) return '';
   const categoryModifier = articleWatchDisplayCategory(watch);
   const category = t(`categories.${categoryModifier}`);
-  const statusPresentation = getSummaryCardStatus(status);
+  const statusPresentation = watch.briefUpdateRead
+    ? { label: t('home.readBadge'), modifier: 'watching' }
+    : getSummaryCardStatus(status);
   const readOnly = getReadOnlyCardPresentation(watch, t, getLanguage());
   return renderSummaryCard({
     title, category, categoryModifier, statusPresentation,
     supportingText: readOnly ? readOnly.explanation : supportingText,
     clampSummary: !readOnly,
     timestamp: readOnly ? '' : timestamp, historicalResult: readOnly?.result,
-    articleId, dataAttribute,
+    articleId, dataAttribute, warning,
     renderLink: (content) => renderWatchCardLink({
       watchId: watch.id,
       className: 'briefing-item__link',
       revealLatestUpdate,
+      briefUpdateId,
       content,
     }),
   });
 };
 
-const renderHomeWatchCards = (watches, statusById) => {
+const renderHomeWatchCards = (watches, statusById, failedIds) => {
   const renderedStatusTargets = new Set();
   return watches.map((watch) => {
     const title = getWatchDisplayTitle(watch);
@@ -1119,6 +1124,8 @@ const renderHomeWatchCards = (watches, statusById) => {
       supportingText,
       timestamp: latestChangeAt,
       revealLatestUpdate: homeStatus === 'updated',
+      briefUpdateId: watch.briefUpdateId || '',
+      warning: failedIds.has(watch.id) ? t('home.watchCheckFailed') : '',
       articleId,
       dataAttribute: ` data-home-watch-status="${escapeHtml(homeStatus)}"`,
     });
@@ -1131,8 +1138,8 @@ const renderHomeBriefing = () => {
   const list = document.querySelector('#homeBriefingList');
   if (!list) return;
 
-  const { watches, statusById } = getHomeReport();
-  list.innerHTML = renderHomeWatchCards(watches, statusById);
+  const { watches, statusById, failedIds } = getHomeReport();
+  list.innerHTML = renderHomeWatchCards(watches, statusById, failedIds);
 };
 
 const initHomeWatchControls = () => {
@@ -1292,21 +1299,10 @@ const renderWatchList = () => {
     .join('');
 };
 
-const renderWatchDetail = () => {
-  if (renderExampleDetail()) return;
-  const titleEl = document.querySelector('#watchTitle');
-  if (!titleEl) {
-    return;
-  }
-
-  const watchId = getWatchIdFromLocation(window.location);
-  let watch = getWatchById(watchId);
-  const detailPresentation = getWatchDetailPresentationSnapshot(watch, {
-    reports: getReports(),
-  });
-  if (detailPresentation.updateId && isCompanyWatch(watch) && isCompanyWatchServerMode()) {
+const acknowledgeDisplayedUpdate = (watch, updateId, { refreshReport = false } = {}) => {
+  if (isCompanyWatch(watch) && isCompanyWatchServerMode()) {
     void updateServerCompanyWatch(watch.id, {
-      acknowledgeUpdateId: detailPresentation.updateId,
+      acknowledgeUpdateId: updateId,
     }).catch((error) => {
       if (import.meta.env.DEV) {
         console.warn('[Watch updates] Could not acknowledge displayed Company update', {
@@ -1315,18 +1311,34 @@ const renderWatchDetail = () => {
         });
       }
     });
-  } else if (detailPresentation.updateId) {
+  } else {
     try {
-      markUpdateAsRead(watch.id, detailPresentation.updateId);
-      refreshLatestReport({ watches: getWatches() });
+      markUpdateAsRead(watch.id, updateId);
+      if (refreshReport) refreshLatestReport({ watches: getWatches() });
     } catch (error) {
       if (import.meta.env.DEV) {
         console.warn('[Watch updates] Could not acknowledge displayed update', {
           watchId: watch.id,
-          updateId: detailPresentation.updateId,
+          updateId,
         });
       }
     }
+  }
+};
+
+const renderWatchDetail = () => {
+  if (renderExampleDetail()) return;
+  const titleEl = document.querySelector('#watchTitle');
+  if (!titleEl) return;
+
+  const watchId = getWatchIdFromLocation(window.location);
+  const briefUpdateId = new URLSearchParams(window.location.search).get('briefUpdate');
+  let watch = getWatchById(watchId);
+  const detailPresentation = getWatchDetailPresentationSnapshot(watch, {
+    reports: getReports(),
+  });
+  if (briefUpdateId === null && detailPresentation.updateId) {
+    acknowledgeDisplayedUpdate(watch, detailPresentation.updateId, { refreshReport: true });
   }
   // A persisted pending/failed first check needs an explicit, available retry.
   // Elapsed browser time must never turn it into a successful check.
@@ -2048,14 +2060,20 @@ const renderWatchDetail = () => {
     }
   }
 
+  const briefTarget = briefUpdateId ? document.getElementById(checkUpdateTargetId(briefUpdateId)) : null;
   const shouldRevealCurrentUpdate = window.location.hash === `#${CURRENT_UPDATE_FRAGMENT}`
     && Boolean(latestMeaningfulUpdate);
-  const revealRouteKey = shouldRevealCurrentUpdate
-    ? `${watch.id}\u0000${latestMeaningfulUpdate.id}\u0000${window.location.href}`
+  const revealTarget = shouldRevealCurrentUpdate && (!briefTarget || briefUpdateId === latestMeaningfulUpdate.id)
+    ? currentSituationContainerEl : briefTarget;
+  const revealRouteKey = revealTarget
+    ? `${watch.id}\u0000${revealTarget.id}\u0000${window.location.href}`
     : null;
   if (revealRouteKey && detailRevealedUpdateRoute !== revealRouteKey) {
     detailRevealedUpdateRoute = revealRouteKey;
-    window.requestAnimationFrame(() => revealUpdateTarget(currentSituationContainerEl));
+    window.requestAnimationFrame(() => revealUpdateTarget(document.getElementById(revealTarget.id)));
+    if (briefTarget && watch.updates?.some(update => update.id === briefUpdateId && update.status === 'new')) {
+      acknowledgeDisplayedUpdate(watch, briefUpdateId);
+    }
   }
 
   const isPaused = watch.status === 'paused';
@@ -2405,16 +2423,6 @@ const renderHomeSummary = () => {
     renderReportReadiness({ button: generateReportButton,
       message: document.querySelector('#homeReportReadiness'),
       availability, generating, hasWatches: hasLocalUserCreatedWatches }, t);
-    const readiness = document.querySelector('#homeReportReadiness');
-    const metadata = readiness?.parentElement;
-    if (metadata) {
-      metadata.style.display = availability.failed ? 'grid' : '';
-      metadata.style.gridTemplateColumns = availability.failed ? 'minmax(0, 1fr) max-content' : '';
-      metadata.style.justifyItems = availability.failed ? 'end' : '';
-      readiness.style.gridColumn = availability.failed ? '1 / -1' : '';
-      readiness.style.justifySelf = availability.failed ? 'end' : '';
-      readiness.style.textAlign = availability.failed ? 'right' : '';
-    }
     generateReportButton.onclick = runHomeReportGeneration;
   }
 
@@ -2428,15 +2436,13 @@ const renderHomeSummary = () => {
   }
 
   const reportHeader = getHomeReportHeader({ hasReport, uncertain, totalChecked: homeReport.totalChecked }, t);
-  let reportNotice=document.querySelector('#homeServerReportNotice');
-  if(!reportNotice&&briefingDate){reportNotice=document.createElement('p');reportNotice.id='homeServerReportNotice';reportNotice.setAttribute('role','status');briefingDate.parentElement.append(reportNotice);}
-  if(reportNotice){
-    const partial = homeReport.report?.origin === 'automatic'
-      ? homeReport.report.partial
-      : homeReport.report?.attempts?.some(attempt => attempt.status === 'failed');
-    reportNotice.classList.toggle('briefing-summary__partial-notice',Boolean(partial));
-    reportNotice.hidden=availability.failed||(!partial&&reportSyncState!=='unavailable');
-    reportNotice.textContent=partial?t('home.reportPartial'):reportSyncState==='unavailable'?t('home.reportSyncUnavailable'):'';
+  if (briefingDate) {
+    renderBriefNotices({
+      failureNotice: document.querySelector('#homeServerReportNotice'),
+      syncNotice: document.querySelector('#homeReportSyncNotice'),
+      failureCount: homeReport.failureCount,
+      syncUnavailable: !availability.failed && reportSyncState === 'unavailable',
+    }, t);
   }
   if (briefingDate) {
     briefingDate.hidden = reportHeader.hideTimestamp;

@@ -12,7 +12,7 @@ export const getUpdateSummaryPreview = update => (
 export const renderSummaryCard = ({
   title, category, categoryModifier = 'general', statusPresentation = null,
   supportingText = '', clampSummary = false, timestamp = '', historicalResult = null,
-  articleId = '', dataAttribute = '', renderLink,
+  articleId = '', dataAttribute = '', warning = '', renderLink,
 }) => {
   const link = renderLink(`
       <div class="briefing-item__header">
@@ -28,7 +28,8 @@ export const renderSummaryCard = ({
           </div>
         ` : ''}
       </div>
-      <h2>${escapeHtml(title)}</h2>
+      <h2>${warning ? '<span class="brief-warning-icon" aria-hidden="true">&#9888;&#65038;</span> ' : ''}${escapeHtml(title)}</h2>
+      ${warning ? `<p class="briefing-item__warning">${escapeHtml(warning)}</p>` : ''}
       ${hasText(supportingText) ? `<p${clampSummary ? ' class="briefing-item__summary"' : ''}>${escapeHtml(supportingText)}</p>` : ''}
       ${historicalResult ? `<div class="briefing-item__historical-result">
         <p><strong>${escapeHtml(historicalResult.label)}</strong></p>

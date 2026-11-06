@@ -144,20 +144,23 @@
   color: var(--color-status-success);
 }
 
-.briefing-summary__readiness {
+.briefing-summary__readiness,
+.briefing-summary__masthead .briefing-summary__notice {
+  grid-column: 1 / -1;
+  justify-self: end;
   max-width: 18rem;
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-regular);
   text-transform: none;
   letter-spacing: normal;
+  text-align: right;
 }
-.briefing-summary__readiness[hidden] { display: none; }
 
-// A usable Brief with a few unavailable results needs a secondary note.
-.briefing-summary__masthead #homeServerReportNotice.briefing-summary__partial-notice {
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-regular);
-  letter-spacing: normal;
-  text-transform: none;
+.briefing-summary__readiness[hidden],
+.briefing-summary__notice[hidden] { display: none; }
+
+.brief-warning-icon {
+  color: var(--color-status-action);
+  font-size: 0.9em;
 }

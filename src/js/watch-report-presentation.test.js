@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { parseHTML } from 'linkedom';
 import en from '../locales/en.json' with { type: 'json' };
 import fr from '../locales/fr.json' with { type: 'json' };
-import { getReadOnlyCardPresentation, getHomeReportHeader } from './watch-report-presentation.js';
+import { getReadOnlyCardPresentation, getHomeReportHeader, renderBriefNotices } from './watch-report-presentation.js';
 import { renderSummaryCard } from './watch-summary-card.js';
 import { getCanonicalWatchClassification } from './report-status.js';
 import { selectHomeReport } from './home-report.js';
@@ -139,67 +139,28 @@ test('report control is disabled before auth initializes, then explains hydratio
 });
 
 
-test('Home loading failure retains only the short Brief line, while normal report notices are unchanged', async () => {
-  const {renderReportReadiness} = await import('./watch-report-presentation.js');
-  const navigation = readFileSync(new URL('./navigation.js', import.meta.url), 'utf8');
-  const noticeBlock = navigation.slice(navigation.indexOf('  if(reportNotice){'), navigation.indexOf('  if (briefingDate) {', navigation.indexOf('  if(reportNotice){')));
-  const renderNotice = new Function('reportNotice', 'availability', 'homeReport', 'reportSyncState', 't', noticeBlock);
-  const {document} = parseHTML('<button></button><p id="readiness"></p><p id="notice"></p>');
-  const button=document.querySelector('button'), message=document.querySelector('#readiness'), reportNotice=document.querySelector('#notice');
-  for(const language of ['fr','en']){
-    const t=translate(language);
-    for(const partial of [true,false])for(const reportSyncState of ['ready','unavailable']){
-      const homeReport={report:{origin:'automatic',partial}};
-      renderReportReadiness({button,message,availability:{uncertain:true,failed:true},generating:false,hasWatches:true},t);
-      renderNotice(reportNotice,{failed:true},homeReport,reportSyncState,t);
-      assert.equal(message.hidden,false);
-      assert.equal(message.textContent,language==='fr'
-        ?'Rapport indisponible : réessayez le chargement des Watches.'
-        :'Report unavailable: try loading your Watches again.');
-      assert.equal(reportNotice.hidden,true);
-      renderReportReadiness({button,message,availability:{uncertain:false,failed:false},generating:false,hasWatches:true},t);
-      renderNotice(reportNotice,{failed:false},homeReport,reportSyncState,t);
-      assert.equal(message.hidden,true);
-      assert.equal(reportNotice.hidden,!partial&&reportSyncState!=='unavailable');
-      assert.equal(reportNotice.textContent,partial?t('home.reportPartial'):reportSyncState==='unavailable'?t('home.reportSyncUnavailable'):'');
-      assert.equal(reportNotice.classList.contains('briefing-summary__partial-notice'),partial);
+test('Brief warnings show localized counts separately from report synchronization', () => {
+  const {document} = parseHTML(readFileSync(new URL('../../index.html', import.meta.url), 'utf8'));
+  const failureNotice = document.querySelector('#homeServerReportNotice');
+  const syncNotice = document.querySelector('#homeReportSyncNotice');
+  const refresh = document.querySelector('#homeGenerateReport');
+  assert.equal(failureNotice.parentElement, refresh.parentElement);
+  assert.ok([...refresh.parentElement.children].indexOf(failureNotice)
+    > [...refresh.parentElement.children].indexOf(refresh));
+
+  for (const [language, expected] of [
+    ['en', ['Error retrieving updates for 1 Watch.', 'Error retrieving updates for 2 Watches.',
+      'Error retrieving updates for some Watches.']],
+    ['fr', ['Erreur lors de la récupération des nouveautés pour 1 Watch.',
+      'Erreur lors de la récupération des nouveautés pour 2 Watches.',
+      'Erreur lors de la récupération des nouveautés pour certaines Watches.']],
+  ]) {
+    for (const [index, failureCount] of [1, 2, null, 0].entries()) {
+      renderBriefNotices({ failureNotice, syncNotice, failureCount, syncUnavailable: index % 2 === 0 },
+        translate(language));
+      assert.equal(failureNotice.hidden, failureCount === 0);
+      assert.equal(failureNotice.querySelector('[data-report-failure-text]').textContent, expected[index] || '');
+      assert.equal(syncNotice.hidden, index % 2 !== 0);
     }
   }
-});
-
-
-test('Home failure places the small Brief message below the timestamp row and restores normal layout', () => {
-  const navigation = readFileSync(new URL('./navigation.js', import.meta.url), 'utf8');
-  const start = navigation.indexOf("    const readiness = document.querySelector('#homeReportReadiness');");
-  const layout = navigation.slice(start, navigation.indexOf('    generateReportButton.onclick', start));
-  const renderLayout = new Function('document', 'availability', layout);
-  const {document} = parseHTML(readFileSync(new URL('../../index.html', import.meta.url), 'utf8'));
-  const message = document.querySelector('#homeReportReadiness'), metadata = message.parentElement;
-  const timestamp = document.querySelector('#homeBriefingDate');
-  const before = metadata.outerHTML;
-  const title=document.querySelector('#homeBriefLabel'), refresh=document.querySelector('#homeGenerateReport');
-  const unchanged=[title.outerHTML,timestamp.outerHTML,refresh.outerHTML];
-  renderLayout(document,{failed:true});
-  assert.equal(timestamp.parentElement, metadata);
-  assert.equal(metadata.style.display,'grid');
-  assert.equal(metadata.style.gridTemplateColumns,'minmax(0, 1fr) max-content');
-  assert.equal(metadata.style.justifyItems,'end');
-  assert.equal(message.style.gridColumn,'1 / -1');
-  assert.equal(message.style.justifySelf,'end');
-  assert.equal(message.style.textAlign,'right');
-  assert.equal(metadata.children[0],timestamp);
-  assert.equal(metadata.children[2],message);
-  assert.equal(message.className,'briefing-summary__readiness');
-  assert.deepEqual([title.outerHTML,timestamp.outerHTML,refresh.outerHTML],unchanged);
-  assert.equal(title.parentElement,metadata.parentElement);
-  assert.equal(title.nextElementSibling,metadata);
-  renderLayout(document,{failed:false});
-  assert.equal(metadata.style.display,'');
-  assert.equal(metadata.style.gridTemplateColumns,'');
-  assert.equal(metadata.style.justifyItems,'');
-  assert.equal(message.style.gridColumn,'');
-  assert.equal(message.style.justifySelf,'');
-  assert.equal(message.style.textAlign,'');
-  metadata.removeAttribute('style');message.removeAttribute('style');
-  assert.equal(metadata.outerHTML,before);
 });

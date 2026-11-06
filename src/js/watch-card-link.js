@@ -11,9 +11,10 @@ export const renderWatchCardLink = ({
   className,
   content,
   revealLatestUpdate = false,
+  briefUpdateId,
 }) => {
   const normalizedId = normalizeWatchId(watchId);
-  const href = getWatchDetailHref(normalizedId, { revealLatestUpdate });
+  const href = getWatchDetailHref(normalizedId, { revealLatestUpdate, briefUpdateId });
   if (!normalizedId || !href) return '';
   return `<a class="${escapeAttribute(className)}" data-watch-id="${escapeAttribute(normalizedId)}" href="${escapeAttribute(href)}">${content}</a>`;
 };
