@@ -57,3 +57,21 @@ test('private SQL persistence, owner isolation, immutable daily report, no grant
   assert.deepEqual((await db.query('select * from public.media_watch_notifications')).rows,pending);
  }finally{await db.close();}
 });
+
+test('production completed zero-development cycle generates once without delivery',async()=>{
+ const productionEnv={VERCEL_ENV:'production',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',VERCEL_GIT_COMMIT_REF:'master',SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',MORNING_REPORT_PRODUCTION_ENABLED:'true'};
+ let saved=false;const writes=[];
+ const client={rpc:async(name,args)=>{
+  if(name==='production_watch_owners')return {data:[owner]};
+  if(name==='morning_report_context'){
+   assert.equal(args.p_owner,owner);
+   return {data:{pending:0,exists:saved,revision:'zero-development',watches:[{id,user_id:owner,type:'company_bodacc',title:'Synthetic',siren:'552100554',monitoring_state:'monitoring',current_status:'watching',created_at:'2026-09-01',last_checked_at:'2026-11-07T06:35:34Z',company_watch_snapshots:[{checked_at:'2026-11-07T06:35:34Z',items:[],item_ids:[]}]}]}};
+  }
+  assert.equal(name,'save_watch_report');writes.push(args);saved=true;return {data:true};
+ }};
+ const args={client,env:productionEnv,at:'2026-11-07T07:15:00Z',schedulerAuthorized:true};
+ assert.equal((await generateMorningReport(args)).reports[0].status,'generated');
+ assert.equal((await generateMorningReport(args)).reports[0].status,'already-generated');
+ assert.equal(writes.length,1);assert.equal(writes[0].p_kind,'automatic');
+ assert.equal(writes[0].p_report.partial,false);assert.equal(writes[0].p_report.entries[0].classification,'watching');
+});

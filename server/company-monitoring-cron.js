@@ -1,4 +1,4 @@
-import {productionExecutionEnabled,productionReportsEnabled} from './structured-production-access.js';
+import {productionExecutionEnabled,productionReportsEnabled,productionOwnerFailure} from './structured-production-access.js';
 import {generateMorningReport,runMorningBatches,morningReportWindow} from './morning-report.js';
 import {runStagingLegacyMonitoring,processStagingLegacyDigests,stagingLegacyEnabled} from './staging-legacy-notifications.js';
 import {processMediaWatchDigests,parisDigestWindow as validMorningDeliveryWindow,validStructuredMediaDigestSelection} from './media-watch-digest.js';
@@ -212,6 +212,15 @@ export const createCompanyMonitoringCronHandler = ({
     sendJson(response, 405, { runId, status: 'method-not-allowed' });
     return;
   }
+  const logOwnerFailure = error => {
+    if (error?.stage !== 'production_watch_owners') return;
+    const diagnostic = productionOwnerFailure(error, error.upstreamStatus);
+    logger.error?.('[Company monitoring cron] Production owner lookup failed.', {
+      runId, timestamp: new Date(now()).toISOString(), stage: diagnostic.stage,
+      code: diagnostic.code, message: diagnostic.message,
+      ...(diagnostic.upstreamStatus ? { upstreamStatus: diagnostic.upstreamStatus } : {}),
+    });
+  };
   try {
     const params = new URL(request.url || '/', 'http://localhost').searchParams;
     const scope = params.get('scope');
@@ -229,7 +238,7 @@ export const createCompanyMonitoringCronHandler = ({
         ? await runMorningBatches({run:structuredRunner,args:{...options,client,env,schedulerAuthorized:true},at:now()}) : {status:'disabled'};
       let morningReport;
       try { morningReport=await morningReportProcessor({client,env,at:now(),schedulerAuthorized:true}); }
-      catch { morningReport={status:'unavailable'}; }
+      catch (error) { logOwnerFailure(error); morningReport={status:'unavailable'}; }
       // Composition is read-only with respect to notifications. Delivery has its own gates.
       const digests=validMorningDeliveryWindow(now()).open
         ? await productionDigestProcessor({client,env,now,structuredProduction:true}) : {status:'outside-morning-window'};
@@ -252,7 +261,7 @@ export const createCompanyMonitoringCronHandler = ({
           await runMorningBatches({run:structuredRunner,args:{...options,client:clientFactory({env}),env,schedulerAuthorized:true},at:now()});
           await morningReportProcessor({client:clientFactory({env}),env,at:now()});
         }
-      }catch{/* Existing email delivery stays independent. */}
+      }catch(error){logOwnerFailure(error);/* Existing email delivery stays independent. */}
       const [notifications,legacyDigests] = await Promise.all([
         structuredNotificationProcessor({client:clientFactory({env}),env,...(hasSelection ? {[digest ? 'digestSelection' : 'notificationSelection']:selection} : {})}),
         !hasSelection && stagingLegacyEnabled(env) ? legacyDigestProcessor({client:clientFactory({env}),env}) : null,
@@ -268,7 +277,7 @@ export const createCompanyMonitoringCronHandler = ({
         stagingLegacyEnabled(env) ? legacyRunner({...options,client:clientFactory({env}),env,schedulerAuthorized:true}) : null,
       ]);
       let morningReport;
-      try{morningReport=await morningReportProcessor({client:clientFactory({env}),env,at:now(),schedulerAuthorized:true});}catch{morningReport={status:'unavailable'};}
+      try{morningReport=await morningReportProcessor({client:clientFactory({env}),env,at:now(),schedulerAuthorized:true});}catch(error){logOwnerFailure(error);morningReport={status:'unavailable'};}
       // The hourly Staging route captures updates only. The existing dedicated
       // 08:15 email route above owns delivery for Structured and legacy digests.
       return sendJson(response, 200, { runId, structured, morningReport, ...(legacy?{legacy}:{}) });
@@ -279,12 +288,13 @@ export const createCompanyMonitoringCronHandler = ({
     try { media = await mediaRunner({ client, env, ...options, schedulerAuthorized: true }); } catch { media = { status: 'unavailable' }; }
     if(productionReportsEnabled(env)) {
       try { await morningReportProcessor({client:clientFactory({env}),env,at:now(),schedulerAuthorized:true}); }
-      catch { /* Report persistence does not change legacy monitoring/delivery. */ }
+      catch (error) { logOwnerFailure(error); /* Report persistence does not change legacy monitoring/delivery. */ }
     }
     const result = { runId, ...summary, media, durationMs: Math.max(0, now() - startedAt) };
     logger.info?.('[Company monitoring cron] Run completed.', result);
     sendJson(response, 200, result);
   } catch (error) {
+    logOwnerFailure(error);
     const result = { runId, status: 'failed', durationMs: Math.max(0, now() - startedAt) };
     logger.error?.('[Company monitoring cron] Run failed.', { ...result, code: safeCode(error) });
     sendJson(response, 500, result);
