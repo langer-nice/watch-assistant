@@ -314,3 +314,29 @@ for (const scenario of ['authorized','unauthorized','disabled','production']) te
  let body;const res={setHeader(){},end(raw){body=JSON.parse(raw);}};await handler({method:'GET',url:'/api/cron/company-monitoring?scope=structured-media',headers:{authorization:scenario==='unauthorized'?'Bearer wrong':'Bearer synthetic-cron'}},res);
  assert.equal(res.statusCode,scenario==='authorized'?200:scenario==='unauthorized'?401:404);assert.equal(structuredCalls,scenario==='authorized'?1:0);assert.doesNotMatch(JSON.stringify(body),/synthetic-cron/);
 });
+
+for(const failingStage of ['structured','report']) test(`production morning ${failingStage} owner failure retains safe diagnostics`,async()=>{
+ const {productionWatchOwners}=await import('./structured-production-access.js');
+ const logs=[];let reports=0,digests=0;
+ const client={rpc:async name=>{
+  assert.equal(name,'production_watch_owners');
+  return {status:401,error:{code:'PGRST303',message:'JWT expired; Bearer private-token',details:'private-owner'}};
+ }};
+ const handler=createCompanyMonitoringCronHandler({
+  env:{CRON_SECRET:'cron-value',VERCEL_ENV:'production',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',VERCEL_GIT_COMMIT_REF:'master',SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',MORNING_REPORT_PRODUCTION_ENABLED:'true',STRUCTURED_PRODUCTION_ENABLED:'true',STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true'},
+  now:()=>Date.parse('2026-11-07T07:15:00Z'),createRunId:()=>'run-auth',clientFactory:()=>client,
+  structuredRunner:async()=> failingStage==='structured'?productionWatchOwners(client):{claimed:0},
+  morningReportProcessor:async()=>{reports++;return productionWatchOwners(client);},
+  productionDigestProcessor:async()=>{digests++;return {status:'disabled'};},
+  logger:{error:(...args)=>logs.push(args)},
+ });
+ let body;const res={setHeader(){},end(value){body=JSON.parse(value);}};
+ await handler({method:'GET',url:'/?scope=structured-morning',headers:{authorization:'Bearer cron-value'}},res);
+ assert.equal(res.statusCode,failingStage==='structured'?500:200);
+ assert.equal(reports,failingStage==='structured'?0:1);assert.equal(digests,failingStage==='structured'?0:1);
+ const diagnostic=logs.find(([,entry])=>entry.stage==='production_watch_owners')[1];
+ assert.deepEqual(diagnostic,{runId:'run-auth',timestamp:'2026-11-07T07:15:00.000Z',stage:'production_watch_owners',code:'PGRST303',message:'JWT expired; [redacted]',upstreamStatus:401});
+ assert.equal(/private-token|private-owner|cron-value/.test(JSON.stringify({logs,body})),false);
+ assert.equal(logs.length,1);
+ if(failingStage==='structured')assert.equal(logs.at(-1)[1].code,'PGRST303');
+});
