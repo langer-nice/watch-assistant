@@ -26,7 +26,7 @@ test('owner transport rejection and invalid owner payload fail closed with safe 
  assert.deepEqual(await productionWatchOwners({rpc:async()=>({data:owners})}),owners);
 });
 
-for (const message of ['JWT expired', 'Invalid JWT: signature verification failed', 'JWSError (JWSInvalidSignature)', 'JWT not yet valid', 'JWT invalid audience']) test(`original safe rejection retained: ${message}`, async () => {
+for (const message of ['JWT expired', 'Invalid JWT: signature verification failed', 'JWSError (JWSInvalidSignature)', 'JWT not yet valid', 'JWT invalid audience', 'JWT issued in the future', 'No suitable key or wrong key type', 'JWSError (CompactDecodeError)']) test(`original safe rejection retained: ${message}`, async () => {
  await assert.rejects(productionWatchOwners({rpc:async()=>({status:401,error:{code:'PGRST303',message}})}), error=>{
   assert.equal(error.message,message);return true;
  });
