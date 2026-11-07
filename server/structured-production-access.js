@@ -13,13 +13,41 @@ export const productionExecutionEnabled = env => structuredProductionEnabled(env
   && env.STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true';
 export const productionReportsEnabled = env => productionProjectMatches(env)
   && env.MORNING_REPORT_PRODUCTION_ENABLED === 'true';
-// Keep only protocol diagnostics. Upstream messages/details can contain secrets
-// or account data and must never become cron log fields.
+// Only authentication vocabulary may survive arbitrary upstream text. Pattern
+// redaction alone cannot exclude names, owner data or opaque credentials.
+// Keep original wording/case/punctuation for recognized words; values and
+// unrecognized words are removed. Do not retain raw messages or error causes.
+const authWords = new Set(('jwt jwterror jwsexpired jwtexpired jwtinvalidclaims jwsinvalidsignature jwtissuedatfuture jwtclaimssetdecodeerror jwtclaimssetdecodingerror jwtinvalidsignature jwtinvalidaudience jwtinvalidissuer jwsinvalidalg jwtnotyetvalid jwsnosignatures jwserror ' +
+  'invalid expired expiration expiry signature verification verify failed failure ' +
+  'claims claim validation parsing parse malformed token tokens missing required ' +
+  'audience issuer subject issued at not yet valid nbf exp iat aud iss sub ' +
+  'unexpected unsupported algorithm algorithms key keys id kid public ' +
+  'unable to find matching signing decode decoding error errors format parts ' +
+  'expected got could no be found is was has been the a an of for in on ' +
+  'with or and must use contain contains does do allow allowed clock skew ' +
+  'authentication authorization denied unauthorized access permission service role ' +
+  'production owner context unavailable transport network fetch request timed out ' +
+  'timeout connection refused reset aborted aborterror typeerror redacted ' +
+  'jwk jwks json web set header headers value values mismatch does cannot ' +
+  'claimnotpresent').split(/\s+/));
+const safeOwnerMessage = value => {
+  if (typeof value !== 'string' || !value.trim()) return 'Production owner context unavailable.';
+  return value.slice(0, 8192)
+    .replace(/authorization\s*[:=][^\r\n]*/gi, '[redacted]')
+    .replace(/\b(?:Bearer|Basic)\s+[^\s,;]+/gi, '[redacted]')
+    .replace(/\bsb_(?:secret|publishable)_[^\s,;]+/gi, '[redacted]')
+    .replace(/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[redacted]')
+    .replace(/https?:\/\/[^\s]+|[\w.+-]+@[\w.-]+|\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/gi, '[redacted]')
+    .replace(/"[^"\r\n]*"|'[^'\r\n]*'/g, '[redacted]')
+    .replace(/\b[A-Za-z_][A-Za-z0-9_]*\s*=\s*[^\s,;]+/g, '[redacted]')
+    .replace(/[A-Za-z0-9_@/+=-]+(?:\.[A-Za-z0-9_@/+=-]+)*/g, word => authWords.has(word.toLowerCase()) ? word : '[redacted]')
+    .replace(/[^\x20-\x7E]/g, ' ')
+    .replace(/\s+/g, ' ').trim().slice(0, 400) || '[redacted]';
+};
 export const productionOwnerFailure = (error, status) => {
-  const code = /^(PGRST[0-9]{3}|[0-9A-Z]{5})$/.test(error?.code || '')
+  const code = /^(PGRST[0-9]{3}|[0-9]{2}[0-9A-Z]{3}|P[0-9][0-9A-Z]{3}|XX[0-9]{3})$/.test(error?.code || '')
     ? error.code : 'PRODUCTION_OWNER_CONTEXT_UNAVAILABLE';
-  return Object.assign(new Error(code === 'PGRST303'
-    ? 'JWT claims validation or parsing failed.' : 'Production owner context unavailable.'), {
+  return Object.assign(new Error(safeOwnerMessage(error?.message)), {
     code,
     stage: 'production_watch_owners',
     ...(Number.isInteger(status) && status >= 100 && status <= 599 ? { upstreamStatus: status } : {}),

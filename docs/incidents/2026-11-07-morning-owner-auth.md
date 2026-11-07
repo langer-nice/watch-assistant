@@ -80,3 +80,73 @@ storage is only a hypothesis.
 Changes are prepared on a local isolated branch. No branch is pushed because
 a Git-integrated push may trigger a deployment; a local draft PR description
 is supplied separately for review.
+
+## Local update: preserve sanitized rejection wording
+
+DIAGNOSTIC UPDATE READY FOR REVIEW — INCIDENT NOT RESOLVED.
+
+The follow-up extends this same owner-failure/logging mechanism. It retains the
+upstream message's recognized authentication words, original case and
+punctuation, up to 400 characters. Thus `JWT expired`, `JWT not yet valid`,
+`Invalid JWT: signature verification failed` and `JWSError (JWSInvalidSignature)`
+remain distinct. No expiration or signature reason is inferred from PGRST303.
+Missing messages use `Production owner context unavailable.`
+
+The existing V3 sanitizer recognizes unrelated fixed messages and cannot be
+reused for these rejections. This narrow sanitizer redacts authorization values,
+JWTs, modern keys, URLs, emails, UUIDs, quoted values and assignments before
+retaining only an explicit authentication vocabulary. Arbitrary unknown words
+are redacted too: a pattern-only filter cannot reliably exclude opaque keys or
+personal names. Unknown diagnostic vocabulary can consequently be lost; this
+is an explicit limitation, not a promise to preserve arbitrary upstream prose.
+The input processing bound is 8192 characters; output is at most 400 characters
+with control/non-ASCII characters removed. SQL/PostgREST codes are format
+restricted. No original error, response, cause, details, hint or owner list is
+attached. The outer cron catch emits only the owner diagnostic for this error,
+not an additional generic failure log. Report-only catches retain their prior
+caller behavior. Public responses, RPC arguments, authentication and scheduling
+are unchanged.
+
+No response headers/request ID are provided by the current Supabase RPC result.
+The service factory and transport are unchanged, so this update includes no
+Supabase request ID. The existing cron runId and timestamp correlate the event
+with its Vercel invocation. There are no additional requests or new log stores.
+
+Validation: 28 tests pass in `structured-production-access.test.js` and
+`company-monitoring-cron.test.js`, using mocked clients and synthetic secrets.
+They cover safe original wording, expiration versus invalid signature,
+redaction including opaque credentials/personal data, output bounds, absent
+optional metadata, success/failure propagation, scheduler/report logging and
+one diagnostic event per failure. `git diff --check` passes. The prior morning
+composition/window/zero-development results are reused unchanged; no SQL,
+frontend, production, email or broad test run is repeated.
+
+### Observation after a separately approved deployment
+
+Nothing is deployed or scheduled by this task. After approval and deployment
+in a separate task, use the next normal morning opportunities at **08:00 and
+08:15 Europe/Paris**. Do not invoke cron or generate a report manually.
+
+At approximately **08:02–08:05**, and again **08:17–08:20**, read the existing
+Vercel runtime logs for the approved production deployment and
+`/api/cron/company-monitoring`. Use the existing runtime-log connector or
+Vercel dashboard; filter for
+`[Company monitoring cron] Production owner lookup failed.` and its `runId`.
+Capture only timestamp, deployment/commit reference, runId, fixed stage,
+allowlisted code, upstreamStatus and sanitized message. The provider request
+identifier remains unavailable in this change. Do not export entire invocation
+logs, headers, raw errors or unrelated events.
+
+The previous detailed runtime logs expired before inspection. Capture these
+fields within minutes of each scheduled run and keep the sanitized evidence
+locally for the investigation; do not defer collection until the afternoon.
+This task does not re-verify the account's exact retention duration or extend
+it, and does not create a background observer, reminder or logging service.
+
+If failure recurs, the returned sanitized wording may establish a specific
+rejection reason; interpret only what it actually says. Unknown/redacted text
+or PGRST303 alone may still leave the cause unconfirmed. If processing succeeds,
+separately verify the actual stored automatic report, date and owner using an
+authorized read-only report inspection. HTTP success alone does not prove report
+creation. Neither outcome retrospectively explains the November 7 rejection or
+establishes email delivery recovery.

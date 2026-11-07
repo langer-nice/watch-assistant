@@ -320,7 +320,7 @@ for(const failingStage of ['structured','report']) test(`production morning ${fa
  const logs=[];let reports=0,digests=0;
  const client={rpc:async name=>{
   assert.equal(name,'production_watch_owners');
-  return {status:401,error:{code:'PGRST303',message:'Bearer private-token',details:'private-owner'}};
+  return {status:401,error:{code:'PGRST303',message:'JWT expired; Bearer private-token',details:'private-owner'}};
  }};
  const handler=createCompanyMonitoringCronHandler({
   env:{CRON_SECRET:'cron-value',VERCEL_ENV:'production',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',VERCEL_GIT_COMMIT_REF:'master',SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',MORNING_REPORT_PRODUCTION_ENABLED:'true',STRUCTURED_PRODUCTION_ENABLED:'true',STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true'},
@@ -335,7 +335,8 @@ for(const failingStage of ['structured','report']) test(`production morning ${fa
  assert.equal(res.statusCode,failingStage==='structured'?500:200);
  assert.equal(reports,failingStage==='structured'?0:1);assert.equal(digests,failingStage==='structured'?0:1);
  const diagnostic=logs.find(([,entry])=>entry.stage==='production_watch_owners')[1];
- assert.deepEqual(diagnostic,{runId:'run-auth',timestamp:'2026-11-07T07:15:00.000Z',stage:'production_watch_owners',code:'PGRST303',message:'JWT claims validation or parsing failed.',upstreamStatus:401});
+ assert.deepEqual(diagnostic,{runId:'run-auth',timestamp:'2026-11-07T07:15:00.000Z',stage:'production_watch_owners',code:'PGRST303',message:'JWT expired; [redacted]',upstreamStatus:401});
  assert.equal(/private-token|private-owner|cron-value/.test(JSON.stringify({logs,body})),false);
+ assert.equal(logs.length,1);
  if(failingStage==='structured')assert.equal(logs.at(-1)[1].code,'PGRST303');
 });

@@ -213,13 +213,14 @@ export const createCompanyMonitoringCronHandler = ({
     return;
   }
   const logOwnerFailure = error => {
-    if (error?.stage !== 'production_watch_owners') return;
+    if (error?.stage !== 'production_watch_owners') return false;
     const diagnostic = productionOwnerFailure(error, error.upstreamStatus);
     logger.error?.('[Company monitoring cron] Production owner lookup failed.', {
       runId, timestamp: new Date(now()).toISOString(), stage: diagnostic.stage,
       code: diagnostic.code, message: diagnostic.message,
       ...(diagnostic.upstreamStatus ? { upstreamStatus: diagnostic.upstreamStatus } : {}),
     });
+    return true;
   };
   try {
     const params = new URL(request.url || '/', 'http://localhost').searchParams;
@@ -294,9 +295,8 @@ export const createCompanyMonitoringCronHandler = ({
     logger.info?.('[Company monitoring cron] Run completed.', result);
     sendJson(response, 200, result);
   } catch (error) {
-    logOwnerFailure(error);
     const result = { runId, status: 'failed', durationMs: Math.max(0, now() - startedAt) };
-    logger.error?.('[Company monitoring cron] Run failed.', { ...result, code: safeCode(error) });
+    if (!logOwnerFailure(error)) logger.error?.('[Company monitoring cron] Run failed.', { ...result, code: safeCode(error) });
     sendJson(response, 500, result);
   }
 };
