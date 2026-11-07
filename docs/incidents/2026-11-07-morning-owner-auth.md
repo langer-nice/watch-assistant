@@ -150,3 +150,89 @@ separately verify the actual stored automatic report, date and owner using an
 authorized read-only report inspection. HTTP success alone does not prove report
 creation. Neither outcome retrospectively explains the November 7 rejection or
 establishes email delivery recovery.
+
+## Final targeted review and approval addendum — November 7
+
+The review request's release status predates this chat's authorized release.
+PR #80 already merged the previous diagnostic to master commit
+`3399b800bb78ca21ace76c5466893738b86ca5e7`; its production deployment was
+verified READY in this chat. Two read-only observations were already created
+for November 8 at 08:03 and 08:18 Europe/Paris. They are not newly activated,
+paused or otherwise modified by this review. No new remote action is taken.
+
+The full accumulated change against original production baseline `2e428b5`
+was reviewed once. One concrete vocabulary gap was corrected locally:
+`future`, `suitable`, `wrong`, `type` and `CompactDecodeError` were masked,
+losing distinctions about future issuance, unsuitable keys and compact-token
+decoding. These words were added to the existing sanitizer; no raw-message
+fallback or second filter was introduced. Three synthetic cases exercise those
+reasons. Twelve tests in the affected owner-access file pass. Prior unchanged
+cron/morning validations are reused; no build, broad suite or production probe.
+Unknown vocabulary and quoted/assigned values still cannot be recovered from
+sanitized output. No arbitrary-message confidentiality guarantee is claimed:
+only fixed authentication vocabulary may survive, and arbitrary data is removed.
+The missing Supabase request ID remains a transport limitation.
+Client/auth construction, RPC/arguments, success values, failure flow,
+report/schedule/delivery logic are unchanged. No retries or extra requests.
+
+### Concrete bounded capture procedure
+
+The clock check was November 7, 2026; November 8's windows remain upcoming.
+For an approved follow-up release, first use the available Vercel connector
+`get_deployment` on `watch-assistant-omega.vercel.app` with
+`teamId=team_qnrjxa6AyWFRMSPnB3V1DZzb` and `withGitRepoInfo=true`.
+Require READY, target production, project
+`prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF`, repository langer-nice/watch-assistant,
+master branch and the exact newly approved release commit. Stop on mismatch;
+do not interpret another revision's logs as evidence for this change.
+
+At November 8 **08:02–08:05** and **08:17–08:20 Europe/Paris**, use either:
+
+1. The existing Vercel `get_runtime_logs` connector, with team/project above,
+   verified deploymentId, environment production, since `30m`, limit `30`,
+   query `Production owner lookup failed.`. One request per observation;
+   no polling or pagination loop. Inspect only the matching cron diagnostic.
+2. The prepared local helper `/private/tmp/wa-owner-auth-capture.mjs`, invoked
+   as `node /private/tmp/wa-owner-auth-capture.mjs --capture VERIFIED_DEPLOYMENT_ID VERIFIED_APPROVED_COMMIT`.
+   Replace placeholders with the values just verified. CLI 64.3.1's actual
+   `vercel logs --help` confirms all used flags. The helper invokes only
+   `vercel logs runtime`, once, with a 30-second timeout, 1 MiB memory bound,
+   deployment/project/team/environment/query/30-minute window and 30-row limit.
+   Raw stdout/stderr stay in memory and are never printed or written.
+
+The helper extracts only structured owner diagnostics, reuses
+`productionOwnerFailure` for sanitization and saves only timestamp, runId,
+stage, code, message, optional HTTP status and verified deployment/commit
+references in a new mode-0600 `/private/tmp/wa-owner-auth-evidence-*.json`.
+It does not invent a request ID. A synthetic self-test passes with no network
+access. Some log formats may contain unstructured console text rather than a
+JSON diagnostic; the helper deliberately does not eval that text. Zero extracted
+records is explicitly inconclusive. In that case inspect that same bounded
+window manually in the existing Vercel dashboard, and save only fields already
+present in the sanitized diagnostic; do not dump logs or retry indefinitely.
+
+Capture within minutes, before retention expires; do not defer until afternoon.
+No retention extension or permanent logging store is introduced. Exact account
+retention duration is not re-queried. Local scheduled work requires the desktop
+app running and the computer awake; a prepared script is not an overnight daemon.
+
+No new observer is activated by this review. The previous two-run automation
+`observer-le-diagnostic-du-morning-brief` already exists for the prior release.
+If the follow-up is approved, update that existing observation's expected
+release reference, rather than create duplicate captures; preserve the two-run
+bound. Otherwise it continues observing the previously approved release.
+
+If an error recurs, interpret only the returned sanitized reason; PGRST303 alone
+still does not establish expiration or signature failure. If no error is found,
+first establish that the normal scheduled execution actually occurred. Then use
+an independently authorized read-only Supabase/SQL connection to verify a
+`public.watch_reports` row of kind automatic, correct day and owner
+`b4757e02-fc75-4984-b50e-8d933ae7ec04`. Inspect existing table metadata if needed
+to form that SELECT; do not impersonate SQL roles, generate reports, expose
+credentials or substitute a browser token for service access. Report access
+limitations explicitly. Neither HTTP success nor absent logs proves storage;
+a new report does not retrospectively explain the November 7 rejection.
+
+The next approval package covers only the local vocabulary extension, its
+normal Git/PR/merge-to-Vercel release in the existing WA project, and updating
+the existing bounded read-only observation's expected release reference.

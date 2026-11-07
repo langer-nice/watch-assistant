@@ -20,9 +20,9 @@ export const productionReportsEnabled = env => productionProjectMatches(env)
 const authWords = new Set(('jwt jwterror jwsexpired jwtexpired jwtinvalidclaims jwsinvalidsignature jwtissuedatfuture jwtclaimssetdecodeerror jwtclaimssetdecodingerror jwtinvalidsignature jwtinvalidaudience jwtinvalidissuer jwsinvalidalg jwtnotyetvalid jwsnosignatures jwserror ' +
   'invalid expired expiration expiry signature verification verify failed failure ' +
   'claims claim validation parsing parse malformed token tokens missing required ' +
-  'audience issuer subject issued at not yet valid nbf exp iat aud iss sub ' +
+  'audience issuer subject issued at future not yet valid nbf exp iat aud iss sub ' +
   'unexpected unsupported algorithm algorithms key keys id kid public ' +
-  'unable to find matching signing decode decoding error errors format parts ' +
+  'unable to find suitable matching wrong type signing decode decoding compactdecodeerror error errors format parts ' +
   'expected got could no be found is was has been the a an of for in on ' +
   'with or and must use contain contains does do allow allowed clock skew ' +
   'authentication authorization denied unauthorized access permission service role ' +
