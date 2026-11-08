@@ -29,7 +29,7 @@ test('HTML article uses the existing PAGE_CONTEXT story path and preserves ident
 });
 for(const type of ['RSS','Atom'])test(type+' feed keeps exact URL capture/source and reuses its single initial fetch',async()=>{
  let feeds=0;const fixture={source:{title:type,url},items:[{id:'feed-item',title:'Existing news',excerpt:'Existing factual news',url:'https://example.test/news'}]};
- const h=harness({feed:async()=>{feeds++;return fixture;},output:{intent:{canonical_text:'Follow meaningful changes to this feed.',references:[],explicit_constraints:[],unresolved_ambiguities:[]},decision:{status:'READY_TO_MONITOR',reason:'Exact feed.'}}});
+ const h=harness({feed:async()=>{feeds++;return fixture;},output:{display_title:type+' news',intent:{canonical_text:'Follow meaningful changes to this feed.',references:[],explicit_constraints:[],unresolved_ambiguities:[]},decision:{status:'READY_TO_MONITOR',reason:'Exact feed.'}}});
  assert.equal((await h.run()).status,'READY_TO_MONITOR');assert.equal(feeds,1);assert.equal(h.models,1);assert.equal(h.pages,0);assert.equal(h.request.input.capture.kind,'URL');assert.equal(h.saved.p_source.url,url);assert.equal(h.saved.p_understanding.resource.exact_url,url);
 });
 test('metadata-only public article is sufficient; canonical is identity, never a fetch target',async()=>{

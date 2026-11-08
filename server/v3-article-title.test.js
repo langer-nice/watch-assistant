@@ -28,7 +28,7 @@ for(const [name,headline,canonical,title,locale] of cases)test(name+' has a sepa
  assert(!Object.hasOwn(result.intent,'display_title'));
 });
 test('invalid generated titles are rejected rather than clipped or silently rewritten',()=>{
- for(const value of [null,undefined,'','   ',' leading','trailing ','a'.repeat(161),'word '.repeat(16)+'word','Two\nlines'])assert.throws(()=>validateArticleStoryTitle(value),/Invalid article display title/);
+ for(const value of [null,undefined,'','   ',' leading','trailing ','a'.repeat(161),'word '.repeat(16)+'word','Two\nlines'])assert.throws(()=>validateArticleStoryTitle(value),/Invalid Watch display title/);
  assert.equal(validateArticleStoryTitle('Apple MacBook Nova launch'),'Apple MacBook Nova launch');
 });
 test('clarification wire can return a null display title without changing the semantic schema',()=>{

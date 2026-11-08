@@ -1,20 +1,14 @@
 import {createHash} from 'node:crypto';
 import {fetchPageMetadata} from './url-watch-api.js';
 import {normalizeV3OutputLocale} from './v3-output-locale.js';
+import {watchTitleRequest} from './v3-watch-title.js';
+export {validateWatchTitle as validateArticleStoryTitle} from './v3-watch-title.js';
 
 const htmlFailure=new Set(['UNSUPPORTED_CONTENT_TYPE','NOT_A_FEED']);
 const unsupported=reason=>({decision:{status:'UNSUPPORTED_FOR_NOW',reason}});
 export const articleStoryIntentInstructions=locale=>`\nThis request follows an underlying story. Context kind story_seed is reference evidence only, not a resource to poll. Derive the specific event and its participants from the headline/description; do not monitor the article, publisher, location or company generally. References should identify concise concrete participants and the event, not merely label the carrier article. No URL locator is supplied to this Intent call; do not invent exact_url or exact_resource. Publication time identifies the reference, not necessarily the event date or a monitoring period. Preserve existing clarification when a concrete story cannot be identified. Write canonical_text and user-facing decision prose in ${normalizeV3OutputLocale(locale)==='fr'?'French':'English'} regardless of article language. Output language is presentation only: do not add it or these reference-handling instructions as monitored conditions, exclusions or scope. All existing grounding and exact-resource rules remain unchanged.`;
 export function articleStoryTitleRequest(request,locale){
- const schema=structuredClone(request.response_schema);
- schema.properties.display_title={type:['string','null'],minLength:1,maxLength:160};
- schema.required.push('display_title');
- return {...request,response_schema:schema,instructions:request.instructions+articleStoryIntentInstructions(locale)+
-  '\nAlso return display_title as a separate presentation label, normally 4–10 words (up to 16 when needed to distinguish the story). Use a concise noun phrase naming the core event and key actor/product/case, plus place when useful. Preserve proper nouns. Avoid generic labels, full-sentence prose, trailing explanations and copying a long headline. Reuse an already concise suitable headline when appropriate. Write it in the same user output locale. Do not shorten or change canonical_text, references, constraints or the detailed story to fit the label. Never add this title guidance as a monitoring requirement. Return null for display_title unless READY_TO_MONITOR.'};
-}
-export function validateArticleStoryTitle(value){
- if(typeof value!=='string'||!value.trim()||value!==value.trim()||value.length>160||value.split(/\s+/u).length>16||/[\r\n]/u.test(value))throw new TypeError('Invalid article display title');
- return value; // Admission only: never clip, paraphrase or retry a title.
+ return watchTitleRequest({...request,instructions:request.instructions+articleStoryIntentInstructions(locale)},normalizeV3OutputLocale(locale));
 }
 
 // Reuse the public-URL/redirect/size/deadline protections of the existing
