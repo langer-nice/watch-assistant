@@ -2473,8 +2473,9 @@ const renderHomeSummary = () => {
   const currentHour = new Date().getHours();
   const daypart = currentHour < 12 ? 'morning' : currentHour < 18 ? 'afternoon' : 'evening';
 
+  const briefDaypart = homeReport.report?.origin === 'automatic' ? 'morning' : daypart;
   if (briefLabel) {
-    briefLabel.dataset.i18n = `home.briefLabels.${daypart}`;
+    briefLabel.dataset.i18n = `home.briefLabels.${briefDaypart}`;
     briefLabel.textContent = t(briefLabel.dataset.i18n);
   }
 
