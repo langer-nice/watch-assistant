@@ -19,7 +19,7 @@ const cases=[
  ['GBP/EUR','Tell me when GBP/EUR goes above 1.17.',['GBP/EUR']],
  ['exact URL','https://example.test/news.rss?region=fr#latest',[]],
 ];
-const ready=(raw,refs=[])=>({intent:{canonical_text:raw,references:refs.map(label=>({label,source_ref:'raw_input'})),explicit_constraints:raw.includes('1.17')?[{kind:'threshold',text:'1.17',source_ref:'raw_input',value:'1.17'},{kind:'comparator',text:'above',source_ref:'raw_input'}]:[],unresolved_ambiguities:[]},decision:{status:'READY_TO_MONITOR',reason:'Meaningful identified subject and scope.'}});
+const ready=(raw,refs=[])=>({...(v3CurrencyCriteria(raw)?{}:{display_title:refs.length?refs.join(' / '):'Public news updates'}),intent:{canonical_text:raw,references:refs.map(label=>({label,source_ref:'raw_input'})),explicit_constraints:raw.includes('1.17')?[{kind:'threshold',text:'1.17',source_ref:'raw_input',value:'1.17'},{kind:'comparator',text:'above',source_ref:'raw_input'}]:[],unresolved_ambiguities:[]},decision:{status:'READY_TO_MONITOR',reason:'Meaningful identified subject and scope.'}});
 const feed=async url=>({source:{title:'Existing RSS source',url},checkedAt:'2026-11-01T10:00:00Z',items:[{id:'item',title:'A materially new development',excerpt:'Independent reports describe the new development.',url:'https://example.test/news',publishedAt:'2026-11-01T09:00:00Z',source:'News'}]});
 const currency=async()=>({criteria:{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'},observation:{base:'GBP',quote:'EUR',rate:'1.171',date:'2026-11-01'},checkedAt:'2026-11-01T10:00:00Z'});
 
@@ -49,8 +49,29 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   assert.equal(row.user_id,owner);assert.equal(row.watch_definition.request,text);assert.deepEqual(row.understanding.intent,output.intent);assert.equal(row.engine,V3_ENGINE);assert.equal(row.monitoring_state,'monitoring');assert.ok(row.baseline_at);assert.equal(row.last_check_outcome,'baseline');assert.equal(row.capture_kind,body.captureKind);
   assert.equal((await db.query('select count(*)::int n from public.structured_media_schedules where watch_id=$1',[id])).rows[0].n,1);
   if(name==='exact URL')assert.equal(row.understanding.resource.exact_url,text);
-  if(name==='GBP/EUR')assert.deepEqual(row.watch_definition.currencyCriteria,{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'});
+  if(name==='GBP/EUR'){assert.deepEqual(row.watch_definition.currencyCriteria,{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'});assert.equal(row.title,text);assert.equal(row.understanding.display_title,undefined);}
   const again=await invoke({...body,watchId:randomUUID()});assert.equal(again.id,id);assert.equal(modelCalls,before+1);
+ });
+ // Mock labels test wiring/persistence, not live model wording or a hard-coded production map.
+ const titleCases=[
+  ['Tell me when Virtuoso publishes new research or substantive findings about luxury-travel demand, traveller behaviour or destination preferences. Exclude hotel promotions, deals, awards and repeated coverage of the same findings.','Virtuoso','Virtuoso Luxury Travel Research'],
+  ['Tell me when Cruise Lines International Association (CLIA) publishes new industry research or announces material changes affecting cruise regulation, port access or decarbonisation. Exclude event invitations, training, promotions and repeated coverage.','Cruise Lines International Association (CLIA)','CLIA Industry Developments'],
+  ['Tell me when Regent Seven Seas Cruises announces a new ship, a material fleet investment, a new itinerary programme, or a substantive new onboard product or partnership. Exclude fares, discounts, routine promotions and duplicate coverage.','Regent Seven Seas Cruises','Regent Fleet & Product'],
+  ['Apple product launches.','Apple','Apple product launches'],
+ ];
+ for(const [text,subject,label] of titleCases)await t.test(subject+' persists the separate model title and unchanged full request',async()=>{
+  const id=randomUUID(),exclusion=text.match(/Exclude .+$/)?.[0];
+  output={...ready(text,[subject]),display_title:label};
+  if(exclusion)output.intent.explicit_constraints=[{kind:'exclusion',text:exclusion,source_ref:'raw_input'}];
+  const original=structuredClone(output.intent),before=modelCalls;
+  assert.equal((await invoke({watchId:id,instruction:text})).http,200);assert.equal(modelCalls,before+1);
+  const read=async()=>JSON.parse(JSON.stringify((await db.query('select w.title,w.watch_definition,p.instruction,p.understanding from public.watches w join public.v3_pilot_watches p on p.watch_id=w.id where w.id=$1',[id])).rows[0]));
+  const row=await read();assert.equal(row.title,label);assert(row.title.split(/\s+/u).length<=16);assert(!/Tell me|Exclude|excluding/.test(row.title));
+  assert.equal(row.watch_definition.request,text);assert.equal(row.instruction,text);assert.deepEqual(row.understanding.intent,original);
+  assert.equal(row.watch_definition.storyProfile.concepts[0].label,text.slice(0,200));assert.equal(row.understanding.display_title,label);
+  assert.deepEqual(await read(),row); // Reload from the actual SQL store, no title recomputation.
+  output.display_title='A changed label';assert.equal((await invoke({watchId:randomUUID(),instruction:text})).id,id);
+  assert.equal(modelCalls,before+1);assert.deepEqual(await read(),row); // Existing Watches are not renamed.
  });
  await t.test('article seed persists through unchanged atomic SQL with original URL and a silent reference baseline',async()=>{
   const url='https://example.test/story/assault-20261022',id=randomUUID();let calls=0;
@@ -72,6 +93,14 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
  });
  const existingCount=await count('watches');const existingSchedules=await count('structured_media_schedules');
  const noWrite=async()=>{assert.equal(await count('watches'),existingCount);assert.equal(await count('structured_media_schedules'),existingSchedules);};
+ await t.test('missing, instruction-shaped and exclusion-bearing titles fail before baseline/write without a naming retry',async()=>{
+  for(const title of [undefined,'Tell me when AsterCo launches a phone','AsterCo updates excluding promotions','word '.repeat(17).trim()]){
+   output={...ready('Follow AsterCo launches.',['AsterCo']),display_title:title};
+   const before=modelCalls,feeds=sourceCalls;
+   assert.equal((await invoke({watchId:randomUUID(),instruction:'Follow AsterCo launches.'})).http,503);
+   assert.equal(modelCalls,before+1);assert.equal(sourceCalls,feeds);await noWrite();
+  }
+ });
  await t.test('missing referent clarification cannot persist or schedule',async()=>{
   const text='Tell me when this company changes something.';output={intent:{canonical_text:text,references:[],explicit_constraints:[],unresolved_ambiguities:['Missing company']},decision:{status:'NEEDS_CLARIFICATION',reason:'Company not identified.',clarification_question:'Which company?'}};
   const r=await invoke({watchId:randomUUID(),instruction:text});assert.equal(r.status,'NEEDS_CLARIFICATION');await noWrite();
