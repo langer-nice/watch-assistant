@@ -263,6 +263,41 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   assert.equal(models,2);
  });
 
+ await t.test('direct and multi-round clarified booking requests fail identically before baseline or writes',async()=>{
+  const original='Nice to Monaco trains';
+  const canonical='Notify me when booking availability opens for Nice to Monaco trains.';
+  const clarifications=[
+   {question:'What do you want to follow?',answer:'Reservations'},
+   {question:'Which reservation event?',answer:'Booking availability opens'},
+  ];
+  const expectedCalls=[
+   {instruction:canonical,answers:[]},
+   {instruction:original,answers:clarifications.slice(0,1).map(turn=>turn.answer)},
+   {instruction:original,answers:clarifications.map(turn=>turn.answer)},
+  ];
+  const before=await Promise.all([count('watches'),count('structured_media_schedules')]);
+  let calls=0,baselines=0;
+  const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,
+   feed:async url=>{baselines++;return feed(url);},
+   model:async req=>{
+    const expected=expectedCalls[calls++];
+    assert.equal(req.input.capture.raw_input,expected.instruction);
+    assert.deepEqual(req.input.conversation,expected.answers);
+    if(calls===2)return {intent:{canonical_text:original,references:[],explicit_constraints:[],unresolved_ambiguities:['Missing reservation event']},
+     decision:{status:'NEEDS_CLARIFICATION',reason:'Event unclear',clarification_question:clarifications[1].question},display_title:null};
+    return ready(canonical,['Nice to Monaco trains']);
+   }});
+  const direct=await invoke({instruction:canonical,watchId:randomUUID()},handler);
+  assert.equal(direct.http,200);
+  assert.equal(direct.status,'UNSUPPORTED_FOR_NOW');
+  const body={instruction:original,watchId:randomUUID()};
+  assert.equal((await invoke({...body,clarifications:clarifications.slice(0,1)},handler)).status,'NEEDS_CLARIFICATION');
+  assert.deepEqual(await invoke({...body,clarifications},handler),direct);
+  assert.equal(calls,3);
+  assert.equal(baselines,0);
+  assert.deepEqual(await Promise.all([count('watches'),count('structured_media_schedules')]),before);
+ });
+
  await t.test('clarification options and answers share the normal model call and persist only on ready',async()=>{
   const instruction='Blackburn Rovers',watchId=randomUUID(),question='Which developments matter?';
   const answer='Injury updates only',clarifications=[{question,answer}];
@@ -293,6 +328,7 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   assert.equal(row.title,'Blackburn Rovers Injury Updates');
   assert.equal(row.watch_definition.request,instruction);
   assert.deepEqual(row.understanding.intent,intent);
+  assert.deepEqual(row.understanding.clarifications,clarifications);
  });
 
  await t.test('same instruction is independent across owners and a bound token cannot change payload or owner',async()=>{
@@ -311,4 +347,9 @@ test('capability connector retains exact comparison and rejects unimplemented co
  assert.deepEqual(v3CurrencyCriteria(cases[6][1]),{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'});
  assert.equal(v3CurrencyCriteria('Tell me when GBP/EUR goes below 1.17.'),null);
  const text='Tell me when GBP/EUR goes below 1.17.';assert.equal(v3Capability({raw_input:text},ready(text)).decision.status,'UNSUPPORTED_FOR_NOW');
+ const vague={raw_input:'GBP/EUR'};
+ for(const canonical_text of [cases[6][1],text]){
+  const understanding={intent:ready(canonical_text).intent};
+  assert.deepEqual(v3Capability(vague,understanding,{clarified:true}),v3Capability({raw_input:canonical_text},understanding));
+ }
 });

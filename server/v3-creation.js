@@ -30,8 +30,9 @@ export function v3CurrencyCriteria(text){
  const m=text.trim().match(/^(?:tell me when |alert me when )?(GBP|EUR)\/(GBP|EUR) (?:goes |is )?(above|strictly above|at least) (\d+(?:[.,]\d+)?)\.?$/i);
  return m?parseCurrencyRequest(`${m[1]} ${m[3].toLowerCase()==='at least'?'>=':'>'} ${m[4]} ${m[2]}`):null;
 }
-export function v3Capability(capture,understanding){
- const text=capture.raw_input;
+export function v3Capability(capture,understanding,{clarified=false}={}){
+ // Connector checks use the final interpretation only for clarification turns.
+ const text=clarified?understanding.intent.canonical_text:capture.raw_input;
  const criteria=v3CurrencyCriteria(text);
  if(criteria)return {source:pilotSource({currency:true}),criteria};
  if(isCurrencyRequest(text))return {decision:unsupported('This exchange-rate condition is not supported by the existing ECB connector.')};
@@ -99,7 +100,8 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    stage='intent';
    const intentModel=model||createResponsesModel({apiKey:env.OPENAI_API_KEY});
    let displayTitle;
-   const needsDisplayTitle=!v3CurrencyCriteria(body.instruction);
+   const clarified=clarifications.length>0;
+   const needsDisplayTitle=clarified||!v3CurrencyCriteria(body.instruction);
    const scopedModel=needsDisplayTitle?async request=>{
     const output=await intentModel(urlInput?.seed?articleStoryTitleRequest(request,urlInput.locale):watchTitleRequest(request));
     const {display_title,...semantic}=output;displayTitle=display_title;return semantic;
@@ -116,8 +118,9 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
     if(understanding.resource||understanding.intent.references.some(r=>r.exact_url)||understanding.intent.explicit_constraints.some(c=>c.kind==='exact_resource'))return send(200,unsupported('This article must identify a story to follow, rather than require monitoring changes to the exact page.'));
     understanding={...understanding,story_seed:urlInput.seed};
    }
-   const capability=v3Capability(capture,understanding);if(capability.decision)return send(200,capability.decision);
-   if(needsDisplayTitle)understanding={...understanding,display_title:validateWatchTitle(displayTitle)};
+   const capability=v3Capability(capture,understanding,{clarified});if(capability.decision)return send(200,capability.decision);
+   if(needsDisplayTitle&&!capability.criteria)understanding={...understanding,display_title:validateWatchTitle(displayTitle)};
+   if(clarified)understanding={...understanding,clarifications};
    // Acquire baseline before any write. The single SQL RPC commits all records
    // together; a provider/source/validation failure leaves no partial Watch.
    stage='baseline';
