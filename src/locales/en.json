@@ -768,8 +768,6 @@
     "expiredLink": "This sign-in link has expired. Enter your email to request a new link.",
     "invalidLink": "This sign-in link is invalid. Enter your email to request a new link.",
     "activateTitle": "Save and activate your Watch",
-    "guestRequestGuidanceTitle": "Sign in to create this Watch.",
-    "guestRequestGuidanceDetail": "Your request will be kept.",
     "activateExplanation": "Sign in to keep this Watch and receive new alerts by email.",
     "sendCode": "Send my code",
     "backToWatch": "Return to my Watch",

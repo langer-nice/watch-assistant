@@ -124,28 +124,9 @@ export const initAuthUi = ({ env = import.meta.env, client: injectedClient, onRe
   let redirected = false;
   let initialized = false;
   let observedOwner = null;
-  const guestGuidance = profileMenu ? document.createElement('div') : null;
-  const guestGuidanceTitle = guestGuidance && document.createElement('h2');
-  const guestGuidanceDetail = guestGuidance && document.createElement('p');
-  if (guestGuidance) {
-    guestGuidance.dataset.guestSignInGuidance = '';
-    guestGuidance.hidden = true;
-    guestGuidanceTitle.tabIndex = -1;
-    guestGuidance.append(guestGuidanceTitle, guestGuidanceDetail);
-    root.before(guestGuidance);
-  }
-  const syncGuestGuidance = () => {
-    if (!guestGuidance) return;
-    guestGuidance.hidden = pendingRequest === null;
-    if (!guestGuidance.hidden) {
-      guestGuidanceTitle.textContent = t('auth.guestRequestGuidanceTitle');
-      guestGuidanceDetail.textContent = t('auth.guestRequestGuidanceDetail');
-    }
-  };
   const discard = () => {
     generation += 1;
     pendingRequest = null;
-    syncGuestGuidance();
     guest?.destroy();
     guest = null;
     if (panel) panel.hidden = true;
@@ -196,7 +177,6 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
       trigger.setAttribute('aria-label', state.status === 'authenticated' ? t('topNavigation.openProfile') : t('auth.signIn'));
     }
     if (root) renderAuthState(root, state, options());
-    syncGuestGuidance();
     if (guest && state.status === 'anonymous' && state.authEvent === 'SIGNED_OUT') {
       discard(); window.location.replace('new-watch.html'); return;
     }
@@ -208,7 +188,6 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
       const request = pendingRequest;
       const owner = state.session.user.id;
       pendingRequest = null;
-      syncGuestGuidance();
       guest.destroy(); guest = null;
       panel.hidden = true;
       document.dispatchEvent(new CustomEvent('profile-control:close-after-sign-in'));
@@ -302,7 +281,6 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
         && currentGeneration === generation && guest?.isCurrent()) {
         const request = pendingRequest;
         pendingRequest = null;
-        syncGuestGuidance();
         guest.destroy(); guest = null;
         panel.hidden = true;
         document.dispatchEvent(new CustomEvent('profile-control:close-after-sign-in'));
@@ -371,9 +349,8 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
               if (pendingRequest !== null || auth.getState().status === 'verifying') return;
               pendingRequest = request;
               if (profileMenu) {
-                syncGuestGuidance();
                 document.dispatchEvent(new CustomEvent('profile-control:open-for-guest-request'));
-                (root.querySelector('[name="code"]') || guestGuidanceTitle).focus();
+                (root.querySelector('[name="code"]') || root.querySelector('[name="email"]'))?.focus();
               } else {
                 guest.hide();
                 panel.hidden = false;

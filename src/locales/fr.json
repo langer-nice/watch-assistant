@@ -768,8 +768,6 @@
     "expiredLink": "Ce lien de connexion a expiré. Saisissez votre email pour demander un nouveau lien.",
     "invalidLink": "Ce lien de connexion est invalide. Saisissez votre email pour demander un nouveau lien.",
     "activateTitle": "Enregistrez et activez votre Watch",
-    "guestRequestGuidanceTitle": "Connectez-vous pour créer cette Watch.",
-    "guestRequestGuidanceDetail": "Votre demande sera conservée.",
     "activateExplanation": "Connectez-vous pour conserver cette Watch et recevoir les nouvelles alertes par email.",
     "sendCode": "Envoyer mon code",
     "backToWatch": "Retour à ma Watch",

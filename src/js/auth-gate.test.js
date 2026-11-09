@@ -287,9 +287,6 @@ test('same-page OTP resumes the exact guest request once, only after resolved ve
   assert.equal(resumed.length,0);
   assert.equal(document.querySelector('[data-profile-menu]').hidden,false);
   assert.equal(document.querySelector('[data-auth-gate]').hidden,true);
-  const guidance=document.querySelector('[data-profile-menu] [data-guest-sign-in-guidance]');
-  assert.equal(guidance.hidden,false);
-  assert.equal(guidance.querySelector('h2').textContent,'Sign in to create this Watch.');
   assert.equal(document.querySelector('[data-guest-form]').closest('[hidden]'),null);
   const emailForm=document.querySelector('[data-profile-menu] [data-auth-form]');
   emailForm.reportValidity=()=>true;
@@ -306,7 +303,6 @@ test('same-page OTP resumes the exact guest request once, only after resolved ve
   assert.equal(input.value,'');assert.equal(document.querySelector('#guestWatchInput'),null);
   assert.equal(form.querySelector('[name="code"]').value,'');
   assert.equal(document.querySelector('[data-profile-menu]').hidden,true);
-  assert.equal(guidance.hidden,true);
 });
 
 test('guest URL paste does not call analysis or persist, and history manipulation invalidates it', async()=>{
@@ -357,7 +353,6 @@ test('returning to the guest request during verification invalidates the old cre
   form.querySelector('[name="code"]').value='246810';form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
   document.querySelector('[data-profile-trigger]').click();
   assert.equal(input.value,'PRIVATE CANCELLED REQUEST');
-  assert.equal(document.querySelector('[data-guest-sign-in-guidance]').hidden,true);
   mock.auth.getSession=async()=>({data:{session:null}});
   finish({data:{session:{user:{id:'synthetic-a',email:'a@example.test'},access_token:'synthetic-session'}}});
   await new Promise(resolve=>setTimeout(resolve,0));assert.deepEqual(resumed,[]);
@@ -525,37 +520,32 @@ test('direct profile OTP sign-in never resumes a typed but unsubmitted request',
   assert.deepEqual(redirects,['reload']);
 });
 
-for(const [language,title,detail,sendLabel] of [
-  ['en','Sign in to create this Watch.','Your request will be kept.','Send my code'],
-  ['fr','Connectez-vous pour créer cette Watch.','Votre demande sera conservée.','Envoyer mon code'],
-]) test(`${language} guest sign-in opens on its introduction before any OTP request`, async()=>{
+for(const [language,sendLabel] of [['en','Send my code'],['fr','Envoyer mon code']]) {
+ test(`${language} guest submit opens the same profile UI as direct sign-in without extra copy`, async()=>{
   const {document}=await setup('new-watch.html','new-watch.html',true);
   setLanguage(language,{persist:false});
   const mock=client();
-  mock.auth.signInWithOtp=()=>assert.fail('The first screen must not request OTP');
+  mock.auth.signInWithOtp=()=>assert.fail('Opening either menu must not request an OTP');
   const ui=startUi({client:mock,env:{VITE_AUTH_MODE:'otp'},onResume:()=>assert.fail('Unexpected Watch submission')});
   mock.resolve();await ui.ready;ui.canEnterEditor();
   const menu=document.querySelector('[data-profile-menu]');
   const trigger=document.querySelector('[data-profile-trigger]');
-  const guidance=menu.querySelector('[data-guest-sign-in-guidance]');
-  const heading=guidance.querySelector('h2');
+  trigger.click();
+  const directMarkup=menu.innerHTML;
+  assert.equal(menu.querySelector('[name="email"]').type,'email');
+  assert.equal(menu.querySelector('button[type="submit"]').textContent,sendLabel);
+  trigger.click();
   const input=document.querySelector('#guestWatchInput');
   input.value='french trains nice to monaco';
   document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
   assert.equal(input.closest('[hidden]'),null);
   assert.equal(menu.hidden,false);
-  assert.equal(guidance.hidden,false);
-  assert.equal(heading.textContent,title);
-  assert.equal(guidance.querySelector('p').textContent,detail);
-  assert.equal(document.focusedElement,heading);
-  assert.equal(guidance.nextElementSibling.querySelector('[name="email"]').type,'email');
-  assert.equal(guidance.nextElementSibling.querySelector('button[type="submit"]').textContent,sendLabel);
+  assert.equal(menu.innerHTML,directMarkup);
+  assert.equal(document.focusedElement,menu.querySelector('[name="email"]'));
+  assert.doesNotMatch(menu.textContent,/Sign in to create this Watch|Your request will be kept|Connectez-vous pour créer cette Watch|Votre demande sera conservée/);
   assert.equal(document.querySelector('[data-auth-gate]').hidden,true);
-  assert.equal(document.querySelector('[data-v3-clarification]'),null);
   trigger.click();
   assert.equal(menu.hidden,true);
   assert.equal(input.value,'french trains nice to monaco');
-  trigger.click();
-  assert.equal(menu.hidden,false);
-  assert.equal(guidance.hidden,true);
-});
+ });
+}
