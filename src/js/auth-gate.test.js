@@ -287,6 +287,9 @@ test('same-page OTP resumes the exact guest request once, only after resolved ve
   assert.equal(resumed.length,0);
   assert.equal(document.querySelector('[data-profile-menu]').hidden,false);
   assert.equal(document.querySelector('[data-auth-gate]').hidden,true);
+  const guidance=document.querySelector('[data-profile-menu] [data-guest-sign-in-guidance]');
+  assert.equal(guidance.hidden,false);
+  assert.equal(guidance.textContent,'Sign in to create this Watch and keep your request.');
   assert.equal(document.querySelector('[data-guest-form]').closest('[hidden]'),null);
   const emailForm=document.querySelector('[data-profile-menu] [data-auth-form]');
   emailForm.reportValidity=()=>true;
@@ -303,6 +306,7 @@ test('same-page OTP resumes the exact guest request once, only after resolved ve
   assert.equal(input.value,'');assert.equal(document.querySelector('#guestWatchInput'),null);
   assert.equal(form.querySelector('[name="code"]').value,'');
   assert.equal(document.querySelector('[data-profile-menu]').hidden,true);
+  assert.equal(guidance.hidden,true);
 });
 
 test('guest URL paste does not call analysis or persist, and history manipulation invalidates it', async()=>{
@@ -353,6 +357,7 @@ test('returning to the guest request during verification invalidates the old cre
   form.querySelector('[name="code"]').value='246810';form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
   document.querySelector('[data-profile-trigger]').click();
   assert.equal(input.value,'PRIVATE CANCELLED REQUEST');
+  assert.equal(document.querySelector('[data-guest-sign-in-guidance]').hidden,true);
   mock.auth.getSession=async()=>({data:{session:null}});
   finish({data:{session:{user:{id:'synthetic-a',email:'a@example.test'},access_token:'synthetic-session'}}});
   await new Promise(resolve=>setTimeout(resolve,0));assert.deepEqual(resumed,[]);

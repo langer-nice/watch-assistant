@@ -138,6 +138,10 @@
   font-size: var(--font-size-sm);
 }
 
+.top-navigation__profile-menu [data-guest-sign-in-guidance]:not([hidden]) {
+  margin-block-end: var(--space-sm);
+}
+
 .auth-menu__form {
   display: grid;
   gap: var(--space-xxs);

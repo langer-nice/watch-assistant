@@ -32,9 +32,13 @@ const clarify = (question, options) => ({
 });
 
 export function refinementFixtureResponse(clarifications) {
-  const fares = clarifications.some(({question,answer}) =>
-    question === firstQuestion && answer.split('\n').some(part => part.trim().toLowerCase() === 'fares'));
-  if (!fares) return clarify(firstQuestion, ['Fares', 'Delays & cancellations', 'Timetables', 'Service disruptions']);
+  const firstAnswers = clarifications.filter(turn => turn.question === firstQuestion)
+    .map(turn => turn.answer.trim().toLowerCase());
+  const hasFares = firstAnswers.some(answer => answer.split('\n').includes('fares'));
+  const hasDetail = firstAnswers.some(answer => answer.split('\n').includes('price drops'));
+  if (!hasDetail && !(hasFares && firstAnswers.length > 1)) {
+    return clarify(firstQuestion, ['Fares', 'Delays & cancellations', 'Timetables', 'Service disruptions']);
+  }
   if (!clarifications.some(({question,answer}) => question === fareQuestion && answer.trim())) {
     return clarify(fareQuestion, ['Price drops', 'Price increases', 'Any fare change', 'Specific fare threshold']);
   }

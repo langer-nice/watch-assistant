@@ -246,8 +246,10 @@ for (const terminal of ['READY_TO_MONITOR', 'NEEDS_CLARIFICATION']) {
   assert.equal(button('Cancellations').getAttribute('aria-pressed'),'true');
   await submit();
   assert.match(panel().textContent,/We still need a little more detail/);
-  button('Edit details').click();
-  assert.equal(button('Fare increases').getAttribute('aria-pressed'),'true');
+  assert.match(panel().textContent,/Previous answer · Fare increases · Cancellations/);
+  assert.equal(button('Fare increases'),undefined);
+  assert.equal(button('Cancellations'),undefined);
+  type('  FARE increases  ');
   assert.equal(button('Continue').disabled,true);
   type('Only significant fare increases');
   assert.equal(button('Continue').disabled,false);
@@ -262,7 +264,7 @@ for (const terminal of ['READY_TO_MONITOR', 'NEEDS_CLARIFICATION']) {
    assert.match(open.getAttribute('href'),new RegExp(id));
    button('Start a revised request').click();
    assert.equal(answer().value,'Only significant fare increases');
-   assert.equal(button('Fare increases').getAttribute('aria-pressed'),'true');
+   assert.equal(button('Fare increases'),undefined);
    assert.equal(button('Submit a new request').disabled,true);
   }else{
    assert.match(panel().textContent,/add these details to the original request/);
@@ -326,12 +328,14 @@ test('authenticated fixture routes through the actual V3 endpoints and card with
  assert.doesNotMatch(panel().textContent,/Create Watch as written|without sync/);
  assert.match(panel().textContent,/Preview test mode/);
  assert.equal(button('Continue').disabled,true);
- type('Not sure');
+ button('Fares').click();
  await submit();
  assert.match(panel().textContent,/We still need a little more detail/);
- type('Not sure');
+ assert.match(panel().textContent,/Previous answer · Fares/);
+ assert.equal(button('Fares'),undefined);
+ type('Fares');
  assert.equal(button('Continue').disabled,true);
- button('Fares').click();
+ type('price drops');
  await submit();
  assert.equal(panel().querySelector('textarea').value,'');
  assert.match(panel().textContent,/What fare changes matter to you/);

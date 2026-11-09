@@ -113,13 +113,17 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   if(result.fixture===true)markFixture(view,fr);
   const questionHeading=document.createElement('h3');
   questionHeading.className='watch-clarification-question';
-  questionHeading.textContent=question;
+  questionHeading.textContent=repeated
+   ? (fr?'Nous avons encore besoin d’une précision.':'We still need a little more detail.')
+   : question;
   view.append(questionHeading);
   if(repeated){
+   const recap=document.createElement('p');
+   recap.textContent=(fr?'Réponse précédente · ':'Previous answer · ')+previous.parts.join(' · ');
    const guidance=document.createElement('p');
    guidance.className='watch-clarification-note';
-   guidance.textContent=fr?'Nous avons encore besoin d’une précision.':'We still need a little more detail.';
-   view.append(guidance);
+   guidance.textContent=fr?'Ajoutez une précision ci-dessous.':'Add one more detail below.';
+   view.append(recap,guidance);
   }
   if(limit){
    const notice=document.createElement('p');
@@ -147,13 +151,18 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   answer.value=draft?.text||'';
   answer.placeholder=fr?'Saisissez autre chose…':'Type something else…';
   label.append(answer);
-  const parts=()=>[...selected,answer.value.trim()].filter(Boolean);
-  const earlier=new Set((repeated?previous.parts:[]).map(normalizeDetail));
+  const earlier=new Set(repeated
+   ? clarifications.filter(round=>normalizeDetail(round.question)===normalizeDetail(question.slice(0,400)))
+    .flatMap(round=>round.answer.split('\n')).map(normalizeDetail)
+   : []);
+  const parts=()=>repeated
+   ? answer.value.split('\n').map(part=>part.trim()).filter(part=>part&&!earlier.has(normalizeDetail(part)))
+   : [...selected,answer.value.trim()].filter(Boolean);
   const unchangedDraft=()=>afterCreation
    && JSON.stringify(parts().map(normalizeDetail).sort())===JSON.stringify(draft.parts.map(normalizeDetail).sort());
-  const canContinue=()=>!limit&&!unchangedDraft()&&parts().some(part=>!earlier.has(normalizeDetail(part)));
+  const canContinue=()=>!limit&&!unchangedDraft()&&parts().length>0;
   const sync=()=>{next.disabled=!canContinue();};
-  for(const option of options){
+  for(const option of repeated?[]:options){
    const chip=document.createElement('button');
    chip.type='button';
    chip.className='button button--secondary';
@@ -179,13 +188,6 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   },true);
   listen(answer,'input',sync);
   sync();
-  if(repeated)button(fr?'Modifier les précisions':'Edit details',()=>{
-   for(const option of previous.selected)if(options.includes(option))selected.add(option);
-   answer.value ||= previous.text;
-   for(const chip of choices.children)chip.setAttribute('aria-pressed',String(selected.has(chip.textContent)));
-   sync();
-   answer.focus();
-  }).classList.add('watch-clarification-edit');
   button(fr?'Modifier la demande originale':'Edit original request',()=>{
    message('');
    edit();
