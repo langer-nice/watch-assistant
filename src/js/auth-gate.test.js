@@ -286,7 +286,7 @@ test('same-page OTP resumes the exact guest request once, only after resolved ve
   document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
   assert.equal(resumed.length,0);
   assert.equal(document.querySelector('[data-profile-menu]').hidden,false);
-  assert.equal(document.querySelector('[data-auth-gate]').hidden,true);
+  assert.equal(document.querySelector('[data-auth-gate]').querySelector('form'),null);
   assert.equal(document.querySelector('[data-guest-form]').closest('[hidden]'),null);
   const emailForm=document.querySelector('[data-profile-menu] [data-auth-form]');
   emailForm.reportValidity=()=>true;
@@ -543,9 +543,15 @@ for(const [language,sendLabel] of [['en','Send my code'],['fr','Envoyer mon code
   assert.equal(menu.innerHTML,directMarkup);
   assert.equal(document.focusedElement,menu.querySelector('[name="email"]'));
   assert.doesNotMatch(menu.textContent,/Sign in to create this Watch|Your request will be kept|Connectez-vous pour créer cette Watch|Votre demande sera conservée/);
-  assert.equal(document.querySelector('[data-auth-gate]').hidden,true);
+  const intro=document.querySelector('[data-auth-gate]');
+  assert.equal(intro.hidden,false);
+  assert.equal(intro.querySelector('form'),null);
+  assert.equal(intro.querySelector('h1').textContent,language==='fr'?'Enregistrez et activez votre Watch':'Save and activate your Watch');
   trigger.click();
   assert.equal(menu.hidden,true);
+  assert.equal(intro.hidden,true);
+  trigger.click();
+  assert.equal(intro.hidden,true);
   assert.equal(input.value,'french trains nice to monaco');
  });
 }

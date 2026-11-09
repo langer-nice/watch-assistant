@@ -140,14 +140,22 @@ export const initAuthUi = ({ env = import.meta.env, client: injectedClient, onRe
   }
   const options = (creation = false) => ({ mode: auth.mode, creation, cooldown: auth.cooldownRemaining() });
   const renderPanel = (state) => {
-    if (!panel || panel.hidden || enteredEditor) return;
+    if (!panel || enteredEditor) return;
     const creation = Boolean(guest);
-    panel.innerHTML = `
-${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id="authGateTitle">${t(creation ? 'auth.activateTitle' : 'auth.gateTitle')}</h1>
-      <p>${t(creation ? 'auth.activateExplanation' : 'auth.gateExplanation')}</p>`}
+    const introOnly = creation && profileMenu && pendingRequest !== null;
+    if (panel.hidden && !introOnly) return;
+    const showIntro = !['code-sent', 'verifying', 'link-sent'].includes(state.status);
+    const intro = showIntro ? `<h1 id="authGateTitle">${t(creation ? 'auth.activateTitle' : 'auth.gateTitle')}</h1>
+      <p>${t(creation ? 'auth.activateExplanation' : 'auth.gateExplanation')}</p>` : '';
+    panel.setAttribute('aria-labelledby', 'authGateTitle');
+    if (introOnly) {
+      panel.hidden = !showIntro;
+      panel.innerHTML = intro;
+      return;
+    }
+    panel.innerHTML = `${intro}
       <div data-auth-root data-auth-gate-root></div>
       ${creation ? `<button type="button" class="auth-menu__text-button" data-auth-back>${t('auth.backToWatch')}</button>` : ''}`;
-    panel.setAttribute('aria-labelledby', 'authGateTitle');
     renderAuthState(panel.querySelector('[data-auth-root]'), state, options(creation));
   };
   const tick = () => {
@@ -321,6 +329,7 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
     if (!guest || pendingRequest === null || !profileMenu) return;
     generation += 1;
     pendingRequest = null;
+    panel.hidden = true;
     auth.cancelChallenge();
     guest.show();
   });
@@ -349,6 +358,7 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
               if (pendingRequest !== null || auth.getState().status === 'verifying') return;
               pendingRequest = request;
               if (profileMenu) {
+                renderPanel(auth.getState());
                 document.dispatchEvent(new CustomEvent('profile-control:open-for-guest-request'));
                 (root.querySelector('[name="code"]') || root.querySelector('[name="email"]'))?.focus();
               } else {
