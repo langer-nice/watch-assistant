@@ -368,14 +368,26 @@
 }
 
 [data-v3-clarification] {
-  gap: var(--space-sm);
+  gap: var(--space-md);
   min-width: 0;
+  background: var(--color-surface);
   padding: var(--space-md);
 
   h2, h3, p { margin: 0; }
-  h2 { font-size: var(--font-size-lg); line-height: 1.35; }
+  h2 { font-size: var(--font-size-xl); line-height: 1.25; }
   h3, p, label { font-size: var(--font-size-sm); line-height: 1.5; }
-  .structured-review-label { color: var(--color-text-muted); }
+  .structured-review-field { display: grid; gap: var(--space-xxs); }
+  .structured-review-label {
+    color: var(--color-text-muted);
+    font-family: var(--font-family-body);
+    font-size: var(--font-size-xs);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .watch-clarification-question, .structured-review-subject { font-size: var(--font-size-lg); font-weight: 600; }
+  .watch-clarification-note { color: var(--color-text-muted); }
+  .watch-clarification-other { font-weight: 600; }
+  > .button--primary { width: 100%; }
   .button { min-height: 44px; min-width: 0; white-space: normal; }
   .button:disabled { opacity: .55; cursor: default; }
   .button:focus-visible, textarea:focus-visible { outline: 2px solid var(--color-action); outline-offset: 2px; }
@@ -393,10 +405,13 @@
     margin: 0;
     min-width: 0;
     max-width: 100%;
+    padding: var(--space-xxs) var(--space-sm);
+    border-radius: var(--radius-pill);
     white-space: normal;
   }
 
   .watch-clarification-options [aria-pressed='true'] {
+    background: var(--color-action-tint);
     outline: 2px solid var(--color-action);
     outline-offset: -2px;
   }
@@ -406,6 +421,11 @@
     display: block;
     width: 100%;
     box-sizing: border-box;
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-input);
+    font-weight: normal;
+    resize: vertical;
   }
 
   .watch-clarification-edit {

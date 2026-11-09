@@ -97,20 +97,20 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   const signature=JSON.stringify([normalizeDetail(question),[...new Set(options.map(normalizeDetail))].sort()]);
   const repeated=previous?.signature===signature;
   const limit=clarifications.length>=3;
-  const view=show(question,[{label:fr?'Demande originale':'Original request',value:original}]);
+  const view=show(fr?'Précisons cette Watch':'Let’s make this Watch clearer',[
+   {label:labels().original,value:original},
+  ]);
   view.dataset.v3Clarification='';
-  view.prepend(view.querySelector('.structured-review-field'));
-  const guidance=document.createElement('p');
-  if(repeated)guidance.textContent=fr
-   ? 'Nous avons encore besoin d’une précision. Ajoutez un nouvel élément à votre réponse.'
-   : 'We still need a little more detail. Add something new to your answer.';
-  else if(clarifications.length)guidance.textContent=fr
-   ? 'Ajoutez les précisions manquantes à votre réponse.'
-   : 'Add the missing detail to your answer.';
-  if(!guidance.textContent&&!options.length&&!limit)guidance.textContent=fr
-   ? 'Saisissez votre réponse ci-dessous, puis sélectionnez Continuer.'
-   : 'Type your answer below, then select Continue.';
-  if(guidance.textContent)view.append(guidance);
+  const questionHeading=document.createElement('h3');
+  questionHeading.className='watch-clarification-question';
+  questionHeading.textContent=question;
+  view.append(questionHeading);
+  if(repeated){
+   const guidance=document.createElement('p');
+   guidance.className='watch-clarification-note';
+   guidance.textContent=fr?'Nous avons encore besoin d’une précision.':'We still need a little more detail.';
+   view.append(guidance);
+  }
   if(limit){
    const notice=document.createElement('p');
    notice.textContent=fr
@@ -129,12 +129,13 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   choices.className='watch-clarification-options';
   const selected=new Set(draft?.selected);
   const label=document.createElement('label');
-  label.textContent=fr?'Votre réponse':'Your answer';
+  label.className='watch-clarification-other';
+  label.textContent=fr?'Autre':'Other';
   const answer=document.createElement('textarea');
   answer.rows=2;
   answer.maxLength=500;
   answer.value=draft?.text||'';
-  answer.placeholder=fr?'Précisez ce que vous souhaitez suivre…':'Type what you want to monitor…';
+  answer.placeholder=fr?'Saisissez autre chose…':'Type something else…';
   label.append(answer);
   const parts=()=>[...selected,answer.value.trim()].filter(Boolean);
   const earlier=new Set((repeated?previous.parts:[]).map(normalizeDetail));
@@ -183,7 +184,7 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
  const showClarifiedSuccess=(result,confirmation,clarifications,submission,language)=>{
   const fr=language==='fr';
   const view=show(fr?(result.existing?'Watch retrouvée':'Watch créée'):(result.existing?'Existing Watch found':'Watch created'),[
-   ...(confirmation?.title?[{label:'Watch',value:confirmation.title}]:[]),
+   ...(confirmation?.title?[{label:'Watch',value:confirmation.title,prominent:true}]:[]),
    {label:fr?'Précisions du suivi':'Monitoring details',value:[...new Set(clarifications.flatMap(round=>round.answer.split('\n')).filter(Boolean))].join(' · ')},
   ]);
   view.dataset.v3Clarification='';
@@ -198,7 +199,7 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
    message('');
    callback();
   };
-  button(fr?'Modifier les précisions':'Edit details',()=>startDraft(()=>submission.edit(true))).classList.add('watch-clarification-edit');
+  button(fr?'Préparer une nouvelle version':'Start a revised request',()=>startDraft(()=>submission.edit(true))).classList.add('watch-clarification-edit');
   button(fr?'Modifier la demande originale':'Edit original request',()=>startDraft(()=>{
    edit();
    message(fr?'Votre Watch est enregistrée. Vous pouvez commencer une nouvelle demande.':'Your Watch is saved. You can start a new request.');

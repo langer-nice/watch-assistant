@@ -169,7 +169,7 @@ for(const outcome of ['READY_TO_MONITOR','NEEDS_CLARIFICATION','UNSUPPORTED_FOR_
  assert.equal(await controller.runV3(original,'en'),true);assert.equal(input.value,original);
  assert.deepEqual(calls.map(c=>c.path),['/api/structured-watches','/api/v3-pilot']);assert.deepEqual(calls[1].body,{instruction:original,watchId:id,captureKind:'FREE_TEXT'});
  if(outcome==='READY_TO_MONITOR')assert.match(window.location.href,/watch-detail.html\?id=/);
- else{assert.equal(window.location.href,'');assert.match(outcome==='NEEDS_CLARIFICATION'?form.querySelector('[data-v3-clarification] h2').textContent:error.textContent,outcome==='NEEDS_CLARIFICATION'?/Which company/:outcome==='UNSUPPORTED_FOR_NOW'?/cannot be monitored yet/:/Creation could not be confirmed/);}
+ else{assert.equal(window.location.href,'');assert.match(outcome==='NEEDS_CLARIFICATION'?form.querySelector('[data-v3-clarification] .watch-clarification-question').textContent:error.textContent,outcome==='NEEDS_CLARIFICATION'?/Which company/:outcome==='UNSUPPORTED_FOR_NOW'?/cannot be monitored yet/:/Creation could not be confirmed/);}
  if(outcome==='technical'){await controller.runV3(original,'en');assert.equal(calls[2].body.watchId,id);}
 });
 
@@ -220,7 +220,11 @@ for (const terminal of ['READY_TO_MONITOR', 'NEEDS_CLARIFICATION']) {
    await until(()=>panel()!==old&&!form.hasAttribute('aria-busy'));
   };
   await controller.runV3(original,'en');
+  assert.equal(panel().querySelector('h2').textContent,'Let’s make this Watch clearer');
   assert.equal(panel().querySelector('.structured-review-value').textContent,original);
+  assert.equal(panel().querySelector('.watch-clarification-question').textContent,first.clarification_question);
+  assert.equal(answer().parentElement.textContent,'Other');
+  assert.equal(answer().placeholder,'Type something else…');
   assert.equal(button('Continue').disabled,true);
   button('Fares').click();
   assert.equal(button('Fares').getAttribute('aria-pressed'),'true');
@@ -232,7 +236,10 @@ for (const terminal of ['READY_TO_MONITOR', 'NEEDS_CLARIFICATION']) {
   button('Fares').click();
   await submit();
   assert.deepEqual(calls[1].clarifications,[{question:first.clarification_question,answer:'Fares\ndelays and cancellations'}]);
-  assert.equal(panel().querySelector('h2').textContent,second.clarification_question);
+  assert.equal(panel().querySelector('.watch-clarification-question').textContent,second.clarification_question);
+  assert.equal(panel().querySelector('h2').textContent,'Let’s make this Watch clearer');
+  assert.equal(answer().parentElement.textContent,'Other');
+  assert.equal(answer().value,'');
   button('Fare increases').click();
   button('Cancellations').click();
   assert.equal(button('Fare increases').getAttribute('aria-pressed'),'true');
@@ -250,8 +257,10 @@ for (const terminal of ['READY_TO_MONITOR', 'NEEDS_CLARIFICATION']) {
   assert.deepEqual(calls[3].clarifications.slice(0,2),calls[2].clarifications);
   if(terminal==='READY_TO_MONITOR'){
    assert.match(panel().textContent,/Watch created.*Nice–Monaco trains.*Only significant fare increases/);
-   assert.match(panel().querySelector('a').getAttribute('href'),new RegExp(id));
-   button('Edit details').click();
+   const open=panel().querySelector('.button--primary');
+   assert.equal(open.textContent,'Open Watch');
+   assert.match(open.getAttribute('href'),new RegExp(id));
+   button('Start a revised request').click();
    assert.equal(answer().value,'Only significant fare increases');
    assert.equal(button('Fare increases').getAttribute('aria-pressed'),'true');
    assert.equal(button('Submit a new request').disabled,true);
