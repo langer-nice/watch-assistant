@@ -150,7 +150,11 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    stage='baseline';
    let baseline;
    try{baseline=await evaluateV3Source({id:body.watchId,understanding,criteria:capability.criteria,prior_state:{entries:[]},baseline_at:null},capability.source,{feed:urlInput?.baselineFeed||feed,currency});}
-   catch(e){if(kind==='URL'&&['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','UNSUPPORTED_CONTENT_TYPE','INVALID_FEED_FORMAT','NOT_A_FEED'].includes(e.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));throw e;}
+   catch(e){
+    if(kind==='URL'&&e.code==='ACCESS_DENIED')return send(200,unsupported('This public feed or article denied access. No access restrictions were bypassed.'));
+    if(kind==='URL'&&['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','UNSUPPORTED_CONTENT_TYPE','INVALID_FEED_FORMAT','NOT_A_FEED'].includes(e.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));
+    throw e;
+   }
    stage='persistence';
    const saved=await client.rpc('create_v3_watch',{...identity,p_understanding:understanding,p_source:capability.source,p_criteria:capability.criteria||null,p_baseline:baseline});
    if(saved.error?.code==='PT409')return send(409,{code:'V3_CREATION_NOT_CONFIRMED'});

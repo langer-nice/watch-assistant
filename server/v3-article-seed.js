@@ -17,6 +17,8 @@ export async function resolveV3UrlCapture(capture,{feed,pageMetadata=fetchPageMe
  let parsed;
  try{parsed=new URL(capture.raw_input);}catch{return unsupported('A valid public HTTPS feed or article URL is required.');}
  if(parsed.protocol!=='https:'||parsed.username||parsed.password)return unsupported('A public HTTPS feed or article URL is required.');
+ // An explicit feed needs no discovery. The baseline reads it after capability validation.
+ if(/\.(?:rss|atom)$/i.test(parsed.pathname))return {capture};
  try{
   const initial=await feed(capture.raw_input);
   return {capture,baselineFeed:async url=>url===capture.raw_input?initial:feed(url)};

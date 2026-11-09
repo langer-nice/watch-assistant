@@ -339,6 +339,41 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   assert.deepEqual(row.understanding.clarifications,clarifications);
  });
 
+ await t.test('explicit RSS and Atom are read only after capability validation',async()=>{
+  for(const [extension,supported] of [['rss',false],['rss',true],['atom',true]]){
+   const instruction='https://example.test/news.'+extension+(supported?'?edition=public':'');
+   const watchId=randomUUID(),events=[];
+   const answer=supported?'Follow new injury updates':'Notify me when booking availability opens';
+   const clarifications=[{question:'What should I track?',answer}];
+   const title='Club Injury Updates';
+   const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,
+    feed:async url=>{events.push('feed');assert.equal(url,instruction);return feed(url);},
+    model:async req=>{
+     events.push('model');
+     assert.equal(req.input.capture.raw_input,instruction);
+     assert.deepEqual(req.input.conversation,[answer]);
+     const result=ready(supported?answer:'Alert me when tickets go on sale');
+     return {...result,display_title:title,intent:{...result.intent,explicit_constraints:[
+      {kind:'condition',text:supported?answer:'booking availability',source_ref:'conversation:0'},
+     ]}};
+    }});
+   const result=await invoke({instruction,watchId,captureKind:'URL',clarifications},handler);
+   assert.equal(result.http,200);
+   assert.equal(result.status,supported?'READY_TO_MONITOR':'UNSUPPORTED_FOR_NOW');
+   assert.deepEqual(events,supported?['model','feed']:['model']);
+   for(const table of ['media_watch_snapshots','structured_media_schedules']){
+    const {rows}=await db.query('select watch_id from public.'+table+' where watch_id=$1',[watchId]);
+    assert.equal(rows.length,supported?1:0);
+   }
+   const {rows}=await db.query('select title,watch_definition from public.watches where id=$1',[watchId]);
+   if(supported){
+    assert.equal(result.id,watchId);
+    assert.equal(rows[0].title,title);
+    assert.equal(rows[0].watch_definition.request,instruction);
+   }else assert.equal(rows.length,0);
+  }
+ });
+
  await t.test('same instruction is independent across owners and a bound token cannot change payload or owner',async()=>{
   const instruction='Keep me updated on Jannik Sinner.';
   const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:other}}),serviceClient:client,
