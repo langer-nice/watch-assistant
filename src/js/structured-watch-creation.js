@@ -107,6 +107,9 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   else if(clarifications.length)guidance.textContent=fr
    ? 'Ajoutez les précisions manquantes à votre réponse.'
    : 'Add the missing detail to your answer.';
+  if(!guidance.textContent&&!options.length&&!limit)guidance.textContent=fr
+   ? 'Saisissez votre réponse ci-dessous, puis sélectionnez Continuer.'
+   : 'Type your answer below, then select Continue.';
   if(guidance.textContent)view.append(guidance);
   if(limit){
    const notice=document.createElement('p');
@@ -160,7 +163,7 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
    const round={question:question.slice(0,400),answer:submitted.parts.join('\n')};
    await run(original,language,undefined,[...clarifications,round],{
     ...submitted,
-    edit:()=>showClarification(result,original,language,clarifications,previous,submitted,true),
+    edit:(created=false)=>showClarification(result,original,language,clarifications,previous,submitted,created),
    });
   },true);
   listen(answer,'input',sync);
@@ -195,12 +198,29 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
    message('');
    callback();
   };
-  button(fr?'Modifier les précisions':'Edit details',()=>startDraft(submission.edit)).classList.add('watch-clarification-edit');
+  button(fr?'Modifier les précisions':'Edit details',()=>startDraft(()=>submission.edit(true))).classList.add('watch-clarification-edit');
   button(fr?'Modifier la demande originale':'Edit original request',()=>startDraft(()=>{
    edit();
    message(fr?'Votre Watch est enregistrée. Vous pouvez commencer une nouvelle demande.':'Your Watch is saved. You can start a new request.');
   })).classList.add('watch-clarification-edit');
   message('');
+ };
+ const showClarifiedEmptyFeed=(original,language,clarifications,submission)=>{
+  const fr=language==='fr';
+  message('');
+  const view=show(fr?'Aucune Watch créée':'No Watch was created',[
+   fr?'La source n’a fourni aucune information initiale. Modifiez votre réponse ou réessayez avec les mêmes précisions.'
+     :'The source returned no initial information. Edit your answer or retry with the same details.',
+   {label:labels().original,value:original},
+   {label:fr?'Votre réponse':'Your answer',value:clarifications.at(-1).answer},
+  ]);
+  view.dataset.v3Clarification='';
+  button(fr?'Modifier ma réponse':'Edit my answer',()=>submission.edit(),true);
+  button(fr?'Réessayer avec la même réponse':'Retry with the same answer',()=>run(original,language,undefined,clarifications,submission));
+  button(fr?'Modifier la demande originale':'Edit original request',()=>{
+   message('');
+   edit();
+  }).classList.add('watch-clarification-edit');
  };
  const run=async(original,language,revalidation,clarifications=[],submission=null)=>{
   if(busy||v3CreatedResult)return true;
@@ -239,9 +259,15 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
     }
     if(result.status==='UNSUPPORTED_FOR_NOW'){clear();message(labels().unsupported+' '+(result.reason||''));return true;}
     throw Error('Invalid V3 response');
-   }catch(e){if(ready(epoch,owner,original,language))message(e.code==='V3_CREATION_UNAVAILABLE'
-    ? (language==='fr'?'La création n’a pas pu être confirmée. Votre texte est conservé.':'Creation could not be confirmed. Your text has been kept.')
-    : structuredCreationError(e.code,language));return true;}
+   }catch(e){
+    if(ready(epoch,owner,original,language)){
+     if(submission&&e.code==='V3_CLARIFICATION_EMPTY_FEED')showClarifiedEmptyFeed(original,language,clarifications,submission);
+     else message(e.code==='V3_CREATION_UNAVAILABLE'
+      ? (language==='fr'?'La création n’a pas pu être confirmée. Votre texte est conservé.':'Creation could not be confirmed. Your text has been kept.')
+      : structuredCreationError(e.code,language));
+    }
+    return true;
+   }
    finally{busy=false;presentation.finish({terminal:true});}
   }
   clear();reviewNote=(noteInput?.value||'').trim();busy=true;const epoch=generation,owner=activeSession()?.user?.id,c=labels();
