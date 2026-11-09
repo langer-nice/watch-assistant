@@ -263,6 +263,38 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   assert.equal(models,2);
  });
 
+ await t.test('clarification options and answers share the normal model call and persist only on ready',async()=>{
+  const instruction='Blackburn Rovers',watchId=randomUUID(),question='Which developments matter?';
+  const answer='Injury updates only',clarifications=[{question,answer}];
+  const intent={...ready('Follow Blackburn Rovers injury updates only.',['Blackburn Rovers']).intent,
+   explicit_constraints:[{kind:'condition',text:answer,source_ref:'conversation:0'}]};
+  let calls=0;
+  const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,feed,
+   model:async req=>{
+    assert.equal(req.input.capture.raw_input,instruction);
+    if(++calls===1){
+     assert.deepEqual(req.input.conversation,[]);
+     return {intent:{...intent,explicit_constraints:[],unresolved_ambiguities:['Missing scope']},display_title:null,
+      decision:{status:'NEEDS_CLARIFICATION',reason:'Scope unclear',clarification_question:question,suggestions:['Injury updates','Match results','Injury updates']}};
+    }
+    assert.deepEqual(req.input.conversation,[answer]);
+    assert.deepEqual(req.input.clarification_questions,[question]);
+    return {intent,display_title:'Blackburn Rovers Injury Updates',decision:{status:'READY_TO_MONITOR',reason:'Scope clarified'}};
+   }});
+  const body={instruction,watchId};
+  const first=await invoke(body,handler);
+  assert.equal(first.status,'NEEDS_CLARIFICATION');
+  assert.deepEqual(first.clarification_options,['Injury updates','Match results']);
+  assert.equal((await db.query('select id from public.watches where id=$1',[watchId])).rows.length,0);
+  assert.equal((await invoke({...body,clarifications},handler)).id,watchId);
+  assert.equal((await invoke({...body,clarifications},handler)).id,watchId);
+  assert.equal(calls,2);
+  const [row]=(await db.query('select title,watch_definition,understanding from public.watches join public.v3_pilot_watches on watch_id=id where id=$1',[watchId])).rows;
+  assert.equal(row.title,'Blackburn Rovers Injury Updates');
+  assert.equal(row.watch_definition.request,instruction);
+  assert.deepEqual(row.understanding.intent,intent);
+ });
+
  await t.test('same instruction is independent across owners and a bound token cannot change payload or owner',async()=>{
   const instruction='Keep me updated on Jannik Sinner.';
   const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:other}}),serviceClient:client,

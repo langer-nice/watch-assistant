@@ -62,7 +62,12 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    let body=req.body;
    if(body===undefined){let raw='';for await(const c of req){raw+=c;if(Buffer.byteLength(raw)>12000)return send(413,{code:'INVALID_BODY'});}body=JSON.parse(raw);}
    if(typeof body==='string')body=JSON.parse(body);
-   if(!body||Object.keys(body).some(k=>!['instruction','watchId','captureKind'].includes(k))||!uuid.test(body.watchId)||typeof body.instruction!=='string'||!body.instruction.trim()||body.instruction.length>500)return send(400,{code:'INVALID_BODY'});
+   if(!body||Object.keys(body).some(k=>!['instruction','watchId','captureKind','clarifications'].includes(k))||!uuid.test(body.watchId)||typeof body.instruction!=='string'||!body.instruction.trim()||body.instruction.length>500)return send(400,{code:'INVALID_BODY'});
+   const clarifications=body.clarifications===undefined?[]:body.clarifications;
+   if(!Array.isArray(clarifications)||clarifications.length>3||clarifications.some(turn=>
+    !turn||typeof turn!=='object'||Object.keys(turn).some(key=>!['question','answer'].includes(key))||
+    typeof turn.question!=='string'||!turn.question.trim()||turn.question.length>400||
+    typeof turn.answer!=='string'||!turn.answer.trim()||turn.answer.length>905))return send(400,{code:'INVALID_BODY'});
    const kind=body.captureKind||'FREE_TEXT';if(!['FREE_TEXT','URL'].includes(kind))return send(400,{code:'INVALID_BODY'});
    const client=serviceClient||createSupabaseServiceClient({env});
    const identity={p_id:body.watchId,p_owner:user.id,p_instruction:body.instruction,p_kind:kind};
@@ -99,8 +104,14 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
     const output=await intentModel(urlInput?.seed?articleStoryTitleRequest(request,urlInput.locale):watchTitleRequest(request));
     const {display_title,...semantic}=output;displayTitle=display_title;return semantic;
    }:intentModel;
-   let understanding=await understandCapture(capture,[],{model:scopedModel,limitations:[V3_LIMITATION]});
-   if(understanding.decision.status!=='READY_TO_MONITOR')return send(200,{...understanding.decision});
+   let understanding=await understandCapture(capture,clarifications.map(turn=>turn.answer),{
+    model:scopedModel,limitations:[V3_LIMITATION],clarificationQuestions:clarifications.map(turn=>turn.question),
+   });
+   if(understanding.decision.status==='NEEDS_CLARIFICATION'){
+    const {suggestions,...decision}=understanding.decision;
+    return send(200,{...decision,...(suggestions?.length?{clarification_options:suggestions}:{})});
+   }
+   if(understanding.decision.status!=='READY_TO_MONITOR')return send(200,understanding.decision);
    if(urlInput?.seed){
     if(understanding.resource||understanding.intent.references.some(r=>r.exact_url)||understanding.intent.explicit_constraints.some(c=>c.kind==='exact_resource'))return send(200,unsupported('This article must identify a story to follow, rather than require monitoring changes to the exact page.'));
     understanding={...understanding,story_seed:urlInput.seed};

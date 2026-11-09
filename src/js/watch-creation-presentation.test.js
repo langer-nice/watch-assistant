@@ -35,7 +35,7 @@ for(const state of ['success','error','clarify','unsupported'])test(`real V3 con
  release();await work;
  assert.match(input.value,/Blackburn Rovers/);
  if(state==='success'){assert.equal(window.location.href,'watch-detail.html?id='+id);assert.equal(button.disabled,false);assert.equal(label.textContent,'Create Watch');assert.equal(button.querySelector('.watch-creation-spinner').hidden,true);}
- else{assert.equal(window.location.href,'');assert.equal(button.disabled,false);assert.equal(input.readOnly,false);assert.equal(label.textContent,'Create Watch');assert.equal(button.querySelector('.watch-creation-spinner').hidden,true);assert.equal(form.getAttribute('aria-busy'),null);assert.match(status.textContent,state==='error'?/Creation could not be confirmed/:state==='clarify'?/Which club/:/cannot be monitored/);}
+ else{assert.equal(window.location.href,'');assert.equal(button.disabled,false);assert.equal(input.readOnly,false);assert.equal(label.textContent,'Create Watch');assert.equal(button.querySelector('.watch-creation-spinner').hidden,true);assert.equal(form.getAttribute('aria-busy'),null);assert.match(state==='clarify'?form.querySelector('[data-v3-clarification] h2').textContent:status.textContent,state==='error'?/Creation could not be confirmed/:state==='clarify'?/Which club/:/cannot be monitored/);}
  assert.equal(calls.length,2);
 });
 
@@ -83,4 +83,58 @@ test('optional rendering failure cannot throw into the creation controller',()=>
  document.querySelector('#newWatchSubmit').prepend=()=>{throw Error('Optional spinner render failed');};
  const ui=createWatchCreationPresentation({form,status:document.querySelector('p'),getLanguage:()=> 'en',listen});
  assert.doesNotThrow(()=>ui.start());assert.doesNotThrow(()=>ui.navigating('new'));assert.doesNotThrow(()=>ui.finish());
+});
+
+test('V3 clarification combines choices and free text, retains history, and resets on edit',async t=>{
+ const oldDoc=globalThis.document,oldWin=globalThis.window;
+ const {document}=parseHTML(markup);globalThis.document=document;globalThis.window={location:{href:''}};
+ t.after(()=>{globalThis.document=oldDoc;globalThis.window=oldWin;configureStructuredWatchCreation(null);});
+ const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+ configureStructuredWatchCreation({getState:()=>({status:'authenticated',session:{user:{id:owner},access_token:'fixture-only'}})});
+ const form=document.querySelector('form'),input=document.querySelector('textarea'),original='french trains nice to monaco';
+ input.value=original;
+ const calls=[];
+ let outcome;
+ const c=initStructuredWatchCreation({form,input,error:document.querySelector('#watchError'),getLanguage:()=> 'en',listen,uuid:()=>id,confirmReadiness:async()=>true,fetchImpl:async(path,req)=>{
+  if(path==='/api/structured-watches')return Response.json({enabled:true,v3Create:true});
+  assert.equal(path,'/api/v3-pilot');
+  calls.push(JSON.parse(req.body));
+  return Response.json(outcome);
+ }});
+ const panel=()=>form.querySelector('[data-v3-clarification]');
+ const button=label=>[...panel().querySelectorAll('button')].find(b=>b.textContent===label);
+ const enter=value=>{
+  const answer=panel().querySelector('textarea');
+  answer.value=value;answer.dispatchEvent(new document.defaultView.Event('input'));
+ };
+ const first={status:'NEEDS_CLARIFICATION',clarification_question:'What would you like to track?',clarification_options:['Delays & cancellations','Timetables']};
+ outcome=first;
+ await c.runV3(original,'en');
+ assert.equal(panel().querySelector('h2').textContent,first.clarification_question);
+ assert.match(panel().textContent,/french trains nice to monaco/);
+ assert.ok(button('Continue').disabled);
+ assert.equal(window.location.href,'');
+ await c.runV3(original,'en');assert.equal(calls.length,1);
+ button('Delays & cancellations').click();button('Timetables').click();enter('Weekdays');
+ assert.equal(button('Timetables').getAttribute('aria-pressed'),'true');
+ outcome={status:'NEEDS_CLARIFICATION',clarification_question:'Which departure window?'};
+ button('Continue').click();await tick();
+ assert.equal(calls[1].instruction,original);
+ assert.equal(calls[1].watchId,id);
+ assert.deepEqual(calls[1].clarifications,[{question:first.clarification_question,answer:'Delays & cancellations\nTimetables\nWeekdays'}]);
+ assert.equal(panel().querySelector('h2').textContent,'Which departure window?');
+ enter('Before 9am');button('Continue').click();await tick();
+ assert.deepEqual(calls[2].clarifications,[...calls[1].clarifications,{question:'Which departure window?',answer:'Before 9am'}]);
+ enter('Paris time');button('Continue').click();await tick();
+ assert.equal(calls[3].clarifications.length,3);
+ assert.equal(button('Continue'),undefined);
+ button('Edit original request').click();
+ assert.equal(panel(),null);assert.equal(input.value,original);
+ outcome=first;
+ await c.runV3(original,'en');assert.equal(calls[4].clarifications,undefined);
+ enter('Cancellations only');
+ outcome={status:'READY_TO_MONITOR',id};
+ button('Continue').click();await tick();
+ assert.equal(calls[5].clarifications[0].answer,'Cancellations only');
+ assert.equal(window.location.href,'watch-detail.html?id='+id);
 });
