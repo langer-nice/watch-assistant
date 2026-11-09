@@ -275,3 +275,72 @@ for (const terminal of ['READY_TO_MONITOR', 'NEEDS_CLARIFICATION']) {
   assert.equal(calls.length,4);
  });
 }
+
+test('authenticated fixture routes through the actual V3 endpoints and card without persistence', async t=>{
+ const {createStructuredWatchMiddleware}=await import('../../server/structured-watch-api.js');
+ const {createV3WatchHandler}=await import('../../server/v3-creation.js');
+ const {document, Event}=parseHTML('<form><textarea></textarea><p></p><section id="legacy" hidden>Create Watch as written</section></form>');
+ const previousDocument=globalThis.document;
+ globalThis.document=document;
+ configureStructuredWatchCreation({getState:()=>({status:'authenticated',session:{user:{id:owner},access_token:'fixture-only'}})});
+ t.after(()=>{globalThis.document=previousDocument;configureStructuredWatchCreation(null);});
+ const form=document.querySelector('form'),input=form.querySelector('textarea');
+ const original='french trains nice to monaco';
+ const env={VERCEL_ENV:'preview',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',
+  VERCEL_GIT_COMMIT_REF:'codex/clarification-ux-flow',V3_REFINEMENT_FIXTURE:'true',
+  V3_REFINEMENT_FIXTURE_USER_ID:owner,V3_REFINEMENT_FIXTURE_EXPIRES_AT:'2099-01-01T00:00:00Z'};
+ const authenticate=async()=>({user:{id:owner}});
+ const deny=()=>assert.fail('Fixture must not use real creation, providers or reads');
+ const access=createStructuredWatchMiddleware({env,authenticate});
+ const create=createV3WatchHandler({env,authenticate,serviceClient:{rpc:deny,from:deny},model:deny,feed:deny,currency:deny});
+ const calls=[];
+ const controller=initStructuredWatchCreation({
+  form,input,error:form.querySelector('p'),getLanguage:()=>'en',
+  uuid:()=>'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  listen:(node,event,callback)=>node?.addEventListener(event,callback),confirmReadiness:deny,
+  fetchImpl:async(path,request)=>{
+   calls.push(path);
+   let result;
+   const response={setHeader(){},end(text){result=Response.json(JSON.parse(text),{status:this.statusCode});}};
+   await (path==='/api/structured-watches'?access:create)({...request,url:path},response);
+   return result;
+  },
+ });
+ input.value='unrelated request';
+ assert.equal(await controller.runV3(input.value,'en'),false);
+ assert.deepEqual(calls,['/api/structured-watches']);
+ input.value=original;
+ // Same handled/unhandled decision as the authenticated New Watch submit handler.
+ if(!await controller.runV3(original,'en'))document.querySelector('#legacy').hidden=false;
+ const panel=()=>form.querySelector('[data-v3-clarification]');
+ const button=name=>[...panel().querySelectorAll('button')].find(b=>b.textContent===name);
+ const type=value=>{
+  const answer=panel().querySelector('textarea');answer.value=value;answer.dispatchEvent(new Event('input'));
+ };
+ const submit=async()=>{
+  const previous=panel();
+  button('Continue').click();
+  await until(()=>panel()!==previous);
+ };
+ assert.ok(document.querySelector('#legacy').hidden);
+ assert.doesNotMatch(panel().textContent,/Create Watch as written|without sync/);
+ assert.match(panel().textContent,/Preview test mode/);
+ assert.equal(button('Continue').disabled,true);
+ type('Not sure');
+ await submit();
+ assert.match(panel().textContent,/We still need a little more detail/);
+ type('Not sure');
+ assert.equal(button('Continue').disabled,true);
+ button('Fares').click();
+ await submit();
+ assert.equal(panel().querySelector('textarea').value,'');
+ assert.match(panel().textContent,/What fare changes matter to you/);
+ button('Price drops').click();
+ await submit();
+ assert.match(panel().textContent,/Simulated Watch creation.*Nice–Monaco train fares.*Monitor fare changes/);
+ assert.equal(button('Open Watch · simulation').disabled,true);
+ assert.equal(panel().querySelector('a'),null);
+ button('Edit original request').click();
+ assert.equal(input.value,original);
+ assert.equal(panel(),null);
+});

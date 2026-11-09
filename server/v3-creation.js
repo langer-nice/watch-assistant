@@ -3,28 +3,18 @@ import {understandCapture} from './v3-intent/understand.mjs';
 import {createResponsesModel} from './v3-intent/provider.mjs';
 import {authenticateSupabaseRequest} from './supabase-user.js';
 import {createSupabaseServiceClient} from './supabase-service.js';
-import {requireStructuredCreationAccess,structuredCreationEnabled,structuredStagingUrlMatches} from './structured-creation-access.js';
+import {requireStructuredCreationAccess,structuredCreationEnabled} from './structured-creation-access.js';
 import {structuredProductionEnabled} from './structured-production-access.js';
 import {evaluateV3Source,pilotSource} from './v3-pilot.js';
 import {parseCurrencyRequest,isCurrencyRequest} from '../src/js/currency-watch.js';
 import {fetchAndNormalizeFeed} from './check-watch-api.js';
 import {resolveV3UrlCapture,articleStoryTitleRequest} from './v3-article-seed.js';
 import {watchTitleRequest,validateWatchTitle} from './v3-watch-title.js';
+import {fixtureInstruction, refinementFixtureAccess, refinementFixtureEnabled, refinementFixtureResponse} from './v3-refinement-fixture.js';
 import {resolveV3OutputLocale} from './v3-output-locale.js';
 
 export const V3_ENGINE='wa-v3-evidence-refs.v1';
-const previewRefinementEnabled = env => env.VERCEL_ENV === 'preview'
- && env.VERCEL_PROJECT_ID === 'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF'
- && env.VERCEL_GIT_COMMIT_REF === 'codex/clarification-ux-flow'
- && structuredStagingUrlMatches(env)
- && env.VITE_SUPABASE_URL === env.SUPABASE_URL
- && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(env.STRUCTURED_WATCH_TEST_USER_IDS || '')
- && Date.now() < Date.parse(env.V3_REFINEMENT_PREVIEW_EXPIRES_AT || '');
-
-export const v3CreationEnabled = env => env.V3_PILOT_ENABLED === 'true'
- && structuredCreationEnabled(env)
- && ((structuredProductionEnabled(env) && env.STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true')
-  || previewRefinementEnabled(env));
+export const v3CreationEnabled=env=>env.V3_PILOT_ENABLED==='true'&&structuredCreationEnabled(env)&&structuredProductionEnabled(env)&&env.STRUCTURED_MEDIA_SCHEDULED_ENABLED==='true';
 export const V3_LIMITATION='Monitoring currently supports public RSS/Atom news and ECB GBP/EUR thresholds only. Booking availability, inventory, private pages and arbitrary page changes require an unavailable connector.';
 const unsupported=reason=>({status:'UNSUPPORTED_FOR_NOW',reason});
 const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -100,11 +90,14 @@ export function v3Capability(capture,understanding,{clarified=false}={}){
 export function createV3WatchHandler({env=process.env,authenticate=authenticateSupabaseRequest,serviceClient,model,feed=fetchAndNormalizeFeed,currency,pageMetadata}={}){
  return async(req,res)=>{
   const send=(status,body)=>{res.statusCode=status;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(body));};
-  if(!v3CreationEnabled(env))return send(404,{code:'STRUCTURED_FEATURE_UNAVAILABLE'});
+  const fixture=refinementFixtureEnabled(env);
+  if(!fixture&&!v3CreationEnabled(env))return send(404,{code:'STRUCTURED_FEATURE_UNAVAILABLE'});
   if(req.method!=='POST')return send(405,{code:'METHOD_NOT_ALLOWED'});
   let stage='auth';
   try{
-   const {user}=await authenticate(req,{env});requireStructuredCreationAccess(user,env);
+   if(fixture&&!await refinementFixtureAccess(req,env,authenticate))return send(404,{code:'STRUCTURED_FEATURE_UNAVAILABLE'});
+   const user=fixture?null:(await authenticate(req,{env})).user;
+   if(!fixture)requireStructuredCreationAccess(user,env);
    let body=req.body;
    if(body===undefined){let raw='';for await(const c of req){raw+=c;if(Buffer.byteLength(raw)>12000)return send(413,{code:'INVALID_BODY'});}body=JSON.parse(raw);}
    if(typeof body==='string')body=JSON.parse(body);
@@ -115,6 +108,10 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
     typeof turn.question!=='string'||!turn.question.trim()||turn.question.length>400||
     typeof turn.answer!=='string'||!turn.answer.trim()||turn.answer.length>905))return send(400,{code:'INVALID_BODY'});
    const kind=body.captureKind||'FREE_TEXT';if(!['FREE_TEXT','URL'].includes(kind))return send(400,{code:'INVALID_BODY'});
+   if(fixture){
+    if(body.instruction!==fixtureInstruction||kind!=='FREE_TEXT'||!refinementFixtureEnabled(env))return send(404,{code:'STRUCTURED_FEATURE_UNAVAILABLE'});
+    return send(200,refinementFixtureResponse(clarifications));
+   }
    const client=serviceClient||createSupabaseServiceClient({env});
    const identity={p_id:body.watchId,p_owner:user.id,p_instruction:body.instruction,p_kind:kind};
    const confirmed=async(id,existing)=>{

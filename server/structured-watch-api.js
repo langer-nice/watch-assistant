@@ -1,3 +1,4 @@
+import {fixtureInstruction, refinementFixtureAccess, refinementFixtureEnabled} from './v3-refinement-fixture.js';
 import {v3CreationEnabled} from './v3-creation.js';
 import {resolveCurrentRole} from './role-development.js';
 import {roleDevelopmentIntent} from '../src/js/role-development.js';
@@ -56,6 +57,10 @@ export const createStructuredWatchMiddleware = ({ env = process.env, authenticat
     response.setHeader('Content-Type','application/json'); response.setHeader('Cache-Control','no-store, private');
     response.end(JSON.stringify(body));
   };
+  if (request.method === 'GET' && !url.search && refinementFixtureEnabled(env)
+    && await refinementFixtureAccess(request, env, authenticate)) {
+    return send(200,{v3FixtureInstruction:fixtureInstruction});
+  }
   if (env.STRUCTURED_WATCH_BACKEND_ENABLED !== 'true') return send(404,{code:'STRUCTURED_BACKEND_DISABLED'});
   if (!structuredCreationEnabled(env)) return send(404,{code:'STRUCTURED_FEATURE_UNAVAILABLE'});
   if (!['GET','POST'].includes(request.method)) return send(405,{code:'METHOD_NOT_ALLOWED'});

@@ -54,7 +54,7 @@ export const structuredCreationError = (code,language) => {
 
 export const initStructuredWatchCreation = ({form,input,noteInput,error,getLanguage,listen,isCurrent=()=>true,fetchImpl=(...args)=>fetch(...args),uuid=()=>crypto.randomUUID(),confirmReadiness=confirmCreatedMediaWatchRead}) => {
  const presentation=createWatchCreationPresentation({form,status:error,getLanguage,listen,isCurrent});
- let enabled=false, monitoringEnabled=false, v3Owner=null, v3Submission=null, v3CreatedResult=null, generation=0, pending=null, busy=false, panel, reviewNote='';
+ let enabled=false, monitoringEnabled=false, v3Owner=null, v3Fixture=null, v3Submission=null, v3CreatedResult=null, generation=0, pending=null, busy=false, panel, reviewNote='';
  const message=text=>{if(error)error.textContent=text;const inline=panel?.querySelector('.structured-review-error');if(inline)inline.textContent=text;};
  const labels=()=>copy[getLanguage()==='fr'?'fr':'en'];
  const clear=()=>{generation++;pending=null;panel?.remove();panel=null;form.classList.remove('is-reviewing');};
@@ -63,7 +63,8 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   let response;try{response=await fetchImpl(path,{method:body?'POST':'GET',headers:headers(),...(body?{body:JSON.stringify(body)}:{})});}catch(e){throw Object.assign(Error('request'),{code:e.code||'NETWORK_ERROR'});}
   const value=await response.json().catch(()=>null);if(!response.ok||!value)throw Object.assign(Error('request'),{code:value?.code||'STRUCTURED_PERSISTENCE_UNAVAILABLE'});return value;
  };
- const ready=(epoch,owner,original,language)=>isCurrent()&&generation===epoch&&activeSession()?.user?.id===owner&&input.value===original&&getLanguage()===language&&enabled&&(noteInput?.value||'').trim()===reviewNote;
+ const matchesFixture=(owner,original)=>v3Fixture?.owner===owner&&v3Fixture?.instruction===original;
+ const ready=(epoch,owner,original,language)=>isCurrent()&&generation===epoch&&activeSession()?.user?.id===owner&&input.value===original&&getLanguage()===language&&(enabled||matchesFixture(owner,original))&&(noteInput?.value||'').trim()===reviewNote;
  const show=(title,paragraphs)=>{
   panel?.remove();panel=document.createElement('section');panel.dataset.structuredReview='';panel.className='structured-watch-review';panel.setAttribute('aria-live','polite');
   const h=document.createElement('h2');h.textContent=title;h.tabIndex=-1;panel.append(h);
@@ -83,7 +84,9 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
  const access=async()=>{
   if(!activeSession())return;
   const accessOwner=activeSession()?.user?.id;
-  try {const result=await request('/api/structured-watches');if(!isCurrent()||activeSession()?.user?.id!==accessOwner||result.enabled!==true)return;enabled=true;v3Owner=result.v3Create===true?accessOwner:null;monitoringEnabled=result.monitoringEnabled===true;
+  try {const result=await request('/api/structured-watches');if(!isCurrent()||activeSession()?.user?.id!==accessOwner)return;
+   if(typeof result.v3FixtureInstruction==='string')v3Fixture={owner:accessOwner,instruction:result.v3FixtureInstruction};
+   if(result.enabled!==true)return;enabled=true;v3Owner=result.v3Create===true?accessOwner:null;monitoringEnabled=result.monitoringEnabled===true;
   }catch{/* Default/public flow stays unchanged. No AI or persistence request. */}
  };
  const invalidateInput=()=>{if(busy||pending||panel){clear();message(labels().stale);}};
@@ -91,6 +94,12 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
  listen(noteInput,'input',invalidateInput);
  listen(document,'i18n:languageChanged',clear);
  const normalizeDetail=text=>text.trim().replace(/\s+/g,' ').toLowerCase();
+ const markFixture=(view,fr)=>{
+  const badge=document.createElement('p');
+  badge.className='watch-clarification-note';
+  badge.textContent=fr?'Mode test Preview':'Preview test mode';
+  view.querySelector('h2').after(badge);
+ };
  const showClarification=(result,original,language,clarifications,previous=null,draft=null,afterCreation=false)=>{
   const fr=language==='fr', question=result.clarification_question||labels().clarify;
   const options=result.clarification_options||[];
@@ -101,6 +110,7 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
    {label:labels().original,value:original},
   ]);
   view.dataset.v3Clarification='';
+  if(result.fixture===true)markFixture(view,fr);
   const questionHeading=document.createElement('h3');
   questionHeading.className='watch-clarification-question';
   questionHeading.textContent=question;
@@ -118,7 +128,7 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
     : 'To continue, add these details to the original request.';
    view.append(notice);
   }
-  if(afterCreation){
+  if(afterCreation&&result.fixture!==true){
    const notice=document.createElement('p');
    notice.textContent=fr
     ? 'Votre Watch est enregistrée. Cet envoi peut créer une autre Watch.'
@@ -183,16 +193,22 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
  };
  const showClarifiedSuccess=(result,confirmation,clarifications,submission,language)=>{
   const fr=language==='fr';
-  const view=show(fr?(result.existing?'Watch retrouvée':'Watch créée'):(result.existing?'Existing Watch found':'Watch created'),[
+  const fixture=result.fixture===true;
+  const view=show(fixture?(fr?'Création simulée':'Simulated Watch creation'):fr?(result.existing?'Watch retrouvée':'Watch créée'):(result.existing?'Existing Watch found':'Watch created'),[
    ...(confirmation?.title?[{label:'Watch',value:confirmation.title,prominent:true}]:[]),
-   {label:fr?'Précisions du suivi':'Monitoring details',value:[...new Set(clarifications.flatMap(round=>round.answer.split('\n')).filter(Boolean))].join(' · ')},
+   {label:fr?'Précisions du suivi':'Monitoring details',value:fixture?result.summary:[...new Set(clarifications.flatMap(round=>round.answer.split('\n')).filter(Boolean))].join(' · ')},
   ]);
   view.dataset.v3Clarification='';
-  const link=document.createElement('a');
-  link.className='button button--primary';
-  link.href='watch-detail.html?id='+encodeURIComponent(result.id);
-  link.textContent=labels().open;
-  view.append(link);
+  if(fixture){
+   markFixture(view,fr);
+   button(fr?'Ouvrir la Watch · simulation':'Open Watch · simulation',()=>{},true).disabled=true;
+  }else{
+   const link=document.createElement('a');
+   link.className='button button--primary';
+   link.href='watch-detail.html?id='+encodeURIComponent(result.id);
+   link.textContent=labels().open;
+   view.append(link);
+  }
   const startDraft=callback=>{
    v3CreatedResult=null;
    v3Submission=null;
@@ -202,7 +218,7 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   button(fr?'Préparer une nouvelle version':'Start a revised request',()=>startDraft(()=>submission.edit(true))).classList.add('watch-clarification-edit');
   button(fr?'Modifier la demande originale':'Edit original request',()=>startDraft(()=>{
    edit();
-   message(fr?'Votre Watch est enregistrée. Vous pouvez commencer une nouvelle demande.':'Your Watch is saved. You can start a new request.');
+   if(!fixture)message(fr?'Votre Watch est enregistrée. Vous pouvez commencer une nouvelle demande.':'Your Watch is saved. You can start a new request.');
   })).classList.add('watch-clarification-edit');
   message('');
  };
@@ -226,9 +242,10 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
  const run=async(original,language,revalidation,clarifications=[],submission=null)=>{
   if(busy||v3CreatedResult)return true;
   if(!enabled){const epoch=generation;busy=true;try{await accessReady;}finally{busy=false;}if(epoch!==generation)return true;}
-  if(!enabled)return false;
+  const fixture=matchesFixture(activeSession()?.user?.id,original);
+  if(!enabled&&!fixture)return false;
   reviewNote=(noteInput?.value||'').trim();
-  if(v3Owner&&v3Owner===activeSession()?.user?.id){
+  if(fixture||(v3Owner&&v3Owner===activeSession()?.user?.id)){
    if(!v3Submission||v3Submission.original!==original)v3Submission={original,id:uuid()};
    const epoch=generation,owner=activeSession()?.user?.id;
    busy=true;message(labels().busy);
@@ -240,6 +257,13 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
      ...(clarifications.length?{clarifications}:{}),
     });
     if(!ready(epoch,owner,original,language))return true;
+    if(fixture&&result.fixture!==true)throw Error('Invalid fixture response');
+    if(fixture&&result.status==='READY_TO_MONITOR'&&result.persisted===false&&submission){
+     v3CreatedResult=result;
+     showClarifiedSuccess(result,{title:result.title},clarifications,submission,language);
+     return true;
+    }
+    if(result.fixture===true&&result.status==='READY_TO_MONITOR')throw Error('Invalid fixture completion');
     if(result.status==='READY_TO_MONITOR'&&result.id){
      v3CreatedResult=result;
      let confirmation=false;
@@ -363,5 +387,5 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   return true;
  };
  const accessReady=access();
- return {run,runV3:async(original,language)=>{await accessReady;return v3Owner?(panel?.hasAttribute('data-v3-clarification')||run(original,language)):false;},invalidate:clear,isEnabled:()=>enabled};
+ return {run,runV3:async(original,language)=>{await accessReady;return (v3Owner||matchesFixture(activeSession()?.user?.id,original))?(panel?.hasAttribute('data-v3-clarification')||run(original,language)):false;},invalidate:clear,isEnabled:()=>enabled};
 };

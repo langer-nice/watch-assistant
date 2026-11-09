@@ -86,36 +86,22 @@ test('general V3 creation capability is scoped to authenticated Production acces
  const browserCode=await readFile(new URL('../src/js/structured-watch-creation.js',import.meta.url),'utf8');assert.ok(!browserCode.includes(PILOT_OWNER));for(const spec of PILOT_SPECS)assert.ok(!browserCode.includes(spec.instruction));
 });
 
-test('refinement Preview access requires the isolated database, one owner and an active expiry', async () => {
- const {createStructuredWatchMiddleware}=await import('./structured-watch-api.js');
- const {createV3WatchHandler,v3CreationEnabled}=await import('./v3-creation.js');
- const staging='https://tseexvbwhrtofcsrvcqc.supabase.co';
- const other='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+test('refinement fixture is closed outside the single account, branch and time window', async () => {
+ const {refinementFixtureAccess}=await import('./v3-refinement-fixture.js');
  const env={
   VERCEL_ENV:'preview', VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',
   VERCEL_GIT_COMMIT_REF:'codex/clarification-ux-flow',
-  SUPABASE_URL:staging, VITE_SUPABASE_URL:staging,
-  STRUCTURED_WATCH_BACKEND_ENABLED:'true', STRUCTURED_WATCH_CREATION_ENABLED:'true',
-  STRUCTURED_WATCH_TEST_USER_IDS:PILOT_OWNER, V3_PILOT_ENABLED:'true',
-  V3_REFINEMENT_PREVIEW_EXPIRES_AT:'2099-01-01T00:00:00Z',
+  V3_REFINEMENT_FIXTURE:'true', V3_REFINEMENT_FIXTURE_USER_ID:PILOT_OWNER,
+  V3_REFINEMENT_FIXTURE_EXPIRES_AT:'2099-01-01T00:00:00Z',
  };
- const invoke=async (handler,method,url)=>{
-  let body;
-  const response={setHeader(){},end(text){body=JSON.parse(text);}};
-  await handler({method,url},response);
-  return {status:response.statusCode,body};
- };
- const discovery=id=>createStructuredWatchMiddleware({env,authenticate:async()=>({user:{id}})});
- const endpoint=id=>createV3WatchHandler({env,authenticate:async()=>({user:{id}})});
- assert.equal((await invoke(discovery(PILOT_OWNER),'GET','/api/structured-watches')).body.v3Create,true);
- assert.equal((await invoke(discovery(other),'GET','/api/structured-watches')).status,403);
- assert.equal((await invoke(endpoint(other),'POST','/api/v3-pilot')).status,403);
+ const authenticate=async()=>({user:{id:PILOT_OWNER}});
+ assert.equal(await refinementFixtureAccess({},env,authenticate),true);
+ assert.equal(await refinementFixtureAccess({},env,async()=>({user:{id:'another-user'}})),false);
  for(const patch of [
-  {VERCEL_ENV:'production'}, {VERCEL_PROJECT_ID:'different-project'}, {VERCEL_GIT_COMMIT_REF:'other'},
-  {SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co'}, {VITE_SUPABASE_URL:undefined},
-  {STRUCTURED_WATCH_TEST_USER_IDS:`${PILOT_OWNER},${other}`},
-  {V3_REFINEMENT_PREVIEW_EXPIRES_AT:undefined}, {V3_REFINEMENT_PREVIEW_EXPIRES_AT:'2000-01-01T00:00:00Z'},
- ])assert.equal(v3CreationEnabled({...env,...patch}),false,JSON.stringify(patch));
+  {VERCEL_ENV:'production'}, {VERCEL_PROJECT_ID:'another-project'}, {VERCEL_GIT_COMMIT_REF:'other'},
+  {V3_REFINEMENT_FIXTURE:undefined}, {V3_REFINEMENT_FIXTURE_USER_ID:undefined},
+  {V3_REFINEMENT_FIXTURE_EXPIRES_AT:undefined}, {V3_REFINEMENT_FIXTURE_EXPIRES_AT:'2000-01-01T00:00:00Z'},
+ ])assert.equal(await refinementFixtureAccess({}, {...env,...patch},()=>assert.fail('Auth must not be called')),false);
 });
 
 test('typed currency bridge uses the real ECB parser without rewriting Capture',async()=>{
