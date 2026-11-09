@@ -3,7 +3,7 @@ import {understandCapture} from './v3-intent/understand.mjs';
 import {createResponsesModel} from './v3-intent/provider.mjs';
 import {authenticateSupabaseRequest} from './supabase-user.js';
 import {createSupabaseServiceClient} from './supabase-service.js';
-import {requireStructuredCreationAccess,structuredCreationEnabled} from './structured-creation-access.js';
+import {requireStructuredCreationAccess,structuredCreationEnabled,structuredStagingUrlMatches} from './structured-creation-access.js';
 import {structuredProductionEnabled} from './structured-production-access.js';
 import {evaluateV3Source,pilotSource} from './v3-pilot.js';
 import {parseCurrencyRequest,isCurrencyRequest} from '../src/js/currency-watch.js';
@@ -13,7 +13,18 @@ import {watchTitleRequest,validateWatchTitle} from './v3-watch-title.js';
 import {resolveV3OutputLocale} from './v3-output-locale.js';
 
 export const V3_ENGINE='wa-v3-evidence-refs.v1';
-export const v3CreationEnabled=env=>env.V3_PILOT_ENABLED==='true'&&structuredCreationEnabled(env)&&structuredProductionEnabled(env)&&env.STRUCTURED_MEDIA_SCHEDULED_ENABLED==='true';
+const previewRefinementEnabled = env => env.VERCEL_ENV === 'preview'
+ && env.VERCEL_PROJECT_ID === 'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF'
+ && env.VERCEL_GIT_COMMIT_REF === 'codex/clarification-ux-flow'
+ && structuredStagingUrlMatches(env)
+ && env.VITE_SUPABASE_URL === env.SUPABASE_URL
+ && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(env.STRUCTURED_WATCH_TEST_USER_IDS || '')
+ && Date.now() < Date.parse(env.V3_REFINEMENT_PREVIEW_EXPIRES_AT || '');
+
+export const v3CreationEnabled = env => env.V3_PILOT_ENABLED === 'true'
+ && structuredCreationEnabled(env)
+ && ((structuredProductionEnabled(env) && env.STRUCTURED_MEDIA_SCHEDULED_ENABLED === 'true')
+  || previewRefinementEnabled(env));
 export const V3_LIMITATION='Monitoring currently supports public RSS/Atom news and ECB GBP/EUR thresholds only. Booking availability, inventory, private pages and arbitrary page changes require an unavailable connector.';
 const unsupported=reason=>({status:'UNSUPPORTED_FOR_NOW',reason});
 const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
