@@ -180,3 +180,89 @@ test('general V3 entry precedes legacy planning, currency and URL routing; edit 
  for(const later of ['parseCurrencyRequest(request)','await requestWatchPlan(request)','if (isUrl(request))'])assert.ok(entry<submit.indexOf(later));
  assert.match(submit,/if \(!isEditMode && await structuredCreation\?\.runV3/);
 });
+
+for (const terminal of ['READY_TO_MONITOR', 'NEEDS_CLARIFICATION']) {
+ test(`clarification UI keeps input interactive and handles ${terminal}`, async t => {
+  const previousDocument = globalThis.document;
+  const {document, Event} = parseHTML('<form><textarea></textarea><button id="newWatchSubmit"><span id="newWatchSubmitLabel">Create Watch</span></button><p></p></form>');
+  globalThis.document = document;
+  configureStructuredWatchCreation({getState:()=>({status:'authenticated',session:{user:{id:owner},access_token:'fixture-only'}})});
+  t.after(()=>{globalThis.document=previousDocument;configureStructuredWatchCreation(null);});
+  const form=document.querySelector('form'), input=form.querySelector('textarea');
+  const original=input.value='french trains nice to monaco';
+  const id='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const first={status:'NEEDS_CLARIFICATION',clarification_question:'What do you want to track?',clarification_options:['Fares','Delays']};
+  const second={status:'NEEDS_CLARIFICATION',clarification_question:'Which changes matter?',clarification_options:['Fare increases','Cancellations']};
+  const calls=[];
+  const controller=initStructuredWatchCreation({
+   form,input,error:form.querySelector('p'),getLanguage:()=>'en',uuid:()=>id,
+   listen:(node,event,callback,options)=>node?.addEventListener(event,callback,options),
+   confirmReadiness:async options=>{
+    assert.equal(options.includeTitle,true);
+    return {readable:true,existence:'present',title:'Nice–Monaco trains'};
+   },
+   fetchImpl:async(path,request)=>{
+    if(path==='/api/structured-watches')return Response.json({enabled:true,v3Create:true});
+    calls.push(JSON.parse(request.body));
+    return Response.json([
+     first,second,{...second,clarification_options:[...second.clarification_options].reverse()},
+     terminal==='READY_TO_MONITOR'?{status:terminal,id,persisted:true}:second,
+    ][calls.length-1]);
+   },
+  });
+  const panel=()=>form.querySelector('[data-v3-clarification]');
+  const button=name=>[...panel().querySelectorAll('button')].find(el=>el.textContent===name);
+  const answer=()=>panel().querySelector('textarea');
+  const type=value=>{answer().value=value;answer().dispatchEvent(new Event('input'));};
+  const submit=async()=>{
+   const old=panel();
+   button('Continue').click();
+   await until(()=>panel()!==old&&!form.hasAttribute('aria-busy'));
+  };
+  await controller.runV3(original,'en');
+  assert.equal(panel().querySelector('.structured-review-value').textContent,original);
+  assert.equal(button('Continue').disabled,true);
+  button('Fares').click();
+  assert.equal(button('Fares').getAttribute('aria-pressed'),'true');
+  assert.equal(button('Continue').disabled,false);
+  button('Fares').click();
+  assert.equal(button('Continue').disabled,true);
+  type('delays and cancellations');
+  assert.equal(button('Continue').disabled,false);
+  button('Fares').click();
+  await submit();
+  assert.deepEqual(calls[1].clarifications,[{question:first.clarification_question,answer:'Fares\ndelays and cancellations'}]);
+  assert.equal(panel().querySelector('h2').textContent,second.clarification_question);
+  button('Fare increases').click();
+  button('Cancellations').click();
+  assert.equal(button('Fare increases').getAttribute('aria-pressed'),'true');
+  assert.equal(button('Cancellations').getAttribute('aria-pressed'),'true');
+  await submit();
+  assert.match(panel().textContent,/We still need a little more detail/);
+  button('Edit details').click();
+  assert.equal(button('Fare increases').getAttribute('aria-pressed'),'true');
+  assert.equal(button('Continue').disabled,true);
+  type('Only significant fare increases');
+  assert.equal(button('Continue').disabled,false);
+  await submit();
+  assert.equal(calls.length,4);
+  assert.ok(calls.every(call=>call.instruction===original&&call.watchId===id));
+  assert.deepEqual(calls[3].clarifications.slice(0,2),calls[2].clarifications);
+  if(terminal==='READY_TO_MONITOR'){
+   assert.match(panel().textContent,/Watch created.*Nice–Monaco trains.*Only significant fare increases/);
+   assert.match(panel().querySelector('a').getAttribute('href'),new RegExp(id));
+   button('Edit details').click();
+   assert.equal(answer().value,'Only significant fare increases');
+   assert.equal(button('Fare increases').getAttribute('aria-pressed'),'true');
+   assert.equal(button('Submit a new request').disabled,true);
+  }else{
+   assert.match(panel().textContent,/add these details to the original request/);
+   type('More detail at the limit');
+   assert.equal(button('Continue').disabled,true);
+  }
+  button('Edit original request').click();
+  assert.equal(panel(),null);
+  assert.equal(input.value,original);
+  assert.equal(calls.length,4);
+ });
+}

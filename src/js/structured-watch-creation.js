@@ -90,79 +90,119 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
  listen(input,'input',invalidateInput);
  listen(noteInput,'input',invalidateInput);
  listen(document,'i18n:languageChanged',clear);
- const showClarification=(result,original,language,clarifications)=>{
+ const normalizeDetail=text=>text.trim().replace(/\s+/g,' ').toLowerCase();
+ const showClarification=(result,original,language,clarifications,previous=null,draft=null,afterCreation=false)=>{
   const fr=language==='fr', question=result.clarification_question||labels().clarify;
+  const options=result.clarification_options||[];
+  const signature=JSON.stringify([normalizeDetail(question),[...new Set(options.map(normalizeDetail))].sort()]);
+  const repeated=previous?.signature===signature;
+  const limit=clarifications.length>=3;
   const view=show(question,[{label:fr?'Demande originale':'Original request',value:original}]);
   view.dataset.v3Clarification='';
   view.prepend(view.querySelector('.structured-review-field'));
-  const limit=clarifications.length>=3;
+  const guidance=document.createElement('p');
+  if(repeated)guidance.textContent=fr
+   ? 'Nous avons encore besoin d’une précision. Ajoutez un nouvel élément à votre réponse.'
+   : 'We still need a little more detail. Add something new to your answer.';
+  else if(clarifications.length)guidance.textContent=fr
+   ? 'Ajoutez les précisions manquantes à votre réponse.'
+   : 'Add the missing detail to your answer.';
+  if(guidance.textContent)view.append(guidance);
   if(limit){
-   const guidance=document.createElement('p');
-   guidance.textContent=fr
-    ? 'Modifiez la demande originale pour y ajouter les précisions utiles.'
-    : 'Edit the original request to include the relevant details.';
-   view.append(guidance);
-  }else{
-   const choices=document.createElement('div');
-   choices.className='watch-clarification-options';
-   const selected=new Set();
-   const label=document.createElement('label');
-   label.textContent=fr?'Votre réponse':'Your answer';
-   const answer=document.createElement('textarea');
-   answer.rows=2;
-   answer.maxLength=500;
-   answer.placeholder=fr?'Précisez ce que vous souhaitez suivre…':'Type what you want to monitor…';
-   label.append(answer);
-   let next;
-   const sync=()=>{next.disabled=!selected.size&&!answer.value.trim();};
-   const controls=[];
-   for(const option of result.clarification_options||[]){
-    const chip=document.createElement('button');
-    chip.type='button';
-    chip.className='button button--secondary';
-    chip.textContent=option;
-    chip.setAttribute('aria-pressed','false');
-    listen(chip,'click',()=>{
-     if(selected.has(option))selected.delete(option);
-     else selected.add(option);
-     chip.setAttribute('aria-pressed',String(selected.has(option)));
-     sync();
-    });
-    choices.append(chip);
-    controls.push(chip);
-   }
-   if(clarifications.length){
-    const guidance=document.createElement('p');
-    guidance.textContent=fr
-     ? 'Précisez votre réponse ci-dessous, puis sélectionnez Continuer.'
-     : 'Add the missing detail to your answer below, then select Continue.';
-    view.append(guidance);
-   }
-   view.append(choices,label);
-   next=button(fr?'Continuer':'Continue',async()=>{
-    if(busy)return;
-    const response=[...selected,answer.value.trim()].filter(Boolean).join('\n');
-    if(!response)return;
-    const round={question:question.slice(0,400),answer:response};
-    for(const control of [...controls,answer,next,back])control.disabled=true;
-    try{await run(original,language,undefined,[...clarifications,round]);}
-    finally{
-     if(panel===view){
-      for(const control of [...controls,answer,back])control.disabled=false;
-      sync();
-     }
-    }
-   },true);
-   listen(answer,'input',sync);
-   sync();
+   const notice=document.createElement('p');
+   notice.textContent=fr
+    ? 'Pour continuer, ajoutez ces précisions à la demande originale.'
+    : 'To continue, add these details to the original request.';
+   view.append(notice);
   }
-  const back=button(fr?'Modifier la demande originale':'Edit original request',()=>{
+  if(afterCreation){
+   const notice=document.createElement('p');
+   notice.textContent=fr
+    ? 'Votre Watch est enregistrée. Cet envoi peut créer une autre Watch.'
+    : 'Your Watch is saved. Submitting here can create another Watch.';
+   view.append(notice);
+  }
+  const choices=document.createElement('div');
+  choices.className='watch-clarification-options';
+  const selected=new Set(draft?.selected);
+  const label=document.createElement('label');
+  label.textContent=fr?'Votre réponse':'Your answer';
+  const answer=document.createElement('textarea');
+  answer.rows=2;
+  answer.maxLength=500;
+  answer.value=draft?.text||'';
+  answer.placeholder=fr?'Précisez ce que vous souhaitez suivre…':'Type what you want to monitor…';
+  label.append(answer);
+  const parts=()=>[...selected,answer.value.trim()].filter(Boolean);
+  const earlier=new Set((repeated?previous.parts:[]).map(normalizeDetail));
+  const unchangedDraft=()=>afterCreation
+   && JSON.stringify(parts().map(normalizeDetail).sort())===JSON.stringify(draft.parts.map(normalizeDetail).sort());
+  const canContinue=()=>!limit&&!unchangedDraft()&&parts().some(part=>!earlier.has(normalizeDetail(part)));
+  const sync=()=>{next.disabled=!canContinue();};
+  for(const option of options){
+   const chip=document.createElement('button');
+   chip.type='button';
+   chip.className='button button--secondary';
+   chip.textContent=option;
+   chip.setAttribute('aria-pressed',String(selected.has(option)));
+   listen(chip,'click',()=>{
+    if(selected.has(option))selected.delete(option);
+    else selected.add(option);
+    chip.setAttribute('aria-pressed',String(selected.has(option)));
+    sync();
+   });
+   choices.append(chip);
+  }
+  view.append(choices,label);
+  const next=button(afterCreation?(fr?'Soumettre une nouvelle demande':'Submit a new request'):(fr?'Continuer':'Continue'),async()=>{
+   if(busy||!canContinue())return;
+   const submitted={signature,parts:parts(),selected:[...selected],text:answer.value};
+   const round={question:question.slice(0,400),answer:submitted.parts.join('\n')};
+   await run(original,language,undefined,[...clarifications,round],{
+    ...submitted,
+    edit:()=>showClarification(result,original,language,clarifications,previous,submitted,true),
+   });
+  },true);
+  listen(answer,'input',sync);
+  sync();
+  if(repeated)button(fr?'Modifier les précisions':'Edit details',()=>{
+   for(const option of previous.selected)if(options.includes(option))selected.add(option);
+   answer.value ||= previous.text;
+   for(const chip of choices.children)chip.setAttribute('aria-pressed',String(selected.has(chip.textContent)));
+   sync();
+   answer.focus();
+  }).classList.add('watch-clarification-edit');
+  button(fr?'Modifier la demande originale':'Edit original request',()=>{
    message('');
    edit();
-  });
-  back.classList.add('watch-clarification-edit');
+  }).classList.add('watch-clarification-edit');
  };
- const run=async(original,language,revalidation,clarifications=[])=>{
+ const showClarifiedSuccess=(result,confirmation,clarifications,submission,language)=>{
+  const fr=language==='fr';
+  const view=show(fr?(result.existing?'Watch retrouvée':'Watch créée'):(result.existing?'Existing Watch found':'Watch created'),[
+   ...(confirmation?.title?[{label:'Watch',value:confirmation.title}]:[]),
+   {label:fr?'Précisions du suivi':'Monitoring details',value:[...new Set(clarifications.flatMap(round=>round.answer.split('\n')).filter(Boolean))].join(' · ')},
+  ]);
+  view.dataset.v3Clarification='';
+  const link=document.createElement('a');
+  link.className='button button--primary';
+  link.href='watch-detail.html?id='+encodeURIComponent(result.id);
+  link.textContent=labels().open;
+  view.append(link);
+  const startDraft=callback=>{
+   v3CreatedResult=null;
+   v3Submission=null;
+   message('');
+   callback();
+  };
+  button(fr?'Modifier les précisions':'Edit details',()=>startDraft(submission.edit)).classList.add('watch-clarification-edit');
+  button(fr?'Modifier la demande originale':'Edit original request',()=>startDraft(()=>{
+   edit();
+   message(fr?'Votre Watch est enregistrée. Vous pouvez commencer une nouvelle demande.':'Your Watch is saved. You can start a new request.');
+  })).classList.add('watch-clarification-edit');
+  message('');
+ };
+ const run=async(original,language,revalidation,clarifications=[],submission=null)=>{
   if(busy||v3CreatedResult)return true;
   if(!enabled){const epoch=generation;busy=true;try{await accessReady;}finally{busy=false;}if(epoch!==generation)return true;}
   if(!enabled)return false;
@@ -182,18 +222,19 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
     if(result.status==='READY_TO_MONITOR'&&result.id){
      v3CreatedResult=result;
      let confirmation=false;
-     try{confirmation=await confirmReadiness({id:result.id,ownerId:owner,accessToken:activeSession()?.access_token,isCurrent:()=>ready(epoch,owner,original,language),details:true});}catch{/* Unknown read outcome is not proof of creation. */}
+     try{confirmation=await confirmReadiness({id:result.id,ownerId:owner,accessToken:activeSession()?.access_token,isCurrent:()=>ready(epoch,owner,original,language),details:true,...(submission?{includeTitle:true}:{})});}catch{/* Unknown read outcome is not proof of creation. */}
      const readable=confirmation===true||confirmation?.readable===true;
      const absent=['absent','deleted'].includes(confirmation?.existence);
      const persisted=!absent&&(result.persisted===true||confirmation?.existence==='present');
      const terminal=()=>persisted?presentation.createdWaiting():presentation.unconfirmed();
      if(!ready(epoch,owner,original,language)){if(isCurrent()&&activeSession()?.user?.id===owner)terminal();return true;}
-     if(!readable){terminal();return true;}
+     if(!readable){terminal();if(submission&&error)message(error.textContent);return true;}
+     if(submission){showClarifiedSuccess(result,confirmation,clarifications,submission,language);return true;}
      presentation.navigating(result.id);window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);return true;
     }
     if(result.status==='NEEDS_CLARIFICATION'){
      message('');
-     showClarification(result,original,language,clarifications);
+     showClarification(result,original,language,clarifications,submission);
      return true;
     }
     if(result.status==='UNSUPPORTED_FOR_NOW'){clear();message(labels().unsupported+' '+(result.reason||''));return true;}

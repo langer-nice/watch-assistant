@@ -127,7 +127,8 @@ test('V3 clarification combines choices and free text, retains history, and rese
  assert.deepEqual(calls[2].clarifications,[...calls[1].clarifications,{question:'Which departure window?',answer:'Before 9am'}]);
  enter('Paris time');button('Continue').click();await tick();
  assert.equal(calls[3].clarifications.length,3);
- assert.equal(button('Continue'),undefined);
+ assert.equal(button('Continue').disabled,true);
+ assert.ok(panel().querySelector('textarea'));
  button('Edit original request').click();
  assert.equal(panel(),null);assert.equal(input.value,original);
  outcome=first;
@@ -145,5 +146,7 @@ test('V3 clarification combines choices and free text, retains history, and rese
  outcome={status:'READY_TO_MONITOR',id};
  button('Continue').click();await tick();
  assert.deepEqual(calls[6],calls[5]);
- assert.equal(window.location.href,'watch-detail.html?id='+id);
+ assert.equal(window.location.href,'');
+ assert.match(panel().textContent,/Watch created/);
+ assert.equal(panel().querySelector('a').getAttribute('href'),'watch-detail.html?id='+id);
 });

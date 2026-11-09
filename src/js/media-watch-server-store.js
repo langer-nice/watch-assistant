@@ -75,9 +75,9 @@ const request = async (token, options = {}) => {
 // One post-create read, using the same authenticated list reader/row contract
 // as detail hydration. Do not use the automatic gate: it may defer/coalesce a
 // pre-create read. Never refresh auth, retry or schedule another read here.
-export const confirmCreatedMediaWatchRead = async ({id,ownerId,accessToken,isCurrent,read=()=>request(accessToken),details=false}) => {
+export const confirmCreatedMediaWatchRead = async ({id,ownerId,accessToken,isCurrent,read=()=>request(accessToken),details=false,includeTitle=false}) => {
   let existence='unknown';
-  const result=readable=>details?{readable,existence}:readable;
+  const result=(readable,title)=>details?{readable,existence,...(includeTitle&&readable?{title}:{})}:readable;
   try {
     const body = await read();
     if (!isCurrent() || !Array.isArray(body?.watches)) return result(false);
@@ -92,7 +92,7 @@ export const confirmCreatedMediaWatchRead = async ({id,ownerId,accessToken,isCur
     latestRead += 1;
     writeWatchCache('media',ownerId,next);
     const cached = readWatchCache('media',ownerId,validateRow);
-    return result(Boolean(cached?.rows.some(row=>row.id===id&&row.user_id===ownerId&&!row.deleted_at)));
+    return result(Boolean(cached?.rows.some(row=>row.id===id&&row.user_id===ownerId&&!row.deleted_at)),target.title);
   } catch { return result(false); }
 };
 

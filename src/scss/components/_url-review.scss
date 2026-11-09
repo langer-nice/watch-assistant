@@ -368,6 +368,18 @@
 }
 
 [data-v3-clarification] {
+  gap: var(--space-sm);
+  min-width: 0;
+  padding: var(--space-md);
+
+  h2, h3, p { margin: 0; }
+  h2 { font-size: var(--font-size-lg); line-height: 1.35; }
+  h3, p, label { font-size: var(--font-size-sm); line-height: 1.5; }
+  .structured-review-label { color: var(--color-text-muted); }
+  .button { min-height: 44px; min-width: 0; white-space: normal; }
+  .button:disabled { opacity: .55; cursor: default; }
+  .button:focus-visible, textarea:focus-visible { outline: 2px solid var(--color-action); outline-offset: 2px; }
+
   .watch-clarification-options {
     display: flex;
     flex-wrap: wrap;
@@ -390,6 +402,7 @@
   }
 
   textarea {
+    margin-top: var(--space-xs);
     display: block;
     width: 100%;
     box-sizing: border-box;
