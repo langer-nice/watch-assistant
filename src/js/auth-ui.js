@@ -124,17 +124,23 @@ export const initAuthUi = ({ env = import.meta.env, client: injectedClient, onRe
   let redirected = false;
   let initialized = false;
   let observedOwner = null;
-  const guestGuidance = profileMenu ? document.createElement('p') : null;
+  const guestGuidance = profileMenu ? document.createElement('div') : null;
+  const guestGuidanceTitle = guestGuidance && document.createElement('h2');
+  const guestGuidanceDetail = guestGuidance && document.createElement('p');
   if (guestGuidance) {
     guestGuidance.dataset.guestSignInGuidance = '';
     guestGuidance.hidden = true;
-    guestGuidance.setAttribute('role', 'status');
+    guestGuidanceTitle.tabIndex = -1;
+    guestGuidance.append(guestGuidanceTitle, guestGuidanceDetail);
     root.before(guestGuidance);
   }
   const syncGuestGuidance = () => {
     if (!guestGuidance) return;
     guestGuidance.hidden = pendingRequest === null;
-    guestGuidance.textContent = pendingRequest === null ? '' : t('auth.guestRequestGuidance');
+    if (!guestGuidance.hidden) {
+      guestGuidanceTitle.textContent = t('auth.guestRequestGuidanceTitle');
+      guestGuidanceDetail.textContent = t('auth.guestRequestGuidanceDetail');
+    }
   };
   const discard = () => {
     generation += 1;
@@ -367,7 +373,7 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
               if (profileMenu) {
                 syncGuestGuidance();
                 document.dispatchEvent(new CustomEvent('profile-control:open-for-guest-request'));
-                (root.querySelector('[name="code"]') || root.querySelector('[name="email"]'))?.focus();
+                (root.querySelector('[name="code"]') || guestGuidanceTitle).focus();
               } else {
                 guest.hide();
                 panel.hidden = false;
