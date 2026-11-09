@@ -98,9 +98,9 @@ try {
         if (mode === 'guest') {
           assert.equal(await page.locator('[data-auth-gate]').isVisible(), false);
           await page.locator('[data-guest-form] button').click();
-          await page.locator('#gateEmail').waitFor({ state: 'visible' });
+          await page.locator('#authEmail').waitFor({ state: 'visible' });
           assert.equal(await page.evaluate(() => syntheticAuth.emailCalls.length), 0);
-          await page.locator('[data-auth-back]').click();
+          await page.locator('[data-profile-trigger]').click();
           assert.equal(await input.inputValue(), 'Synthetic personalized draft');
           assert.equal(await input.evaluate(el => el === document.activeElement), true);
         }

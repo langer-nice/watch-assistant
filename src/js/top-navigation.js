@@ -201,30 +201,40 @@ export const initTopNavigation = ({ env = import.meta.env } = {}) => {
   const profileTrigger = navigation.querySelector('[data-profile-trigger]');
   const profileMenu = navigation.querySelector('[data-profile-menu]');
 
-  const openProfileMenu = () => {
-    document.dispatchEvent(new CustomEvent('profile-control:opening'));
+  const openProfileMenu = (guestRequest = false) => {
+    if (!profileMenu.hidden) return;
+    document.dispatchEvent(new CustomEvent('profile-control:opening', { detail: { guestRequest } }));
     profileMenu.hidden = false;
     profileTrigger.setAttribute('aria-expanded', 'true');
   };
 
+  const closeProfileMenu = (options) => {
+    if (profileMenu.hidden) return;
+    closePopover(profileMenu, profileTrigger, options);
+    document.dispatchEvent(new CustomEvent('profile-control:closed'));
+  };
+
+  document.addEventListener('profile-control:open-for-guest-request', () => openProfileMenu(true));
+  document.addEventListener('profile-control:close-after-sign-in', () => closeProfileMenu({ restoreFocus: false }));
+
   profileTrigger.addEventListener('click', () => {
     if (profileMenu.hidden) openProfileMenu();
-    else closePopover(profileMenu, profileTrigger);
+    else closeProfileMenu();
   });
 
   document.addEventListener('click', (event) => {
     if (profileMenu.hidden || navigation.contains(event.target)) return;
-    closePopover(profileMenu, profileTrigger, {
+    closeProfileMenu({
       restoreFocus: navigation.contains(document.activeElement),
     });
   });
 
   document.addEventListener('language-control:opening', () => {
-    closePopover(profileMenu, profileTrigger, { restoreFocus: false });
+    closeProfileMenu({ restoreFocus: false });
   });
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    if (!profileMenu.hidden) closePopover(profileMenu, profileTrigger);
+    if (!profileMenu.hidden) closeProfileMenu();
   });
 };

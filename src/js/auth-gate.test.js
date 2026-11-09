@@ -10,6 +10,7 @@ import { safeAuthReturn, getCallbackReturn, getCreationReturn } from './auth-ret
 import { createAuthSession, getMagicLinkRedirectUrl } from './auth-session.js';
 register('./test-support/json-module-loader.js', import.meta.url);
 const { initAuthUi, renderAuthState, authErrorKey, getAuthMode } = await import('./auth-ui.js');
+const { initTopNavigation } = await import('./top-navigation.js');
 const { setLanguage } = await import('./i18n.js');
 let originals;
 let interfaces = [];
@@ -30,7 +31,7 @@ const client = () => {
     },
   };
 };
-const setup = async (path = 'new-watch.html', htmlFile = 'new-watch.html') => {
+const setup = async (path = 'new-watch.html', htmlFile = 'new-watch.html', profile = false) => {
   const html = await readFile(new URL(`../../${htmlFile}`, import.meta.url), 'utf8');
   const { window, document } = parseHTML(html);
   // Match native digit-containing data attributes (Linkedom treats digits as word boundaries).
@@ -48,7 +49,8 @@ const setup = async (path = 'new-watch.html', htmlFile = 'new-watch.html') => {
   window.location = { href:url.href, pathname:url.pathname, search:url.search, hash:url.hash, reload:()=>redirects.push('reload'), replace:value=>redirects.push(value) };
   const accountMenu = document.createElement('div');
   accountMenu.innerHTML = '<button data-profile-trigger><span data-auth-label></span></button><div data-auth-root></div>';
-  document.body.prepend(accountMenu);
+  if (profile) initTopNavigation({env:{}});
+  else document.body.prepend(accountMenu);
   setLanguage('en', {persist:false});
   return { document, redirects };
 };
@@ -272,7 +274,7 @@ for (const flow of ['1', '2', '3', '4']) {
 }
 
 test('same-page OTP resumes the exact guest request once, only after resolved verification', async () => {
-  const {document}=await setup(); const mock=client(); const resumed=[];
+  const {document}=await setup('new-watch.html','new-watch.html',true); const mock=client(); const resumed=[];
   mock.auth.verifyOtp=async({email,token,type})=>{
     assert.equal(type,'email');assert.equal(token,'246810');
     const session={user:{id:'synthetic-a',email},access_token:'synthetic-token'};
@@ -283,14 +285,24 @@ test('same-page OTP resumes the exact guest request once, only after resolved ve
   const input=document.querySelector('#guestWatchInput'); input.value='  DISTINCTIVE PRIVATE REQUEST\n  second line  ';
   document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
   assert.equal(resumed.length,0);
-  await ui.auth.sendMagicLink('a@example.test');
-  const form=document.querySelector('[data-auth-gate] [data-auth-code-form]');form.reportValidity=()=>true;
+  assert.equal(document.querySelector('[data-profile-menu]').hidden,false);
+  assert.equal(document.querySelector('[data-auth-gate]').hidden,true);
+  assert.equal(document.querySelector('[data-guest-form]').closest('[hidden]'),null);
+  const emailForm=document.querySelector('[data-profile-menu] [data-auth-form]');
+  emailForm.reportValidity=()=>true;
+
+  assert.equal(emailForm.querySelector('button').textContent,'Send my code');
+  emailForm.querySelector('[name="email"]').value='a@example.test';
+  emailForm.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  const form=document.querySelector('[data-profile-menu] [data-auth-code-form]');form.reportValidity=()=>true;
   form.querySelector('[name="code"]').value=' 246810 ';
   form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.deepEqual(resumed,[['  DISTINCTIVE PRIVATE REQUEST\n  second line  ','synthetic-a']]);
   assert.equal(input.value,'');assert.equal(document.querySelector('#guestWatchInput'),null);
   assert.equal(form.querySelector('[name="code"]').value,'');
+  assert.equal(document.querySelector('[data-profile-menu]').hidden,true);
 });
 
 test('guest URL paste does not call analysis or persist, and history manipulation invalidates it', async()=>{
@@ -313,7 +325,7 @@ test('pagehide scrubs guest input and prevents detached submission',async()=>{
 });
 
 test('duplicate UI verification submissions cannot cancel the original authorized resume', async()=>{
-  const {document}=await setup();const mock=client();let finish;let calls=0;const resumed=[];
+  const {document}=await setup('new-watch.html','new-watch.html',true);const mock=client();let finish;let calls=0;const resumed=[];
   mock.auth.verifyOtp=()=>{calls++;return new Promise(resolve=>{finish=resolve;});};
   const ui=startUi({client:mock,env:{VITE_AUTH_MODE:'otp'},onResume:(...args)=>resumed.push(args)});
   mock.resolve();await ui.ready;ui.canEnterEditor();
@@ -321,7 +333,7 @@ test('duplicate UI verification submissions cannot cancel the original authorize
   document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
   await ui.auth.sendMagicLink('a@example.test');
   const submit=()=>{
-    const form=document.querySelector('[data-auth-gate] [data-auth-code-form]');form.reportValidity=()=>true;
+    const form=document.querySelector('[data-profile-menu] [data-auth-code-form]');form.reportValidity=()=>true;
     form.querySelector('[name="code"]').value='246810';form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
   };
   submit();submit();assert.equal(calls,1);
@@ -330,16 +342,16 @@ test('duplicate UI verification submissions cannot cancel the original authorize
 });
 
 test('returning to the guest request during verification invalidates the old creation action', async()=>{
-  const {document}=await setup();const mock=client();let finish;const resumed=[];
+  const {document}=await setup('new-watch.html','new-watch.html',true);const mock=client();let finish;const resumed=[];
   mock.auth.verifyOtp=()=>new Promise(resolve=>{finish=resolve;});
   const ui=startUi({client:mock,env:{VITE_AUTH_MODE:'otp'},onResume:(...args)=>resumed.push(args)});
   mock.resolve();await ui.ready;ui.canEnterEditor();
   const input=document.querySelector('#guestWatchInput');input.value='PRIVATE CANCELLED REQUEST';
   document.querySelector('[data-guest-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
   await ui.auth.sendMagicLink('a@example.test');
-  const form=document.querySelector('[data-auth-gate] [data-auth-code-form]');form.reportValidity=()=>true;
+  const form=document.querySelector('[data-profile-menu] [data-auth-code-form]');form.reportValidity=()=>true;
   form.querySelector('[name="code"]').value='246810';form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
-  document.querySelector('[data-auth-back]').click();
+  document.querySelector('[data-profile-trigger]').click();
   assert.equal(input.value,'PRIVATE CANCELLED REQUEST');
   mock.auth.getSession=async()=>({data:{session:null}});
   finish({data:{session:{user:{id:'synthetic-a',email:'a@example.test'},access_token:'synthetic-session'}}});
@@ -486,4 +498,24 @@ test('OTP paste keeps six digits, trims surrounding spaces and rejects longer co
   assert.equal(input.value, '246810');
   assert.equal(paste('1234567'), true);
   assert.equal(input.value, '246810');
+});
+
+test('direct profile OTP sign-in never resumes a typed but unsubmitted request', async()=>{
+  const {document,redirects}=await setup('new-watch.html','new-watch.html',true);
+  const mock=client();const resumed=[];
+  mock.auth.verifyOtp=async({email})=>({data:{session:{user:{id:'synthetic-a',email},access_token:'synthetic-session'}}});
+  const ui=startUi({client:mock,env:{VITE_AUTH_MODE:'otp'},onResume:(...args)=>resumed.push(args)});
+  mock.resolve();await ui.ready;ui.canEnterEditor();
+  document.querySelector('#guestWatchInput').value='Unsubmitted draft';
+  document.querySelector('[data-profile-trigger]').click();
+  assert.equal(document.querySelector('[data-profile-menu]').hidden,false);
+  await ui.auth.sendMagicLink('a@example.test');
+  const form=document.querySelector('[data-profile-menu] [data-auth-code-form]');
+  form.reportValidity=()=>true;
+
+  form.querySelector('[name="code"]').value='246810';
+  form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.deepEqual(resumed,[]);
+  assert.deepEqual(redirects,['reload']);
 });

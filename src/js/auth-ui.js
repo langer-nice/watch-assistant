@@ -110,6 +110,7 @@ export const initAuthUi = ({ env = import.meta.env, client: injectedClient, onRe
   const auth = createAuthSession({ client, location: window.location, mode: getAuthMode(env), resendSeconds: env?.VITE_AUTH_OTP_RESEND_SECONDS });
   configureAccountStorage(auth);
   const content = document.querySelector('[data-editor-content]');
+  const profileMenu = root?.closest('[data-profile-menu]');
   // Every page uses the same startup interface, even without an auth menu or
   // editor. The shared revealEditor guard decides whether there is work to reveal.
   const editRoute = new URLSearchParams(window.location.search).has('edit');
@@ -139,7 +140,7 @@ export const initAuthUi = ({ env = import.meta.env, client: injectedClient, onRe
   }
   const options = (creation = false) => ({ mode: auth.mode, creation, cooldown: auth.cooldownRemaining() });
   const renderPanel = (state) => {
-    if (!panel || enteredEditor) return;
+    if (!panel || panel.hidden || enteredEditor) return;
     const creation = Boolean(guest);
     panel.innerHTML = `
 ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id="authGateTitle">${t(creation ? 'auth.activateTitle' : 'auth.gateTitle')}</h1>
@@ -189,6 +190,7 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
       pendingRequest = null;
       guest.destroy(); guest = null;
       panel.hidden = true;
+      document.dispatchEvent(new CustomEvent('profile-control:close-after-sign-in'));
       queueMicrotask(() => { void onResume?.(request, owner); });
       return;
     }
@@ -272,7 +274,7 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
       let value = input.value;
       input.value = ''; // No retained OTP on detached controls or in page-cache state.
       const currentGeneration = generation;
-      verifyingHere = inPanel && Boolean(guest) && pendingRequest !== null;
+      verifyingHere = (inPanel || Boolean(profileMenu?.contains(form))) && Boolean(guest) && pendingRequest !== null;
       const result = await auth.verifyCode(value);
       value = '';
       if (verifyingHere && result.verifiedRequest && result.status === 'authenticated'
@@ -281,6 +283,7 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
         pendingRequest = null;
         guest.destroy(); guest = null;
         panel.hidden = true;
+        document.dispatchEvent(new CustomEvent('profile-control:close-after-sign-in'));
         await onResume?.(request, result.session.user.id);
       } else if (result.status === 'authenticated' && guest && !guest.isCurrent()) {
         discard(); window.location.replace('new-watch.html');
@@ -310,9 +313,16 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
       await auth.sendMagicLink(auth.getState().submittedEmail, { returnTo, language: getLanguage() });
     }
   });
-  document.addEventListener('profile-control:opening', () => {
+  document.addEventListener('profile-control:opening', event => {
     // Header authentication has no permission to resume a Watch submission.
-    if (guest) { generation += 1; pendingRequest = null; panel.hidden = true; guest.show(); auth.cancelChallenge(); }
+    if (guest && !event.detail?.guestRequest) { generation += 1; pendingRequest = null; panel.hidden = true; guest.show(); auth.cancelChallenge(); }
+  });
+  document.addEventListener('profile-control:closed', () => {
+    if (!guest || pendingRequest === null || !profileMenu) return;
+    generation += 1;
+    pendingRequest = null;
+    auth.cancelChallenge();
+    guest.show();
   });
   document.addEventListener('i18n:languageChanged', () => render(auth.getState()));
   const timer = window.setInterval(tick, 1000);
@@ -335,7 +345,19 @@ ${['code-sent', 'verifying', 'link-sent'].includes(state.status) ? '' : `<h1 id=
         content.querySelectorAll('input, textarea').forEach(el => { el.value = ''; el.defaultValue = ''; });
         if (!editRoute && ['anonymous', 'unavailable'].includes(auth.getState().status)) {
           guest = createGuestEditor({ content,
-            onSubmit(request) { pendingRequest = request; guest.hide(); panel.hidden = false; renderPanel(auth.getState()); focusEmail(true); },
+            onSubmit(request) {
+              if (pendingRequest !== null || auth.getState().status === 'verifying') return;
+              pendingRequest = request;
+              if (profileMenu) {
+                document.dispatchEvent(new CustomEvent('profile-control:open-for-guest-request'));
+                (root.querySelector('[name="code"]') || root.querySelector('[name="email"]'))?.focus();
+              } else {
+                guest.hide();
+                panel.hidden = false;
+                renderPanel(auth.getState());
+                focusEmail(true);
+              }
+            },
             onInvalidate() { generation += 1; pendingRequest = null; auth.cancelChallenge(); },
           });
         } else { panel.hidden = false; renderPanel(auth.getState()); }

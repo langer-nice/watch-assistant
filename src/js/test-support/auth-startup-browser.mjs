@@ -51,11 +51,11 @@ try {
     await input.fill('Synthetic startup draft');
     assert.equal(await page.locator('[data-auth-gate]').isVisible(), false);
     await page.locator('[data-guest-form] button').click();
-    await page.locator('#gateEmail').waitFor({ state: 'visible' });
-    assert.equal(await page.locator('[data-auth-gate] button[type="submit"]').innerText(), lang === 'fr' ? 'Recevoir un lien de connexion' : 'Email me a sign-in link');
+    await page.locator('[data-profile-menu] [name=email]').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('[data-profile-menu] button[type="submit"]').innerText(), lang === 'fr' ? 'Recevoir un lien de connexion' : 'Email me a sign-in link');
     assert.equal(await page.evaluate(() => syntheticAuth.emailCalls.length), 0);
     await page.screenshot({ path: `/tmp/hotfix-startup-${lang}-${viewport.width}.png`, fullPage: true });
-    await page.locator('[data-auth-back]').click(); assert.equal(await input.inputValue(), 'Synthetic startup draft');
+    await page.locator('[data-profile-trigger]').click(); assert.equal(await input.inputValue(), 'Synthetic startup draft');
     // A fresh document initialized with a mocked existing account must reveal the real editor.
     await page.evaluate(() => { localStorage.setItem('synthetic-preview-account', 'A'); localStorage.setItem('watchAssistant.onboardingCompleted', 'true'); });
     await page.goto(origin + '/new-watch.html');
