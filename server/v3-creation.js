@@ -114,8 +114,11 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
     }
     return send(200,{status:'READY_TO_MONITOR',id,engine,...(existing?{existing:true}:{}),persisted:true});
    };
+   const clarified=clarifications.length>0;
    stage='identity';
-   const existing=await client.rpc('create_v3_watch',{...identity,p_understanding:null,p_source:null,p_criteria:null,p_baseline:null});
+   const existing=await client.rpc('create_v3_watch',{
+    ...identity,p_understanding:clarified?{clarifications}:null,p_source:null,p_criteria:null,p_baseline:null,
+   });
    if(existing.error?.code==='PT409')return send(409,{code:'V3_CREATION_NOT_CONFIRMED'});
    if(existing.error)throw Error('V3 creation identity unavailable');
    if(existing.data)return await confirmed(existing.data,true);
@@ -131,7 +134,6 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    stage='intent';
    const intentModel=model||createResponsesModel({apiKey:env.OPENAI_API_KEY});
    let displayTitle;
-   const clarified=clarifications.length>0;
    const needsDisplayTitle=clarified||!v3CurrencyCriteria(body.instruction);
    const scopedModel=needsDisplayTitle?async request=>{
     const output=await intentModel(urlInput?.seed?articleStoryTitleRequest(request,urlInput.locale):watchTitleRequest(request));

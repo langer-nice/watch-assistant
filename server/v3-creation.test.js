@@ -383,6 +383,53 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   }
  });
 
+ await t.test('clarification identity gates both Watch reuse and persistence',async()=>{
+  const instruction='Nice to Monaco trains';
+  const request=answer=>({instruction,watchId:randomUUID(),clarifications:[{question:'What should I track?',answer}]});
+  const events=[];
+  const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,
+   feed:async url=>{events.push('feed');return feed(url);},
+   model:async req=>{
+    const [answer]=req.input.conversation;
+    events.push(answer);
+    assert.equal(req.input.capture.raw_input,instruction);
+    const result=ready(answer,['Nice to Monaco trains']);
+    result.intent.explicit_constraints=[{kind:'condition',text:answer,source_ref:'conversation:0'}];
+    return result;
+   }});
+  const first=request('New timetable announcements');
+  assert.equal((await invoke(first,handler)).id,first.watchId);
+  assert.deepEqual(events.splice(0),['New timetable announcements','feed']);
+
+  const repeat={...first,watchId:randomUUID()};
+  const reused=await invoke(repeat,handler);
+  assert.equal(reused.id,first.watchId);
+  assert.equal(reused.existing,true);
+  assert.equal((await invoke(first,handler)).id,first.watchId);
+  assert.deepEqual(events,[]);
+
+  const before=await Promise.all([count('watches'),count('structured_media_schedules')]);
+  const rejected=request('Notify me when booking availability opens');
+  const refusal=await invoke(rejected,handler);
+  assert.equal(refusal.status,'UNSUPPORTED_FOR_NOW');
+  assert.equal(refusal.id,undefined);
+  assert.deepEqual(events.splice(0),['Notify me when booking availability opens']);
+  assert.deepEqual(await Promise.all([count('watches'),count('structured_media_schedules')]),before);
+
+  const second=request('New station improvement announcements');
+  assert.equal((await invoke(second,handler)).id,second.watchId);
+  assert.deepEqual(events.splice(0),['New station improvement announcements','feed']);
+  assert.deepEqual(await Promise.all([count('watches'),count('structured_media_schedules')]),before.map(n=>n+1));
+  const {rows}=await db.query('select watch_id,instruction,understanding from public.v3_pilot_watches where watch_id in ($1,$2)',[first.watchId,second.watchId]);
+  for(const body of [first,second]){
+   const row=rows.find(r=>r.watch_id===body.watchId);
+   assert.equal(row.instruction,instruction);
+   assert.deepEqual(row.understanding.clarifications,body.clarifications);
+  }
+  assert.equal((await invoke({...second,watchId:repeat.watchId},handler)).http,409);
+  assert.deepEqual(events,[]);
+ });
+
  await t.test('same instruction is independent across owners and a bound token cannot change payload or owner',async()=>{
   const instruction='Keep me updated on Jannik Sinner.';
   const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:other}}),serviceClient:client,
