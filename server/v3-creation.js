@@ -60,15 +60,18 @@ export function v3Capability(capture,understanding,{clarified=false}={}){
  const criteria=v3CurrencyCriteria(text);
  if(criteria)return {source:pilotSource({currency:true}),criteria};
  if(isCurrencyRequest(text))return {decision:unsupported('This exchange-rate condition is not supported by the existing ECB connector.')};
+ if(!clarified&&unsupportedCapabilityTerms.test(text))return {decision:unsupported(V3_LIMITATION)};
  const resources=[...new Set([understanding.resource?.exact_url,...understanding.intent.references.map(r=>r.exact_url)].filter(Boolean))];
- let capabilityText=capabilityTextWithoutExclusions(text,constraints);
- for(const url of resources){
-  const literal=url.replace(/[.*+?^\u0024{}()|[\]\\]/g,'\\$&');
-  // Match the recognized URL as a whole, allowing trailing prose punctuation.
-  const exactUrl=new RegExp('(^|[\\s<("«\\[])'+literal+'(?=[.,!?;:)\\]»]*($|[\\s>"»]))','gu');
-  capabilityText=capabilityText.replace(exactUrl,'$1 ');
+ if(clarified){
+  let capabilityText=capabilityTextWithoutExclusions(text,constraints);
+  for(const url of resources){
+   const literal=url.replace(/[.*+?^\u0024{}()|[\]\\]/g,'\\$&');
+   // Match the recognized URL as a whole, allowing trailing prose punctuation.
+   const exactUrl=new RegExp('(^|[\\s<("«\\[])'+literal+'(?=[.,!?;:)\\]»]*($|[\\s>"»]))','gu');
+   capabilityText=capabilityText.replace(exactUrl,'$1 ');
+  }
+  if(unsupportedCapabilityTerms.test(capabilityText))return {decision:unsupported(V3_LIMITATION)};
  }
- if(unsupportedCapabilityTerms.test(capabilityText))return {decision:unsupported(V3_LIMITATION)};
  if(resources.length>1)return {decision:unsupported('Only one explicit RSS/Atom resource can be monitored per Watch.')};
  if(resources.length===1){
   const url=new URL(resources[0]);if(url.protocol!=='https:'||url.username||url.password)return {decision:unsupported('A public HTTPS RSS/Atom feed is required.')};
@@ -126,7 +129,7 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    let urlInput;
    if(kind==='URL'){
     stage='url';
-    try{urlInput=await resolveV3UrlCapture(capture,{feed,pageMetadata,storyLocale:()=>resolveV3OutputLocale({client,ownerId:user.id})});}
+    try{urlInput=await resolveV3UrlCapture(capture,{feed,pageMetadata,deferExplicitFeed:clarified,storyLocale:()=>resolveV3OutputLocale({client,ownerId:user.id})});}
     catch(error){if(['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','INVALID_FEED_FORMAT'].includes(error.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));throw error;}
     if(urlInput.decision)return send(200,urlInput.decision);
     capture=urlInput.capture;
@@ -160,7 +163,7 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    let baseline;
    try{baseline=await evaluateV3Source({id:body.watchId,understanding,criteria:capability.criteria,prior_state:{entries:[]},baseline_at:null},capability.source,{feed:urlInput?.baselineFeed||feed,currency});}
    catch(e){
-    if(kind==='URL'&&e.code==='ACCESS_DENIED')return send(200,unsupported('This public feed or article denied access. No access restrictions were bypassed.'));
+    if(clarified&&kind==='URL'&&e.code==='ACCESS_DENIED')return send(200,unsupported('This public feed or article denied access. No access restrictions were bypassed.'));
     if(kind==='URL'&&['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','UNSUPPORTED_CONTENT_TYPE','INVALID_FEED_FORMAT','NOT_A_FEED'].includes(e.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));
     throw e;
    }
