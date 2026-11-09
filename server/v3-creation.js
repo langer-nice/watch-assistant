@@ -35,15 +35,32 @@ const hasUnsupportedConstraint=constraints=>constraints.some(({kind,text,value})
  kind!=='exclusion'&&kind!=='exact_resource'&&
  (unsupportedCapabilityTerms.test(text)||(value!==undefined&&unsupportedCapabilityTerms.test(value))));
 
+function capabilityTextWithoutExclusions(canonicalText,constraints){
+ const exclusionPrefix='(?:exclude|excluding|exclure|excluez)\\s+';
+ const startsWithExclusion=new RegExp('^'+exclusionPrefix,'iu');
+ let checkText=canonicalText;
+ for(const {kind,text} of constraints){
+  if(kind!=='exclusion')continue;
+  const phrase=text.trim();
+  if(!phrase)continue;
+  const literal=phrase.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  // A bare excluded term is masked only where the canonical text explicitly excludes it.
+  const clause=startsWithExclusion.test(phrase)?literal:exclusionPrefix+literal;
+  checkText=checkText.replace(new RegExp('(^|[.!?;]\\s*)'+clause+'(?![\\p{L}\\p{N}_])','giu'),'$1 ');
+ }
+ return checkText;
+}
+
 export function v3Capability(capture,understanding,{clarified=false}={}){
  // Connector routing uses the canonical text. Also check grounded requirements
  // before routing so a paraphrase cannot hide an unsupported capability.
  const text=clarified?understanding.intent.canonical_text:capture.raw_input;
- if(clarified&&hasUnsupportedConstraint(understanding.intent.explicit_constraints??[]))return {decision:unsupported(V3_LIMITATION)};
+ const constraints=clarified?(understanding.intent.explicit_constraints??[]):[];
+ if(hasUnsupportedConstraint(constraints))return {decision:unsupported(V3_LIMITATION)};
  const criteria=v3CurrencyCriteria(text);
  if(criteria)return {source:pilotSource({currency:true}),criteria};
  if(isCurrencyRequest(text))return {decision:unsupported('This exchange-rate condition is not supported by the existing ECB connector.')};
- if(unsupportedCapabilityTerms.test(text))return {decision:unsupported(V3_LIMITATION)};
+ if(unsupportedCapabilityTerms.test(capabilityTextWithoutExclusions(text,constraints)))return {decision:unsupported(V3_LIMITATION)};
  const resources=[...new Set([understanding.resource?.exact_url,...understanding.intent.references.map(r=>r.exact_url)].filter(Boolean))];
  if(resources.length>1)return {decision:unsupported('Only one explicit RSS/Atom resource can be monitored per Watch.')};
  if(resources.length===1){

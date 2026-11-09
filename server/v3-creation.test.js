@@ -308,7 +308,7 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
  await t.test('clarification options and answers share the normal model call and persist only on ready',async()=>{
   const instruction='Blackburn Rovers',watchId=randomUUID(),question='Which developments matter?';
   const answer='Injury updates only. Exclude booking availability.',clarifications=[{question,answer}];
-  const intent={...ready('Follow Blackburn Rovers injury updates only.',['Blackburn Rovers']).intent,
+  const intent={...ready('Follow Blackburn Rovers injury updates only. Exclude booking availability.',['Blackburn Rovers']).intent,
    explicit_constraints:[{kind:'condition',text:'Injury updates only',source_ref:'conversation:0'},
     {kind:'exclusion',text:'Exclude booking availability',source_ref:'conversation:0'}]};
   let calls=0;
@@ -359,5 +359,18 @@ test('capability connector retains exact comparison and rejects unimplemented co
  for(const canonical_text of [cases[6][1],text]){
   const understanding={intent:ready(canonical_text).intent};
   assert.deepEqual(v3Capability(vague,understanding,{clarified:true}),v3Capability({raw_input:canonical_text},understanding));
+ }
+});
+
+
+test('an explicit exclusion does not hide a separate positive occurrence in clarified text',()=>{
+ const capture={raw_input:'Blackburn Rovers'};
+ for(const text of ['Exclude booking availability','booking availability']){
+  const intent={
+   canonical_text:'Follow Blackburn Rovers injury updates. Exclude booking availability. Alert me when booking availability opens.',
+   references:[{label:'Blackburn Rovers',source_ref:'raw_input'}],
+   explicit_constraints:[{kind:'exclusion',text,source_ref:'conversation:0'}],
+  };
+  assert.equal(v3Capability(capture,{intent},{clarified:true}).decision.status,'UNSUPPORTED_FOR_NOW');
  }
 });
