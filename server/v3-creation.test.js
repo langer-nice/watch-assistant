@@ -116,6 +116,29 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   const failFeed=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,model,feed:async()=>{throw Error('Feed down');}});
   assert.equal((await invoke({watchId:randomUUID(),instruction:'Follow another company.'},failFeed)).http,503);await noWrite();
  });
+ await t.test('empty baseline after clarification is actionable and leaves no Watch or schedule',async()=>{
+  const instruction='french trains nice to monaco';
+  const clarifications=[{question:'What would you like to track?',answer:'delays and cancellations'}];
+  const events=[];
+  const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),
+   serviceClient:{...client,rpc:async(name,args)=>{
+    assert.equal(args.p_baseline,null,'must stop before persistence');
+    return client.rpc(name,args);
+   }},
+   model:async req=>{
+    events.push('model');
+    assert.equal(req.input.capture.raw_input,instruction);
+    return ready('Follow news about delays and cancellations on trains between Nice and Monaco.',['Nice to Monaco']);
+   },
+   feed:async()=>{events.push('feed');throw Object.assign(Error('No initial items'),{code:'EMPTY_FEED'});},
+  });
+  const body={watchId:randomUUID(),instruction};
+  assert.deepEqual(await invoke({...body,clarifications},handler),{http:422,code:'V3_CLARIFICATION_EMPTY_FEED'});
+  assert.deepEqual(events.splice(0),['model','feed']);
+  assert.deepEqual(await invoke(body,handler),{http:503,code:'V3_CREATION_UNAVAILABLE'});
+  assert.deepEqual(events,['model','feed']);
+  await noWrite();
+ });
  await t.test('client cannot supply owner, engine or admitted Intent; auth cannot bypass',async()=>{
   for(const extra of [{owner:other},{engine:V3_ENGINE},{understanding:output}])assert.equal((await invoke({watchId:randomUUID(),instruction:'A request',...extra})).http,400);
   const failAuth=createV3WatchHandler({env,authenticate:async()=>{throw Object.assign(Error('auth'),{statusCode:401,code:'INVALID_SESSION'});}});

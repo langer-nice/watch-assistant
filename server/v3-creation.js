@@ -163,6 +163,7 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    let baseline;
    try{baseline=await evaluateV3Source({id:body.watchId,understanding,criteria:capability.criteria,prior_state:{entries:[]},baseline_at:null},capability.source,{feed:urlInput?.baselineFeed||feed,currency});}
    catch(e){
+    if(clarified&&e.code==='EMPTY_FEED')return send(422,{code:'V3_CLARIFICATION_EMPTY_FEED'});
     if(clarified&&kind==='URL'&&e.code==='ACCESS_DENIED')return send(200,unsupported('This public feed or article denied access. No access restrictions were bypassed.'));
     if(kind==='URL'&&['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','UNSUPPORTED_CONTENT_TYPE','INVALID_FEED_FORMAT','NOT_A_FEED'].includes(e.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));
     throw e;
