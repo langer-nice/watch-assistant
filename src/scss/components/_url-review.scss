@@ -366,3 +366,39 @@
     .structured-review-actions { grid-template-columns: minmax(0, 1fr); }
   }
 }
+
+[data-v3-clarification] {
+  .watch-clarification-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+  }
+
+  .watch-clarification-options:empty { display: none; }
+
+  .watch-clarification-options .button {
+    width: auto;
+    margin: 0;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .watch-clarification-options [aria-pressed='true'] {
+    outline: 2px solid var(--color-action);
+    outline-offset: -2px;
+  }
+
+  textarea {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .watch-clarification-edit {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    text-decoration: underline;
+  }
+}

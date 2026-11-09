@@ -11,6 +11,9 @@ export function createDecision(input, intent) {
     throw new TypeError('Only clarification may include questions, suggestions or unresolved ambiguity');
   }
   const suggestions = input.suggestions === undefined ? undefined :
-    list(input.suggestions, 'suggestions').map(value => string(value, 'suggestion'));
+    [...new Map(list(input.suggestions, 'suggestions')
+      .map(value => string(value, 'suggestion').trim())
+      .filter(value => value.length > 0 && value.length <= 80 && !/[\r\n]/u.test(value))
+      .map(value => [value.toLowerCase(), value])).values()].slice(0, 5);
   return freeze({ ...input, ...(suggestions ? { suggestions } : {}) });
 }

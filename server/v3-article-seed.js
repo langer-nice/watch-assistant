@@ -13,10 +13,12 @@ export function articleStoryTitleRequest(request,locale){
 
 // Reuse the public-URL/redirect/size/deadline protections of the existing
 // feed and page readers. Never fetch a canonical URL or bypass an access gate.
-export async function resolveV3UrlCapture(capture,{feed,pageMetadata=fetchPageMetadata,storyLocale=async()=> 'en'}){
+export async function resolveV3UrlCapture(capture,{feed,pageMetadata=fetchPageMetadata,storyLocale=async()=> 'en',deferExplicitFeed=false}){
  let parsed;
  try{parsed=new URL(capture.raw_input);}catch{return unsupported('A valid public HTTPS feed or article URL is required.');}
  if(parsed.protocol!=='https:'||parsed.username||parsed.password)return unsupported('A public HTTPS feed or article URL is required.');
+ // An explicit feed needs no discovery. The baseline reads it after capability validation.
+ if(deferExplicitFeed&&/\.(?:rss|atom)$/i.test(parsed.pathname))return {capture};
  try{
   const initial=await feed(capture.raw_input);
   return {capture,baselineFeed:async url=>url===capture.raw_input?initial:feed(url)};

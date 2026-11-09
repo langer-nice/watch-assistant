@@ -87,7 +87,79 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
  listen(input,'input',invalidateInput);
  listen(noteInput,'input',invalidateInput);
  listen(document,'i18n:languageChanged',clear);
- const run=async(original,language,revalidation)=>{
+ const showClarification=(result,original,language,clarifications)=>{
+  const fr=language==='fr', question=result.clarification_question||labels().clarify;
+  const view=show(question,[{label:fr?'Demande originale':'Original request',value:original}]);
+  view.dataset.v3Clarification='';
+  view.prepend(view.querySelector('.structured-review-field'));
+  const limit=clarifications.length>=3;
+  if(limit){
+   const guidance=document.createElement('p');
+   guidance.textContent=fr
+    ? 'Modifiez la demande originale pour y ajouter les précisions utiles.'
+    : 'Edit the original request to include the relevant details.';
+   view.append(guidance);
+  }else{
+   const choices=document.createElement('div');
+   choices.className='watch-clarification-options';
+   const selected=new Set();
+   const label=document.createElement('label');
+   label.textContent=fr?'Votre réponse':'Your answer';
+   const answer=document.createElement('textarea');
+   answer.rows=2;
+   answer.maxLength=500;
+   answer.placeholder=fr?'Précisez ce que vous souhaitez suivre…':'Type what you want to monitor…';
+   label.append(answer);
+   let next;
+   const sync=()=>{next.disabled=!selected.size&&!answer.value.trim();};
+   const controls=[];
+   for(const option of result.clarification_options||[]){
+    const chip=document.createElement('button');
+    chip.type='button';
+    chip.className='button button--secondary';
+    chip.textContent=option;
+    chip.setAttribute('aria-pressed','false');
+    listen(chip,'click',()=>{
+     if(selected.has(option))selected.delete(option);
+     else selected.add(option);
+     chip.setAttribute('aria-pressed',String(selected.has(option)));
+     sync();
+    });
+    choices.append(chip);
+    controls.push(chip);
+   }
+   if(clarifications.length){
+    const guidance=document.createElement('p');
+    guidance.textContent=fr
+     ? 'Précisez votre réponse ci-dessous, puis sélectionnez Continuer.'
+     : 'Add the missing detail to your answer below, then select Continue.';
+    view.append(guidance);
+   }
+   view.append(choices,label);
+   next=button(fr?'Continuer':'Continue',async()=>{
+    if(busy)return;
+    const response=[...selected,answer.value.trim()].filter(Boolean).join('\n');
+    if(!response)return;
+    const round={question:question.slice(0,400),answer:response};
+    for(const control of [...controls,answer,next,back])control.disabled=true;
+    try{await run(original,language,undefined,[...clarifications,round]);}
+    finally{
+     if(panel===view){
+      for(const control of [...controls,answer,back])control.disabled=false;
+      sync();
+     }
+    }
+   },true);
+   listen(answer,'input',sync);
+   sync();
+  }
+  const back=button(fr?'Modifier la demande originale':'Edit original request',()=>{
+   message('');
+   edit();
+  });
+  back.classList.add('watch-clarification-edit');
+ };
+ const run=async(original,language,revalidation,clarifications=[])=>{
   if(busy||v3CreatedResult)return true;
   if(!enabled){const epoch=generation;busy=true;try{await accessReady;}finally{busy=false;}if(epoch!==generation)return true;}
   if(!enabled)return false;
@@ -99,7 +171,10 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
    presentation.start();
    try{
     const captureKind=/^https:\/\/\S+$/i.test(original.trim())?'URL':'FREE_TEXT';
-    const result=await request('/api/v3-pilot',{instruction:original,watchId:v3Submission.id,captureKind});
+    const result=await request('/api/v3-pilot',{
+     instruction:original,watchId:v3Submission.id,captureKind,
+     ...(clarifications.length?{clarifications}:{}),
+    });
     if(!ready(epoch,owner,original,language))return true;
     if(result.status==='READY_TO_MONITOR'&&result.id){
      v3CreatedResult=result;
@@ -113,8 +188,12 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
      if(!readable){terminal();return true;}
      presentation.navigating(result.id);window.location.href='watch-detail.html?id='+encodeURIComponent(result.id);return true;
     }
-    if(result.status==='NEEDS_CLARIFICATION'){message(result.clarification_question||labels().clarify);return true;}
-    if(result.status==='UNSUPPORTED_FOR_NOW'){message(labels().unsupported+' '+(result.reason||''));return true;}
+    if(result.status==='NEEDS_CLARIFICATION'){
+     message('');
+     showClarification(result,original,language,clarifications);
+     return true;
+    }
+    if(result.status==='UNSUPPORTED_FOR_NOW'){clear();message(labels().unsupported+' '+(result.reason||''));return true;}
     throw Error('Invalid V3 response');
    }catch(e){if(ready(epoch,owner,original,language))message(e.code==='V3_CREATION_UNAVAILABLE'
     ? (language==='fr'?'La création n’a pas pu être confirmée. Votre texte est conservé.':'Creation could not be confirmed. Your text has been kept.')
@@ -213,5 +292,5 @@ export const initStructuredWatchCreation = ({form,input,noteInput,error,getLangu
   return true;
  };
  const accessReady=access();
- return {run,runV3:async(original,language)=>{await accessReady;return v3Owner?run(original,language):false;},invalidate:clear,isEnabled:()=>enabled};
+ return {run,runV3:async(original,language)=>{await accessReady;return v3Owner?(panel?.hasAttribute('data-v3-clarification')||run(original,language)):false;},invalidate:clear,isEnabled:()=>enabled};
 };

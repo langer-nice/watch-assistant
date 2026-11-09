@@ -169,7 +169,7 @@ for(const outcome of ['READY_TO_MONITOR','NEEDS_CLARIFICATION','UNSUPPORTED_FOR_
  assert.equal(await controller.runV3(original,'en'),true);assert.equal(input.value,original);
  assert.deepEqual(calls.map(c=>c.path),['/api/structured-watches','/api/v3-pilot']);assert.deepEqual(calls[1].body,{instruction:original,watchId:id,captureKind:'FREE_TEXT'});
  if(outcome==='READY_TO_MONITOR')assert.match(window.location.href,/watch-detail.html\?id=/);
- else{assert.equal(window.location.href,'');assert.match(error.textContent,outcome==='NEEDS_CLARIFICATION'?/Which company/:outcome==='UNSUPPORTED_FOR_NOW'?/cannot be monitored yet/:/Creation could not be confirmed/);}
+ else{assert.equal(window.location.href,'');assert.match(outcome==='NEEDS_CLARIFICATION'?form.querySelector('[data-v3-clarification] h2').textContent:error.textContent,outcome==='NEEDS_CLARIFICATION'?/Which company/:outcome==='UNSUPPORTED_FOR_NOW'?/cannot be monitored yet/:/Creation could not be confirmed/);}
  if(outcome==='technical'){await controller.runV3(original,'en');assert.equal(calls[2].body.watchId,id);}
 });
 

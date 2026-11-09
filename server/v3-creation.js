@@ -30,13 +30,48 @@ export function v3CurrencyCriteria(text){
  const m=text.trim().match(/^(?:tell me when |alert me when )?(GBP|EUR)\/(GBP|EUR) (?:goes |is )?(above|strictly above|at least) (\d+(?:[.,]\d+)?)\.?$/i);
  return m?parseCurrencyRequest(`${m[1]} ${m[3].toLowerCase()==='at least'?'>=':'>'} ${m[4]} ${m[2]}`):null;
 }
-export function v3Capability(capture,understanding){
- const text=capture.raw_input;
+const unsupportedCapabilityTerms=/\b(?:booking|availability|inventory|in stock|stock price|weather|private page)\b|disponibilit[ée]|r[ée]servation/i;
+const hasUnsupportedConstraint=constraints=>constraints.some(({kind,text,value})=>
+ kind!=='exclusion'&&kind!=='exact_resource'&&
+ (unsupportedCapabilityTerms.test(text)||(value!==undefined&&unsupportedCapabilityTerms.test(value))));
+
+function capabilityTextWithoutExclusions(canonicalText,constraints){
+ const exclusionPrefix='(?:exclude|excluding|exclure|excluez)\\s+';
+ const startsWithExclusion=new RegExp('^'+exclusionPrefix,'iu');
+ let checkText=canonicalText;
+ for(const {kind,text} of constraints){
+  if(kind!=='exclusion')continue;
+  const phrase=text.trim();
+  if(!phrase)continue;
+  const literal=phrase.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  // A bare excluded term is masked only where the canonical text explicitly excludes it.
+  const clause=startsWithExclusion.test(phrase)?literal:exclusionPrefix+literal;
+  checkText=checkText.replace(new RegExp('(^|[.!?;]\\s*)'+clause+'(?![\\p{L}\\p{N}_])','giu'),'$1 ');
+ }
+ return checkText;
+}
+
+export function v3Capability(capture,understanding,{clarified=false}={}){
+ // Connector routing uses the canonical text. Also check grounded requirements
+ // before routing so a paraphrase cannot hide an unsupported capability.
+ const text=clarified?understanding.intent.canonical_text:capture.raw_input;
+ const constraints=clarified?(understanding.intent.explicit_constraints??[]):[];
+ if(hasUnsupportedConstraint(constraints))return {decision:unsupported(V3_LIMITATION)};
  const criteria=v3CurrencyCriteria(text);
  if(criteria)return {source:pilotSource({currency:true}),criteria};
  if(isCurrencyRequest(text))return {decision:unsupported('This exchange-rate condition is not supported by the existing ECB connector.')};
- if(/\b(?:booking|availability|inventory|in stock|stock price|weather|private page)\b|disponibilit[ée]|r[ée]servation/i.test(text))return {decision:unsupported(V3_LIMITATION)};
+ if(!clarified&&unsupportedCapabilityTerms.test(text))return {decision:unsupported(V3_LIMITATION)};
  const resources=[...new Set([understanding.resource?.exact_url,...understanding.intent.references.map(r=>r.exact_url)].filter(Boolean))];
+ if(clarified){
+  let capabilityText=capabilityTextWithoutExclusions(text,constraints);
+  for(const url of resources){
+   const literal=url.replace(/[.*+?^\u0024{}()|[\]\\]/g,'\\$&');
+   // Match the recognized URL as a whole, allowing trailing prose punctuation.
+   const exactUrl=new RegExp('(^|[\\s<("«\\[])'+literal+'(?=[.,!?;:)\\]»]*($|[\\s>"»]))','gu');
+   capabilityText=capabilityText.replace(exactUrl,'$1 ');
+  }
+  if(unsupportedCapabilityTerms.test(capabilityText))return {decision:unsupported(V3_LIMITATION)};
+ }
  if(resources.length>1)return {decision:unsupported('Only one explicit RSS/Atom resource can be monitored per Watch.')};
  if(resources.length===1){
   const url=new URL(resources[0]);if(url.protocol!=='https:'||url.username||url.password)return {decision:unsupported('A public HTTPS RSS/Atom feed is required.')};
@@ -62,7 +97,12 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    let body=req.body;
    if(body===undefined){let raw='';for await(const c of req){raw+=c;if(Buffer.byteLength(raw)>12000)return send(413,{code:'INVALID_BODY'});}body=JSON.parse(raw);}
    if(typeof body==='string')body=JSON.parse(body);
-   if(!body||Object.keys(body).some(k=>!['instruction','watchId','captureKind'].includes(k))||!uuid.test(body.watchId)||typeof body.instruction!=='string'||!body.instruction.trim()||body.instruction.length>500)return send(400,{code:'INVALID_BODY'});
+   if(!body||Object.keys(body).some(k=>!['instruction','watchId','captureKind','clarifications'].includes(k))||!uuid.test(body.watchId)||typeof body.instruction!=='string'||!body.instruction.trim()||body.instruction.length>500)return send(400,{code:'INVALID_BODY'});
+   const clarifications=body.clarifications===undefined?[]:body.clarifications;
+   if(!Array.isArray(clarifications)||clarifications.length>3||clarifications.some(turn=>
+    !turn||typeof turn!=='object'||Object.keys(turn).some(key=>!['question','answer'].includes(key))||
+    typeof turn.question!=='string'||!turn.question.trim()||turn.question.length>400||
+    typeof turn.answer!=='string'||!turn.answer.trim()||turn.answer.length>905))return send(400,{code:'INVALID_BODY'});
    const kind=body.captureKind||'FREE_TEXT';if(!['FREE_TEXT','URL'].includes(kind))return send(400,{code:'INVALID_BODY'});
    const client=serviceClient||createSupabaseServiceClient({env});
    const identity={p_id:body.watchId,p_owner:user.id,p_instruction:body.instruction,p_kind:kind};
@@ -77,8 +117,11 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
     }
     return send(200,{status:'READY_TO_MONITOR',id,engine,...(existing?{existing:true}:{}),persisted:true});
    };
+   const clarified=clarifications.length>0;
    stage='identity';
-   const existing=await client.rpc('create_v3_watch',{...identity,p_understanding:null,p_source:null,p_criteria:null,p_baseline:null});
+   const existing=await client.rpc('create_v3_watch',{
+    ...identity,p_understanding:clarified?{clarifications}:null,p_source:null,p_criteria:null,p_baseline:null,
+   });
    if(existing.error?.code==='PT409')return send(409,{code:'V3_CREATION_NOT_CONFIRMED'});
    if(existing.error)throw Error('V3 creation identity unavailable');
    if(existing.data)return await confirmed(existing.data,true);
@@ -86,7 +129,7 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    let urlInput;
    if(kind==='URL'){
     stage='url';
-    try{urlInput=await resolveV3UrlCapture(capture,{feed,pageMetadata,storyLocale:()=>resolveV3OutputLocale({client,ownerId:user.id})});}
+    try{urlInput=await resolveV3UrlCapture(capture,{feed,pageMetadata,deferExplicitFeed:clarified,storyLocale:()=>resolveV3OutputLocale({client,ownerId:user.id})});}
     catch(error){if(['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','INVALID_FEED_FORMAT'].includes(error.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));throw error;}
     if(urlInput.decision)return send(200,urlInput.decision);
     capture=urlInput.capture;
@@ -94,25 +137,36 @@ export function createV3WatchHandler({env=process.env,authenticate=authenticateS
    stage='intent';
    const intentModel=model||createResponsesModel({apiKey:env.OPENAI_API_KEY});
    let displayTitle;
-   const needsDisplayTitle=!v3CurrencyCriteria(body.instruction);
+   const needsDisplayTitle=clarified||!v3CurrencyCriteria(body.instruction);
    const scopedModel=needsDisplayTitle?async request=>{
     const output=await intentModel(urlInput?.seed?articleStoryTitleRequest(request,urlInput.locale):watchTitleRequest(request));
     const {display_title,...semantic}=output;displayTitle=display_title;return semantic;
    }:intentModel;
-   let understanding=await understandCapture(capture,[],{model:scopedModel,limitations:[V3_LIMITATION]});
-   if(understanding.decision.status!=='READY_TO_MONITOR')return send(200,{...understanding.decision});
+   let understanding=await understandCapture(capture,clarifications.map(turn=>turn.answer),{
+    model:scopedModel,limitations:[V3_LIMITATION],clarificationQuestions:clarifications.map(turn=>turn.question),
+   });
+   if(understanding.decision.status==='NEEDS_CLARIFICATION'){
+    const {suggestions,...decision}=understanding.decision;
+    return send(200,{...decision,...(suggestions?.length?{clarification_options:suggestions}:{})});
+   }
+   if(understanding.decision.status!=='READY_TO_MONITOR')return send(200,understanding.decision);
    if(urlInput?.seed){
     if(understanding.resource||understanding.intent.references.some(r=>r.exact_url)||understanding.intent.explicit_constraints.some(c=>c.kind==='exact_resource'))return send(200,unsupported('This article must identify a story to follow, rather than require monitoring changes to the exact page.'));
     understanding={...understanding,story_seed:urlInput.seed};
    }
-   const capability=v3Capability(capture,understanding);if(capability.decision)return send(200,capability.decision);
-   if(needsDisplayTitle)understanding={...understanding,display_title:validateWatchTitle(displayTitle)};
+   const capability=v3Capability(capture,understanding,{clarified});if(capability.decision)return send(200,capability.decision);
+   if(needsDisplayTitle&&!capability.criteria)understanding={...understanding,display_title:validateWatchTitle(displayTitle)};
+   if(clarified)understanding={...understanding,clarifications};
    // Acquire baseline before any write. The single SQL RPC commits all records
    // together; a provider/source/validation failure leaves no partial Watch.
    stage='baseline';
    let baseline;
    try{baseline=await evaluateV3Source({id:body.watchId,understanding,criteria:capability.criteria,prior_state:{entries:[]},baseline_at:null},capability.source,{feed:urlInput?.baselineFeed||feed,currency});}
-   catch(e){if(kind==='URL'&&['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','UNSUPPORTED_CONTENT_TYPE','INVALID_FEED_FORMAT','NOT_A_FEED'].includes(e.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));throw e;}
+   catch(e){
+    if(clarified&&kind==='URL'&&e.code==='ACCESS_DENIED')return send(200,unsupported('This public feed or article denied access. No access restrictions were bypassed.'));
+    if(kind==='URL'&&['INVALID_FEED','UNSUPPORTED_FEED','INVALID_XML','FEED_PARSE_ERROR','UNSUPPORTED_CONTENT_TYPE','INVALID_FEED_FORMAT','NOT_A_FEED'].includes(e.code))return send(200,unsupported('This resource is not a supported public RSS/Atom feed.'));
+    throw e;
+   }
    stage='persistence';
    const saved=await client.rpc('create_v3_watch',{...identity,p_understanding:understanding,p_source:capability.source,p_criteria:capability.criteria||null,p_baseline:baseline});
    if(saved.error?.code==='PT409')return send(409,{code:'V3_CREATION_NOT_CONFIRMED'});
