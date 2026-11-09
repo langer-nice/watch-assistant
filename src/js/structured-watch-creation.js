@@ -36,6 +36,9 @@ const limitations = {
 export const structuredCreationError = (code,language) => {
  const c=copy[language==='fr'?'fr':'en'];
  if(code==='V3_CREATION_DELETED')return language==='fr'?'La Watch précédente pour cette demande a été supprimée. Aucune nouvelle Watch n’a été créée.':'The previous Watch for this request was deleted. No new Watch was created.';
+ if(code==='V3_CLARIFICATION_EMPTY_FEED')return language==='fr'
+  ? 'Nous n’avons trouvé aucune information initiale pour cette Watch. Votre demande est conservée. Vous pouvez la modifier ou réessayer.'
+  : 'We couldn’t find any initial information for this Watch yet. Your request has been kept so you can edit it or try again.';
  if(code==='V3_CREATION_NOT_CONFIRMED')return language==='fr'?'La création n’a pas pu être confirmée. Votre texte est conservé.':'Creation could not be confirmed. Your request has been kept.';
  if(code==='ROLE_EVIDENCE_UNAVAILABLE')return language==='fr'?'Le titulaire actuel n’a pas pu être vérifié auprès de la source officielle. Réessayez plus tard ; aucune identité n’a été supposée.':'The current holder could not be verified with the official source. Try again later; no identity was assumed.';
  if (['AUTH_REQUIRED','INVALID_SESSION','AUTH_SESSION_CHANGED','AUTH_UNAVAILABLE'].includes(code)) return c.auth;
