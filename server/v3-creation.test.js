@@ -268,11 +268,12 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   const canonical='Notify me when booking availability opens for Nice to Monaco trains.';
   const clarifications=[
    {question:'What do you want to follow?',answer:'Reservations'},
-   {question:'Which reservation event?',answer:'Booking availability opens'},
+   {question:'Which reservation event?',answer:'Notify me when booking availability opens'},
   ];
   const expectedCalls=[
    {instruction:canonical,answers:[]},
    {instruction:original,answers:clarifications.slice(0,1).map(turn=>turn.answer)},
+   {instruction:original,answers:clarifications.map(turn=>turn.answer)},
    {instruction:original,answers:clarifications.map(turn=>turn.answer)},
   ];
   const before=await Promise.all([count('watches'),count('structured_media_schedules')]);
@@ -285,6 +286,11 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
     assert.deepEqual(req.input.conversation,expected.answers);
     if(calls===2)return {intent:{canonical_text:original,references:[],explicit_constraints:[],unresolved_ambiguities:['Missing reservation event']},
      decision:{status:'NEEDS_CLARIFICATION',reason:'Event unclear',clarification_question:clarifications[1].question},display_title:null};
+    if(calls===4){
+     const paraphrased=ready('Alert me when tickets go on sale for Nice to Monaco trains',['Nice to Monaco trains']);
+     paraphrased.intent.explicit_constraints=[{kind:'condition',text:'booking availability',source_ref:'conversation:1'}];
+     return paraphrased;
+    }
     return ready(canonical,['Nice to Monaco trains']);
    }});
   const direct=await invoke({instruction:canonical,watchId:randomUUID()},handler);
@@ -293,16 +299,18 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   const body={instruction:original,watchId:randomUUID()};
   assert.equal((await invoke({...body,clarifications:clarifications.slice(0,1)},handler)).status,'NEEDS_CLARIFICATION');
   assert.deepEqual(await invoke({...body,clarifications},handler),direct);
-  assert.equal(calls,3);
+  assert.deepEqual(await invoke({...body,clarifications},handler),direct);
+  assert.equal(calls,4);
   assert.equal(baselines,0);
   assert.deepEqual(await Promise.all([count('watches'),count('structured_media_schedules')]),before);
  });
 
  await t.test('clarification options and answers share the normal model call and persist only on ready',async()=>{
   const instruction='Blackburn Rovers',watchId=randomUUID(),question='Which developments matter?';
-  const answer='Injury updates only',clarifications=[{question,answer}];
+  const answer='Injury updates only. Exclude booking availability.',clarifications=[{question,answer}];
   const intent={...ready('Follow Blackburn Rovers injury updates only.',['Blackburn Rovers']).intent,
-   explicit_constraints:[{kind:'condition',text:answer,source_ref:'conversation:0'}]};
+   explicit_constraints:[{kind:'condition',text:'Injury updates only',source_ref:'conversation:0'},
+    {kind:'exclusion',text:'Exclude booking availability',source_ref:'conversation:0'}]};
   let calls=0;
   const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,feed,
    model:async req=>{

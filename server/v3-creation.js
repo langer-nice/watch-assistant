@@ -30,13 +30,20 @@ export function v3CurrencyCriteria(text){
  const m=text.trim().match(/^(?:tell me when |alert me when )?(GBP|EUR)\/(GBP|EUR) (?:goes |is )?(above|strictly above|at least) (\d+(?:[.,]\d+)?)\.?$/i);
  return m?parseCurrencyRequest(`${m[1]} ${m[3].toLowerCase()==='at least'?'>=':'>'} ${m[4]} ${m[2]}`):null;
 }
+const unsupportedCapabilityTerms=/\b(?:booking|availability|inventory|in stock|stock price|weather|private page)\b|disponibilit[ée]|r[ée]servation/i;
+const hasUnsupportedConstraint=constraints=>constraints.some(({kind,text,value})=>
+ kind!=='exclusion'&&kind!=='exact_resource'&&
+ (unsupportedCapabilityTerms.test(text)||(value!==undefined&&unsupportedCapabilityTerms.test(value))));
+
 export function v3Capability(capture,understanding,{clarified=false}={}){
- // Connector checks use the final interpretation only for clarification turns.
+ // Connector routing uses the canonical text. Also check grounded requirements
+ // before routing so a paraphrase cannot hide an unsupported capability.
  const text=clarified?understanding.intent.canonical_text:capture.raw_input;
+ if(clarified&&hasUnsupportedConstraint(understanding.intent.explicit_constraints??[]))return {decision:unsupported(V3_LIMITATION)};
  const criteria=v3CurrencyCriteria(text);
  if(criteria)return {source:pilotSource({currency:true}),criteria};
  if(isCurrencyRequest(text))return {decision:unsupported('This exchange-rate condition is not supported by the existing ECB connector.')};
- if(/\b(?:booking|availability|inventory|in stock|stock price|weather|private page)\b|disponibilit[ée]|r[ée]servation/i.test(text))return {decision:unsupported(V3_LIMITATION)};
+ if(unsupportedCapabilityTerms.test(text))return {decision:unsupported(V3_LIMITATION)};
  const resources=[...new Set([understanding.resource?.exact_url,...understanding.intent.references.map(r=>r.exact_url)].filter(Boolean))];
  if(resources.length>1)return {decision:unsupported('Only one explicit RSS/Atom resource can be monitored per Watch.')};
  if(resources.length===1){
