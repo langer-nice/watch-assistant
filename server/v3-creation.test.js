@@ -340,10 +340,15 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
  });
 
  await t.test('explicit RSS and Atom are read only after capability validation',async()=>{
-  for(const [extension,supported] of [['rss',false],['rss',true],['atom',true]]){
-   const instruction='https://example.test/news.'+extension+(supported?'?edition=public':'');
+  const weatherUrl='https://example.test/weather.rss';
+  const cases=[
+   ['https://example.test/news.rss','Notify me when booking availability opens','Alert me when tickets go on sale','booking availability',false],
+   [weatherUrl,'Monitor weather alerts','Monitor weather alerts from '+weatherUrl+'.',null,false],
+   [weatherUrl,'Follow new articles','Follow new articles from '+weatherUrl+'.',null,true],
+   ['https://example.test/news.atom?edition=public','Follow new injury updates','Follow new injury updates','Follow new injury updates',true],
+  ];
+  for(const [instruction,answer,canonical,constraint,supported] of cases){
    const watchId=randomUUID(),events=[];
-   const answer=supported?'Follow new injury updates':'Notify me when booking availability opens';
    const clarifications=[{question:'What should I track?',answer}];
    const title='Club Injury Updates';
    const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,
@@ -352,10 +357,10 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
      events.push('model');
      assert.equal(req.input.capture.raw_input,instruction);
      assert.deepEqual(req.input.conversation,[answer]);
-     const result=ready(supported?answer:'Alert me when tickets go on sale');
-     return {...result,display_title:title,intent:{...result.intent,explicit_constraints:[
-      {kind:'condition',text:supported?answer:'booking availability',source_ref:'conversation:0'},
-     ]}};
+     const result=ready(canonical);
+     const explicit_constraints=[{kind:'exact_resource',text:instruction,source_ref:'resource'}];
+     if(constraint)explicit_constraints.push({kind:'condition',text:constraint,source_ref:'conversation:0'});
+     return {...result,display_title:title,intent:{...result.intent,explicit_constraints}};
     }});
    const result=await invoke({instruction,watchId,captureKind:'URL',clarifications},handler);
    assert.equal(result.http,200);
@@ -370,6 +375,10 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
     assert.equal(result.id,watchId);
     assert.equal(rows[0].title,title);
     assert.equal(rows[0].watch_definition.request,instruction);
+    const [saved]=(await db.query('select understanding from public.v3_pilot_watches where watch_id=$1',[watchId])).rows;
+    assert.equal(saved.understanding.resource.exact_url,instruction);
+    assert.equal(saved.understanding.intent.canonical_text,canonical);
+    assert.deepEqual(saved.understanding.intent.explicit_constraints[0],{kind:'exact_resource',text:instruction,source_ref:'resource'});
    }else assert.equal(rows.length,0);
   }
  });

@@ -60,8 +60,15 @@ export function v3Capability(capture,understanding,{clarified=false}={}){
  const criteria=v3CurrencyCriteria(text);
  if(criteria)return {source:pilotSource({currency:true}),criteria};
  if(isCurrencyRequest(text))return {decision:unsupported('This exchange-rate condition is not supported by the existing ECB connector.')};
- if(unsupportedCapabilityTerms.test(capabilityTextWithoutExclusions(text,constraints)))return {decision:unsupported(V3_LIMITATION)};
  const resources=[...new Set([understanding.resource?.exact_url,...understanding.intent.references.map(r=>r.exact_url)].filter(Boolean))];
+ let capabilityText=capabilityTextWithoutExclusions(text,constraints);
+ for(const url of resources){
+  const literal=url.replace(/[.*+?^\u0024{}()|[\]\\]/g,'\\$&');
+  // Match the recognized URL as a whole, allowing trailing prose punctuation.
+  const exactUrl=new RegExp('(^|[\\s<("«\\[])'+literal+'(?=[.,!?;:)\\]»]*($|[\\s>"»]))','gu');
+  capabilityText=capabilityText.replace(exactUrl,'$1 ');
+ }
+ if(unsupportedCapabilityTerms.test(capabilityText))return {decision:unsupported(V3_LIMITATION)};
  if(resources.length>1)return {decision:unsupported('Only one explicit RSS/Atom resource can be monitored per Watch.')};
  if(resources.length===1){
   const url=new URL(resources[0]);if(url.protocol!=='https:'||url.username||url.password)return {decision:unsupported('A public HTTPS RSS/Atom feed is required.')};
