@@ -61,3 +61,35 @@ test('missing body falls back to the headline and detail retains the full unclam
   assert.equal(document.querySelector('.monitoring-update__description').textContent, summary);
   assert.equal(document.querySelector('.briefing-item__summary'), null);
 });
+
+test('category icons use the stored category and preserve the rest of the summary', () => {
+  const { document } = parseHTML('<main></main>');
+  const root = document.querySelector('main');
+  const fields = {
+    title: 'Travel news about CLIA', category: 'News', categoryModifier: 'news',
+    timestamp: '9 Nov 2026, 09:52', statusPresentation: { label: 'Watching', modifier: 'watching' },
+    supportingText: 'Your original instruction: Follow CLIA research.',
+    renderLink: content => `<a href="watch-detail.html?id=clia">${content}</a>`,
+  };
+  const expected = {
+    general: 'layout-grid', travel: 'plane', news: 'newspaper', property: 'house',
+    price: 'tag', events: 'calendar-days', entertainment: 'square-play',
+    finance: 'chart-no-axes-combined', legacy: 'layout-grid',
+  };
+  for (const [storedCategory, name] of [...Object.entries(expected), [null, 'layout-grid']]) {
+    root.innerHTML = renderSummaryCard({ ...fields, storedCategory });
+    const label = root.querySelector('.category-label');
+    const icon = label.firstElementChild;
+    assert.equal(icon.getAttribute('data-category-icon'), name);
+    assert.equal(icon.getAttribute('aria-hidden'), 'true');
+    assert.equal(icon.getAttribute('focusable'), 'false');
+    assert.equal(label.textContent.trim(), 'News');
+    icon.remove();
+    const withIconRemoved = root.innerHTML;
+    root.innerHTML = renderSummaryCard(fields);
+    assert.equal(withIconRemoved, root.innerHTML);
+  }
+  root.innerHTML = renderSummaryCard({ ...fields, category: 'Actualité', storedCategory: 'news' });
+  assert.equal(root.querySelector('.category-label').textContent.trim(), 'Actualité');
+  assert.equal(root.querySelector('.category-label__icon').getAttribute('data-category-icon'), 'newspaper');
+});
