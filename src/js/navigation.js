@@ -1079,7 +1079,7 @@ const renderSummaryWatchCard = ({
     : getSummaryCardStatus(status);
   const readOnly = getReadOnlyCardPresentation(watch, t, getLanguage());
   return renderSummaryCard({
-    title, category, categoryModifier, statusPresentation,
+    title, category, categoryModifier, storedCategory: watch.category ?? null, statusPresentation,
     supportingText: readOnly ? readOnly.explanation : supportingText,
     clampSummary: !readOnly,
     timestamp: readOnly ? '' : timestamp, historicalResult: readOnly?.result,
