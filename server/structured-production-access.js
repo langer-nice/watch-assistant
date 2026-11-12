@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+import sdkPackage from '@supabase/supabase-js/package.json' with { type: 'json' };
+
 // Separate opt-in; the existing Preview/test rollout is not widened.
 export const productionProjectMatches = env => env?.VERCEL_ENV === 'production'
   && env.VERCEL_PROJECT_ID === 'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF'
@@ -53,13 +56,47 @@ export const productionOwnerFailure = (error, status) => {
     ...(Number.isInteger(status) && status >= 100 && status <= 599 ? { upstreamStatus: status } : {}),
   });
 };
-export const productionWatchOwners = async client => {
+// Temporary, failure-only evidence at the existing RPC boundary. No transport
+// hooks: supabase-js does not expose response headers in its RPC result.
+const logOwnerRpcFailure = (error, status, env) => {
+  try {
+    const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+    const secrets = [key, env.CRON_SECRET?.trim()].filter(Boolean);
+    const event = {
+      event: 'owner_rpc_auth_failure', timestamp: new Date().toISOString(),
+      rpc: 'production_watch_owners', sdkVersion: sdkPackage.version, nodeVersion: process.version,
+    };
+    if (Number.isInteger(status) && status >= 100 && status <= 599) event.httpStatus = status;
+    if (/^(PGRST[0-9]{3}|[0-9]{2}[0-9A-Z]{3}|P[0-9][0-9A-Z]{3}|XX[0-9]{3})$/.test(error?.code || '')
+      && !secrets.some(secret => error.code.includes(secret))) event.code = error.code;
+    for (const field of ['message', 'details', 'hint']) {
+      if (typeof error?.[field] !== 'string' || !error[field].trim()) continue;
+      const text = secrets.reduce((value, secret) => value.split(secret).join('[redacted]'), error[field]);
+      event[field] = safeOwnerMessage(text.replace(/\b(?:apikey|cookie|set-cookie|access_token|refresh_token)\s*[:=][^\r\n]*/gi, '[redacted]'));
+    }
+    if (key) {
+      event.keyFamily = key.startsWith('sb_secret_') ? 'sb_secret'
+        : key.startsWith('sb_publishable_') ? 'sb_publishable'
+          : key.split('.').length === 3 ? 'jwt' : 'unknown';
+      event.keyFingerprint = createHash('sha256').update(key).digest('hex').slice(0, 8);
+    }
+    if (/^[0-9a-f]{40}$/i.test(env.VERCEL_GIT_COMMIT_SHA || '')) event.deploymentCommit = env.VERCEL_GIT_COMMIT_SHA;
+    if (['production', 'preview', 'development'].includes(env.VERCEL_ENV)) event.deploymentEnvironment = env.VERCEL_ENV;
+    console.error(JSON.stringify(event));
+  } catch { /* Observability must never replace or prevent the existing error. */ }
+};
+
+export const productionWatchOwners = async (client, { env = process.env } = {}) => {
   let result;
   try { result = await client.rpc('production_watch_owners'); }
-  catch (error) { throw productionOwnerFailure(error); }
-  if (result.error) throw productionOwnerFailure(result.error, result.status);
+  catch (error) { logOwnerRpcFailure(error, undefined, env); throw productionOwnerFailure(error); }
+  if (result.error) {
+    logOwnerRpcFailure(result.error, result.status, env);
+    throw productionOwnerFailure(result.error, result.status);
+  }
   if (!Array.isArray(result.data) || !result.data.every(id =>
     typeof id === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id))) {
+    logOwnerRpcFailure(null, result.status, env);
     throw productionOwnerFailure(null, result.status);
   }
   return result.data;
