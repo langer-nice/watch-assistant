@@ -46,7 +46,7 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   const id=randomUUID();output=ready(text,refs);const body={watchId:id,instruction:text,captureKind:name==='exact URL'?'URL':'FREE_TEXT'};
   const before=modelCalls;const r=await invoke(body);assert.equal(r.http,200);assert.equal(r.id,id);assert.equal(r.engine,V3_ENGINE);assert.equal(modelCalls,before+1);ids.push(id);
   const row=(await db.query('select w.*,p.understanding,p.capture_kind,p.engine,p.baseline_at from public.watches w join public.v3_pilot_watches p on p.watch_id=w.id where w.id=$1',[id])).rows[0];
-  assert.equal(row.user_id,owner);assert.equal(row.watch_definition.request,text);assert.deepEqual(row.understanding.intent,output.intent);assert.equal(row.engine,V3_ENGINE);assert.equal(row.monitoring_state,'monitoring');assert.ok(row.baseline_at);assert.equal(row.last_check_outcome,'baseline');assert.equal(row.capture_kind,body.captureKind);
+  assert.equal(row.user_id,owner);assert.equal(row.watch_definition.request,text);assert.deepEqual(row.understanding.intent,output.intent);assert.equal(row.engine,V3_ENGINE);assert.equal(row.monitoring_state,'monitoring');assert.ok(row.baseline_at);assert.equal(row.last_check_outcome,name==='GBP/EUR'?'matching-items':'baseline');assert.equal(row.capture_kind,body.captureKind);
   assert.equal((await db.query('select count(*)::int n from public.structured_media_schedules where watch_id=$1',[id])).rows[0].n,1);
   if(name==='exact URL')assert.equal(row.understanding.resource.exact_url,text);
   if(name==='GBP/EUR'){assert.deepEqual(row.watch_definition.currencyCriteria,{base:'GBP',quote:'EUR',operator:'gt',target:'1.17'});assert.equal(row.title,text);assert.equal(row.understanding.display_title,undefined);}
@@ -86,10 +86,11 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   assert.equal(p.prior_state.entries.length,1);assert.match(p.prior_state.entries[0].fact,/shop manager was assaulted/);assert.equal(p.prior_state.entries[0].alerted,false);assert.equal(p.last_judgment,null);
   const snapshot=(await db.query('select initial_items from public.media_watch_snapshots where watch_id=$1',[id])).rows[0];assert.equal(snapshot.initial_items[0].url,url);
  });
- await t.test('pilot records and schedules remain unchanged by creation; baseline creates no notifications',async()=>{
+ await t.test('pilot records and schedules stay unchanged; only the first currency match creates a notification',async()=>{
   assert.deepEqual((await db.query('select watch_id,user_id,slot,engine,instruction,understanding,baseline_at,prior_state from public.v3_pilot_watches where slot is not null order by slot')).rows,beforePilot);
   assert.deepEqual((await db.query('select s.* from public.structured_media_schedules s join public.v3_pilot_watches p on p.watch_id=s.watch_id where p.slot is not null order by s.watch_id')).rows,pilotSchedules);
-  assert.equal(await count('media_watch_notifications'),0);
+  assert.equal(await count('media_watch_notifications'),1);
+  assert.equal((await db.query("select count(*)::int n from public.media_watch_notifications n join public.watches w on w.id=n.watch_id where w.monitoring_source->>'type'<>'currency'")).rows[0].n,0);
  });
  const existingCount=await count('watches');const existingSchedules=await count('structured_media_schedules');
  const noWrite=async()=>{assert.equal(await count('watches'),existingCount);assert.equal(await count('structured_media_schedules'),existingSchedules);};
@@ -171,7 +172,7 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   let calls=0;const result=await runPilotMonitoring({client,env,schedulerAuthorized:true,feed,currency,model:async req=>{calls++;return {action:'ALERT',evidence_status:'STRONG_UNCONFIRMED',reason:'Credible materially new independently corroborated reports, not officially confirmed.',novelty_summary:'A new report.',condition_check:null,evidence_refs:req.input.evidence.segments.filter(s=>['CLAIM','MEASUREMENT'].includes(s.role)).map(s=>s.id),provenance_refs:req.input.evidence.segments.filter(s=>s.role==='PROVENANCE').map(s=>s.id)};}});
   // Currency baseline is already above threshold, so a second ALERT is fenced.
   assert.equal(result.claimed,8);assert.equal(result.completed,7);assert.equal(result.failed,1);assert.equal(calls,8);
-  const n=(await db.query('select * from public.media_watch_notifications')).rows;assert.equal(n.length,7);assert.ok(n.every(n=>n.user_id===owner&&n.delivery_mode==='daily_digest'&&n.status==='pending'));
+  const n=(await db.query('select * from public.media_watch_notifications')).rows;assert.equal(n.length,8);assert.ok(n.every(n=>n.user_id===owner&&n.delivery_mode==='daily_digest'&&n.status==='pending'));
   const digest=await rpc('prepare_production_structured_digests',{p_since:'2026-10-30T00:00:00Z',p_owners:[owner]});assert.ok(!digest.error);assert.ok(digest.data.length>0);
  });
  await t.test('NO_ALERT creates no delivery; report consumes generic V3 metadata',async()=>{
@@ -236,7 +237,7 @@ test('general V3 real API → atomic SQL → engine scheduler → existing deliv
   await db.query(`insert into public.media_watch_notifications(watch_id,user_id,source_article_id,watch_title,article)
     values($1,$2,'old-notification','Historical development','{}')`,[original.watchId,owner]);
   const deleted=await getState(original.watchId);
-  assert.equal(deleted.notifications,1);
+  assert.equal(deleted.notifications,name==='threshold'?2:1);
   assert.equal(deleted.receipts,1);
   for(const retry of [original,alias]){
    const response=await invoke(retry,handler);
