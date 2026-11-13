@@ -64,9 +64,19 @@ test('new currency creation and subsequent checks persist through isolated real 
   for (const f of (await readdir(dir)).sort().filter(f => f.endsWith('.sql') && f !== '20261022160000_private_morning_reports.sql' && f !== migration)) {
     await db.exec((await readFile(new URL(f, dir), 'utf8')).replace('create extension if not exists pgcrypto;', '').replaceAll('clock_timestamp()', 'public.fixture_now()'));
   }
-  const contracts = async () => (await db.query(`select oid::regprocedure::text signature,proacl,prosecdef,proconfig from pg_proc
+  const contracts = async () => (await db.query(`select oid,oid::regprocedure::text signature,proowner::regrole::text owner,
+    proacl,prosecdef,proconfig,prorettype::regtype::text result,proargdefaults::text defaults from pg_proc
     where proname in ('create_v3_watch','finish_v3_pilot_check','claim_v3_pilot_checks','production_watch_owners') order by 1`)).rows;
+  const definitions = async () => (await db.query(`select pg_get_functiondef(oid) definition from pg_proc
+    where pronamespace='public'::regnamespace and proname in ('create_v3_watch','finish_v3_pilot_check') order by proname`)).rows.map(r=>r.definition);
+  const unrelatedCatalog = async () => (await db.query(`select oid::regprocedure::text signature,proowner,proacl,proconfig,prosecdef,
+    md5(pg_get_functiondef(oid)) body from pg_proc where pronamespace='public'::regnamespace and prokind='f'
+    and proname not in ('create_v3_watch','finish_v3_pilot_check') order by 1`)).rows;
+  const tableCatalog = async () => (await db.query(`select c.relname,c.relowner,c.relacl,c.relrowsecurity,a.attname,
+    a.atttypid,a.attnotnull from pg_class c left join pg_attribute a on a.attrelid=c.oid and a.attnum>0
+    where c.relnamespace='public'::regnamespace order by c.relname,a.attnum`)).rows;
   const before = await contracts();
+  const originalDefinitions = await definitions(), originalUnrelated = await unrelatedCatalog(), originalTables = await tableCatalog();
   await db.query('insert into auth.users values($1,$2)', [owner, 'synthetic@example.test']);
   await db.exec("set request.jwt.claim.role='service_role'");
   const existing = randomUUID();
@@ -82,11 +92,60 @@ test('new currency creation and subsequent checks persist through isolated real 
     join public.structured_media_schedules c on c.watch_id=w.id where w.id=$1`,[existing])).rows;
   const persistedBefore = await existingState();
   const sql = (await readFile(new URL(migration, dir), 'utf8')).replaceAll('clock_timestamp()', 'public.fixture_now()');
-  await db.exec(sql); await db.exec(sql);
+  await db.exec(sql);
+  const migratedDefinitions = await definitions();
+  assert(originalDefinitions.every((definition,i)=>definition!==migratedDefinitions[i]));
+  await db.exec(sql);
+  assert.deepEqual(await definitions(),migratedDefinitions,'second execution preserves both complete definitions exactly');
   assert.deepEqual(await contracts(), before, 'signatures, permissions, security and owner RPC unchanged');
+  assert.deepEqual(await unrelatedCatalog(),originalUnrelated);
+  assert.deepEqual(await tableCatalog(),originalTables);
   await t.test('function migration leaves an existing matching baseline and all its records untouched',async()=>{
     assert.deepEqual(await existingState(),persistedBefore);
     assert.equal(persistedBefore[0].events,0);assert.equal(persistedBefore[0].notifications,0);
+  });
+  await t.test('strict anchors, complete two-function idempotence and transactional postconditions',async t=>{
+    const status="'monitoring','watching',1,gen_random_uuid(),at_time,'baseline',";
+    const finish="alert:=p.baseline_at is not null and j->>'action'='ALERT';";
+    const cases=[
+      ['extra whitespace in status anchor',[originalDefinitions[0].replace(status,status.replace(",'watching'",", 'watching'")),originalDefinitions[1]]],
+      ['missing creation anchor',[originalDefinitions[0].replace('prior jsonb;','prior jsonb ;'),originalDefinitions[1]]],
+      ['missing completion anchor',[originalDefinitions[0],originalDefinitions[1].replace(finish,finish.replace('alert:=','alert :='))]],
+      ['duplicated creation anchor',[originalDefinitions[0].replace('prior jsonb;','prior jsonb; -- prior jsonb;\n'),originalDefinitions[1]]],
+      ['duplicated completion anchor',[originalDefinitions[0],originalDefinitions[1].replace(finish,finish+' -- '+finish+'\n')]],
+      ['only creation migrated',[migratedDefinitions[0],originalDefinitions[1]]],
+      ['only completion migrated',[originalDefinitions[0],migratedDefinitions[1]]],
+      ['partial creation status',[migratedDefinitions[0].replace("case when initial_alert then 'updated'","case when initial_alert then 'watching'"),migratedDefinitions[1]]],
+      ['partial completion classification',[migratedDefinitions[0],migratedDefinitions[1].replace("case when alert then 'matching-items'","case when alert then 'baseline'")]],
+      ['missing creation outbox postcondition',[migratedDefinitions[0].replace('if initial_alert then','if initial_alert  then'),migratedDefinitions[1]]],
+      ['missing completion history postcondition',[migratedDefinitions[0],migratedDefinitions[1].replace("'baseline',p.baseline_at is null and not coalesce(alert,false)","'baseline',p.baseline_at is null")]],
+    ];
+    const rejectUnchanged = async (input,script=sql,pattern=/anchor|postcondition|contract/) => {
+      for(const definition of input)await db.exec(definition);
+      const inputDefinitions=await definitions();
+      await assert.rejects(db.exec(script),pattern);
+      await db.exec('rollback');
+      assert.deepEqual(await definitions(),inputDefinitions,'failure restores BOTH input definitions');
+      assert.deepEqual(await existingState(),persistedBefore);
+      assert.deepEqual(await contracts(),before);
+      assert.deepEqual(await unrelatedCatalog(),originalUnrelated);
+      assert.deepEqual(await tableCatalog(),originalTables);
+    };
+    for(const [name,input] of cases)await t.test(name,()=>rejectUnchanged(input));
+    await t.test('missing installed postcondition rolls back both published definitions',async()=>{
+      const injected=sql.replace('execute expected[2];',
+        "execute replace(expected[2], 'case when alert then ''matching-items''', 'case when alert then ''baseline''');");
+      assert.notEqual(injected,sql);
+      await rejectUnchanged(originalDefinitions,injected,/postcondition/);
+    });
+    await t.test('failure publishing second function rolls back the first',async()=>{
+      const injected=sql.replace('execute expected[2];',"raise exception 'Injected second definition failure';");
+      assert.notEqual(injected,sql);
+      await rejectUnchanged(originalDefinitions,injected,/Injected second definition failure/);
+    });
+    for(const definition of migratedDefinitions)await db.exec(definition);
+    await db.exec(sql);
+    assert.deepEqual(await definitions(),migratedDefinitions);
   });
   await db.query('insert into auth.users values($1,$2)', [PILOT_OWNER, 'synthetic@example.test']);
   const rpc = async (name, args) => {

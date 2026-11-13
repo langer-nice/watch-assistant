@@ -3,7 +3,6 @@ begin;
 -- Function bodies only. No existing Watch/state/event is rewritten or replayed.
 do $migration$
 declare
- f text;
  policy_anchor text := ' insert into public.media_watch_email_policies(watch_id,user_id,mode,enabled) values(p_id,p_owner,''daily_digest'',true);';
  initial_persistence text := $initial$
  if initial_alert then
@@ -21,18 +20,26 @@ declare
   values(p_id,p_owner,evid->>'id',title,0,p_baseline->'article',clock_timestamp());
  end if;
 $initial$;
-begin
- f:=pg_get_functiondef('public.create_v3_watch(uuid,uuid,text,text,jsonb,jsonb,jsonb,jsonb)'::regprocedure);
- if position('initial_alert boolean' in f)>0 then return;end if;
- if position('prior jsonb;' in f)=0 or position(policy_anchor in f)=0
-  or position('or p_baseline->''judgment'' is distinct from ''null''::jsonb or p_baseline->''article'' is distinct from ''null''::jsonb' in f)=0
-  or position('last_evidence,evaluation,history)' in f)=0 then
-  raise exception 'Unexpected V3 creation contract';
- end if;
- f:=replace(f,'prior jsonb;',
-  'prior jsonb; initial_alert boolean:=coalesce(p_source->>''type''=''currency'' and p_baseline->''evaluation''->>''met''=''true'' and p_baseline->''judgment''->>''action''=''ALERT'',false);');
- f:=replace(f,
+ signatures regprocedure[]:=array[
+  'public.create_v3_watch(uuid,uuid,text,text,jsonb,jsonb,jsonb,jsonb)'::regprocedure,
+  'public.finish_v3_pilot_check(uuid,uuid,jsonb)'::regprocedure];
+ -- One exact anchor per replacement; indices 1..8 belong to creation, 9..12 to completion.
+ function_indices integer[]:=array[1,1,1,1,1,1,1,1,2,2,2,2];
+ anchors text[]:=array[
+  'prior jsonb;',
   'or p_baseline->''judgment'' is distinct from ''null''::jsonb or p_baseline->''article'' is distinct from ''null''::jsonb',
+  '''alerted'',false',
+  '''monitoring'',''watching'',1,gen_random_uuid(),at_time,''baseline'',',
+  'last_evidence,evaluation,history)',
+  'evid,nullif(p_baseline->''evaluation'',''null''::jsonb),jsonb_build_array(',
+  '''judgment'',null,''baseline'',true',
+  policy_anchor,
+  'alert:=p.baseline_at is not null and j->>''action''=''ALERT'';',
+  '''alerted'',false)),''[]'') into entries from jsonb_array_elements(p_result->''items'');',
+  '''baseline'',p.baseline_at is null',
+  'case when p.baseline_at is null then ''baseline'' when alert then ''matching-items'''];
+ replacements text[]:=array[
+  'prior jsonb; initial_alert boolean:=coalesce(p_source->>''type''=''currency'' and p_baseline->''evaluation''->>''met''=''true'' and p_baseline->''judgment''->>''action''=''ALERT'',false);',
   $validation$or (not initial_alert and (p_baseline->'judgment' is distinct from 'null'::jsonb or p_baseline->'article' is distinct from 'null'::jsonb))
  or (initial_alert and (jsonb_typeof(p_baseline->'article') is distinct from 'object'
   or p_baseline->'article'->>'url' is distinct from p_source->>'url'
@@ -40,28 +47,63 @@ begin
   or (p_baseline->'evaluation')->>'base' is distinct from p_criteria->>'base'
   or (p_baseline->'evaluation')->>'quote' is distinct from p_criteria->>'quote'
   or (p_baseline->'evaluation')->>'operator' is distinct from p_criteria->>'operator'
-  or (p_baseline->'evaluation')->>'target' is distinct from p_criteria->>'target'))$validation$);
- f:=replace(f,'''alerted'',false','''alerted'',initial_alert');
- f:=replace(f,'''monitoring'',''watching'',1,gen_random_uuid(),at_time,''baseline'',',
-  '''monitoring'',case when initial_alert then ''updated'' else ''watching'' end,1,gen_random_uuid(),at_time,case when initial_alert then ''matching-items'' else ''baseline'' end,');
- f:=replace(f,'last_evidence,evaluation,history)','last_evidence,evaluation,last_judgment,history)');
- f:=replace(f,'evid,nullif(p_baseline->''evaluation'',''null''::jsonb),jsonb_build_array(',
-  'evid,nullif(p_baseline->''evaluation'',''null''::jsonb),nullif(p_baseline->''judgment'',''null''::jsonb),jsonb_build_array(');
- f:=replace(f,'''judgment'',null,''baseline'',true','''judgment'',nullif(p_baseline->''judgment'',''null''::jsonb),''baseline'',not initial_alert');
- execute replace(f,policy_anchor,policy_anchor||initial_persistence);
-
- f:=pg_get_functiondef('public.finish_v3_pilot_check(uuid,uuid,jsonb)'::regprocedure);
- if position('alert:=p.baseline_at is not null and j->>''action''=''ALERT'';' in f)=0
-  or position('p.slot=2 or (p.engine=''wa-v3-evidence-refs.v1'' and w.monitoring_source->>''type''=''currency'')' in f)=0 then
+  or (p_baseline->'evaluation')->>'target' is distinct from p_criteria->>'target'))$validation$,
+  '''alerted'',initial_alert',
+  '''monitoring'',case when initial_alert then ''updated'' else ''watching'' end,1,gen_random_uuid(),at_time,case when initial_alert then ''matching-items'' else ''baseline'' end,',
+  'last_evidence,evaluation,last_judgment,history)',
+  'evid,nullif(p_baseline->''evaluation'',''null''::jsonb),nullif(p_baseline->''judgment'',''null''::jsonb),jsonb_build_array(',
+  '''judgment'',nullif(p_baseline->''judgment'',''null''::jsonb),''baseline'',not initial_alert',
+  policy_anchor||initial_persistence,
+  'alert:=(p.baseline_at is not null or (w.monitoring_source->>''type''=''currency'' and p_result->''evaluation''->>''met''=''true'')) and j->>''action''=''ALERT'';',
+  '''alerted'',coalesce(alert,false))),''[]'') into entries from jsonb_array_elements(p_result->''items'');',
+  '''baseline'',p.baseline_at is null and not coalesce(alert,false)',
+  'case when alert then ''matching-items'' when p.baseline_at is null then ''baseline'''];
+ definitions text[];
+ expected text[];
+ complete boolean;
+ i integer;
+ j integer;
+ phase integer;
+ occurrences integer;
+begin
+ for phase in 0..1 loop
+  definitions:=array[pg_get_functiondef(signatures[1]),pg_get_functiondef(signatures[2])];
+  if position('p.slot=2 or (p.engine=''wa-v3-evidence-refs.v1'' and w.monitoring_source->>''type''=''currency'')' in definitions[2])=0 then
   raise exception 'Unexpected V3 completion contract';
- end if;
- f:=replace(f,'alert:=p.baseline_at is not null and j->>''action''=''ALERT'';',
-  'alert:=(p.baseline_at is not null or (w.monitoring_source->>''type''=''currency'' and p_result->''evaluation''->>''met''=''true'')) and j->>''action''=''ALERT'';');
- f:=replace(f,'''alerted'',false','''alerted'',coalesce(alert,false)');
- f:=replace(f,'''baseline'',p.baseline_at is null','''baseline'',p.baseline_at is null and not coalesce(alert,false)');
- f:=replace(f,'case when p.baseline_at is null then ''baseline'' when alert then ''matching-items''',
-  'case when alert then ''matching-items'' when p.baseline_at is null then ''baseline''');
- execute f;
+  end if;
+  -- Validate every complete replacement in BOTH definitions, including the
+  -- entire event/outbox block. Some anchors intentionally remain as prefixes
+  -- inside their replacements; every other original fragment must be absent.
+  complete:=true;
+  for i in 1..array_length(anchors,1) loop
+   j:=function_indices[i];
+   occurrences:=(length(definitions[j])-length(replace(definitions[j],replacements[i],'')))/length(replacements[i]);
+   if occurrences<>1 then complete:=false;end if;
+   occurrences:=(length(definitions[j])-length(replace(definitions[j],anchors[i],'')))/length(anchors[i]);
+   if occurrences<>(case when position(anchors[i] in replacements[i])>0 then 1 else 0 end) then complete:=false;end if;
+  end loop;
+  if phase=1 then
+   if not complete or definitions is distinct from expected then
+    raise exception 'V3 currency migration postcondition failed';
+   end if;
+   return;
+  end if;
+  if complete then return;end if; -- Idempotence requires all 12 final fragments.
+
+  expected:=definitions;
+  for i in 1..array_length(anchors,1) loop
+   j:=function_indices[i];
+   occurrences:=(length(expected[j])-length(replace(expected[j],anchors[i],'')))/length(anchors[i]);
+   if occurrences<>1 then
+    raise exception 'V3 currency migration anchor % in %: expected 1 occurrence, found %',i,signatures[j],occurrences;
+   end if;
+   expected[j]:=replace(expected[j],anchors[i],replacements[i]);
+  end loop;
+  -- Only publish after both candidates pass every anchor check. Any execution
+  -- or postcondition failure rolls back both CREATE OR REPLACE statements.
+  execute expected[1];
+  execute expected[2];
+ end loop;
 end $migration$;
 
 commit;
