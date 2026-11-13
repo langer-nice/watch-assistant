@@ -59,8 +59,8 @@ export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,cu
   const rate=await currency(connectorCurrencyRequest(row.criteria));
   markV3Stage('EVIDENCE_NORMALIZATION');
   evaluation=evaluateCurrencyRate(rate.criteria,rate.observation);
-  const metric=row.engine==='wa-v3-evidence-refs.v1'?`${row.criteria.base}/${row.criteria.quote}`:'GBP/EUR';
-  const comparison=row.engine==='wa-v3-evidence-refs.v1'?`${metric} ${row.criteria.operator==='gt'?'>':'>='} ${row.criteria.target}`:'GBP/EUR > 1.17';
+  const metric=`${row.criteria.base}/${row.criteria.quote}`;
+  const comparison=`${metric} ${row.criteria.operator==='gt'?'>':'>='} ${row.criteria.target}`;
   const quote=`${metric} ${evaluation.observedRate}`;
   evidence={id:hash(JSON.stringify(rate.observation)),title:`ECB ${metric} reference observation`,content:`${quote} (display truncated at 12 decimal places). Source observation: ${rate.observation.base}/${rate.observation.quote} ${rate.observation.rate}. Exact rational comparison ${comparison}: ${evaluation.met}.`,measurement:{metric,value:String(evaluation.observedRate),quote},source:'ECB',url:source.url,published_at:rate.observation.date+'T00:00:00Z',retrieved_at:rate.checkedAt};
   items=[{id:evidence.id,title:evidence.title,excerpt:quote,url:evidence.url,publishedAt:evidence.published_at,source:'ECB'}];

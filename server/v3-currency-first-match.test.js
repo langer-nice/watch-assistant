@@ -5,6 +5,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { evaluateV3Source, PILOT_OWNER, PILOT_ENGINE } from './v3-pilot.js';
 import { fetchCurrencyRate } from './currency-rate.js';
+import { createV3WatchHandler } from './v3-creation.js';
 
 const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const source = { type: 'currency', provider: 'ecb', url: 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml' };
@@ -46,6 +47,13 @@ test('ECB inversion and invalid/unavailable first data use the existing connecto
   for (const currency of [connector('invalid'), connector('0'), connector('0.83595', 503)]) {
     await assert.rejects(evaluateV3Source(row, source, { currency }));
     assert.equal(row.baseline_at, null); assert.deepEqual(row.prior_state, { entries: [] });
+  }
+});
+
+test('missing or unsupported currency criteria fail before source acquisition, without fallback evidence',async()=>{
+  for(const invalid of [undefined,null,{}, {...criteria,operator:'lt'}, {...criteria,target:'invalid'}, {...criteria,base:'USD'}]){
+    await assert.rejects(evaluateV3Source({criteria:invalid,baseline_at:null,understanding:understanding('Currency fixture')},source,
+      {currency:()=>assert.fail('Invalid criteria must not fetch')}),/criteria/);
   }
 });
 
@@ -204,6 +212,83 @@ test('new currency creation and subsequent checks persist through isolated real 
     assert.equal((await db.query(`select count(*)::int n from public.media_watch_notifications n join public.media_watch_email_policies p using(watch_id)
       where n.watch_id=$1 and n.created_at<p.eligible_after`,[id])).rows[0].n,0);
     await db.query("update public.watches set monitoring_state='paused' where id=$1",[id]);
+  });
+  await t.test('actual V3 creation handler persists consistent ECB evidence for both directions, operators and initial outcomes',async t=>{
+    const env={V3_PILOT_ENABLED:'true',VERCEL_ENV:'production',VERCEL_PROJECT_ID:'prj_vcrNNAlGsLrL6hjGlrwWFIdFbBFF',
+      VERCEL_GIT_COMMIT_REF:'master',SUPABASE_URL:'https://cztpitujsnzhhenedwjn.supabase.co',STRUCTURED_PRODUCTION_ENABLED:'true',
+      STRUCTURED_WATCH_BACKEND_ENABLED:'true',STRUCTURED_WATCH_CREATION_ENABLED:'true',STRUCTURED_MEDIA_SCHEDULED_ENABLED:'true'};
+    const client={rpc:async(name,args)=>{try{return {data:await rpc(name,args)};}catch(error){return {error};}},from:table=>{
+      const filters={};const query={select(){return query;},eq(k,v){filters[k]=v;return query;},async maybeSingle(){
+        const column=table==='watches'?'id':'watch_id';
+        return {data:(await db.query(`select * from public.${table} where ${column}=$1 and user_id=$2`,[filters[column],filters.user_id])).rows[0]||null};
+      }};return query;
+    }};
+    for(const [base,quote,operator,target,expectedRate,met] of [
+      ['EUR','GBP','gte','0.8','0.83595',true],['EUR','GBP','gte','0.9','0.83595',false],
+      ['GBP','EUR','gt','1.17','1.196243794485',true],['GBP','EUR','gt','1.25','1.196243794485',false],
+      ['EUR','GBP','gt','0.83595','0.83595',false],['EUR','GBP','gte','0.83595','0.83595',true],
+    ])await t.test(`${base}/${quote} ${operator} ${target}`,async()=>{
+      await clock('2026-11-13T07:35:00Z');
+      const id=randomUUID(),metric=`${base}/${quote}`,comparison=`${metric} ${operator==='gt'?'>':'>='} ${target}`;
+      const instruction=`Tell me when ${metric} is ${operator==='gt'?'above':'at least'} ${target}.`;
+      let fetches=0,intents=0,xml='<Envelope><Cube><Cube time="2026-11-12"><Cube currency="GBP" rate="0.83595"/></Cube></Cube></Envelope>';
+      const currency=request=>fetchCurrencyRate(request,{now:()=>new Date('2026-11-13T07:35:00Z'),fetchImpl:async url=>{
+        assert.equal(String(url),source.url);fetches++;return new Response(xml,{status:200});
+      }});
+      const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,currency,
+        model:async()=>{intents++;return {intent:{canonical_text:instruction,references:[{label:base,source_ref:'raw_input'},{label:quote,source_ref:'raw_input'}],
+          explicit_constraints:[],unresolved_ambiguities:[]},decision:{status:'READY_TO_MONITOR',reason:'The currency condition is explicit.'}};}});
+      const invoke=async watchId=>{let body;const response={setHeader(){},end(raw){body=JSON.parse(raw);}};
+        await handler({method:'POST',body:{watchId,instruction,captureKind:'FREE_TEXT'}},response);return {status:response.statusCode,body};};
+      const response=await invoke(id);assert.equal(response.status,200);assert.equal(response.body.id,id);
+      const saved=await row(id),evidence=saved.last_evidence;
+      assert.deepEqual(saved.criteria,{base,quote,operator,target});
+      assert.equal(saved.evaluation.met,met);assert.equal(saved.evaluation.observedRate,expectedRate);
+      assert.equal(saved.evaluation.inverted,base==='GBP');assert.equal(saved.evaluation.observationDate,'2026-11-12');
+      assert.equal(evidence.title,`ECB ${metric} reference observation`);
+      assert.deepEqual(evidence.measurement,{metric,value:expectedRate,quote:`${metric} ${expectedRate}`});
+      assert.equal(evidence.content,`${metric} ${expectedRate} (display truncated at 12 decimal places). Source observation: EUR/GBP 0.83595. Exact rational comparison ${comparison}: ${met}.`);
+      assert.equal(evidence.source,'ECB');assert.equal(evidence.url,source.url);assert.equal(evidence.published_at,'2026-11-12T00:00:00Z');
+      assert.equal(saved.history[0].evidence.content,evidence.content);assert.equal(saved.history[0].baseline,!met);
+      const watch=(await db.query('select current_status,last_check_outcome,currency_evaluation from public.watches where id=$1',[id])).rows[0];
+      assert.equal(watch.current_status,met?'updated':'watching');assert.equal(watch.last_check_outcome,met?'matching-items':'baseline');
+      assert.deepEqual(watch.currency_evaluation,saved.evaluation);
+      assert.deepEqual(await counts(id),{events:met?1:0,notifications:met?1:0});
+      if(met){
+        assert.equal(saved.last_judgment.action,'ALERT');assert.equal(saved.last_judgment.evidence_basis[0].text,evidence.content);
+        assert(saved.last_judgment.reason.includes(`1 ${base}`));assert(saved.last_judgment.reason.includes(`${operator==='gt'?'>':'≥'} ${target} ${quote}`));
+        const event=(await db.query('select article,evaluation from public.currency_watch_events where watch_id=$1',[id])).rows[0];
+        const notification=(await db.query('select article,delivery_mode,status from public.media_watch_notifications where watch_id=$1',[id])).rows[0];
+        assert.deepEqual(event.evaluation,saved.evaluation);assert.equal(event.article.summary,saved.last_judgment.reason);
+        assert.deepEqual(notification.article,event.article);assert.equal(notification.article.url,evidence.url);
+        assert.equal(notification.article.publishedAt,evidence.published_at);assert.equal(notification.delivery_mode,'daily_digest');assert.equal(notification.status,'pending');
+      }else assert.equal(saved.last_judgment,null);
+      assert.equal((await invoke(id)).status,200);assert.equal(fetches,1);assert.equal(intents,1);
+      const repeated=await evaluateV3Source(saved,source,{currency,model:model('NO_ALERT')});
+      assert.deepEqual(repeated.evidence,evidence);assert.equal(repeated.judgment.action,'NO_ALERT');assert.equal(repeated.article,null);
+      const token=randomUUID();await db.query(`update public.structured_media_schedules set lease_token=$2,lease_kind='scheduled',lease_revision=1,
+        lease_until=public.fixture_now()+interval '2 minutes' where watch_id=$1`,[id,token]);
+      assert.equal(await rpc('finish_v3_pilot_check',{p_id:id,p_token:token,p_result:repeated}),true);
+      assert.deepEqual(await counts(id),{events:met?1:0,notifications:met?1:0});
+      await db.query("update public.watches set monitoring_state='paused' where id=$1",[id]);
+    });
+    for(const [index,xml] of [
+      '<Envelope><Cube><Cube time="2026-11-12"><Cube currency="GBP"/></Cube></Cube></Envelope>',
+      '<Envelope><Cube><Cube time="2026-11-12"><Cube currency="GBP" rate="invalid"/></Cube></Cube></Envelope>',
+      '<Envelope><Cube><Cube><Cube currency="GBP" rate="0.83595"/></Cube></Cube></Envelope>',
+    ].entries())await t.test(`invalid ECB creation observation ${index+1} leaves no evidence or Watch`,async()=>{
+      const id=randomUUID(),instruction=`EUR >= 0.8${'0'.repeat(index+1)} GBP`;let fetches=0;
+      const handler=createV3WatchHandler({env,authenticate:async()=>({user:{id:owner}}),serviceClient:client,
+        model:async()=>({intent:{canonical_text:instruction,references:[{label:'EUR',source_ref:'raw_input'},{label:'GBP',source_ref:'raw_input'}],
+          explicit_constraints:[],unresolved_ambiguities:[]},decision:{status:'READY_TO_MONITOR',reason:'The currency condition is explicit.'}}),
+        currency:request=>fetchCurrencyRate(request,{now:()=>new Date('2026-11-13T07:35:00Z'),fetchImpl:async()=>{fetches++;return new Response(xml,{status:200});}})});
+      let body;const response={setHeader(){},end(raw){body=JSON.parse(raw);}};
+      await handler({method:'POST',body:{watchId:id,instruction}},response);
+      assert.equal(response.statusCode,503);assert.equal(body.code,'V3_CREATION_UNAVAILABLE');assert.equal(fetches,1);
+      assert.equal((await db.query('select count(*)::int n from public.watches where id=$1',[id])).rows[0].n,0);
+      assert.equal((await db.query('select count(*)::int n from public.v3_pilot_watches where watch_id=$1',[id])).rows[0].n,0);
+      assert.deepEqual(await counts(id),{events:0,notifications:0});
+    });
   });
   await t.test('invalid observation cannot rearm or change already persisted currency state', async () => {
     const id = await make('invalid middle', '1.19'), before = await row(id);
