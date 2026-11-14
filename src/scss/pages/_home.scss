@@ -279,6 +279,10 @@
     align-items: flex-start;
   }
 
+  .briefing-summary__masthead > p {
+    align-self: center;
+  }
+
   .briefing-summary__masthead-meta {
     column-gap: var(--space-xs);
   }
