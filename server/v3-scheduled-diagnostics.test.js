@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {runPilotMonitoring,evaluatePilot,PILOT_ENGINE,PILOT_OWNER,PILOT_SPECS} from './v3-pilot.js';
 import {createBrainModel} from './v3-brain/provider.mjs';
 import {fetchAndNormalizeFeed} from './check-watch-api.js';
-import {diagnosticInvocationId,withV3ScheduledDiagnostics,markV3Stage,recordV3Failure} from './v3-scheduled-diagnostics.js';
+import {diagnosticInvocationId,withV3ScheduledDiagnostics,markV3Stage,recordV3Failure,durableV3FailureDiagnostic} from './v3-scheduled-diagnostics.js';
 import {getMonitoringFailureMessageKey} from '../src/js/watch-monitoring-errors.js';
 
 const id='6344ff8d-2fbd-466e-8790-bdcfe698ff5c';
@@ -12,9 +12,9 @@ const row={id,user_id:PILOT_OWNER,slot:4,engine:PILOT_ENGINE,instruction:PILOT_S
 const feedResult={source:{title:'Fixture',url:'https://example.test/feed'},checkedAt:'2026-11-02T06:35:00Z',items:[{id:'article',title:'Metallica report',excerpt:'An offline report.',url:'https://example.test/article',publishedAt:'2026-11-01T15:00:00Z',source:'Fixture'}]};
 const good=req=>({action:'NO_ALERT',evidence_status:'INSUFFICIENT',reason:'No qualifying new development.',novelty_summary:null,condition_check:null,evidence_refs:req.input.evidence.segments.filter(s=>s.role==='CLAIM').map(s=>s.id),provenance_refs:req.input.evidence.segments.filter(s=>s.role==='PROVENANCE').map(s=>s.id)});
 async function capture(run){const logs=[];const previous=console.error;console.error=(event,payload)=>logs.push({event,...payload});try{return {value:await run(),logs};}finally{console.error=previous;}}
-async function execute(kind){
+async function execute(kind,{diagnosticFailure=false}={}){
  const calls=[],requests=[];let feedCalls=0,brainCalls=0;
- const client={rpc:async(name,payload)=>{calls.push({name,payload});if(name==='get_media_watch_notification_locale')return {data:'en'};if(name==='claim_v3_pilot_checks')return {data:[{...row,token:'lease-not-for-logs'}]};if(name==='finish_v3_pilot_check'){if(kind==='persistence')throw Object.assign(Error('private SQL credential=secret'),{code:'42501'});if(kind==='returned-sql-error')return {error:{code:'42501',message:'private SQL data'}};return {data:true};}if(name==='fail_v3_pilot_check')return {data:null};throw Error(name);}};
+ const client={rpc:async(name,payload)=>{calls.push({name,payload});if(name==='get_media_watch_notification_locale')return {data:'en'};if(name==='claim_v3_pilot_checks')return {data:[{...row,token:'lease-not-for-logs'}]};if(name==='finish_v3_pilot_check'){if(kind==='persistence')throw Object.assign(Error('private SQL credential=secret'),{code:'42501'});if(kind==='returned-sql-error')return {error:{code:'42501',message:'private SQL data'}};return {data:true};}if(name==='fail_v3_pilot_check_diagnostic')return diagnosticFailure?{error:{code:'PGRST202'}}:{data:null};if(name==='fail_v3_pilot_check')return {data:null};throw Error(name);}};
  const result=await capture(()=>runPilotMonitoring({client,env,schedulerAuthorized:true,feed:async()=>{feedCalls++;if(kind==='source')throw Object.assign(Error('The feed request timed out.'),{code:'TIMEOUT'});return kind==='normalization'?{...feedResult,items:[]}:structuredClone(feedResult);},model:async req=>{brainCalls++;requests.push(req);if(kind==='brain')throw Object.assign(Error('private provider body'),{providerStatus:429});if(kind==='validation')return {};if(kind==='refs')return {...good(req),evidence_refs:['invented']};return good(req);}}));
  return {...result,calls,requests,feedCalls,brainCalls};
 }
@@ -22,7 +22,7 @@ test('scheduled failures record exact stages while preserving summary, calls and
  for(const [kind,stage,brain,refs,persist] of [['source','SOURCE_ACQUISITION',false,false,false],['normalization','EVIDENCE_NORMALIZATION',false,false,false],['brain','BRAIN_CALL',true,false,false],['validation','BRAIN_RESPONSE_VALIDATION',true,false,false],['refs','EVIDENCE_REF_ADMISSION',true,true,false],['persistence','RESULT_PERSISTENCE',true,true,true],['returned-sql-error','RESULT_PERSISTENCE',true,true,true]]){
   const r=await execute(kind);assert.deepEqual(r.value,{status:'partial-success',claimed:1,completed:0,failed:1});assert.equal(r.logs.length,1);
   const d=r.logs[0];assert.equal(d.stage,stage);assert.equal(d.watch_id,id);assert.equal(d.engine,PILOT_ENGINE);assert.equal(d.invocation_type,'scheduled');assert.equal(d.Brain_reached,brain);assert.equal(d.refs_admission_reached,refs);assert.equal(d.persistence_attempted,persist);assert.equal(d.persistence_succeeded,false);assert.equal(r.feedCalls,1);assert.equal(r.brainCalls,brain?1:0);
-  assert.deepEqual(r.calls.at(-1),{name:'fail_v3_pilot_check',payload:{p_id:id,p_token:'lease-not-for-logs'}});assert.equal(r.calls.filter(c=>c.name==='finish_v3_pilot_check').length,persist?1:0);
+  assert.equal(r.calls.at(-1).name,'fail_v3_pilot_check_diagnostic');assert.equal(r.calls.at(-1).payload.p_diagnostic.stage,stage);assert.equal(r.calls.at(-1).payload.p_diagnostic.category,d.error_name);assert.equal(r.calls.at(-1).payload.p_id,id);assert.equal(r.calls.at(-1).payload.p_token,'lease-not-for-logs');assert(!JSON.stringify(r.calls.at(-1).payload.p_diagnostic).includes('private'));assert.equal(r.calls.filter(c=>c.name==='finish_v3_pilot_check').length,persist?1:0);
   for(const k of ['diagnostic_id','check_attempt_id','invocation_id'])assert.match(d[k],/^[a-f0-9-]{36}$/);assert(!JSON.stringify(r.logs).includes('lease-not-for-logs'));
   if(persist)assert.equal(d.error_code,'42501');if(kind==='brain')assert.equal(d.provider_http_status,429);
  }
@@ -68,4 +68,12 @@ test('baseline call count and product failure survive unavailable diagnostic log
  assert.equal(calls,0);assert.equal(baseline.value.judgment,null);assert.equal(baseline.logs.length,0);
  const previous=console.error;console.error=()=>{throw Error('logger down');};let failures=0;
  try{const result=await runPilotMonitoring({env,schedulerAuthorized:true,client:{rpc:async name=>name==='claim_v3_pilot_checks'?{data:[row]}:name==='get_media_watch_notification_locale'?{data:'en'}:(failures++,{data:null})},model:good,feed:async()=>{throw Error('source down');}});assert.equal(result.failed,1);assert.equal(failures,1);}finally{console.error=previous;}
+});
+
+test('additive diagnostic RPC unavailable keeps the original fenced failure and retry path',async()=>{const r=await execute('source',{diagnosticFailure:true});assert.equal(r.value.failed,1);assert.equal(r.calls.at(-1).name,'fail_v3_pilot_check');assert.equal(r.calls.filter(c=>c.name==='fail_v3_pilot_check').length,1);});
+
+test('durable projection preserves a safe HTTP code while excluding arbitrary error payloads',async()=>{
+ const secret='sk-private Bearer eyJtoken postgres://user:password@host/db private@example.test private content';
+ const diagnostic=await withV3ScheduledDiagnostics({invocation_id:diagnosticInvocationId(),watch_id:id,engine:PILOT_ENGINE},async()=>{markV3Stage('BRAIN_CALL');return durableV3FailureDiagnostic(Object.assign(Error(secret),{providerStatus:429,providerCode:secret,cause:{message:secret}}));});
+ assert.equal(diagnostic.error_code,'HTTP_429');assert.equal(diagnostic.stage,'BRAIN_CALL');assert(!JSON.stringify(diagnostic).includes(secret));
 });

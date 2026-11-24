@@ -1,0 +1,603 @@
+{
+  "environment": {
+    "version": "PostgreSQL 17.11 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.1.1.101), 64-bit",
+    "server_version_num": "170011",
+    "database": "reliability_concurrency_test",
+    "data_directory": "[isolated temporary local cluster, removed]",
+    "listen_addresses": "",
+    "isolation": "read committed"
+  },
+  "isolation": "Disposable cluster; private 0700 Unix socket; no TCP; synthetic data only",
+  "clock_adaptation": "Only clock_timestamp() -> public.recovery_test_clock(), existing fixture strategy. Actual claim/locking/role/submission algorithm unchanged. Fixed business clock 2030-11-24 07:16 UTC, real session/lock scheduling.",
+  "migrations": [
+    {
+      "id": "20260820120000_supabase_foundations",
+      "source_sha256": "4fe9d044979610de38ca2e20e2e8236d2021cebc9642646bc5fb546f5d0c57cf"
+    },
+    {
+      "id": "20260821120000_company_watch_persistence",
+      "source_sha256": "c6084b2fe605c11e8a1a5ca85ce9f9656795afb1b92c394cbaa72854ef953fdb"
+    },
+    {
+      "id": "20260830120000_company_watch_category",
+      "source_sha256": "38d050bbf888cfee9a7cc65ce8ff46beaca4f104565977d53041caafd517a2d3"
+    },
+    {
+      "id": "20260902120000_automatic_company_monitoring",
+      "source_sha256": "b7d0993eef0ad6570c129d51abca3a12cb14a143092da4e56fa93d36eb7762e3"
+    },
+    {
+      "id": "20260903120000_company_monitoring_service_role_read_grants",
+      "source_sha256": "be4ca2048759b30efd52165ea667bceed522eb03a773aa6e86093168a3704afa"
+    },
+    {
+      "id": "20260911120000_company_watch_email_notifications",
+      "source_sha256": "b5c32babe680206581e50c8d1fb9a5ae91861312ba58fe833a6ebdc2c07e95c4"
+    },
+    {
+      "id": "20260913120000_media_watch_email_notifications",
+      "source_sha256": "bac1a8d6c15ce40977f5330abf745245c7ef4189c42a84da9aed2cedcdf56ef8"
+    },
+    {
+      "id": "20260925130000_media_conflict_no_transaction_retry",
+      "source_sha256": "9be243b7341c4e4d0c10e9a5a1b9bc50032c31b32b79a2a7264c80239b0e66e3"
+    },
+    {
+      "id": "20261001120000_currency_threshold_watches",
+      "source_sha256": "3ec56f4dd43415b17caab335936a17989f93a32de30929df1cf61bb327385842"
+    },
+    {
+      "id": "20261003160000_media_initial_context",
+      "source_sha256": "0c66f4eecc002b970d55a7e4ad88583d19927931734d535b518b348f3c93b629"
+    },
+    {
+      "id": "20261004120000_currency_alert_policies",
+      "source_sha256": "85090e03a0f9ceef8dedb6ed20d6e58d0896a27d6a5eddf60386aeb24d5c877d"
+    },
+    {
+      "id": "20261004150000_currency_strict_comparison",
+      "source_sha256": "bc91793bd22e5b153e0e29c9b43291656f209bd5917e40acd3c74990b8e95502"
+    },
+    {
+      "id": "20261005160000_media_query_history",
+      "source_sha256": "d8affcebbcf33bc30f6c4063984148ffd46e9b2cc17e7ed4bb01da874f249bda"
+    },
+    {
+      "id": "20261006100000_local_media_recovery",
+      "source_sha256": "f73c8f5c45ac717b236c7f092db59e6bfeb97cd9f00eeb1cc075757c80ea0220"
+    },
+    {
+      "id": "20261012120000_structured_watch_definitions",
+      "source_sha256": "01072e7a5207067e5d62a5d46dec233dd5267d4d658d9ff1352fc80819ad960f"
+    },
+    {
+      "id": "20261012140000_structured_watch_confirmation",
+      "source_sha256": "55e7c68d5b8e7f9b2569933aad264a6af44eabde59b9a916643d3ff07e8fccc2"
+    },
+    {
+      "id": "20261012160000_structured_media_completion",
+      "source_sha256": "6fae01489fbe6a488c2924f1103e574c8f912c2dc7d26e1a8b3ce5328fe44dab"
+    },
+    {
+      "id": "20261013140000_authenticated_truncate_revocation",
+      "source_sha256": "edc44bd37118f6c7058e4a385c1316c54af52f7b8b46c491a09114896943cfa3"
+    },
+    {
+      "id": "20261015160000_structured_media_scheduling",
+      "source_sha256": "ee7b72fee7d248d3dfcc5918a483b06baa75a2a57329174555844f711d1bf727"
+    },
+    {
+      "id": "20261015200000_structured_media_notifications",
+      "source_sha256": "a9644c293b3e5efb62db7abbb562cc8a147230510ea2f235ba64d9c62e6a439b"
+    },
+    {
+      "id": "20261016150000_media_watch_daily_digest",
+      "source_sha256": "ff373da551e675a4e948be3c9b60d3d7f5430a3d3cfdb3813f58c9d46c415fea"
+    },
+    {
+      "id": "20261017160000_structured_digest_exact_selection",
+      "source_sha256": "0f926d62ffe37364b79fcf7986d63791785f079fbfe50c663ccd147e805eab4a"
+    },
+    {
+      "id": "20261018160000_scoped_staging_digest_delivery",
+      "source_sha256": "5d5d365728601fe10b63421edddff05b99245674c653040fa3526e72dcd275c8"
+    },
+    {
+      "id": "20261018170000_structured_article_freshness",
+      "source_sha256": "296ba1c9412ca77da9aec3f8d09fce221483907793d17246eb8f86218efd515b"
+    },
+    {
+      "id": "20261018180000_role_development_contract",
+      "source_sha256": "cd2239b140c8b1ce1347563adac67db2a25b22b5087cc28cd2a11b2541e48e0f"
+    },
+    {
+      "id": "20261018183000_role_topic_grounding",
+      "source_sha256": "9a0594eaaa2c14909231bd25c17ffb54abe550f7392749f2e1809e5094ed47d7"
+    },
+    {
+      "id": "20261018195000_staging_digest_morning_deferral",
+      "source_sha256": "8d559c7817fb79809dd639600ca84c8a47be39c2af68d2c480719b1239ed6b47"
+    },
+    {
+      "id": "20261020150000_manual_structured_digest_capture",
+      "source_sha256": "907a7e24cb6af825346b39d5b1e09aeb22524de14e459cb696d9e004be7b8b1e"
+    },
+    {
+      "id": "20261020170000_scoped_legacy_staging_digest",
+      "source_sha256": "ec6201c0e6a712109a4655757c4ac089c2448c6f8d0aabdd9b93a3185f8cdb2a"
+    },
+    {
+      "id": "20261023120000_production_private_reports",
+      "source_sha256": "e27dc35368f5ae7052506ead262a4476d54011e31e28bbdfe0abc6c5e4aa9a20"
+    },
+    {
+      "id": "20261023140000_production_structured_digest_delivery",
+      "source_sha256": "50a486c74df6e9d5e29ff6d8cb1aefacee5233153a628a8ba90927fb19c71cfd"
+    },
+    {
+      "id": "20261023160000_structured_watch_creation_notes",
+      "source_sha256": "148fbd112ab60981efc71a8b80d10b358ed0afd8ee0f1c6c9c7b5c435957cb51"
+    },
+    {
+      "id": "20261024110000_structured_daily_morning_eligibility",
+      "source_sha256": "bdc27a939b80a59d65d81e44a8381ee74acfb602adc800dc2d61c1a628a24cd1"
+    },
+    {
+      "id": "20261031190000_v3_pilot_adapter",
+      "source_sha256": "c2ca26547cb92ae2a46a06b77096b1c398db62232deffa94ebf7db68d3883827"
+    },
+    {
+      "id": "20261031200000_v3_pilot_daily_anchor",
+      "source_sha256": "9728c1cec3b37991b355a53294f6d15473cd3039d64543333cd2aaf90c110ac7"
+    },
+    {
+      "id": "20261031210000_v3_pilot_currency_bridge",
+      "source_sha256": "e9a9b195a60c0ef5755cbbb0ce72d76ddb7b5221ca0d3dfddb7038f74201cf8d"
+    },
+    {
+      "id": "20261031220000_v3_pilot_policy_read_compatibility",
+      "source_sha256": "15491c1018ca576f9b373a5ef2177d9d632b3b9ccbe8a7a0f2b1ef4a8612501d"
+    },
+    {
+      "id": "20261101100000_general_v3_creation",
+      "source_sha256": "b07e7032cb78b5dc7df13f622428b86566c9ab210c48e48aa86f284ed2c1aa5d"
+    },
+    {
+      "id": "20261103120000_v3_manual_runtime_context",
+      "source_sha256": "f527dde839c0c37a1daa7876189bfc7de11d73df873d21fe59c23f89f32b2ac8"
+    },
+    {
+      "id": "20261104120000_morning_report_cycle_context",
+      "source_sha256": "6a1e10996b6fb37e8661b0ccbfa27fdddfc8c92a90f1cf435c6497ff4fd3af1e"
+    },
+    {
+      "id": "20261104210000_article_seed_display_title",
+      "source_sha256": "92c2daac3a9ccb07084d7f03f99e0d0be0f8d58d6558d389068033bc2ad56057"
+    },
+    {
+      "id": "20261105210000_v3_recreate_deleted_watch",
+      "source_sha256": "326af693e7fcf37e3e0ab984791c818a904148d49a2ddc46f18dc0f698597613"
+    },
+    {
+      "id": "20261106120000_latest_watch_report_automatic_context",
+      "source_sha256": "206ad298d4b7ca674b94c8313b9dba22e5e705db989256c70eaea9ac9ce9d45a"
+    },
+    {
+      "id": "20261106170000_v3_empty_story_search_completion",
+      "source_sha256": "4553f5d7781cb8ba24e58441dd0197c636e6225d099a522942f0ffa0db3ccb0f"
+    },
+    {
+      "id": "20261108150000_v3_watch_display_title",
+      "source_sha256": "329b24028d1e34c0eabe15ce761ea831f68b1cc6d3f84138b242eda653b9a1ba"
+    },
+    {
+      "id": "20261109100000_v3_clarification_identity",
+      "source_sha256": "2dbc5c1c6737603d5492119c73b86b5fb9084cfd1f5aa0c9736b9648b2dcee97"
+    },
+    {
+      "id": "20261124090958_durable_v3_failure_diagnostics",
+      "source_sha256": "07995a568dfe711f4dd709ff20b15cc2a429e1e980db19a60289f389af41ef54"
+    },
+    {
+      "id": "20261124091004_bounded_digest_recovery",
+      "source_sha256": "a5cf91dda53d60b25809204530b3779657bdce3053cd89c4bba49186b9d70417"
+    }
+  ],
+  "races": [
+    {
+      "repetition": 1,
+      "barrier": {
+        "blocked": 2,
+        "sessions": [
+          {
+            "pid": 23566,
+            "wait_event": "tuple",
+            "state": "active"
+          },
+          {
+            "pid": 23568,
+            "wait_event": "transactionid",
+            "state": "active"
+          }
+        ]
+      },
+      "worker_a": {
+        "pid": 23566,
+        "xid": 904,
+        "claimed": false
+      },
+      "worker_b": {
+        "pid": 23568,
+        "xid": 905,
+        "claimed": true
+      },
+      "persisted": {
+        "id": "f413be59-0c4c-4408-a4d0-edd20463cb00",
+        "owner": "89edbfa8-49d7-4314-9cdc-877a50fd9620",
+        "status": "claimed",
+        "claim_token": "e7927c86-fc8d-4b6d-bbd7-7a6723ce0a87",
+        "submission_started": false,
+        "digest_count": 1,
+        "members": 1,
+        "attempt_count": 0
+      }
+    },
+    {
+      "repetition": 2,
+      "barrier": {
+        "blocked": 2,
+        "sessions": [
+          {
+            "pid": 23566,
+            "wait_event": "tuple",
+            "state": "active"
+          },
+          {
+            "pid": 23568,
+            "wait_event": "transactionid",
+            "state": "active"
+          }
+        ]
+      },
+      "worker_a": {
+        "pid": 23566,
+        "xid": 922,
+        "claimed": false
+      },
+      "worker_b": {
+        "pid": 23568,
+        "xid": 923,
+        "claimed": true
+      },
+      "persisted": {
+        "id": "6f1fc98b-b4cf-4e4b-80ce-8e7288dbab28",
+        "owner": "89edbfa8-49d7-4314-9cdc-877a50fd9620",
+        "status": "claimed",
+        "claim_token": "7724d2a9-55c8-495f-add8-db8d44414cf3",
+        "submission_started": false,
+        "digest_count": 1,
+        "members": 1,
+        "attempt_count": 0
+      }
+    },
+    {
+      "repetition": 3,
+      "barrier": {
+        "blocked": 2,
+        "sessions": [
+          {
+            "pid": 23566,
+            "wait_event": "transactionid",
+            "state": "active"
+          },
+          {
+            "pid": 23568,
+            "wait_event": "tuple",
+            "state": "active"
+          }
+        ]
+      },
+      "worker_a": {
+        "pid": 23566,
+        "xid": 940,
+        "claimed": true
+      },
+      "worker_b": {
+        "pid": 23568,
+        "xid": 941,
+        "claimed": false
+      },
+      "persisted": {
+        "id": "b5470ec9-c076-45fc-b51c-9595f05d05c3",
+        "owner": "89edbfa8-49d7-4314-9cdc-877a50fd9620",
+        "status": "claimed",
+        "claim_token": "6a1ac83c-3033-4d07-a9ee-9920d8263cf7",
+        "submission_started": false,
+        "digest_count": 1,
+        "members": 1,
+        "attempt_count": 0
+      }
+    },
+    {
+      "repetition": 4,
+      "barrier": {
+        "blocked": 2,
+        "sessions": [
+          {
+            "pid": 23566,
+            "wait_event": "tuple",
+            "state": "active"
+          },
+          {
+            "pid": 23568,
+            "wait_event": "transactionid",
+            "state": "active"
+          }
+        ]
+      },
+      "worker_a": {
+        "pid": 23566,
+        "xid": 958,
+        "claimed": false
+      },
+      "worker_b": {
+        "pid": 23568,
+        "xid": 959,
+        "claimed": true
+      },
+      "persisted": {
+        "id": "43183737-4460-4cc0-bf8d-adba41c39fa0",
+        "owner": "89edbfa8-49d7-4314-9cdc-877a50fd9620",
+        "status": "claimed",
+        "claim_token": "1885f152-2c49-4bbb-a968-f911355b98da",
+        "submission_started": false,
+        "digest_count": 1,
+        "members": 1,
+        "attempt_count": 0
+      }
+    },
+    {
+      "repetition": 5,
+      "barrier": {
+        "blocked": 2,
+        "sessions": [
+          {
+            "pid": 23566,
+            "wait_event": "transactionid",
+            "state": "active"
+          },
+          {
+            "pid": 23568,
+            "wait_event": "tuple",
+            "state": "active"
+          }
+        ]
+      },
+      "worker_a": {
+        "pid": 23566,
+        "xid": 976,
+        "claimed": true
+      },
+      "worker_b": {
+        "pid": 23568,
+        "xid": 977,
+        "claimed": false
+      },
+      "persisted": {
+        "id": "c399eb39-2995-48e5-9161-95d8da98a12b",
+        "owner": "89edbfa8-49d7-4314-9cdc-877a50fd9620",
+        "status": "claimed",
+        "claim_token": "f7becfa1-8891-4d22-a8ef-e38c19855de6",
+        "submission_started": false,
+        "digest_count": 1,
+        "members": 1,
+        "attempt_count": 0
+      }
+    }
+  ],
+  "safety": {
+    "repeated_claim": {
+      "pass": true
+    },
+    "crash_after_submission_boundary": {
+      "pass": true,
+      "persisted": {
+        "id": "c399eb39-2995-48e5-9161-95d8da98a12b",
+        "owner": "89edbfa8-49d7-4314-9cdc-877a50fd9620",
+        "status": "submitting",
+        "claim_token": "f7becfa1-8891-4d22-a8ef-e38c19855de6",
+        "submission_started": true,
+        "digest_count": 1,
+        "members": 1,
+        "attempt_count": 1
+      },
+      "simulated_submission_opportunities": 1,
+      "real_provider_calls": 0
+    },
+    "different_owners": {
+      "pass": true,
+      "barrier": {
+        "blocked": 2,
+        "sessions": [
+          {
+            "pid": 23566,
+            "wait_event": "transactionid",
+            "state": "active"
+          },
+          {
+            "pid": 23568,
+            "wait_event": "transactionid",
+            "state": "active"
+          }
+        ]
+      },
+      "independent_pids": [
+        23566,
+        23568
+      ],
+      "owner_a_claimed": true,
+      "owner_b_claimed": true
+    },
+    "cross_owner_denied": {
+      "pass": true
+    },
+    "rollback": {
+      "pass": true,
+      "persisted": {
+        "id": "04f21bc1-c8fe-4b51-b71d-8b3bd2c7374c",
+        "owner": "89edbfa8-49d7-4314-9cdc-877a50fd9620",
+        "status": "claimed",
+        "claim_token": "b55ff12a-6ee0-4746-a940-415acfef350f",
+        "submission_started": false,
+        "digest_count": 1,
+        "members": 1,
+        "attempt_count": 0
+      }
+    },
+    "crash_before_submission_and_expired_lease": {
+      "pass": true,
+      "stale_token_fenced": true,
+      "persisted": {
+        "id": "04f21bc1-c8fe-4b51-b71d-8b3bd2c7374c",
+        "owner": "89edbfa8-49d7-4314-9cdc-877a50fd9620",
+        "status": "submitting",
+        "claim_token": "c0a965e2-7c35-49c3-bbbf-d9c521c4eb24",
+        "submission_started": true,
+        "digest_count": 1,
+        "members": 1,
+        "attempt_count": 1
+      }
+    },
+    "sent_excluded": {
+      "pass": true
+    },
+    "uncertain_excluded": {
+      "pass": true
+    },
+    "historical_excluded": {
+      "pass": true
+    },
+    "expired_excluded": {
+      "pass": true
+    },
+    "consent_disabled": {
+      "pass": true
+    },
+    "recent_check_required": {
+      "pass": true
+    },
+    "missing_source_url": {
+      "pass": true
+    },
+    "unprivileged_execution_denied": {
+      "pass": true,
+      "roles": [
+        "anon",
+        "authenticated"
+      ]
+    }
+  },
+  "production_or_staging_access": false,
+  "provider_calls": 0,
+  "security_context": {
+    "functions": [
+      {
+        "name": "prepare_production_recovery_digests",
+        "security_definer": true,
+        "config": [
+          "search_path=\"\""
+        ],
+        "acl": [
+          "reliability_test=X/reliability_test",
+          "service_role=X/reliability_test"
+        ]
+      },
+      {
+        "name": "claim_production_recovery_digest",
+        "security_definer": true,
+        "config": [
+          "search_path=\"\""
+        ],
+        "acl": [
+          "reliability_test=X/reliability_test",
+          "service_role=X/reliability_test"
+        ]
+      },
+      {
+        "name": "begin_production_recovery_digest",
+        "security_definer": true,
+        "config": [
+          "search_path=\"\""
+        ],
+        "acl": [
+          "reliability_test=X/reliability_test",
+          "service_role=X/reliability_test"
+        ]
+      }
+    ]
+  },
+  "session_pids": {
+    "controller": 23564,
+    "worker-a": 23566,
+    "worker-b": 23568,
+    "observer": 23570
+  },
+  "race_repetitions": 5,
+  "duplicate_successful_claims": 0,
+  "result": "PASS",
+  "limitations": [
+    "PostgreSQL 17.11 local vs Supabase PostgreSQL 17.12 Production.",
+    "JWT signature validation, PostgREST gateway, Supabase platform/RLS end-to-end behavior and actual email delivery are not reproduced. Roles and RPC execution context are simulated inside the isolated cluster.",
+    "Business clock is controlled to exercise the grace window and lease rules; physical PostgreSQL sessions, transactions and locks are real."
+  ],
+  "cleanup": {
+    "server_stopped": true,
+    "temporary_cluster_removed": true,
+    "temporary_database_removed_with_cluster": true
+  },
+  "database_metadata": {
+    "extensions": [
+      {
+        "name": "plpgsql",
+        "version": "1.0"
+      },
+      {
+        "name": "pgcrypto",
+        "version": "1.3"
+      }
+    ],
+    "roles": [
+      {
+        "name": "anon",
+        "bypass_rls": false,
+        "login": false
+      },
+      {
+        "name": "authenticated",
+        "bypass_rls": false,
+        "login": false
+      },
+      {
+        "name": "service_role",
+        "bypass_rls": true,
+        "login": false
+      }
+    ],
+    "unique_constraints": [
+      {
+        "table": "media_watch_notifications",
+        "definition": "UNIQUE (watch_id, user_id, source_article_id)"
+      },
+      {
+        "table": "media_watch_digests",
+        "definition": "UNIQUE (watch_id, period)"
+      }
+    ],
+    "final_counts": {
+      "synthetic_accounts": 2,
+      "synthetic_watches": 2,
+      "notifications": 6,
+      "digests": 0
+    }
+  }
+}

@@ -3,7 +3,7 @@ import {understandCapture} from './v3-intent/understand.mjs';
 import {createResponsesModel} from './v3-intent/provider.mjs';
 import {createBrainModel} from './v3-brain/provider.mjs';
 import {judgeReferenceEvidence} from './v3-brain-lab/evidence-ref-candidate/candidate.mjs';
-import {diagnosticInvocationId,withV3ScheduledDiagnostics,markV3Stage,markV3PersistenceSuccess,recordV3Failure} from './v3-scheduled-diagnostics.js';
+import {diagnosticInvocationId,withV3ScheduledDiagnostics,markV3Stage,markV3PersistenceSuccess,recordV3Failure,durableV3FailureDiagnostic} from './v3-scheduled-diagnostics.js';
 import {toBrainInput} from './v3-brain-lab/end-to-end-mini/adapter.mjs';
 import {fetchAndNormalizeFeed} from './check-watch-api.js';
 import {fetchCurrencyRate} from './currency-rate.js';
@@ -112,7 +112,10 @@ export async function runPilotMonitoring({client,env=process.env,schedulerAuthor
  const rows=claim.data||[];let completed=0,failed=0;
  await Promise.all(rows.map(row=>withV3ScheduledDiagnostics({invocation_id,watch_id:row.id,engine:row.engine},async()=>{let reported=false;try{
   await runV3WatchCheck(row,{client,env,model,feed,currency});completed++;
- }catch(error){if(!reported)recordV3Failure(error);failed++;await client.rpc('fail_v3_pilot_check',{p_id:row.id,p_token:row.token});}})));
+ }catch(error){if(!reported)recordV3Failure(error);failed++;const diagnostic=durableV3FailureDiagnostic(error);
+  // The old RPC remains available for staged deployment and diagnostics-write failures.
+  let failure;try{failure=await client.rpc('fail_v3_pilot_check_diagnostic',{p_id:row.id,p_token:row.token,p_diagnostic:diagnostic});}catch{failure={error:true};}
+  if(failure?.error)await client.rpc('fail_v3_pilot_check',{p_id:row.id,p_token:row.token});}})));
  return {status:failed?'partial-success':'success',claimed:rows.length,completed,failed};
 }
 export const pilotIntentModel=env=>createResponsesModel({apiKey:env.OPENAI_API_KEY});

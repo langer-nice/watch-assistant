@@ -1,3 +1,4 @@
+import {optionalProductionMigrationInstalled} from './test-support/optional-production-migration.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,readdir} from 'node:fs/promises';
@@ -49,11 +50,13 @@ test('existing authenticated endpoint routes exact digest only, preserving immed
 });
 
 test('exact selection with real isolated SQL: ownership, eligibility, atomic claim and no fallback',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:Date.parse('2030-11-24T07:16:00Z')});
  const db=new PGlite(),fetch=globalThis.fetch;globalThis.fetch=()=>assert.fail('External requests forbidden');
  try{
   await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;create function auth.role() returns text language sql stable as $$select current_setting('request.jwt.claim.role',true)$$;grant usage on schema auth,public to anon,authenticated,service_role;grant execute on all functions in schema auth to anon,authenticated,service_role;`);
+  await db.exec("create function public.selection_test_clock() returns timestamptz language sql as $$select '2030-11-24T07:16:00Z'::timestamptz$$;");
   const dir=new URL('../supabase/migrations/',import.meta.url);
-  for(const f of(await readdir(dir)).sort().filter(f=>f.endsWith('.sql')))await db.exec((await readFile(new URL(f,dir),'utf8')).replace('create extension if not exists pgcrypto;',''));
+  for(const f of(await readdir(dir)).sort().filter(f=>f.endsWith('.sql')))if(await optionalProductionMigrationInstalled(db,f))await db.exec((await readFile(new URL(f,dir),'utf8')).replace('create extension if not exists pgcrypto;','').replace(/\b(?:clock_timestamp|now)\(\)/g,'public.selection_test_clock()'));
   const as=(role,user,sql,args=[])=>db.transaction(async tx=>{await tx.exec('set local role '+role);await tx.query("select set_config('request.jwt.claim.role',$1,true),set_config('request.jwt.claim.sub',$2,true)",[role,user]);return tx.query(sql,args);});
   const svc=(sql,args)=>as('service_role',owner,sql,args),auth=(sql,args)=>as('authenticated',owner,sql,args);
   await db.query("insert into auth.users values($1,'owner@example.test',now()),($2,'other@example.test',now())",[owner,other]);

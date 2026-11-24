@@ -1,6 +1,6 @@
 import {runV3WatchCheck} from './v3-pilot.js';
 import {mapMediaReportRow} from '../src/js/media-watch-row.js';
-import {diagnosticInvocationId,withV3ScheduledDiagnostics,getV3AttemptDiagnostic,recordV3Failure} from './v3-scheduled-diagnostics.js';
+import {diagnosticInvocationId,withV3ScheduledDiagnostics,getV3AttemptDiagnostic,recordV3Failure,durableV3FailureDiagnostic} from './v3-scheduled-diagnostics.js';
 
 export const runManualV3Check=({row,user,client,env,model,feed,currency,engine,outputLocale})=>withV3ScheduledDiagnostics({
  invocation_id:diagnosticInvocationId(),watch_id:row.id,engine,invocation_type:'manual',
@@ -25,7 +25,8 @@ export const runManualV3Check=({row,user,client,env,model,feed,currency,engine,o
    matchedItems:result.article?mapped.updates.filter(update=>update.id===persisted.last_change_item_id):[],...getV3AttemptDiagnostic()}};
  }catch(error){
   recordV3Failure(error);
-  if(token){try{await client.rpc('fail_v3_pilot_check',{p_id:row.id,p_token:token});}catch{/* Keep the original failure and let its bounded lease expire. */}}
+  if(token){try{let failed;try{failed=await client.rpc('fail_v3_pilot_check_diagnostic',{p_id:row.id,p_token:token,p_diagnostic:durableV3FailureDiagnostic(error)});}catch{failed={error:true};}
+   if(failed?.error)await client.rpc('fail_v3_pilot_check',{p_id:row.id,p_token:token});}catch{/* Keep the original failure and let its bounded lease expire. */}}
   const diagnostic=getV3AttemptDiagnostic();
   return {status:503,body:{code:'V3_'+diagnostic.stage,...diagnostic}};
  }
