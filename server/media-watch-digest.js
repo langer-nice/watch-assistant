@@ -43,17 +43,20 @@ export const groupDigestArticles = items => {
   return [...groups.values()].sort((a,b)=>(Date.parse(b[0].publishedAt)||0)-(Date.parse(a[0].publishedAt)||0));
 };
 const safeDevelopmentSource=(source,articles)=>typeof source.quote==='string'&&articles.some(i=>i.id===source.id&&i.article?.url===source.url&&[i.article.title,i.article.summary??i.article.excerpt].filter(Boolean).join('\n').includes(source.quote));
-export const renderMediaWatchDigest = ({locale,watchId,watchTitle,period,articles,baseUrl,includeSourceSummaries=false,storyDevelopments=[]}) => {
+export const renderMediaWatchDigest = ({locale,watchId,watchTitle,period,articles,baseUrl,includeSourceSummaries=false,storyDevelopments=[],delayedDetectedAt=null}) => {
   const fr=locale==='fr',lang=fr?'fr':'en',app=https(baseUrl);
   if(!app)throw Object.assign(Error('Unsafe app URL'),{code:'INVALID_APP_URL'});
   if(!/^\d{4}-\d{2}-\d{2}$/.test(period||''))throw Error('Invalid digest period');
   const groups=groupDigestArticles(articles),count=groups.reduce((n,g)=>n+g.length,0),shown=[];
   let available=5;for(const group of groups){if(!available)break;const part=group.slice(0,available);shown.push(part);available-=part.length;}
   const watch=clean(watchTitle,200)||'Media Watch';
-  const subject=`${watch} — ${fr?'Votre récapitulatif du jour':'Your daily update'}`;
+  const delayed=delayedDetectedAt!==null;
+  if(delayed&&(typeof delayedDetectedAt!=='string'||!Number.isFinite(Date.parse(delayedDetectedAt))))throw Error('Invalid delayed detection date');
+  const detected=delayed?new Date(delayedDetectedAt).toISOString():null;
+  const subject=`${watch} — ${delayed?(fr?'Notification différée':'Delayed notification'):(fr?'Votre récapitulatif du jour':'Your daily update')}`;
   const detail=new URL('/watch-detail.html',app);detail.searchParams.set('id',watchId);
   const preferences=new URL(detail);preferences.hash='email-notifications';
-  const intro=fr?`${count} nouveaux articles pertinents — ${period} (UTC)`:`${count} new relevant articles — ${period} (UTC)`;
+  const intro=delayed?(fr?`Notification différée — détectée le ${detected} (UTC), envoi du ${period}. La date de publication originale figure ci-dessous.`:`Delayed notification — detected at ${detected} (UTC), delivery date ${period}. Original publication date appears below.`):(fr?`${count} nouveaux articles pertinents — ${period} (UTC)`:`${count} new relevant articles — ${period} (UTC)`);
   const all=fr?'Voir tous les résultats de la Watch':'View all Watch results';
   const off=fr?'Désactiver les emails dans les réglages de cette Watch (connexion requise).':'Turn off emails in this Watch’s settings (sign-in required).';
   // Staging legacy digests retain sourced context that may contain a development absent from the headline.
@@ -97,30 +100,42 @@ export const processMediaWatchDigests = async ({client,env=process.env,sender=se
     const seen=new Set();scopedSelections=scopedSelections.filter(item=>{if(seen.has(item.watchId))return false;seen.add(item.watchId);return true;});
   }
   if(!structuredProduction && !selection && !scopedSelections)await rpc('prepare_media_watch_digests',{p_send_hour:hour,p_owners:owners,p_structured:structured});
-  const ids=structuredProduction?await rpc('prepare_production_structured_digests',{p_since:config.eligibleAfter,p_owners:owners}):selection?[selection.digestId]:scopedSelections?scopedSelections.map(item=>item.digestId):await rpc('pending_media_watch_digests',{p_owners:owners,p_structured:structured});
+  let ids=structuredProduction?await rpc('prepare_production_structured_digests',{p_since:config.eligibleAfter,p_owners:owners}):selection?[selection.digestId]:scopedSelections?scopedSelections.map(item=>item.digestId):await rpc('pending_media_watch_digests',{p_owners:owners,p_structured:structured});
   if(!Array.isArray(ids)||ids.length>10)throw Error('Invalid digest batch');
+  const activation=structuredProduction&&env.STRUCTURED_MEDIA_RECOVERY_ENABLED==='true'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(env.STRUCTURED_MEDIA_RECOVERY_SINCE||'')&&Number.isFinite(Date.parse(env.STRUCTURED_MEDIA_RECOVERY_SINCE))?env.STRUCTURED_MEDIA_RECOVERY_SINCE:null;
+  const recoveryIds=new Set();
+  if(activation){
+   try{
+    const extra=await rpc('prepare_production_recovery_digests',{p_owners:owners,p_since:config.eligibleAfter,p_activation:activation});
+    if(!Array.isArray(extra)||extra.length>10||extra.some(id=>typeof id!=='string'||!/^([a-f0-9]{8})(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id)))throw Error('Invalid recovery batch');
+    for(const id of extra)recoveryIds.add(id);
+    ids=[...new Set([...ids,...extra])].slice(0,10);
+   }catch{summary.failedCount++;summary.recoveryStatus='unavailable';}
+  }
   summary.status='success';
   for(const id of ids){
     if(Date.now()>=deadline||(structured&&!window().open))break;
     const selected=selection||scopedSelections?.find(item=>item.digestId===id);
     const token=randomUUID();let claimed=null,boundary=false,providerStarted=false;
     try{
-      claimed=await rpc(structuredProduction?'claim_production_structured_digest':selected?'claim_structured_media_test_digest':'claim_media_watch_digest',structuredProduction
+      const recovery=recoveryIds.has(id);
+      claimed=await rpc(recovery?'claim_production_recovery_digest':structuredProduction?'claim_production_structured_digest':selected?'claim_structured_media_test_digest':'claim_media_watch_digest',recovery?{p_id:id,p_token:token,p_owners:owners,p_since:config.eligibleAfter,p_activation:activation}:structuredProduction
         ?{p_id:id,p_token:token,p_owners:owners,p_since:config.eligibleAfter}:selected
         ?{p_digest_id:id,p_watch_id:selected.watchId,p_owner:selected.ownerId,p_claim_token:token,p_owners:[selected.ownerId],p_send_hour:hour}
         :{p_id:id,p_token:token,p_owners:owners,p_structured:structured});
       if(!claimed)continue;
+      if(recovery&&(claimed.recovery!==true||typeof claimed.detected_at!=='string'))throw Error('Invalid recovery claim');
       summary.claimedCount++;
       if(claimed.id!==id||claimed.is_structured!==structured||!Array.isArray(claimed.articles)||!claimed.articles.length
         ||(selected&&(claimed.watch_id!==selected.watchId||claimed.user_id!==selected.ownerId)))throw Error('Invalid digest claim');
       const auth=await withinMediaDeadline(()=>client.auth.admin.getUserById(claimed.user_id),deadline);
       const user=auth.data?.user;
-      if(auth.error||!user?.email||!user.email_confirmed_at||(structuredProduction?(user.id!==claimed.user_id||!owners.includes(user.id)):(structured&&!structuredMediaEmailDeliveryAllowed(env,claimed.user_id,user.email))))throw Object.assign(Error('Recipient unavailable'),{code:'RECIPIENT_UNVERIFIED'});
+      if(auth.error||!user?.email||!user.email_confirmed_at||user.deleted_at||(user.banned_until&&Date.parse(user.banned_until)>now())||(structuredProduction?(user.id!==claimed.user_id||!owners.includes(user.id)):(structured&&!structuredMediaEmailDeliveryAllowed(env,claimed.user_id,user.email))))throw Object.assign(Error('Recipient unavailable'),{code:'RECIPIENT_UNVERIFIED'});
       const locale=await rpc('get_media_watch_notification_locale',{p_user_id:claimed.user_id});
-      const content=renderMediaWatchDigest({locale,watchId:claimed.watch_id,watchTitle:claimed.watch_title,period:claimed.period,articles:claimed.articles,baseUrl:config.baseUrl});
+      const content=renderMediaWatchDigest({locale,watchId:claimed.watch_id,watchTitle:claimed.watch_title,period:claimed.period,articles:claimed.articles,baseUrl:config.baseUrl,delayedDetectedAt:recovery?claimed.detected_at:null});
       if(structured&&!window().open)throw Object.assign(Error('Morning window closed'),{code:'DIGEST_WINDOW_CLOSED'});
       boundary=true;
-      if(await rpc('begin_media_watch_digest',{p_id:id,p_token:token})!==true){boundary=false;throw Object.assign(Error('Digest no longer eligible'),{code:'DATABASE_ERROR'});}
+      if(await rpc(recovery?'begin_production_recovery_digest':'begin_media_watch_digest',recovery?{p_id:id,p_token:token,p_owners:owners,p_since:config.eligibleAfter,p_activation:activation}:{p_id:id,p_token:token})!==true){boundary=false;throw Object.assign(Error('Digest no longer eligible'),{code:'DATABASE_ERROR'});}
       // If preparation crossed 08:30, no provider request has begun: release safely.
       if(structured&&!window().open)throw Object.assign(Error('Morning window closed'),{code:'DIGEST_WINDOW_CLOSED'});
       const key='watch-digest-'+createHash('sha256').update(`${claimed.watch_id}\0${claimed.period}`).digest('hex');

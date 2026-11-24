@@ -26,3 +26,13 @@ export const recordV3Failure=(error,{event}={})=>{try{
  const record={event,diagnostic_id:c.diagnostic_id,check_attempt_id:c.check_attempt_id,invocation_id:c.invocation_id,watch_id:c.watch_id,engine:c.engine,stage:c.stage,error_name:names.has(error?.name)?error.name:'Error',error_code:safeCode(error?.code),error_message:safeMessage(message),error_fingerprint:createHash('sha256').update(message).digest('hex'),provider_http_status:Number.isInteger(error?.providerStatus)?error.providerStatus:c.provider_http_status,provider_error_code:safeCode(error?.providerCode),cause_name:names.has(error?.cause?.name)?error.cause.name:null,cause_code:safeCode(error?.cause?.code),Brain_reached:c.Brain_reached,Brain_completed:c.Brain_completed,refs_admission_reached:c.refs_admission_reached,persistence_attempted:c.persistence_attempted,persistence_succeeded:c.persistence_succeeded,timestamp:new Date().toISOString(),invocation_type:c.invocation_type,elapsed_ms:Math.round(performance.now()-c.started)};
  console.error(event,record);
 }catch{/* Diagnostic failures cannot replace the original product failure. */}};
+
+// Durable projection: no messages, provider payloads, prompts, content or stacks.
+export const durableV3FailureDiagnostic = error => {
+ const c=context.getStore();if(!c)return null;
+ const httpStatus=Number.isInteger(error?.providerStatus)?error.providerStatus:c.provider_http_status;
+ const code=safeCode(error?.code)||safeCode(error?.providerCode)||(Number.isInteger(httpStatus)&&httpStatus>=400&&httpStatus<=599?`HTTP_${httpStatus}`:'V3_PILOT_CHECK_FAILED');
+ return {attempt_id:uuid(c.check_attempt_id),context_id:uuid(c.invocation_id),
+  stage:stages.has(c.stage)?c.stage:'UNKNOWN',error_code:code,
+  category:names.has(error?.name)?error.name:'Error'};
+};

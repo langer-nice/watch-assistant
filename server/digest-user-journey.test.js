@@ -1,3 +1,4 @@
+import {optionalProductionMigrationInstalled} from './test-support/optional-production-migration.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,readdir} from 'node:fs/promises';
@@ -32,6 +33,7 @@ test('complete report and automatic monitoring → durable articles → morning 
   // Only replace database clock reads; every production function and trigger executes unchanged otherwise.
   const dir=new URL('../supabase/migrations/',import.meta.url);
   for(const f of(await readdir(dir)).sort().filter(f=>f.endsWith('.sql'))){
+   if(!await optionalProductionMigrationInstalled(db,f))continue;
    const sql=(await readFile(new URL(f,dir),'utf8')).replace('create extension if not exists pgcrypto;','').replace(/\b(?:clock_timestamp|now)\(\)/g,'public.test_clock()');
    await db.exec(sql);
   }
@@ -85,7 +87,7 @@ test('complete report and automatic monitoring → durable articles → morning 
   await t.test('automatic cron accepts the same article independently and consent-OFF stays silent',async()=>{
    feeds.set(automatic,feeds.get(home));feeds.set(off,feeds.get(home));await controller.check(off);
    await at('2026-10-19T00:01:00Z');await db.query('update structured_media_schedules set next_due_at=public.test_clock() where watch_id=$1',[automatic]);
-   const result=await tick('structured-media');assert.equal(result.structured.changed,1);assert.equal(result.notifications.digests.status,'outside-morning-window');
+   const result=await tick('structured-media');assert.equal(result.structured.changed,1);assert.equal(result.notifications,undefined);assert.equal(submitted.length,0);
    assert.equal((await notifications()).length,2);assert(rpcCalls.includes('finish_structured_check_with_digest'));
   });
   await t.test('Home viewing/read acknowledgement, refresh and later empty checks preserve both pending records across midnight',async()=>{
