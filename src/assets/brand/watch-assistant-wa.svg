@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 300" role="img" aria-labelledby="title desc">
+  <title id="title">Watch Assistant — WA</title>
+  <desc id="desc">Monogramme WA continu, bleu marine et dégradé cyan à bleu, sur fond transparent.</desc>
+  <defs>
+    <linearGradient id="navy" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#05284f"/>
+      <stop offset="1" stop-color="#001a48"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0.25" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#21cff5"/>
+      <stop offset="0.36" stop-color="#0798f7"/>
+      <stop offset="0.73" stop-color="#075ee9"/>
+      <stop offset="1" stop-color="#0343ca"/>
+    </linearGradient>
+    <linearGradient id="blueRight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00baf7"/>
+      <stop offset="0.45" stop-color="#0759ed"/>
+      <stop offset="1" stop-color="#0341bd"/>
+    </linearGradient>
+  </defs>
+  <!-- The W's final descending stroke leads directly into the A. -->
+  <path fill="url(#navy)" d="M38 57 H78 Q91 57 97 68 L144 155 186 76 Q196 56 216 56 Q236 56 246 76 L297 169 272 219 Q259 224 249 208 L217 141 169 223 Q156 244 137 244 Q118 244 107 223 L31 73 Q25 57 38 57 Z"/>
+  <!-- The A is a single continuous rising-and-falling ribbon, crossing the W. -->
+  <path fill="url(#blue)" d="M249 208 Q261 225 273 205 L345 77 Q360 45 390 45 Q421 45 439 76 L525 222 Q537 242 520 242 H480 Q467 242 460 229 L449 209 H364 L385 172 H428 L400 119 331 228 Q317 244 295 244 Q273 244 262 225 Z"/>
+  <!-- Slightly deeper right-facing blue on the A's descending side. -->
+  <path fill="url(#blueRight)" d="M400 119 411 96 Q423 67 441 79 L525 222 Q537 242 520 242 H480 Q467 242 460 229 L449 209 H364 L385 172 H428 Z"/>
+</svg>
