@@ -27,6 +27,9 @@ export function createConditionCheck(value){
 }
 export function guardConditionAction(judgment,check){
  if(check?.condition_satisfied===false&&judgment.action==='ALERT')throw new TypeError('Condition false cannot support ALERT');
+ // This is the complete material expression, not each leaf or optional preference.
+ // An absent check means no separate material gate; a present unknown is not satisfied.
+ if(check?.condition_satisfied===null&&judgment.action==='ALERT')throw new TypeError('Condition unknown cannot support ALERT');
 }
 export async function judgeConditionEvidence(input,{model}={}){
  if(typeof model!=='function')throw new TypeError('Explicit condition judgment model required');
