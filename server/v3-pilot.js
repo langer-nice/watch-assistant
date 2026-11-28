@@ -7,7 +7,7 @@ import {diagnosticInvocationId,withV3ScheduledDiagnostics,markV3Stage,markV3Pers
 import {toBrainInput} from './v3-brain-lab/end-to-end-mini/adapter.mjs';
 import {fetchAndNormalizeFeed} from './check-watch-api.js';
 import {fetchCurrencyRate} from './currency-rate.js';
-import {evaluateCurrencyRate,parseCurrencyRequest,sameCurrencyCriteria} from '../src/js/currency-watch.js';
+import {evaluateCurrencyRate,parseCurrencyRequest,sameCurrencyCriteria,currencySummary} from '../src/js/currency-watch.js';
 import {acquireIntentNews} from './intent-news-acquisition.js';
 import {resolveV3OutputLocale} from './v3-output-locale.js';
 export const PILOT_OWNER='b4757e02-fc75-4984-b50e-8d933ae7ec04';
@@ -59,8 +59,8 @@ export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,cu
   const rate=await currency(connectorCurrencyRequest(row.criteria));
   markV3Stage('EVIDENCE_NORMALIZATION');
   evaluation=evaluateCurrencyRate(rate.criteria,rate.observation);
-  const metric=row.engine==='wa-v3-evidence-refs.v1'?`${row.criteria.base}/${row.criteria.quote}`:'GBP/EUR';
-  const comparison=row.engine==='wa-v3-evidence-refs.v1'?`${metric} ${row.criteria.operator==='gt'?'>':'>='} ${row.criteria.target}`:'GBP/EUR > 1.17';
+  const metric=`${row.criteria.base}/${row.criteria.quote}`;
+  const comparison=`${metric} ${row.criteria.operator==='gt'?'>':'>='} ${row.criteria.target}`;
   const quote=`${metric} ${evaluation.observedRate}`;
   evidence={id:hash(JSON.stringify(rate.observation)),title:`ECB ${metric} reference observation`,content:`${quote} (display truncated at 12 decimal places). Source observation: ${rate.observation.base}/${rate.observation.quote} ${rate.observation.rate}. Exact rational comparison ${comparison}: ${evaluation.met}.`,measurement:{metric,value:String(evaluation.observedRate),quote},source:'ECB',url:source.url,published_at:rate.observation.date+'T00:00:00Z',retrieved_at:rate.checkedAt};
   items=[{id:evidence.id,title:evidence.title,excerpt:quote,url:evidence.url,publishedAt:evidence.published_at,source:'ECB'}];
@@ -73,8 +73,15 @@ export async function evaluateV3Source(row,source,{feed=fetchAndNormalizeFeed,cu
  }
  const prior={entries:[...(row.prior_state?.entries||[]),...(row.baseline_at?[{id:'pilot-baseline:'+row.id,fact:'Monitoring baseline established at '+row.baseline_at,date:row.baseline_at,alerted:false}]:[])]};
  const input=toBrainInput(row.understanding,evidence,prior);
- // Initial evidence is a baseline, never a creation alert and never a model call.
- if(!row.baseline_at)return {evidence,items,evaluation,judgment:null,article:null};
+ // Currency policies permit the first valid match. News still establishes a
+ // silent baseline; no model call or historical state recovery is introduced.
+ if(!row.baseline_at){
+  if(!isCurrency||!evaluation.met)return {evidence,items,evaluation,judgment:null,article:null};
+  const reason=currencySummary(evaluation,outputLocale);
+  return {evidence,items,evaluation,judgment:{action:'ALERT',evidence_status:'CONFIRMED',reason,
+   evidence_basis:[{role:'MEASUREMENT',text:evidence.content}]},
+   article:{title:reason,summary:reason,url:evidence.url,publishedAt:items[0].publishedAt,source:'ECB'}};
+ }
  const judgment=await judgeReferenceEvidence(input,{model,outputLocale});
  markV3Stage('EVIDENCE_NORMALIZATION');
  let article=null;

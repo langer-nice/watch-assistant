@@ -92,7 +92,7 @@ test('typed currency bridge uses the real ECB parser without rewriting Capture',
  assert.equal(parseCurrencyRequest(PILOT_SPECS[1].instruction),null);
  const row=await rowFor(2);row.baseline_at=null;let requests=0;
  const result=await evaluatePilot(row,{currency:request=>fetchCurrencyRate(request,{now:()=>new Date('2026-10-31T18:00:00Z'),fetchImpl:async()=>{requests++;return new Response('<Envelope><Cube><Cube time="2026-10-30"><Cube currency="GBP" rate="0.83380"/></Cube></Cube></Envelope>',{status:200});}}),model:()=>assert.fail('Baseline must not call Brain')});
- assert.equal(requests,1);assert.equal(result.evaluation.operator,'gt');assert.equal(result.evaluation.target,'1.17');assert.equal(result.evaluation.met,true);assert.equal(result.article,null);assert.equal(row.understanding.intent.canonical_text,PILOT_SPECS[1].instruction);
+ assert.equal(requests,1);assert.equal(result.evaluation.operator,'gt');assert.equal(result.evaluation.target,'1.17');assert.equal(result.evaluation.met,true);assert.equal(result.judgment.action,'ALERT');assert.ok(result.article);assert.equal(row.understanding.intent.canonical_text,PILOT_SPECS[1].instruction);
  assert.throws(()=>connectorCurrencyRequest({base:'GBP',quote:'EUR',operator:'lt',target:'1.17'}),/criteria/);
 });
 
